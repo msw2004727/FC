@@ -553,11 +553,10 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('normalizeEduCourseSessionRequestIds(request.data || {})');
     expect(source).not.toContain('if (!request.auth?.uid)');
     expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
-    expect(source).toContain('teamRef.collection("students").get()');
-    expect(source).toContain('db.collection("eduAttendance")');
-    expect(source).toContain('legacyAttendanceByStudentId');
-    expect(source).toContain('sessionAttendanceByStudentId');
-    expect(source).toContain('Object.assign(attendanceByStudentId, legacyAttendanceByStudentId, sessionAttendanceByStudentId)');
+    expect(source).not.toContain('teamRef.collection("students").get()');
+    expect(source).toContain('fetchEduRosterStudentsByIds(teamRef, studentIds)');
+    expect(source).toContain('fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date: baseSession.date })');
+    expect(source).toContain('canManageRoster ? fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) : Promise.resolve(null)');
     expect(source).toContain('canSelfLeave');
     expect(source).toContain('selfUid: canSelfLeave ? selfUid || null : null');
     expect(source).toContain('parentUid: canSelfLeave ? parentUid || null : null');
@@ -566,8 +565,42 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('!canManageRoster && plan.visibleOnTeamPage === false');
     expect(source).toContain('!rosterPublic && !canManageRoster');
     expect(source).toContain('canManageRoster,');
+    expect(source).toContain('staffEnrollmentByStudentId: canManageRoster ? staffEnrollmentByStudentId || {} : null');
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('planRef.collection("enrollments").get()');
+  });
+
+  test('public course roster helpers avoid full scans and keep legacy fallbacks', () => {
+    const studentHelper = readSourceBetween(
+      'async function fetchEduRosterStudentsByIds',
+      'function assignEduRosterAttendanceRecord'
+    );
+    expect(studentHelper).toContain('teamRef.collection("students").doc(studentId).get()');
+    expect(studentHelper).toContain('teamRef.collection("students").where("id", "in", chunk).get()');
+    expect(studentHelper).toContain('student id fallback failed');
+    expect(studentHelper).not.toContain('teamRef.collection("students").get()');
+
+    const attendanceHelper = readSourceBetween(
+      'async function fetchEduRosterAttendanceByStudentId',
+      'async function fetchEduRosterStaffEnrollmentByStudentId'
+    );
+    expect(attendanceHelper).toContain('legacyAttendanceByStudentId');
+    expect(attendanceHelper).toContain('sessionAttendanceByStudentId');
+    expect(attendanceHelper).toContain('.where("date", "==", date)');
+    expect(attendanceHelper).toContain('.where("sessionId", "==", sessionId)');
+    expect(attendanceHelper).toContain('catch (sessionErr)');
+    expect(attendanceHelper).toContain('Object.assign({}, legacyAttendanceByStudentId, sessionAttendanceByStudentId)');
+
+    const enrollmentHelper = readSourceBetween(
+      'async function fetchEduRosterStaffEnrollmentByStudentId',
+      'exports.listEduCoursePublicRoster'
+    );
+    expect(enrollmentHelper).toContain('planRef.collection("enrollments").where("studentId", "in", chunk).get()');
+    expect(enrollmentHelper).toContain('staff enrollment query failed');
+    expect(enrollmentHelper).toContain('coachNotes: sanitizeStr(enrollment.coachNotes, 2000)');
+    expect(enrollmentHelper).toContain('paidAt: sanitizeStr(enrollment.paidAt, 40) || null');
+    expect(enrollmentHelper).not.toContain('serializeCourseEnrollment');
+    expect(enrollmentHelper).not.toContain('planRef.collection("enrollments").get()');
   });
 
   test('course roster agent helper accepts singular and list fields', () => {

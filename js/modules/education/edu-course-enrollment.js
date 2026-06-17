@@ -9,9 +9,31 @@ Object.assign(App, {
 
   _courseEnrollCache: {},  // { 'teamId:planId': [...] }
   _courseEnrollSummaryCache: {},
+  _courseEnrollLoadPromises: {},
+  _courseEnrollCacheVersions: {},
 
   _getCourseEnrollCacheKey(teamId, planId) {
     return teamId + ':' + planId;
+  },
+
+  _getCourseEnrollCacheVersion(key) {
+    this._courseEnrollCacheVersions = this._courseEnrollCacheVersions || {};
+    return Number(this._courseEnrollCacheVersions[key] || 0);
+  },
+
+  _markCourseEnrollCacheMutated(teamId, planId) {
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    this._courseEnrollCacheVersions = this._courseEnrollCacheVersions || {};
+    this._courseEnrollCacheVersions[key] = this._getCourseEnrollCacheVersion(key) + 1;
+    if (this._courseEnrollLoadPromises?.[key]) delete this._courseEnrollLoadPromises[key];
+    return key;
+  },
+
+  _invalidateCourseEnrollCache(teamId, planId) {
+    const key = this._markCourseEnrollCacheMutated(teamId, planId);
+    if (this._courseEnrollCache?.[key]) delete this._courseEnrollCache[key];
+    if (this._courseEnrollSummaryCache?.[key]) delete this._courseEnrollSummaryCache[key];
+    return key;
   },
 
   _formatCourseEnrollmentDateLocal(value) {
@@ -48,15 +70,28 @@ Object.assign(App, {
 
   async _loadCourseEnrollments(teamId, planId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
-    try {
-      const list = await FirebaseService.listCourseEnrollments(teamId, planId);
-      this._courseEnrollCache[key] = list;
-      this._courseEnrollSummaryCache[key] = list?._summary || null;
-      return list;
-    } catch (err) {
-      console.error('[edu-enrollment] load failed:', err);
-      return this._courseEnrollCache[key] || [];
-    }
+    this._courseEnrollLoadPromises = this._courseEnrollLoadPromises || {};
+    if (this._courseEnrollLoadPromises[key]) return this._courseEnrollLoadPromises[key].promise;
+    const versionAtStart = this._getCourseEnrollCacheVersion(key);
+    const loadEntry = {};
+    this._courseEnrollLoadPromises[key] = loadEntry;
+    loadEntry.promise = (async () => {
+      try {
+        const list = await FirebaseService.listCourseEnrollments(teamId, planId);
+        if (versionAtStart !== this._getCourseEnrollCacheVersion(key)) {
+          return this._courseEnrollCache[key] || list || [];
+        }
+        this._courseEnrollCache[key] = list;
+        this._courseEnrollSummaryCache[key] = list?._summary || null;
+        return list;
+      } catch (err) {
+        console.error('[edu-enrollment] load failed:', err);
+        return this._courseEnrollCache[key] || [];
+      } finally {
+        if (this._courseEnrollLoadPromises?.[key] === loadEntry) delete this._courseEnrollLoadPromises[key];
+      }
+    })();
+    return loadEntry.promise;
   },
 
   // ══════════════════════════════════
@@ -95,6 +130,7 @@ Object.assign(App, {
 
   _mergeCourseEnrollmentCacheAfterRegister(teamId, planId, createdEnrollments, selectedStudents = [], curUser = null) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
+    this._markCourseEnrollCacheMutated(teamId, planId);
     this._courseEnrollCache = this._courseEnrollCache || {};
     this._courseEnrollSummaryCache = this._courseEnrollSummaryCache || {};
     const current = Array.isArray(this._courseEnrollCache[key]) ? [...this._courseEnrollCache[key]] : [];
@@ -171,6 +207,7 @@ Object.assign(App, {
       .filter(Boolean));
     if (!ids.size) return [];
     const key = this._getCourseEnrollCacheKey(teamId, planId);
+    this._markCourseEnrollCacheMutated(teamId, planId);
     this._courseEnrollCache = this._courseEnrollCache || {};
     this._courseEnrollSummaryCache = this._courseEnrollSummaryCache || {};
     const current = Array.isArray(this._courseEnrollCache[key]) ? this._courseEnrollCache[key] : [];
@@ -536,10 +573,8 @@ Object.assign(App, {
   async _approveCourseEnrollment(teamId, planId, enrollId, btnEl) {
     const _b = this._setEduBtnLoading(btnEl);
     try {
-      const key = this._getCourseEnrollCacheKey(teamId, planId);
       await FirebaseService.approveCourseEnrollment(teamId, planId, enrollId);
-      delete this._courseEnrollCache[key];
-      delete this._courseEnrollSummaryCache[key];
+      this._invalidateCourseEnrollCache(teamId, planId);
       // 更新方案 currentCount
       // 學員狀態也更新為 active
       this.showToast('已通過');
@@ -562,9 +597,7 @@ Object.assign(App, {
         reviewerName: curUser?.displayName || curUser?.name || '',
         reviewedAt: new Date().toISOString(),
       });
-      const key = this._getCourseEnrollCacheKey(teamId, planId);
-      delete this._courseEnrollCache[key];
-      delete this._courseEnrollSummaryCache[key];
+      this._invalidateCourseEnrollCache(teamId, planId);
       this.showToast('已拒絕');
       await this._renderCourseEnrollmentList(teamId, planId);
     } finally { _b.restore(); }
@@ -591,8 +624,7 @@ Object.assign(App, {
         removedByName: curUser?.displayName || curUser?.name || '',
         previousStatus: enr?.status || 'approved',
       });
-      delete this._courseEnrollCache[key];
-      delete this._courseEnrollSummaryCache[key];
+      this._invalidateCourseEnrollCache(teamId, planId);
       this.showToast?.('已刪除學員，若要加入需重新申請');
       await this._renderCourseEnrollmentList(teamId, planId);
       await this._refreshCourseViewsAfterEnrollmentChange?.(teamId, planId, { force: true });

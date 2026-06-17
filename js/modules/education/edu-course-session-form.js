@@ -352,6 +352,7 @@ Object.assign(App, {
       let savedSessionId = ctx.sessionId || '';
       if (ctx.sessionId) {
         const updated = await FirebaseService.updateCourseSession(ctx.teamId, ctx.planId, ctx.sessionId, payload);
+        this._markCourseSessionCacheMutated?.(ctx.teamId, ctx.planId);
         const cached = this._courseSessionCache[key] || [];
         const existing = cached.find(s => String(s.id || s._docId || '') === String(ctx.sessionId));
         const returnedSession = updated && typeof updated === 'object' && (updated.id || updated._docId) ? updated : null;
@@ -364,6 +365,7 @@ Object.assign(App, {
       } else {
         payload.id = this._generateEduId('cls');
         const created = await FirebaseService.createCourseSession(ctx.teamId, ctx.planId, payload);
+        this._markCourseSessionCacheMutated?.(ctx.teamId, ctx.planId);
         savedSessionId = created?.id || created?._docId || payload.id;
         if (!this._courseSessionCache[key]) this._courseSessionCache[key] = [];
         this._courseSessionCache[key].push(created);
@@ -395,6 +397,7 @@ Object.assign(App, {
     try {
       await FirebaseService.deleteCourseSession(teamId, planId, sessionId);
       const key = this._getCourseSessionCacheKey(teamId, planId);
+      this._markCourseSessionCacheMutated?.(teamId, planId);
       this._courseSessionCache[key] = (this._courseSessionCache[key] || []).filter(s => s.id !== sessionId);
       this.showToast('課堂已刪除');
       await this._renderCourseSessionBoard(teamId, planId);

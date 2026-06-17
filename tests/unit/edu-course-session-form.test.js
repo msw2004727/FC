@@ -40,6 +40,7 @@ function loadCourseSessionFormContext(overrides = {}) {
     },
     _getCourseSessionCacheKey: jest.fn(() => cacheKey),
     _getCourseSessionSortValue: jest.fn((session) => new Date(`${session.date || ''}T${session.startTime || '00:00'}`).getTime()),
+    _markCourseSessionCacheMutated: jest.fn(() => cacheKey),
     _getCourseSessionAssistantCoachPayload: jest.fn(() => []),
     _setEduBtnLoading: jest.fn(() => buttonState),
     _renderCourseSessionBoard: jest.fn(async () => {}),
@@ -103,6 +104,7 @@ describe('edu course session form', () => {
       endTime: '13:00',
     });
     expect(overlay.remove).toHaveBeenCalled();
+    expect(app._markCourseSessionCacheMutated).toHaveBeenCalledWith('teamA', 'planA');
     expect(app._renderCourseSessionBoard).toHaveBeenCalledWith('teamA', 'planA');
     expect(app._refreshCourseLessonsAfterSessionSave).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
     expect(app.showToast).toHaveBeenCalledWith('課堂已更新');

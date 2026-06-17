@@ -252,6 +252,84 @@ describe('Course enrollment', () => {
     expect(enrollmentSource).toContain('_mergeCourseEnrollmentCacheAfterCancel(teamId, planId, cancelledIds)');
   });
 
+  test('course enrollment loader reuses the same pending request for a plan', async () => {
+    let resolveLoad;
+    const pending = new Promise(resolve => { resolveLoad = resolve; });
+    const listCourseEnrollments = jest.fn(() => pending);
+    const loaded = loadCourseEnrollmentModule({}, {
+      FirebaseService: { listCourseEnrollments },
+    });
+
+    const first = loaded._loadCourseEnrollments('teamA', 'planA');
+    const second = loaded._loadCourseEnrollments('teamA', 'planA');
+
+    expect(listCourseEnrollments).toHaveBeenCalledTimes(1);
+    resolveLoad([{ id: 'enrA', studentId: 'stuA', status: 'approved' }]);
+    await expect(first).resolves.toEqual([{ id: 'enrA', studentId: 'stuA', status: 'approved' }]);
+    await expect(second).resolves.toEqual([{ id: 'enrA', studentId: 'stuA', status: 'approved' }]);
+    expect(loaded._courseEnrollCache['teamA:planA'][0].studentId).toBe('stuA');
+    expect(loaded._courseEnrollLoadPromises['teamA:planA']).toBeUndefined();
+  });
+
+  test('local enrollment cache update is not overwritten by an older pending load', async () => {
+    let resolveLoad;
+    const pending = new Promise(resolve => { resolveLoad = resolve; });
+    const loaded = loadCourseEnrollmentModule({
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA' }]),
+    }, {
+      FirebaseService: { listCourseEnrollments: jest.fn(() => pending) },
+    });
+    loaded._courseEnrollCache = {};
+    loaded._courseEnrollSummaryCache = {};
+
+    const loadPromise = loaded._loadCourseEnrollments('teamA', 'planA');
+    loaded._mergeCourseEnrollmentCacheAfterRegister(
+      'teamA',
+      'planA',
+      [{ id: 'freshEnr', studentId: 'freshStudent', status: 'pending' }],
+      [{ id: 'freshStudent', name: 'Fresh Student' }],
+      { uid: 'viewer' }
+    );
+    resolveLoad([{ id: 'oldEnr', studentId: 'oldStudent', status: 'approved' }]);
+
+    await loadPromise;
+
+    expect(loaded._courseEnrollCache['teamA:planA']).toEqual([
+      expect.objectContaining({ id: 'freshEnr', studentId: 'freshStudent' }),
+    ]);
+  });
+
+  test('older enrollment load does not clear a newer pending load after mutation', async () => {
+    const resolvers = [];
+    const listCourseEnrollments = jest.fn(() => new Promise(resolve => { resolvers.push(resolve); }));
+    const loaded = loadCourseEnrollmentModule({
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA' }]),
+    }, {
+      FirebaseService: { listCourseEnrollments },
+    });
+
+    const first = loaded._loadCourseEnrollments('teamA', 'planA');
+    loaded._mergeCourseEnrollmentCacheAfterRegister(
+      'teamA',
+      'planA',
+      [{ id: 'freshEnr', studentId: 'freshStudent', status: 'pending' }],
+      [{ id: 'freshStudent', name: 'Fresh Student' }],
+      { uid: 'viewer' }
+    );
+    const second = loaded._loadCourseEnrollments('teamA', 'planA');
+
+    expect(listCourseEnrollments).toHaveBeenCalledTimes(2);
+    resolvers[0]([{ id: 'oldEnr', studentId: 'oldStudent', status: 'approved' }]);
+    await first;
+
+    const third = loaded._loadCourseEnrollments('teamA', 'planA');
+    expect(listCourseEnrollments).toHaveBeenCalledTimes(2);
+
+    resolvers[1]([{ id: 'newEnr', studentId: 'newStudent', status: 'approved' }]);
+    await expect(second).resolves.toEqual([{ id: 'newEnr', studentId: 'newStudent', status: 'approved' }]);
+    await expect(third).resolves.toEqual([{ id: 'newEnr', studentId: 'newStudent', status: 'approved' }]);
+  });
+
   test('coach notes save is capped to 30 characters and refreshes roster', async () => {
     const input = { value: 'abcdefghijklmnopqrstuvwxyzABCDE' };
     const updateCourseEnrollment = jest.fn(async () => {});

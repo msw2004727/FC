@@ -4500,6 +4500,168 @@ exports.getEduStudentAttendanceOverview = onCall(
   }
 );
 
+function mapEduRosterStudentDoc(doc) {
+  const data = doc.data() || {};
+  return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+}
+
+function addEduRosterStudentToMap(studentsById, student) {
+  [student.id, student._docId].forEach((value) => {
+    const key = sanitizeStr(value, 100);
+    if (key) studentsById.set(key, student);
+  });
+}
+
+async function fetchEduRosterStudentsByIds(teamRef, studentIds) {
+  const uniqueIds = Array.from(new Set(
+    (Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean)
+  ));
+  const studentsById = new Map();
+  if (!uniqueIds.length) return studentsById;
+
+  const directLookupIds = uniqueIds.filter((studentId) => !studentId.includes("/"));
+  const missingIds = new Set(uniqueIds);
+  const directSnaps = await Promise.all(
+    directLookupIds.map((studentId) => teamRef.collection("students").doc(studentId).get()
+      .then((snap) => ({ studentId, snap }))
+      .catch((err) => {
+        console.warn("[listEduCoursePublicRoster] student doc lookup failed", {
+          studentId,
+          code: err?.code || "",
+          message: err?.message || "",
+        });
+        return { studentId, snap: null };
+      }))
+  );
+  directSnaps.forEach(({ studentId, snap }) => {
+    if (!snap?.exists) return;
+    const student = mapEduRosterStudentDoc(snap);
+    addEduRosterStudentToMap(studentsById, student);
+    missingIds.delete(studentId);
+  });
+
+  const fallbackIds = uniqueIds.filter((studentId) => missingIds.has(studentId));
+  for (let i = 0; i < fallbackIds.length; i += 10) {
+    const chunk = fallbackIds.slice(i, i + 10);
+    if (!chunk.length) continue;
+    try {
+      const snap = await teamRef.collection("students").where("id", "in", chunk).get();
+      snap.docs.forEach((doc) => {
+        const student = mapEduRosterStudentDoc(doc);
+        addEduRosterStudentToMap(studentsById, student);
+      });
+    } catch (err) {
+      console.warn("[listEduCoursePublicRoster] student id fallback failed", {
+        code: err?.code || "",
+        message: err?.message || "",
+      });
+    }
+  }
+  return studentsById;
+}
+
+function assignEduRosterAttendanceRecord(target, record, sessionId) {
+  const recordSessionId = sanitizeStr(record.sessionId, 100);
+  if (recordSessionId && recordSessionId !== sessionId) return;
+  const status = sanitizeStr(record.status, 32).toLowerCase();
+  if (status === "removed" || status === "cancelled" || status === "canceled") return;
+  const studentId = sanitizeStr(record.studentId, 100);
+  if (!studentId) return;
+  const kind = sanitizeStr(record.kind, 20) === "leave" ? "leave" : "signin";
+  if (kind === "leave" || !target[studentId]) {
+    target[studentId] = kind;
+  }
+}
+
+async function fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date }) {
+  const legacyAttendanceByStudentId = {};
+  const sessionAttendanceByStudentId = {};
+  if (date) {
+    try {
+      const dateAttendanceSnap = await db.collection("eduAttendance")
+        .where("teamId", "==", teamId)
+        .where("coursePlanId", "==", planId)
+        .where("date", "==", date)
+        .get();
+      dateAttendanceSnap.docs.forEach((doc) => {
+        const record = { id: doc.id, ...(doc.data() || {}) };
+        const recordSessionId = sanitizeStr(record.sessionId, 100);
+        assignEduRosterAttendanceRecord(
+          recordSessionId ? sessionAttendanceByStudentId : legacyAttendanceByStudentId,
+          record,
+          sessionId
+        );
+      });
+    } catch (err) {
+      console.warn("[listEduCoursePublicRoster] attendance date query failed", {
+        teamId,
+        planId,
+        sessionId,
+        code: err?.code || "",
+        message: err?.message || "",
+      });
+    }
+  }
+
+  try {
+    const sessionAttendanceSnap = await db.collection("eduAttendance")
+      .where("teamId", "==", teamId)
+      .where("coursePlanId", "==", planId)
+      .where("sessionId", "==", sessionId)
+      .get();
+    sessionAttendanceSnap.docs.forEach((doc) => {
+      assignEduRosterAttendanceRecord(
+        sessionAttendanceByStudentId,
+        { id: doc.id, ...(doc.data() || {}) },
+        sessionId
+      );
+    });
+  } catch (sessionErr) {
+    console.warn("[listEduCoursePublicRoster] attendance session query failed", {
+      teamId,
+      planId,
+      sessionId,
+      code: sessionErr?.code || "",
+      message: sessionErr?.message || "",
+    });
+  }
+
+  return Object.assign({}, legacyAttendanceByStudentId, sessionAttendanceByStudentId);
+}
+
+async function fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) {
+  const uniqueIds = Array.from(new Set(
+    (Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean)
+  ));
+  const staffEnrollmentByStudentId = {};
+  for (let i = 0; i < uniqueIds.length; i += 10) {
+    const chunk = uniqueIds.slice(i, i + 10);
+    if (!chunk.length) continue;
+    try {
+      const snap = await planRef.collection("enrollments").where("studentId", "in", chunk).get();
+      snap.docs.forEach((doc) => {
+        const enrollment = { id: doc.id, _docId: doc.id, ...(doc.data() || {}) };
+        const studentId = sanitizeStr(enrollment.studentId, 100);
+        if (!studentId) return;
+        const status = sanitizeStr(enrollment.status || "approved", 32).toLowerCase();
+        if (status === "rejected" || status === "cancelled" || status === "canceled" || status === "removed") return;
+        staffEnrollmentByStudentId[studentId] = {
+          enrollmentId: sanitizeStr(enrollment._docId || enrollment.id, 100),
+          paidAt: sanitizeStr(enrollment.paidAt, 40) || null,
+          paymentStatus: sanitizeStr(enrollment.paidAt, 40) ? "paid" : "unpaid",
+          coachNotes: sanitizeStr(enrollment.coachNotes, 2000),
+        };
+      });
+    } catch (err) {
+      console.warn("[listEduCoursePublicRoster] staff enrollment query failed", {
+        code: err?.code || "",
+        message: err?.message || "",
+      });
+    }
+  }
+  return staffEnrollmentByStudentId;
+}
+
 exports.listEduCoursePublicRoster = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
   async (request) => {
@@ -4518,10 +4680,9 @@ exports.listEduCoursePublicRoster = onCall(
 
     const planRef = teamRef.collection("coursePlans").doc(planId);
     const sessionRef = planRef.collection("sessions").doc(sessionId);
-    const [planSnap, sessionSnap, studentsSnap] = await Promise.all([
+    const [planSnap, sessionSnap] = await Promise.all([
       planRef.get(),
       sessionRef.get(),
-      teamRef.collection("students").get(),
     ]);
     if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
@@ -4558,50 +4719,14 @@ exports.listEduCoursePublicRoster = onCall(
       };
     }
 
-    const students = studentsSnap.docs.map((doc) => {
-      const data = doc.data() || {};
-      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
-    });
-    const studentsById = new Map(students.map((student) => [String(student.id || student._docId || ""), student]));
-    const attendanceByStudentId = {};
-    if (baseSession.date) {
-      try {
-        const attendanceSnap = await db.collection("eduAttendance")
-          .where("teamId", "==", teamId)
-          .where("coursePlanId", "==", planId)
-          .where("date", "==", baseSession.date)
-          .get();
-        const attendanceDocs = attendanceSnap.docs
-          .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
-          .filter((record) => sanitizeStr(record.status, 32) !== "removed");
-        const legacyAttendanceByStudentId = {};
-        const sessionAttendanceByStudentId = {};
-        attendanceDocs.forEach((record) => {
-          const recordSessionId = sanitizeStr(record.sessionId, 100);
-          if (recordSessionId && recordSessionId !== sessionId) return;
-          const studentId = sanitizeStr(record.studentId, 100);
-          if (!studentId) return;
-          const kind = sanitizeStr(record.kind, 20) === "leave" ? "leave" : "signin";
-          const target = recordSessionId ? sessionAttendanceByStudentId : legacyAttendanceByStudentId;
-          if (kind === "leave" || !target[studentId]) {
-            target[studentId] = kind;
-          }
-        });
-        Object.assign(attendanceByStudentId, legacyAttendanceByStudentId, sessionAttendanceByStudentId);
-      } catch (err) {
-        console.warn("[listEduCoursePublicRoster] attendance query failed", {
-          teamId,
-          planId,
-          sessionId,
-          code: err?.code || "",
-          message: err?.message || "",
-        });
-      }
-    }
-
     const studentIds = Array.isArray(session.studentIds)
       ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
       : [];
+    const [studentsById, attendanceByStudentId, staffEnrollmentByStudentId] = await Promise.all([
+      fetchEduRosterStudentsByIds(teamRef, studentIds),
+      fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date: baseSession.date }),
+      canManageRoster ? fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) : Promise.resolve(null),
+    ]);
     const roster = studentIds.map((studentId) => {
       const student = studentsById.get(studentId) || {};
       const displayName = sanitizeStr(
@@ -4646,6 +4771,7 @@ exports.listEduCoursePublicRoster = onCall(
       isStaff,
       canManageRoster,
       session: baseSession,
+      staffEnrollmentByStudentId: canManageRoster ? staffEnrollmentByStudentId || {} : null,
       students: roster,
     };
   }

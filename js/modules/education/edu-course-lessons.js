@@ -7,6 +7,7 @@ Object.assign(App, {
   _eduCourseLessonsContext: null,
   _eduCourseLessonAdjustContext: null,
   _eduCourseLessonsPreloadPromises: {},
+  _eduCourseLessonsPreloadLimit: 3,
 
   _getEduCourseLessonsContainer() {
     return document.getElementById('edu-course-lessons-page');
@@ -40,11 +41,19 @@ Object.assign(App, {
 
   _preloadCourseLessonsForPlans(teamId, plans) {
     if (!teamId || typeof this._loadCourseSessions !== 'function') return false;
-    (Array.isArray(plans) ? plans : []).forEach((plan) => {
-      const planId = String(plan?.id || plan?._docId || '').trim();
-      if (!planId) return;
+    const limit = Math.max(1, Number(this._eduCourseLessonsPreloadLimit || 3));
+    const candidates = (Array.isArray(plans) ? plans : [])
+      .map((plan) => String(plan?.id || plan?._docId || '').trim())
+      .filter(Boolean)
+      .filter((planId, index, ids) => ids.indexOf(planId) === index)
+      .filter((planId) => {
+        const key = this._getCourseLessonsPreloadKey(teamId, planId);
+        if (this._eduCourseLessonsPreloadPromises?.[key]) return false;
+        return !this._getCourseLessonsCachedSessions(teamId, planId);
+      })
+      .slice(0, limit);
+    candidates.forEach((planId) => {
       const key = this._getCourseLessonsPreloadKey(teamId, planId);
-      if (this._eduCourseLessonsPreloadPromises?.[key]) return;
       this._eduCourseLessonsPreloadPromises[key] = this._loadCourseSessions(teamId, planId)
         .catch((err) => {
           console.warn('[edu-course-lessons] preload failed:', err);
@@ -764,6 +773,7 @@ Object.assign(App, {
     this._setEduCourseLessonsTitle('課堂名單');
     container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
 
+    const localStaff = this.isEduClubStaff?.(teamId) === true;
     const [state, rosterPayload] = await Promise.all([
       this._loadEduCourseLessonsState(teamId, planId),
       FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId),
@@ -775,35 +785,50 @@ Object.assign(App, {
       return { ok: false, reason: 'plan_not_found' };
     }
 
-    const isStaff = this.isEduClubStaff?.(teamId) === true;
+    const canManageRoster = rosterPayload?.canManageRoster === true || localStaff;
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
       : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
-    let enrollments = [];
     let paidByStudentId = null;
-    if (isStaff) {
+    if (canManageRoster) {
       try {
-        enrollments = await this._loadCourseEnrollments(teamId, planId);
-        if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
         const paidMap = {};
-        (enrollments || []).forEach((enrollment) => {
-          const studentId = String(enrollment.studentId || '').trim();
-          if (!studentId || enrollment.status === 'rejected') return;
-          if (String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
-            paidMap[studentId] = true;
-          }
-          if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
-          enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
-        });
+        const staffEnrollmentMap = rosterPayload?.staffEnrollmentByStudentId
+          && typeof rosterPayload.staffEnrollmentByStudentId === 'object'
+          ? rosterPayload.staffEnrollmentByStudentId
+          : null;
+        if (staffEnrollmentMap) {
+          Object.entries(staffEnrollmentMap).forEach(([studentIdRaw, enrollment]) => {
+            const studentId = String(studentIdRaw || '').trim();
+            if (!studentId || !enrollment) return;
+            if (enrollment.paidAt || String(enrollment.paymentStatus || '').toLowerCase() === 'paid') {
+              paidMap[studentId] = true;
+            }
+            if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
+            enrollIdsByStudentId[studentId] = enrollment.enrollmentId || enrollment.id || enrollment._docId || '';
+          });
+        } else if (localStaff && typeof this._loadCourseEnrollments === 'function') {
+          const enrollments = await this._loadCourseEnrollments(teamId, planId);
+          if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+          (enrollments || []).forEach((enrollment) => {
+            const studentId = String(enrollment.studentId || '').trim();
+            if (!studentId || enrollment.status === 'rejected') return;
+            if (String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
+              paidMap[studentId] = true;
+            }
+            if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
+            enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
+          });
+        }
         paidByStudentId = tracksPayment ? paidMap : null;
       } catch (err) {
         console.warn('[edu-course-lessons] staff notes load failed:', err);
       }
     }
 
-    if (rosterPayload && rosterPayload.rosterPublic === false && !isStaff) {
+    if (rosterPayload && rosterPayload.rosterPublic === false && !canManageRoster) {
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
       return { ok: true, closed: true };
     }
@@ -813,7 +838,8 @@ Object.assign(App, {
       planId,
       sessionId,
       mode: 'roster',
-      isStaff,
+      isStaff: canManageRoster,
+      canManageRoster,
       rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,

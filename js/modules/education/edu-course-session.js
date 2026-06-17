@@ -6,23 +6,51 @@
 
 Object.assign(App, {
   _courseSessionCache: {},
+  _courseSessionLoadPromises: {},
+  _courseSessionCacheVersions: {},
   _eduCourseSessionEditContext: null,
 
   _getCourseSessionCacheKey(teamId, planId) {
     return teamId + ':' + planId;
   },
 
+  _getCourseSessionCacheVersion(key) {
+    this._courseSessionCacheVersions = this._courseSessionCacheVersions || {};
+    return Number(this._courseSessionCacheVersions[key] || 0);
+  },
+
+  _markCourseSessionCacheMutated(teamId, planId) {
+    const key = this._getCourseSessionCacheKey(teamId, planId);
+    this._courseSessionCacheVersions = this._courseSessionCacheVersions || {};
+    this._courseSessionCacheVersions[key] = this._getCourseSessionCacheVersion(key) + 1;
+    if (this._courseSessionLoadPromises?.[key]) delete this._courseSessionLoadPromises[key];
+    return key;
+  },
+
   async _loadCourseSessions(teamId, planId) {
     const key = this._getCourseSessionCacheKey(teamId, planId);
-    try {
-      const list = await FirebaseService.listCourseSessions(teamId, planId);
-      list.sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
-      this._courseSessionCache[key] = list;
-      return list;
-    } catch (err) {
-      console.error('[edu-course-session] load failed:', err);
-      return this._courseSessionCache[key] || [];
-    }
+    this._courseSessionLoadPromises = this._courseSessionLoadPromises || {};
+    if (this._courseSessionLoadPromises[key]) return this._courseSessionLoadPromises[key].promise;
+    const versionAtStart = this._getCourseSessionCacheVersion(key);
+    const loadEntry = {};
+    this._courseSessionLoadPromises[key] = loadEntry;
+    loadEntry.promise = (async () => {
+      try {
+        const list = await FirebaseService.listCourseSessions(teamId, planId);
+        list.sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+        if (versionAtStart !== this._getCourseSessionCacheVersion(key)) {
+          return this._courseSessionCache[key] || list || [];
+        }
+        this._courseSessionCache[key] = list;
+        return list;
+      } catch (err) {
+        console.error('[edu-course-session] load failed:', err);
+        return this._courseSessionCache[key] || [];
+      } finally {
+        if (this._courseSessionLoadPromises?.[key] === loadEntry) delete this._courseSessionLoadPromises[key];
+      }
+    })();
+    return loadEntry.promise;
   },
 
   _parseCoursePlanTimeSlot(timeSlot) {
@@ -303,6 +331,7 @@ Object.assign(App, {
     const missing = this._buildMissingAutoCourseSessions(teamId, normalizedPlan, existing, studentIds);
     if (!missing.length) {
       const sessions = [...existing].sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+      this._markCourseSessionCacheMutated(teamId, planId);
       this._courseSessionCache[this._getCourseSessionCacheKey(teamId, planId)] = sessions;
       return { created: 0, updated, sessions };
     }
@@ -311,6 +340,7 @@ Object.assign(App, {
       created.push(await FirebaseService.createCourseSession(teamId, planId, payload));
     }
     const sessions = [...existing, ...created].sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+    this._markCourseSessionCacheMutated(teamId, planId);
     this._courseSessionCache[this._getCourseSessionCacheKey(teamId, planId)] = sessions;
     return { created: created.length, updated, sessions };
   },
@@ -1068,21 +1098,20 @@ Object.assign(App, {
     if (!container) return;
 
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
-    const enrollments = await this._loadCourseEnrollments(teamId, planId);
-    if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
-    const sessions = await this._loadCourseSessions(teamId, planId);
+    const attendancePromise = FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId })
+      .catch(() => []);
+    const [enrollments, sessions, attendRecordsRaw] = await Promise.all([
+      this._loadCourseEnrollments(teamId, planId),
+      this._loadCourseSessions(teamId, planId),
+      attendancePromise,
+    ]);
     if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
 
     this._courseAttendanceCount = {};
-    let attendRecords = [];
-    try {
-      attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
-      if (!Array.isArray(attendRecords)) attendRecords = [];
-      if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
-      attendRecords.filter(r => (r.kind || 'signin') === 'signin').forEach(r => {
-        this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
-      });
-    } catch (_) {}
+    const attendRecords = Array.isArray(attendRecordsRaw) ? attendRecordsRaw : [];
+    attendRecords.filter(r => (r.kind || 'signin') === 'signin').forEach(r => {
+      this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
+    });
 
     const isStaff = this.isEduClubStaff(teamId);
     const roster = this._getCourseApprovedRoster(teamId, plan, enrollments);

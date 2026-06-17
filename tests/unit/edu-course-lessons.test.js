@@ -92,6 +92,7 @@ function loadCourseLessonsContext(overrides = {}) {
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
       queryEduAttendance: jest.fn(async () => overrides.attendanceRecords || []),
+      ...(overrides.FirebaseService || {}),
     },
     document: {
       getElementById: jest.fn((id) => {
@@ -269,6 +270,29 @@ describe('edu course lessons', () => {
     expect(loadCourseSessions).toHaveBeenCalledWith('teamA', 'planB');
     resolveLoad([]);
     await pending;
+  });
+
+  test('preloads only a small uncached course lesson batch', async () => {
+    const loadCourseSessions = jest.fn(async () => []);
+    const { app } = loadCourseLessonsContext({
+      loadCourseSessions,
+      courseSessionCache: {
+        'teamA:planCached': [{ id: 'cachedSession' }],
+      },
+    });
+
+    app._preloadCourseLessonsForPlans('teamA', [
+      { id: 'planCached' },
+      { id: 'planA' },
+      { id: 'planB' },
+      { id: 'planC' },
+      { id: 'planD' },
+    ]);
+
+    expect(loadCourseSessions).toHaveBeenCalledTimes(3);
+    expect(loadCourseSessions).toHaveBeenNthCalledWith(1, 'teamA', 'planA');
+    expect(loadCourseSessions).toHaveBeenNthCalledWith(2, 'teamA', 'planB');
+    expect(loadCourseSessions).toHaveBeenNthCalledWith(3, 'teamA', 'planC');
   });
 
   test('showCourseLessons paints cached sessions before slow refresh completes', async () => {
@@ -480,6 +504,40 @@ describe('edu course lessons', () => {
     expect(html.indexOf('小華')).toBeGreaterThan(html.indexOf('未繳費區'));
   });
 
+  test('staff roster uses callable enrollment projection without fallback enrollment load', async () => {
+    const loadCourseEnrollments = jest.fn(async () => []);
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      loadCourseEnrollments,
+      rosterPayload: {
+        rosterPublic: true,
+        canManageRoster: true,
+        session: {
+          id: 'sessionA',
+          title: 'Session A',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        staffEnrollmentByStudentId: {
+          stu2: { enrollmentId: 'enr2', paidAt: null, paymentStatus: 'unpaid', coachNotes: 'projected note' },
+        },
+        students: [
+          { studentId: 'stu1', displayName: 'Projected Paid', attendanceKind: 'signin' },
+          { studentId: 'stu2', displayName: 'Projected Unpaid', attendanceKind: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
+    expect(loadCourseEnrollments).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('Projected Unpaid');
+    expect(container.innerHTML).toContain('edu-course-roster-section-unpaid');
+    expect(container.innerHTML).toContain("App.editCourseSessionRosterNote('teamA','planA','stu2','enr2')");
+  });
+
   test('staff roster matches payment data when roster students use id fields', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
       isStaff: true,
@@ -661,6 +719,34 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('名單未公開');
+  });
+
+  test('roster manager can open closed roster using callable permission', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: false,
+      rosterPayload: {
+        rosterPublic: false,
+        canManageRoster: true,
+        session: {
+          id: 'sessionA',
+          title: 'Private Session',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        staffEnrollmentByStudentId: {},
+        students: [
+          { studentId: 'stu1', displayName: 'Roster Agent Visible', attendanceKind: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(container.innerHTML).toContain('Roster Agent Visible');
+    expect(app._eduCourseLessonsContext.isStaff).toBe(true);
+    expect(app._eduCourseLessonsContext.canManageRoster).toBe(true);
   });
 
   test('staff can draft and save lesson attendance changes', async () => {
