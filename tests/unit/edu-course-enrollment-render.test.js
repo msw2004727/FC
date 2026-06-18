@@ -69,10 +69,46 @@ describe('edu course enrollment render', () => {
 
     await loaded.showCourseEnrollmentList('teamA', 'sessionA');
 
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-course-enrollment-loading');
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-loading-bar');
+    expect(elements['edu-ce-list'].innerHTML).toContain('role="status"');
     expect(elements['edu-ce-title'].textContent).toBe('Session Course');
     expect(elements['edu-ce-staff-actions'].style.display).toBe('');
     expect(loaded._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'sessionA', expect.any(Number));
     expect(loaded._renderCourseSessionBoard).not.toHaveBeenCalled();
+  });
+
+  test('render list shows the shared meter while enrollments are loading', async () => {
+    const elements = {
+      'edu-ce-list': { innerHTML: '' },
+      'edu-ce-subtitle': { textContent: '' },
+    };
+    let resolveEnrollments;
+    const enrollmentsPromise = new Promise(resolve => {
+      resolveEnrollments = resolve;
+    });
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(() => enrollmentsPromise),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 1200 }]),
+      getEduStudents: jest.fn(() => []),
+      isEduClubStaff: jest.fn(() => true),
+      _updateEnrollSubtitle: jest.fn(),
+    };
+    const loaded = loadModule(app, elements);
+
+    const renderPromise = loaded._renderCourseEnrollmentList('teamA', 'planA');
+
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-course-enrollment-loading');
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-loading-fill');
+    expect(elements['edu-ce-list'].innerHTML).not.toContain('style="text-align:center');
+
+    resolveEnrollments([]);
+    await renderPromise;
+
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-empty-state');
   });
 
   test('course roster page does not expose check-in action buttons', () => {

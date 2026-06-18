@@ -8,6 +8,19 @@ Object.assign(App, {
 
   _eduCourseEnrollmentRequestSeq: 0,
 
+  _renderCourseEnrollmentLoading(text) {
+    const label = escapeHTML(text || '\u65b9\u6848\u540d\u55ae\u8f09\u5165\u4e2d');
+    return '<div class="edu-loading edu-course-enrollment-loading" role="status" aria-live="polite" aria-busy="true">'
+      + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+      + '<div class="edu-loading-text">' + label + '</div>'
+      + '<div class="edu-loading-skeleton" aria-hidden="true">'
+      + '<div class="edu-loading-skeleton-row"></div>'
+      + '<div class="edu-loading-skeleton-row"></div>'
+      + '<div class="edu-loading-skeleton-row"></div>'
+      + '</div>'
+      + '</div>';
+  },
+
   // ══════════════════════════════════
   //  名單頁
   // ══════════════════════════════════
@@ -18,7 +31,7 @@ Object.assign(App, {
     this._cePlanId = planId;
     // Fix 3: 立即清空舊名單，避免一瞬間看到其他課程的學員
     const listEl = document.getElementById('edu-ce-list');
-    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">載入中...</div>';
+    if (listEl) listEl.innerHTML = this._renderCourseEnrollmentLoading('\u65b9\u6848\u540d\u55ae\u8f09\u5165\u4e2d');
     await this.showPage('page-edu-course-enrollment');
     if (requestSeq !== this._eduCourseEnrollmentRequestSeq || this.currentPage !== 'page-edu-course-enrollment') {
       // v4: 不清空 DOM、保留「載入中」避免空白永停
@@ -53,7 +66,11 @@ Object.assign(App, {
     const seq = typeof requestSeq === 'number' ? requestSeq : options.requestSeq;
     const cacheKey = this._getCourseEnrollCacheKey?.(teamId, planId);
     const cachedEnrollments = cacheKey ? this._courseEnrollCache?.[cacheKey] : null;
-    const enrollments = options.useCache && Array.isArray(cachedEnrollments)
+    const useCachedEnrollments = options.useCache && Array.isArray(cachedEnrollments);
+    if (!useCachedEnrollments) {
+      container.innerHTML = this._renderCourseEnrollmentLoading('\u540d\u55ae\u8cc7\u6599\u6574\u7406\u4e2d');
+    }
+    const enrollments = useCachedEnrollments
       ? cachedEnrollments
       : await this._loadCourseEnrollments(teamId, planId);
     if (seq != null && seq !== this._eduCourseEnrollmentRequestSeq) return;
