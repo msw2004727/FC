@@ -117,6 +117,36 @@ Object.assign(App, {
     return entry.payload;
   },
 
+  _buildCourseLessonRosterPublicPreviewPayload(payload) {
+    if (!payload || typeof payload !== 'object' || payload.rosterPublic === false) return null;
+    const students = Array.isArray(payload.students)
+      ? payload.students.map((student) => {
+        const clean = { ...student };
+        delete clean.selfUid;
+        delete clean.parentUid;
+        delete clean.uid;
+        delete clean.lineUserId;
+        return clean;
+      })
+      : [];
+    return {
+      ...payload,
+      canManageRoster: false,
+      isStaff: false,
+      staffEnrollmentByStudentId: null,
+      students,
+      cacheMeta: payload.cacheMeta ? { ...payload.cacheMeta, preview: true } : { preview: true },
+    };
+  },
+
+  _getCourseLessonRosterCachedRenderPayload(cachedPayload) {
+    if (!cachedPayload || typeof cachedPayload !== 'object') return null;
+    if (cachedPayload.canManageRoster === true) {
+      return this._buildCourseLessonRosterPublicPreviewPayload(cachedPayload);
+    }
+    return cachedPayload;
+  },
+
   _rememberCourseLessonRosterPayload(teamId, planId, sessionId, payload, viewerUid = this._getCourseLessonRosterViewerUid()) {
     if (!payload || typeof payload !== 'object') return false;
     const scope = this._getCourseLessonRosterCacheScope(teamId, payload);
@@ -962,18 +992,30 @@ Object.assign(App, {
     teamId,
     planId,
     sessionId,
-    plan,
+    planOrState,
     localStaff,
     previousVersion,
     viewerUidAtStart = this._getCourseLessonRosterViewerUid(),
+    options = {},
   ) {
     try {
-      const rosterPayload = await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+      const rosterPromise = options.rosterPromise || FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+      const statePromise = planOrState && typeof planOrState.then === 'function'
+        ? planOrState
+        : Promise.resolve(planOrState);
+      const [stateOrPlan, rosterPayload] = await Promise.all([statePromise, rosterPromise]);
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+        const container = this._getEduCourseLessonsContainer();
+        if (container && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
+          container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
+        }
         return { ok: false, reason: 'viewer_changed' };
       }
       this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, rosterPayload, viewerUidAtStart);
+      if (options.forceRefresh === true) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+      const plan = stateOrPlan?.plan || stateOrPlan;
+      if (!plan) return { ok: false, reason: 'plan_not_found' };
       const ctx = this._eduCourseLessonsContext;
       const editing = ctx?.mode === 'roster' && (ctx.manageMode === true || ctx.notesEditMode === true);
       if (editing || this._hasCourseLessonRosterBlockingOverlay()) return { ok: true, deferred: true };
@@ -1004,26 +1046,23 @@ Object.assign(App, {
     const markedForceRefresh = this._shouldForceCourseLessonRosterRefresh(teamId, planId, sessionId);
     const forceRefresh = explicitForceRefresh || markedForceRefresh;
     const cacheScope = localStaff ? 'staff' : 'public';
-    const cachedPayload = forceRefresh || localStaff
+    const cachedPayload = forceRefresh
       ? null
       : this._getCourseLessonRosterCachedPayload(teamId, planId, sessionId, cacheScope, viewerUidAtStart);
-    const lessonState = await this._loadEduCourseLessonsState(teamId, planId);
-    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
-    if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-      return { ok: false, reason: 'viewer_changed' };
-    }
-    const lessonPlan = lessonState.plan;
-    if (!lessonPlan) {
-      container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
-      return { ok: false, reason: 'plan_not_found' };
-    }
-    if (cachedPayload) {
+    const cachedRenderPayload = this._getCourseLessonRosterCachedRenderPayload(cachedPayload);
+    const cachedPlan = cachedRenderPayload ? this._findEduCoursePlan(teamId, planId) : null;
+    const lessonStatePromise = this._loadEduCourseLessonsState(teamId, planId);
+    const freshRosterPromise = forceRefresh
+      ? FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
+      : FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+
+    if (cachedRenderPayload && cachedPlan) {
       const result = await this._applyCourseLessonRosterPayload(
         teamId,
         planId,
         sessionId,
-        lessonPlan,
-        cachedPayload,
+        cachedPlan,
+        cachedRenderPayload,
         localStaff,
         requestSeq,
       );
@@ -1032,22 +1071,28 @@ Object.assign(App, {
         teamId,
         planId,
         sessionId,
-        lessonPlan,
+        lessonStatePromise,
         localStaff,
         this._getCourseLessonRosterPayloadVersion(cachedPayload),
         viewerUidAtStart,
+        { forceRefresh, rosterPromise: freshRosterPromise },
       );
-      return result;
+      return { ...result, cached: true };
     }
-    const freshRosterPayload = forceRefresh
-      ? await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
-      : await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+
+    const [lessonState, freshRosterPayload] = await Promise.all([lessonStatePromise, freshRosterPromise]);
+    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+      container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
       return { ok: false, reason: 'viewer_changed' };
+    }
+    const lessonPlan = lessonState.plan;
+    if (!lessonPlan) {
+      container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
+      return { ok: false, reason: 'plan_not_found' };
     }
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
     if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
-    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     return this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
   },
 });

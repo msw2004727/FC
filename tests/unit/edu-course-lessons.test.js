@@ -24,6 +24,12 @@ function escapeHTML(value) {
     .replace(/'/g, '&#39;');
 }
 
+async function flushPromises(times = 8) {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 function loadCourseLessonsContext(overrides = {}) {
   const container = { innerHTML: '' };
   const title = { textContent: '' };
@@ -515,13 +521,12 @@ describe('edu course lessons', () => {
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
 
     resolveRefresh(freshPayload);
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(container.innerHTML).toContain('Fresh Student');
   });
 
-  test('staff roster skips immediate local cache render for sensitive fields', async () => {
+  test('staff roster paints cached public preview before fresh staff fields arrive', async () => {
     let resolveRefresh;
     const refreshPromise = new Promise(resolve => { resolveRefresh = resolve; });
     const cachedPayload = {
@@ -554,14 +559,17 @@ describe('edu course lessons', () => {
       await Promise.resolve();
     }
 
-    expect(container.innerHTML).not.toContain('Cached Staff Student');
-    expect(container.innerHTML).toContain('課堂名單載入中');
+    await expect(secondLoad).resolves.toMatchObject({ ok: true, cached: true });
+    expect(container.innerHTML).toContain('Cached Staff Student');
+    expect(container.innerHTML).not.toContain('old private note');
+    expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
 
     resolveRefresh(freshPayload);
-    await secondLoad;
+    await flushPromises();
 
     expect(container.innerHTML).toContain('Fresh Staff Student');
     expect(container.innerHTML).toContain('fresh private note');
+    expect(container.innerHTML).toContain('App.startCourseLessonRosterManage()');
   });
 
   test('server roster permission denial overrides stale local staff state', async () => {
@@ -693,9 +701,11 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).not.toContain('Viewer A Student');
   });
 
-  test('discard cached roster when auth viewer changes while loading lesson state', async () => {
+  test('clears cached roster preview when auth viewer changes before background refresh finishes', async () => {
     let resolveState;
+    let resolveRefresh;
     const statePromise = new Promise(resolve => { resolveState = resolve; });
+    const refreshPromise = new Promise(resolve => { resolveRefresh = resolve; });
     const cachedPayload = {
       rosterPublic: true,
       cacheMeta: { payloadVersion: 'a-cached-viewer', cacheTtlMs: 30000 },
@@ -712,17 +722,27 @@ describe('edu course lessons', () => {
 
     const originalLoadState = app._loadEduCourseLessonsState.bind(app);
     app._loadEduCourseLessonsState = jest.fn(() => statePromise);
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => refreshPromise);
     const secondLoad = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
     while (app._loadEduCourseLessonsState.mock.calls.length === 0) {
       await Promise.resolve();
     }
+    await expect(secondLoad).resolves.toMatchObject({ ok: true, cached: true });
+    expect(container.innerHTML).toContain('Viewer A Cached');
 
     authState.uid = 'uidB';
     resolveState(await originalLoadState('teamA', 'planA'));
+    resolveRefresh({
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'stale-viewer-response', cacheTtlMs: 30000 },
+      session: { id: 'sessionA', title: 'Stale', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Stale Viewer A', canSelfLeave: true, selfUid: 'uidA' }],
+    });
+    await flushPromises();
 
-    await expect(secondLoad).resolves.toMatchObject({ ok: false, reason: 'viewer_changed' });
-    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(1);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
     expect(container.innerHTML).not.toContain('Viewer A Cached');
+    expect(container.innerHTML).not.toContain('Stale Viewer A');
   });
 
   test('staff roster separates unpaid students from paid lesson roster', async () => {
