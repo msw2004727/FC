@@ -14,6 +14,33 @@ Object.assign(App, {
   _teamReservationStaffTeamsHydrateState: null,
   _eventSignupRegistrationHydrateState: null,
 
+  async contactEventOrganizer(target) {
+    const beforeLoadHandler = this.contactEventOrganizer;
+    try {
+      if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureGroup === 'function') {
+        await ScriptLoader.ensureGroup('profileCard');
+      }
+    } catch (err) {
+      console.warn('[EventDetail] profileCard lazy load failed for organizer contact:', err);
+    }
+    if (typeof this.contactEventOrganizer === 'function' && this.contactEventOrganizer !== beforeLoadHandler) {
+      return this.contactEventOrganizer(target);
+    }
+
+    const payload = target && typeof target === 'object' ? target : { eventId: target };
+    const eventId = String(payload?.eventId || '').trim();
+    const event = eventId && typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function'
+      ? ApiService.getEvent(eventId)
+      : null;
+    const name = String(event?.creator || payload?.name || '').trim();
+    const uid = String(event?.creatorUid || payload?.uid || '').trim();
+    if (typeof this.showUserProfile === 'function' && (name || uid)) {
+      return this.showUserProfile(name || uid, { uid, allowGuest: true });
+    }
+    this.showToast?.('\u66ab\u6642\u627e\u4e0d\u5230\u4e3b\u8fa6\u4eba\u8cc7\u6599\u3002');
+    return { ok: false, reason: 'missing-profile-card' };
+  },
+
   _getEventDetailNodes() {
     const nodes = {
       title: document.getElementById('detail-title'),

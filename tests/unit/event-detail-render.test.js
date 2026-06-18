@@ -2055,14 +2055,37 @@ describe('Activity detail host contact and companion action labels', () => {
     const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
 
     expect(detailSource).toContain('contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id');
+    expect(detailSource).toContain("ScriptLoader.ensureGroup('profileCard')");
     expect(detailSource).toContain('companion-signup-toolbar-action');
     expect(detailSource).toContain('\\u5BEB\\u5165\\u4E2D');
     expect(detailSource).toContain('\\u5E6B\\u5925\\u4F34\\u5831\\u540D');
     expect(detailSource).not.toContain('\\u540C\\u884C\\u5831\\u540D');
     expect(profileCardSource).toContain('_normalizeLineContactUrl');
+    expect(profileCardSource).toContain('_fetchEventOrganizerUserByUid');
+    expect(profileCardSource).toContain('_openLineContactUrl');
     expect(profileCardSource).toContain('ApiService.getEvent(eventId)');
     expect(profileCardSource).toContain("window.open(lineUrl, 'sporthub_line')");
     expect(profileCardSource).toContain("allowGuest: true");
+  });
+
+  test('host contact wrapper lazy-loads the profile card handler before dispatching', async () => {
+    const event = { id: 'event-1', creator: 'Host', creatorUid: 'host-1' };
+    let app = null;
+    const loadedHandler = jest.fn(async () => ({ ok: true, action: 'line' }));
+    const scriptLoader = {
+      ensureGroup: jest.fn(async groupName => {
+        expect(groupName).toBe('profileCard');
+        app.contactEventOrganizer = loadedHandler;
+      }),
+    };
+    app = loadEventDetailModule({ event, scriptLoader });
+    const wrapper = app.contactEventOrganizer;
+
+    const result = await wrapper.call(app, { eventId: event.id });
+
+    expect(scriptLoader.ensureGroup).toHaveBeenCalledWith('profileCard');
+    expect(loadedHandler).toHaveBeenCalledWith({ eventId: event.id });
+    expect(result).toEqual({ ok: true, action: 'line' });
   });
 
   test('companion signup and mixed cancel flows expose precise busy and warning states', () => {

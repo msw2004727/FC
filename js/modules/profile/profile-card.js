@@ -303,35 +303,141 @@ Object.assign(App, {
     return 'https://line.me/ti/p/' + encodeURIComponent(raw.replace(/^@/, ''));
   },
 
-  contactEventOrganizer(target) {
-    const users = ApiService.getAdminUsers?.() || [];
+  _openLineContactUrl(lineUrl) {
+    if (!lineUrl) return false;
+    let opened = null;
+    try {
+      opened = (typeof window !== 'undefined' && typeof window.open === 'function')
+        ? window.open(lineUrl, 'sporthub_line')
+        : null;
+    } catch (err) {
+      console.warn('[ProfileCard] LINE contact window.open failed:', err);
+    }
+    if (!opened && typeof window !== 'undefined' && window.location) {
+      try {
+        if (typeof window.location.assign === 'function') window.location.assign(lineUrl);
+        else window.location.href = lineUrl;
+      } catch (err) {
+        console.warn('[ProfileCard] LINE contact navigation failed:', err);
+      }
+    }
+    return true;
+  },
+
+  _resolveEventOrganizerTarget(target) {
     let name = '';
     let uid = '';
+    let event = null;
     if (target && typeof target === 'object') {
       const eventId = String(target.eventId || '').trim();
-      const event = eventId && ApiService.getEvent ? ApiService.getEvent(eventId) : null;
+      event = eventId && ApiService.getEvent ? ApiService.getEvent(eventId) : null;
       name = String(event?.creator || target.name || '').trim();
       uid = String(event?.creatorUid || target.uid || '').trim();
     } else {
       const value = String(target || '').trim();
-      const event = value && ApiService.getEvent ? ApiService.getEvent(value) : null;
+      event = value && ApiService.getEvent ? ApiService.getEvent(value) : null;
       name = String(event?.creator || value).trim();
       uid = String(event?.creatorUid || '').trim();
     }
-    const user = users.find(u =>
+    return { event, name, uid };
+  },
+
+  _findEventOrganizerUser(targetInfo) {
+    const users = ApiService.getAdminUsers?.() || [];
+    const uid = String(targetInfo?.uid || '').trim();
+    const name = String(targetInfo?.name || '').trim();
+    if (!uid && !name) return null;
+    return users.find(u =>
       (uid && (u.uid === uid || u.lineUserId === uid || u._docId === uid || u.docId === uid)) ||
       u.name === name ||
       u.displayName === name
-    );
+    ) || null;
+  },
+
+  _cacheEventOrganizerUser(user) {
+    if (!user || typeof FirebaseService === 'undefined' || !FirebaseService._cache) return user;
+    const users = FirebaseService._cache.adminUsers;
+    if (!Array.isArray(users)) return user;
+    const ids = [user.uid, user.lineUserId, user._docId, user.docId].map(v => String(v || '').trim()).filter(Boolean);
+    const idx = users.findIndex(u => ids.some(id => id && [u.uid, u.lineUserId, u._docId, u.docId].map(v => String(v || '').trim()).includes(id)));
+    if (idx >= 0) users[idx] = { ...users[idx], ...user };
+    else users.push(user);
+    try { FirebaseService._saveToLS?.('adminUsers', users); } catch (_) {}
+    return user;
+  },
+
+  async _fetchEventOrganizerUserByUid(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    const firestoreDb = (typeof db !== 'undefined' && db?.collection)
+      ? db
+      : ((typeof firebase !== 'undefined' && firebase?.firestore) ? firebase.firestore() : null);
+    if (!firestoreDb?.collection) return null;
+
+    const mapUser = (data, docId) => {
+      if (!data) return null;
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._mapUserDoc === 'function') {
+        return FirebaseService._mapUserDoc(data, docId);
+      }
+      return {
+        ...data,
+        name: data.displayName || data.name || '',
+        uid: data.uid || data.lineUserId || docId,
+        _docId: docId,
+      };
+    };
+
+    try {
+      const directSnap = await firestoreDb.collection('users').doc(safeUid).get();
+      if (directSnap?.exists) {
+        return this._cacheEventOrganizerUser(mapUser(directSnap.data(), directSnap.id || safeUid));
+      }
+
+      const queryFields = ['uid', 'lineUserId'];
+      for (const field of queryFields) {
+        const querySnap = await firestoreDb.collection('users').where(field, '==', safeUid).limit(1).get();
+        const doc = querySnap?.docs?.[0];
+        if (doc) return this._cacheEventOrganizerUser(mapUser(doc.data(), doc.id));
+      }
+    } catch (err) {
+      console.warn('[ProfileCard] fetch organizer user failed:', err);
+    }
+    return null;
+  },
+
+  async _ensureShowUserProfileAvailable() {
+    if (typeof this.showUserProfile === 'function') return true;
+    if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureGroup === 'function') {
+      try {
+        await ScriptLoader.ensureGroup('profile');
+      } catch (err) {
+        console.warn('[ProfileCard] profile lazy load failed for organizer fallback:', err);
+      }
+    }
+    return typeof this.showUserProfile === 'function';
+  },
+
+  async contactEventOrganizer(target) {
+    const targetInfo = this._resolveEventOrganizerTarget(target);
+    let user = this._findEventOrganizerUser(targetInfo);
+    if (!user && targetInfo.uid) {
+      user = await this._fetchEventOrganizerUserByUid(targetInfo.uid);
+    }
     const lineUrl = this._normalizeLineContactUrl(user?.socialLinks?.line);
     if (lineUrl) {
-      window.open(lineUrl, 'sporthub_line');
-    } else {
-      this.showUserProfile(name || user?.displayName || user?.name || '', {
-        uid: uid || user?.uid || user?.lineUserId || '',
+      this._openLineContactUrl(lineUrl);
+      return { ok: true, action: 'line', url: lineUrl };
+    }
+
+    const canShowProfile = await this._ensureShowUserProfileAvailable();
+    if (canShowProfile) {
+      return this.showUserProfile(targetInfo.name || user?.displayName || user?.name || '', {
+        uid: targetInfo.uid || user?.uid || user?.lineUserId || '',
         allowGuest: true,
       });
     }
+    this.showToast?.('\u66ab\u6642\u627e\u4e0d\u5230\u4e3b\u8fa6\u4eba\u8cc7\u6599\u3002');
+    return { ok: false, reason: 'missing-organizer' };
   },
 
   /** 顯示 UID 專屬 QR Code 彈窗 */
