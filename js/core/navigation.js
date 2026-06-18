@@ -576,6 +576,89 @@ Object.assign(App, {
     document.getElementById('detail-view-count-num')?.replaceChildren(document.createTextNode(String(event?.viewCount || 0)));
   },
 
+  _getFastTeamDetailSportLabel(team) {
+    const rawSport = String(team?.sportTag || team?.sport || '').trim();
+    const sportKey = typeof getSportKeySafe === 'function' ? getSportKeySafe(rawSport) : rawSport;
+    if (sportKey && typeof EVENT_SPORT_MAP !== 'undefined' && EVENT_SPORT_MAP[sportKey]) {
+      return EVENT_SPORT_MAP[sportKey].label || sportKey;
+    }
+    return sportKey || rawSport;
+  },
+
+  _getFastTeamDetailMemberCount(team) {
+    if (!team) return 0;
+    const numeric = Number(team.members ?? team.memberCount ?? team.membersCount);
+    if (Number.isFinite(numeric) && numeric >= 0) return Math.round(numeric);
+    const arrays = [team.memberUids, team.memberIds, team.membersList, team.students, team.studentIds];
+    for (const list of arrays) {
+      if (Array.isArray(list)) return list.length;
+    }
+    return 0;
+  },
+
+  _getFastTeamDetailImageUrl(team) {
+    return String(
+      team?.imageVariants?.cover
+      || team?.imageVariants?.card
+      || team?.coverImage
+      || team?.coverUrl
+      || team?.image
+      || '',
+    ).trim();
+  },
+
+  _renderFastTeamDetailSyncCard() {
+    return '<div class="td-v2-fast-loading-card td-v2-fast-sync-card">'
+      + '<span class="td-v2-fast-spinner" aria-hidden="true"></span>'
+      + '<span class="td-v2-fast-copy"><strong>&#36039;&#26009;&#26356;&#26032;&#20013;</strong><small>&#27491;&#22312;&#21516;&#27493;&#20465;&#27138;&#37096;&#26368;&#26032;&#36039;&#26009;</small></span>'
+      + '</div>';
+  },
+
+  _renderFastTeamDetailCachedV2Shell(team) {
+    const safeName = this._escapeShellText(team?.name || '\u4ff1\u6a02\u90e8');
+    const safeNameEn = this._escapeShellText(team?.nameEn || '');
+    const chips = [this._getFastTeamDetailSportLabel(team), team?.region || team?.nationality || ''].filter(Boolean)
+      .map(label => '<span>' + this._escapeShellText(label) + '</span>')
+      .join('');
+    const imageUrl = this._getFastTeamDetailImageUrl(team);
+    const imageHtml = imageUrl
+      ? '<img class="td-v2-fast-preview-cover" src="' + this._escapeShellText(imageUrl) + '" alt="" loading="eager" decoding="async" fetchpriority="high">'
+      : '';
+    const memberCount = this._getFastTeamDetailMemberCount(team);
+    const activeText = team?.active === false ? '&#24050;&#26283;&#20572;' : '&#27491;&#22312;&#25307;&#21215;';
+    return '<div class="td-v2-shell td-v2-fast-shell td-v2-fast-shell-cached" aria-busy="true" aria-live="polite">'
+      + '<section class="td-v2-fast-preview-hero">'
+        + imageHtml
+        + '<div class="td-v2-fast-preview-shade"></div>'
+        + '<div class="td-v2-fast-preview-copy">'
+          + '<div class="td-v2-fast-preview-chips">' + chips + '</div>'
+          + '<strong>' + safeName + '</strong>'
+          + (safeNameEn ? '<em>' + safeNameEn + '</em>' : '')
+        + '</div>'
+      + '</section>'
+      + this._renderFastTeamDetailSyncCard()
+      + '<div class="td-v2-fast-preview-stats" aria-hidden="true">'
+        + '<span><b>' + this._escapeShellText(String(memberCount)) + '</b><small>&#25104;&#21729;</small></span>'
+        + '<span><b>' + activeText + '</b><small>&#29376;&#24907;</small></span>'
+        + '<span><b>...</b><small>&#21516;&#27493;</small></span>'
+      + '</div>'
+      + '<div class="td-v2-fast-skeleton" aria-hidden="true"><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span></div>'
+      + '</div>';
+  },
+
+  _renderFastTeamDetailCachedClassicShell(team) {
+    const safeName = this._escapeShellText(team?.name || '\u4ff1\u6a02\u90e8');
+    const chips = [this._getFastTeamDetailSportLabel(team), team?.region || team?.nationality || ''].filter(Boolean)
+      .map(label => '<span>' + this._escapeShellText(label) + '</span>')
+      .join('');
+    const memberCount = this._getFastTeamDetailMemberCount(team);
+    return '<div class="detail-section team-fast-loading team-fast-loading-cached" aria-busy="true" aria-live="polite">'
+      + '<div class="team-fast-preview-head"><div><strong>' + safeName + '</strong><small>' + memberCount + ' &#25104;&#21729;</small></div><div class="team-fast-preview-chips">' + chips + '</div></div>'
+      + '<div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>&#36039;&#26009;&#26356;&#26032;&#20013;</strong><small>&#27491;&#22312;&#21516;&#27493;&#20465;&#27138;&#37096;&#26368;&#26032;&#36039;&#26009;</small></span></div>'
+      + '<div class="reg-loading-skeleton team-fast-loading-skeleton" aria-hidden="true"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div>'
+      + '</div>';
+  },
+
   _renderFastTeamDetailShell(id) {
     const team = (typeof ApiService !== 'undefined' && ApiService.getTeam?.(id)) || null;
     this._teamDetailId = id;
@@ -593,6 +676,12 @@ Object.assign(App, {
       this._renderShellImage(img, imageUrl, team?.name || '俱樂部封面');
     }
     const body = document.getElementById('team-detail-body');
+    if (body && team) {
+      body.innerHTML = useV2
+        ? this._renderFastTeamDetailCachedV2Shell(team)
+        : this._renderFastTeamDetailCachedClassicShell(team);
+      return;
+    }
     if (body) {
       body.innerHTML = useV2
         ? '<div class="td-v2-shell td-v2-fast-shell" aria-busy="true" aria-live="polite"><div class="td-v2-fast-loading-card"><span class="td-v2-fast-spinner" aria-hidden="true"></span><span class="td-v2-fast-copy"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="td-v2-fast-skeleton" aria-hidden="true"><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span></div></div>'

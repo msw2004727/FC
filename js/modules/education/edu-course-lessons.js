@@ -13,6 +13,9 @@ Object.assign(App, {
   _eduCourseRosterRefreshSatisfiedAt: {},
   _eduCourseRosterPublicTtlMs: 30000,
   _eduCourseRosterStaffTtlMs: 15000,
+  _eduCourseRosterPersistentSchemaVersion: 1,
+  _eduCourseRosterPersistentPublicTtlMs: 10 * 60 * 1000,
+  _eduCourseRosterPersistentMaxEntries: 16,
   _eduCourseRosterPerfTimeline: [],
   _eduCourseRosterLastPerf: null,
 
@@ -106,6 +109,57 @@ Object.assign(App, {
     ].join('|');
   },
 
+  _getCourseLessonRosterPersistentStorageKey(viewerUid = this._getCourseLessonRosterViewerUid()) {
+    const uid = String(viewerUid || 'guest').trim() || 'guest';
+    let safeUid = uid;
+    try { safeUid = encodeURIComponent(uid); } catch (_) {}
+    return 'toosterx.eduCourseRosterPreview.v' + this._eduCourseRosterPersistentSchemaVersion + '.' + safeUid;
+  },
+
+  _getCourseLessonRosterPersistentCacheKey(teamId, planId, sessionId, scope, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    return [
+      'v' + this._eduCourseRosterPersistentSchemaVersion,
+      this._getCourseLessonRosterCacheKey(teamId, planId, sessionId, scope, viewerUid),
+    ].join('|');
+  },
+
+  _loadCourseLessonRosterPersistentStore(viewerUid = this._getCourseLessonRosterViewerUid()) {
+    try {
+      if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
+      const raw = localStorage.getItem(this._getCourseLessonRosterPersistentStorageKey(viewerUid));
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || parsed.schemaVersion !== this._eduCourseRosterPersistentSchemaVersion || typeof parsed.entries !== 'object') {
+        return { schemaVersion: this._eduCourseRosterPersistentSchemaVersion, entries: {} };
+      }
+      return parsed;
+    } catch (_) {
+      return { schemaVersion: this._eduCourseRosterPersistentSchemaVersion, entries: {} };
+    }
+  },
+
+  _saveCourseLessonRosterPersistentStore(store, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    try {
+      if (typeof localStorage === 'undefined' || !localStorage.setItem || !store) return false;
+      const now = Date.now();
+      const entries = store.entries && typeof store.entries === 'object' ? store.entries : {};
+      const nextEntries = {};
+      Object.entries(entries)
+        .filter(([, entry]) => entry && Number(entry.expiresAtMs || 0) > now)
+        .sort((a, b) => Number(b[1]?.storedAtMs || 0) - Number(a[1]?.storedAtMs || 0))
+        .slice(0, Math.max(1, this._eduCourseRosterPersistentMaxEntries || 16))
+        .forEach(([key, entry]) => { nextEntries[key] = entry; });
+      const payload = {
+        schemaVersion: this._eduCourseRosterPersistentSchemaVersion,
+        savedAtMs: now,
+        entries: nextEntries,
+      };
+      localStorage.setItem(this._getCourseLessonRosterPersistentStorageKey(viewerUid), JSON.stringify(payload));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   _getCourseLessonRosterInvalidationKey(teamId, planId, sessionId = '') {
     return [
       String(teamId || '').trim(),
@@ -186,9 +240,103 @@ Object.assign(App, {
     };
   },
 
+  _buildCourseLessonRosterPersistentPreviewPayload(payload) {
+    const base = this._buildCourseLessonRosterBasePreviewPayload(payload);
+    if (!base) return null;
+    const session = base.session && typeof base.session === 'object'
+      ? {
+        id: base.session.id,
+        _docId: base.session._docId,
+        title: base.session.title,
+        topic: base.session.topic,
+        focus: base.session.focus,
+        date: base.session.date,
+        startTime: base.session.startTime,
+        endTime: base.session.endTime,
+        location: base.session.location,
+        status: base.session.status,
+        capacity: base.session.capacity,
+      }
+      : {};
+    const allowedStudentKeys = [
+      'studentId',
+      'id',
+      '_docId',
+      'displayName',
+      'name',
+      'nickname',
+      'level',
+      'groupName',
+      'group',
+      'jerseyNumber',
+      'number',
+      'position',
+    ];
+    const students = Array.isArray(base.students)
+      ? base.students.map((student) => allowedStudentKeys.reduce((clean, key) => {
+        if (student && Object.prototype.hasOwnProperty.call(student, key)) clean[key] = student[key];
+        return clean;
+      }, {}))
+      : [];
+    return {
+      rosterPublic: true,
+      canManageRoster: false,
+      isStaff: false,
+      staffEnrollmentByStudentId: null,
+      session,
+      students,
+      cacheMeta: {
+        payloadVersion: this._getCourseLessonRosterPayloadVersion(payload),
+        preview: true,
+        persistentPreview: true,
+        attendancePending: true,
+        staffPending: false,
+      },
+    };
+  },
+
   _getCourseLessonRosterCachedRenderPayload(cachedPayload) {
     if (!cachedPayload || typeof cachedPayload !== 'object') return null;
     return this._buildCourseLessonRosterBasePreviewPayload(cachedPayload);
+  },
+
+  _getCourseLessonRosterPersistentCachedPayload(teamId, planId, sessionId, scope, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    if (scope !== 'public') return null;
+    const store = this._loadCourseLessonRosterPersistentStore(viewerUid);
+    const key = this._getCourseLessonRosterPersistentCacheKey(teamId, planId, sessionId, 'public', viewerUid);
+    const entry = store?.entries?.[key];
+    if (!entry || !entry.payload || Number(entry.expiresAtMs || 0) <= Date.now()) {
+      if (entry && store?.entries) {
+        delete store.entries[key];
+        this._saveCourseLessonRosterPersistentStore(store, viewerUid);
+      }
+      return null;
+    }
+    if (Number(entry.storedAtMs || 0) <= this._getCourseLessonRosterInvalidatedAt(teamId, planId, sessionId)) {
+      delete store.entries[key];
+      this._saveCourseLessonRosterPersistentStore(store, viewerUid);
+      return null;
+    }
+    return entry.payload?.cacheMeta?.persistentPreview === true ? entry.payload : null;
+  },
+
+  _rememberCourseLessonRosterPersistentPreviewPayload(teamId, planId, sessionId, payload, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    const previewPayload = this._buildCourseLessonRosterPersistentPreviewPayload(payload);
+    if (!previewPayload) return false;
+    const store = this._loadCourseLessonRosterPersistentStore(viewerUid)
+      || { schemaVersion: this._eduCourseRosterPersistentSchemaVersion, entries: {} };
+    const now = Date.now();
+    const ttl = Math.max(60 * 1000, Number(this._eduCourseRosterPersistentPublicTtlMs) || (10 * 60 * 1000));
+    const key = this._getCourseLessonRosterPersistentCacheKey(teamId, planId, sessionId, 'public', viewerUid);
+    store.entries = store.entries && typeof store.entries === 'object' ? store.entries : {};
+    store.entries[key] = {
+      payload: previewPayload,
+      scope: 'public',
+      storedAtMs: now,
+      expiresAtMs: now + ttl,
+      version: this._getCourseLessonRosterPayloadVersion(payload),
+    };
+    return this._saveCourseLessonRosterPersistentStore(store, viewerUid);
   },
 
   _rememberCourseLessonRosterPayload(teamId, planId, sessionId, payload, viewerUid = this._getCourseLessonRosterViewerUid()) {
@@ -207,6 +355,7 @@ Object.assign(App, {
       expiresAtMs: Date.now() + Math.max(1000, ttl),
       version: this._getCourseLessonRosterPayloadVersion(payload),
     };
+    this._rememberCourseLessonRosterPersistentPreviewPayload(teamId, planId, sessionId, payload, viewerUid);
     return true;
   },
 
@@ -220,6 +369,28 @@ Object.assign(App, {
     Object.keys(this._eduCourseRosterPayloadCache || {}).forEach((key) => {
       if (key.startsWith(prefix)) delete this._eduCourseRosterPayloadCache[key];
     });
+    this._clearCourseLessonRosterPersistentPayloadCache(teamId, planId, sessionId);
+  },
+
+  _clearCourseLessonRosterPersistentPayloadCache(teamId, planId, sessionId, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    const store = this._loadCourseLessonRosterPersistentStore(viewerUid);
+    if (!store?.entries) return false;
+    const parts = [
+      'v' + this._eduCourseRosterPersistentSchemaVersion,
+      String(teamId || '').trim(),
+      String(planId || '').trim(),
+    ];
+    if (sessionId) parts.push(String(sessionId || '').trim());
+    const prefix = parts.join('|') + '|';
+    let removed = false;
+    Object.keys(store.entries).forEach((key) => {
+      if (key.startsWith(prefix)) {
+        delete store.entries[key];
+        removed = true;
+      }
+    });
+    if (removed) this._saveCourseLessonRosterPersistentStore(store, viewerUid);
+    return removed;
   },
 
   _hasCourseLessonRosterBlockingOverlay() {
@@ -1026,6 +1197,7 @@ Object.assign(App, {
       manageMode: false,
       notesEditMode: false,
       draftSessionNotes: '',
+      refreshError: options.refreshError === true,
     };
     if (options.render !== false) this._renderCourseLessonRosterFromContext();
     return { ok: true };
@@ -1097,6 +1269,16 @@ Object.assign(App, {
       return result;
     } catch (err) {
       console.warn('[edu-course-lessons] roster background refresh failed:', err);
+      const ctx = this._eduCourseLessonsContext;
+      if (ctx?.mode === 'roster'
+        && ctx.rosterPayload?.cacheMeta?.preview === true
+        && String(ctx.teamId || '') === String(teamId || '')
+        && String(ctx.planId || '') === String(planId || '')
+        && String(ctx.sessionId || '') === String(sessionId || '')
+        && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
+        ctx.refreshError = true;
+        this._renderCourseLessonRosterFromContext?.();
+      }
       return { ok: false, reason: 'refresh_failed' };
     }
   },
@@ -1121,6 +1303,15 @@ Object.assign(App, {
     this._setEduCourseLessonsTitle('課堂名單');
     container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
     this._recordCourseLessonRosterPerf('skeleton', { teamId, planId, sessionId }, perfStartedAtMs);
+    const cachedPlanForShell = this._findEduCoursePlan(teamId, planId);
+    const cachedSessionsForShell = this._getCourseLessonsCachedSessions(teamId, planId);
+    const cachedSessionForShell = Array.isArray(cachedSessionsForShell)
+      ? cachedSessionsForShell.find(session => this._getCourseLessonSessionId(session) === String(sessionId || '').trim())
+      : null;
+    if (typeof this._renderCourseLessonRosterLoadingShell === 'function' && (cachedPlanForShell || cachedSessionForShell)) {
+      container.innerHTML = this._renderCourseLessonRosterLoadingShell(cachedPlanForShell, cachedSessionForShell, '\u540d\u55ae\u540c\u6b65\u4e2d');
+      this._recordCourseLessonRosterPerf('staged_skeleton', { teamId, planId, sessionId }, perfStartedAtMs);
+    }
 
     const localStaff = this.isEduClubStaff?.(teamId) === true;
     const viewerUidAtStart = this._getCourseLessonRosterViewerUid();
@@ -1128,11 +1319,16 @@ Object.assign(App, {
     const markedForceRefresh = this._shouldForceCourseLessonRosterRefresh(teamId, planId, sessionId);
     const forceRefresh = explicitForceRefresh || markedForceRefresh;
     const cacheScope = localStaff ? 'staff' : 'public';
-    const cachedPayload = forceRefresh
+    let cachedSource = 'memory';
+    let cachedPayload = forceRefresh
       ? null
       : this._getCourseLessonRosterCachedPayload(teamId, planId, sessionId, cacheScope, viewerUidAtStart);
+    if (!cachedPayload && !forceRefresh) {
+      cachedPayload = this._getCourseLessonRosterPersistentCachedPayload(teamId, planId, sessionId, 'public', viewerUidAtStart);
+      if (cachedPayload) cachedSource = 'persistent';
+    }
     const cachedRenderPayload = this._getCourseLessonRosterCachedRenderPayload(cachedPayload);
-    const cachedPlan = cachedRenderPayload ? this._findEduCoursePlan(teamId, planId) : null;
+    const cachedPlan = cachedRenderPayload ? (cachedPlanForShell || this._findEduCoursePlan(teamId, planId)) : null;
     const lessonStatePromise = this._loadEduCourseLessonsState(teamId, planId);
     const freshRosterPromise = forceRefresh
       ? FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
@@ -1153,6 +1349,7 @@ Object.assign(App, {
         planId,
         sessionId,
         cacheScope,
+        cacheSource: cachedSource,
         cachedVersion: this._getCourseLessonRosterPayloadVersion(cachedPayload),
         studentCount: Array.isArray(cachedRenderPayload?.students) ? cachedRenderPayload.students.length : 0,
       }, perfStartedAtMs);
@@ -1170,7 +1367,14 @@ Object.assign(App, {
       return { ...result, cached: true };
     }
 
-    const [lessonState, freshRosterPayload] = await Promise.all([lessonStatePromise, freshRosterPromise]);
+    const [lessonStateResult, freshRosterResult] = await Promise.allSettled([lessonStatePromise, freshRosterPromise]);
+    const lessonState = lessonStateResult.status === 'fulfilled'
+      ? lessonStateResult.value
+      : { plan: cachedPlanForShell, sessions: cachedSessionsForShell || [] };
+    if (lessonStateResult.status === 'rejected') {
+      console.warn('[edu-course-lessons] lesson state load failed:', lessonStateResult.reason);
+    }
+    const freshRosterPayload = freshRosterResult.status === 'fulfilled' ? freshRosterResult.value : null;
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
       container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
@@ -1180,6 +1384,14 @@ Object.assign(App, {
     if (!lessonPlan) {
       container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
       return { ok: false, reason: 'plan_not_found' };
+    }
+    if (freshRosterResult.status !== 'fulfilled' || !freshRosterPayload) {
+      console.warn('[edu-course-lessons] roster load failed:', freshRosterResult.reason);
+      const jsTeamId = this._eduCourseLessonsJsArg?.(teamId) || String(teamId || '');
+      const jsPlanId = this._eduCourseLessonsJsArg?.(planId) || String(planId || '');
+      const jsSessionId = this._eduCourseLessonsJsArg?.(sessionId) || String(sessionId || '');
+      container.innerHTML = '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>&#35531;&#30906;&#35469;&#32178;&#36335;&#29376;&#24907;&#24460;&#20877;&#35430;</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
+      return { ok: false, reason: 'roster_failed' };
     }
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
     if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);

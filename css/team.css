@@ -906,6 +906,49 @@
 .team-fast-loading-skeleton .reg-loading-skeleton-row:last-child {
   width: 88%;
 }
+.team-fast-loading-cached {
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+}
+.team-fast-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding-bottom: .15rem;
+}
+.team-fast-preview-head strong,
+.team-fast-preview-head small {
+  display: block;
+}
+.team-fast-preview-head strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 900;
+}
+.team-fast-preview-head small {
+  margin-top: .15rem;
+  color: var(--text-muted);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.team-fast-preview-chips {
+  display: flex;
+  justify-content: flex-end;
+  gap: .35rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.team-fast-preview-chips span {
+  padding: .22rem .5rem;
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), .12);
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
 .td-overview-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

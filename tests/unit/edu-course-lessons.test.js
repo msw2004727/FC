@@ -52,6 +52,15 @@ function loadCourseLessonsContext(overrides = {}) {
     capacity: 6,
   }];
   const authState = { uid: overrides.authUid || null };
+  const localStorageStore = overrides.localStorageStore || {};
+  const localStorageMock = overrides.localStorage || {
+    getItem: jest.fn((key) => Object.prototype.hasOwnProperty.call(localStorageStore, key) ? localStorageStore[key] : null),
+    setItem: jest.fn((key, value) => { localStorageStore[key] = String(value); }),
+    removeItem: jest.fn((key) => { delete localStorageStore[key]; }),
+    clear: jest.fn(() => {
+      Object.keys(localStorageStore).forEach(key => { delete localStorageStore[key]; });
+    }),
+  };
   const app = {
     currentPage: 'page-team-detail',
     _eduCourseLessonsRequestSeq: 0,
@@ -133,11 +142,11 @@ function loadCourseLessonsContext(overrides = {}) {
         currentUser: authState.uid ? { uid: authState.uid } : null,
       }),
     },
-    localStorage: { getItem: jest.fn(() => null) },
+    localStorage: localStorageMock,
   };
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
   vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
-  return { app: context.App, firebase: context.FirebaseService, container, title, authState };
+  return { app: context.App, firebase: context.FirebaseService, container, title, authState, localStorage: localStorageMock, localStorageStore };
 }
 
 describe('edu course lessons', () => {
@@ -581,6 +590,136 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Fresh Staff Student');
     expect(container.innerHTML).toContain('fresh private note');
     expect(container.innerHTML).toContain('App.startCourseLessonRosterManage()');
+  });
+
+  test('persistent roster preview stores only sanitized public fields', async () => {
+    const { app, localStorageStore } = loadCourseLessonsContext({
+      authUid: 'viewerA',
+      isStaff: true,
+      rosterPayload: {
+        rosterPublic: true,
+        canManageRoster: true,
+        cacheMeta: { payloadVersion: 'sensitive-v1', cacheTtlMs: 15000 },
+        session: {
+          id: 'sessionA',
+          title: 'Private Session',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+          notes: 'staff only session notes',
+        },
+        staffEnrollmentByStudentId: { stu1: { coachNotes: 'private note', enrollmentId: 'enr1' } },
+        students: [{
+          studentId: 'stu1',
+          displayName: 'Sensitive Student',
+          level: '2',
+          attendanceKind: 'signin',
+          canSelfLeave: true,
+          selfUid: 'uidA',
+          parentUid: 'parentA',
+          uid: 'profileA',
+          lineUserId: 'lineA',
+          position: 'ST',
+        }],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const storeKey = app._getCourseLessonRosterPersistentStorageKey('viewerA');
+    const saved = JSON.parse(localStorageStore[storeKey]);
+    const entry = Object.values(saved.entries)[0];
+
+    expect(entry.payload.cacheMeta.persistentPreview).toBe(true);
+    expect(entry.payload.canManageRoster).toBe(false);
+    expect(entry.payload.staffEnrollmentByStudentId).toBeNull();
+    expect(entry.payload.session.notes).toBeUndefined();
+    expect(entry.payload.students[0]).toMatchObject({
+      studentId: 'stu1',
+      displayName: 'Sensitive Student',
+      level: '2',
+      position: 'ST',
+    });
+    expect(entry.payload.students[0]).not.toHaveProperty('attendanceKind');
+    expect(entry.payload.students[0]).not.toHaveProperty('canSelfLeave');
+    expect(entry.payload.students[0]).not.toHaveProperty('selfUid');
+    expect(entry.payload.students[0]).not.toHaveProperty('parentUid');
+    expect(entry.payload.students[0]).not.toHaveProperty('uid');
+    expect(entry.payload.students[0]).not.toHaveProperty('lineUserId');
+  });
+
+  test('persistent roster preview renders first and same-version fresh payload still overlays it', async () => {
+    let resolveRefresh;
+    const refreshPromise = new Promise(resolve => { resolveRefresh = resolve; });
+    const { app, container, firebase } = loadCourseLessonsContext({ authUid: 'viewerA' });
+    app._rememberCourseLessonRosterPersistentPreviewPayload('teamA', 'planA', 'sessionA', {
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'same-version' },
+      session: { id: 'sessionA', title: 'Persistent Cached', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Persistent Cached Student', attendanceKind: 'leave', canSelfLeave: true, selfUid: 'uidA' }],
+    }, 'viewerA');
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => refreshPromise);
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({ ok: true, cached: true });
+
+    expect(container.innerHTML).toContain('Persistent Cached Student');
+    expect(container.innerHTML).toContain('edu-course-roster-status-pending');
+    expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
+
+    resolveRefresh({
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'same-version' },
+      session: { id: 'sessionA', title: 'Fresh Same Version', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Fresh Same Version Student', attendanceKind: 'signin', canSelfLeave: true, selfUid: 'uidA' }],
+    });
+    await flushPromises();
+
+    expect(container.innerHTML).toContain('Fresh Same Version Student');
+    expect(container.innerHTML).toContain('edu-course-roster-status-signin');
+    expect(container.innerHTML).toContain('edu-roster-self-leave-btn');
+  });
+
+  test('persistent roster preview is viewer scoped and not read through staff scope', async () => {
+    const localStorageStore = {};
+    const first = loadCourseLessonsContext({ authUid: 'viewerA', localStorageStore });
+    first.app._rememberCourseLessonRosterPersistentPreviewPayload('teamA', 'planA', 'sessionA', {
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'viewer-a' },
+      session: { id: 'sessionA', title: 'Viewer A Cached', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Viewer A Cached Student' }],
+    }, 'viewerA');
+
+    const second = loadCourseLessonsContext({
+      authUid: 'viewerB',
+      localStorageStore,
+      rosterPayload: {
+        rosterPublic: true,
+        cacheMeta: { payloadVersion: 'viewer-b' },
+        session: { id: 'sessionA', title: 'Viewer B Fresh', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+        students: [{ studentId: 'stu1', displayName: 'Viewer B Fresh Student' }],
+      },
+    });
+
+    expect(second.app._getCourseLessonRosterPersistentCachedPayload('teamA', 'planA', 'sessionA', 'staff', 'viewerA')).toBeNull();
+    await second.app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(second.container.innerHTML).toContain('Viewer B Fresh Student');
+    expect(second.container.innerHTML).not.toContain('Viewer A Cached Student');
+  });
+
+  test('persistent roster preview write failure does not block fresh roster rendering', async () => {
+    const localStorage = {
+      getItem: jest.fn(() => null),
+      setItem: jest.fn(() => { throw new Error('quota exceeded'); }),
+      removeItem: jest.fn(),
+    };
+    const { app, container } = loadCourseLessonsContext({ authUid: 'viewerA', localStorage });
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({ ok: true });
+
+    expect(localStorage.setItem).toHaveBeenCalled();
+    expect(container.innerHTML).toContain('edu-course-roster-card');
   });
 
   test('server roster permission denial overrides stale local staff state', async () => {

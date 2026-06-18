@@ -18,6 +18,39 @@ Object.assign(App, {
       + '</div>';
   },
 
+  _renderCourseLessonRosterLoadingShell(plan, session, text) {
+    const status = this._getCourseLessonStatusMeta(session || {});
+    const title = session?.title || session?.topic || session?.focus || plan?.name || '\u8ab2\u5802\u540d\u55ae';
+    const dateText = session
+      ? this._formatCourseLessonDateTime(session)
+      : (plan?.startDate || '\u8cc7\u6599\u540c\u6b65\u4e2d');
+    const rows = Array.from({ length: 5 }).map((_, index) => (
+      '<article class="edu-course-roster-card edu-course-roster-card-skeleton" aria-hidden="true">'
+        + '<div class="edu-course-roster-main">'
+          + '<div class="edu-course-roster-skeleton-pill"></div>'
+          + '<div class="edu-course-roster-skeleton-line edu-course-roster-skeleton-line-' + (index % 3) + '"></div>'
+        + '</div>'
+        + '<div class="edu-course-roster-side"><span class="edu-course-roster-skeleton-status"></span></div>'
+      + '</article>'
+    )).join('');
+    return '<div class="edu-course-roster-shell edu-course-roster-shell-loading" role="status" aria-live="polite" aria-busy="true">'
+      + '<section class="edu-course-roster-head">'
+        + '<button type="button" class="outline-btn small" disabled aria-disabled="true">&#36820;&#22238;&#35406;&#22530;</button>'
+        + '<div class="edu-course-roster-title-block">'
+          + '<div class="edu-course-roster-title-line">'
+            + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
+            + '<h3>' + escapeHTML(title) + '</h3>'
+            + '<p>' + escapeHTML(dateText) + '</p>'
+          + '</div>'
+        + '</div>'
+      + '</section>'
+      + '<section class="edu-course-roster-list-panel">'
+        + '<div class="edu-course-lessons-section-title"><strong>&#26412;&#22530;&#21517;&#21934;</strong><span>' + escapeHTML(text || '\u6b63\u5728\u540c\u6b65') + '</span></div>'
+        + '<div class="edu-course-roster-list">' + rows + '</div>'
+      + '</section>'
+      + '</div>';
+  },
+
   _formatCourseLessonDateTime(session) {
     const dateText = this._formatCourseSessionDate?.(session) || session?.date || '未排定日期';
     const timeText = this._formatCourseSessionTime?.(session) || session?.startTime || '未設定時段';
@@ -211,6 +244,9 @@ Object.assign(App, {
       ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
         + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
       : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
+    const refreshErrorHtml = context.refreshError === true
+      ? '<div class="edu-course-roster-refresh-alert"><span>&#36039;&#26009;&#26283;&#26178;&#28961;&#27861;&#26356;&#26032;&#65292;&#24050;&#20445;&#30041;&#19978;&#27425;&#21517;&#21934;</span><button type="button" class="outline-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(context.sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>'
+      : '';
     const staffActions = context.isStaff
       ? (manageMode
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
@@ -240,6 +276,7 @@ Object.assign(App, {
         + staffActions
       + '</section>'
       + '<section class="edu-course-roster-list-panel">'
+        + refreshErrorHtml
         + '<div class="edu-course-lessons-section-title"><strong>本堂名單</strong><span>' + students.length + ' 位</span></div>'
         + rosterListHtml
       + '</section>'

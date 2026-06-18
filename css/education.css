@@ -904,6 +904,59 @@
   border-left: 3px solid #dc2626;
   background: rgba(255, 247, 247, .96);
 }
+.edu-course-roster-refresh-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  margin-bottom: .55rem;
+  padding: .55rem .65rem;
+  border: 1px solid rgba(217, 119, 6, .24);
+  border-radius: 8px;
+  background: rgba(255, 251, 235, .78);
+  color: #92400e;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.edu-course-roster-refresh-alert span {
+  min-width: 0;
+  line-height: 1.35;
+}
+.edu-course-roster-shell-loading .edu-course-roster-head {
+  background:
+    linear-gradient(135deg, rgba(20,184,166,.1), rgba(96,165,250,.08)),
+    var(--bg-elevated);
+}
+.edu-course-roster-card-skeleton {
+  min-height: 58px;
+  pointer-events: none;
+}
+.edu-course-roster-skeleton-pill,
+.edu-course-roster-skeleton-line,
+.edu-course-roster-skeleton-status {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--bg-elevated) 0%, var(--border) 48%, var(--bg-elevated) 100%);
+  background-size: 210% 100%;
+  animation: edu-loading-shimmer 1.25s ease-in-out infinite;
+}
+.edu-course-roster-skeleton-pill {
+  width: 7.5rem;
+  max-width: 56%;
+  height: 1.35rem;
+}
+.edu-course-roster-skeleton-line {
+  width: 10rem;
+  max-width: 70%;
+  height: .72rem;
+  margin-top: .42rem;
+}
+.edu-course-roster-skeleton-line-1 { width: 8rem; }
+.edu-course-roster-skeleton-line-2 { width: 11.5rem; }
+.edu-course-roster-skeleton-status {
+  width: 4.8rem;
+  height: 1.35rem;
+}
 .edu-course-roster-payment {
   flex: 0 0 auto;
   display: inline-flex;
@@ -1209,6 +1262,22 @@
 }
 [data-theme="dark"] .edu-course-roster-card-unpaid {
   background: rgba(127, 29, 29, .12);
+}
+[data-theme="dark"] .edu-course-roster-refresh-alert {
+  border-color: rgba(251, 191, 36, .28);
+  background: rgba(120, 53, 15, .22);
+  color: #fcd34d;
+}
+[data-theme="dark"] .edu-course-roster-shell-loading .edu-course-roster-head {
+  background:
+    linear-gradient(135deg, rgba(45,212,191,.12), rgba(96,165,250,.08)),
+    var(--bg-elevated);
+}
+[data-theme="dark"] .edu-course-roster-skeleton-pill,
+[data-theme="dark"] .edu-course-roster-skeleton-line,
+[data-theme="dark"] .edu-course-roster-skeleton-status {
+  background: linear-gradient(90deg, rgba(30,41,59,.96) 0%, rgba(51,65,85,.92) 48%, rgba(30,41,59,.96) 100%);
+  background-size: 210% 100%;
 }
 [data-theme="dark"] .edu-course-roster-payment-unpaid {
   border-color: rgba(248, 113, 113, .36);
