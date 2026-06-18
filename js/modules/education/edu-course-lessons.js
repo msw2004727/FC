@@ -13,6 +13,8 @@ Object.assign(App, {
   _eduCourseRosterRefreshSatisfiedAt: {},
   _eduCourseRosterPublicTtlMs: 30000,
   _eduCourseRosterStaffTtlMs: 15000,
+  _eduCourseRosterPerfTimeline: [],
+  _eduCourseRosterLastPerf: null,
 
   _getEduCourseLessonsContainer() {
     return document.getElementById('edu-course-lessons-page');
@@ -45,6 +47,44 @@ Object.assign(App, {
     } catch (_) {
       return 'guest';
     }
+  },
+
+  _getCourseLessonRosterPerfNow() {
+    try {
+      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+      }
+    } catch (_) {}
+    return Date.now();
+  },
+
+  _shouldLogCourseLessonRosterPerf() {
+    try {
+      if (typeof window !== 'undefined' && window._perfEduRosterLog) return true;
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('_perfEduRosterLog')) return true;
+    } catch (_) {}
+    return false;
+  },
+
+  _recordCourseLessonRosterPerf(stage, meta = {}, startedAtMs = null) {
+    const now = this._getCourseLessonRosterPerfNow();
+    const start = Number(startedAtMs);
+    const elapsedMs = Number.isFinite(start) ? Math.max(0, Math.round(now - start)) : 0;
+    const entry = {
+      stage,
+      elapsedMs,
+      atMs: Math.round(now),
+      ...meta,
+    };
+    const timeline = Array.isArray(this._eduCourseRosterPerfTimeline)
+      ? this._eduCourseRosterPerfTimeline
+      : [];
+    this._eduCourseRosterPerfTimeline = [...timeline, entry].slice(-20);
+    this._eduCourseRosterLastPerf = entry;
+    if (this._shouldLogCourseLessonRosterPerf() && typeof console !== 'undefined' && typeof console.info === 'function') {
+      console.info('[perfEduRoster] ' + stage + ' +' + elapsedMs + 'ms', entry);
+    }
+    return entry;
   },
 
   _getCourseLessonRosterPayloadVersion(payload) {
@@ -1022,10 +1062,38 @@ Object.assign(App, {
       if (!plan) return { ok: false, reason: 'plan_not_found' };
       const ctx = this._eduCourseLessonsContext;
       const editing = ctx?.mode === 'roster' && (ctx.manageMode === true || ctx.notesEditMode === true);
-      if (editing || this._hasCourseLessonRosterBlockingOverlay()) return { ok: true, deferred: true };
+      if (editing || this._hasCourseLessonRosterBlockingOverlay()) {
+        this._recordCourseLessonRosterPerf('fresh_deferred', {
+          teamId,
+          planId,
+          sessionId,
+          reason: editing ? 'editing' : 'blocking_overlay',
+          studentCount: Array.isArray(rosterPayload?.students) ? rosterPayload.students.length : 0,
+        }, options.perfStartedAtMs);
+        return { ok: true, deferred: true };
+      }
       const nextVersion = this._getCourseLessonRosterPayloadVersion(rosterPayload);
-      if (previousVersion && nextVersion && previousVersion === nextVersion) return { ok: true, unchanged: true };
-      return this._applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq);
+      if (previousVersion && nextVersion && previousVersion === nextVersion) {
+        this._recordCourseLessonRosterPerf('fresh_unchanged', {
+          teamId,
+          planId,
+          sessionId,
+          cachedVersion: previousVersion || '',
+          freshVersion: nextVersion || '',
+          studentCount: Array.isArray(rosterPayload?.students) ? rosterPayload.students.length : 0,
+        }, options.perfStartedAtMs);
+        return { ok: true, unchanged: true };
+      }
+      const result = await this._applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq);
+      this._recordCourseLessonRosterPerf('fresh_overlay', {
+        teamId,
+        planId,
+        sessionId,
+        cachedVersion: previousVersion || '',
+        freshVersion: nextVersion || '',
+        studentCount: Array.isArray(rosterPayload?.students) ? rosterPayload.students.length : 0,
+      }, options.perfStartedAtMs);
+      return result;
     } catch (err) {
       console.warn('[edu-course-lessons] roster background refresh failed:', err);
       return { ok: false, reason: 'refresh_failed' };
@@ -1034,6 +1102,14 @@ Object.assign(App, {
 
   async showCourseLessonRoster(teamId, planId, sessionId, options = {}) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
+    const perfStartedAtMs = this._getCourseLessonRosterPerfNow();
+    this._eduCourseRosterPerfTimeline = [];
+    this._recordCourseLessonRosterPerf('start', {
+      teamId,
+      planId,
+      sessionId,
+      forceRefresh: options?.forceRefresh === true,
+    }, perfStartedAtMs);
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
     await this.showPage('page-edu-course-lessons');
@@ -1043,6 +1119,7 @@ Object.assign(App, {
     if (!container) return { ok: false, reason: 'missing_container' };
     this._setEduCourseLessonsTitle('課堂名單');
     container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
+    this._recordCourseLessonRosterPerf('skeleton', { teamId, planId, sessionId }, perfStartedAtMs);
 
     const localStaff = this.isEduClubStaff?.(teamId) === true;
     const viewerUidAtStart = this._getCourseLessonRosterViewerUid();
@@ -1070,6 +1147,14 @@ Object.assign(App, {
         localStaff,
         requestSeq,
       );
+      this._recordCourseLessonRosterPerf('cache_preview', {
+        teamId,
+        planId,
+        sessionId,
+        cacheScope,
+        cachedVersion: this._getCourseLessonRosterPayloadVersion(cachedPayload),
+        studentCount: Array.isArray(cachedRenderPayload?.students) ? cachedRenderPayload.students.length : 0,
+      }, perfStartedAtMs);
       this._refreshCourseLessonRosterInBackground(
         requestSeq,
         teamId,
@@ -1079,7 +1164,7 @@ Object.assign(App, {
         localStaff,
         this._getCourseLessonRosterPayloadVersion(cachedPayload),
         viewerUidAtStart,
-        { forceRefresh, rosterPromise: freshRosterPromise },
+        { forceRefresh, rosterPromise: freshRosterPromise, perfStartedAtMs },
       );
       return { ...result, cached: true };
     }
@@ -1097,6 +1182,15 @@ Object.assign(App, {
     }
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
     if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
-    return this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
+    const result = await this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
+    this._recordCourseLessonRosterPerf('fresh_roster', {
+      teamId,
+      planId,
+      sessionId,
+      forceRefresh,
+      freshVersion: this._getCourseLessonRosterPayloadVersion(freshRosterPayload),
+      studentCount: Array.isArray(freshRosterPayload?.students) ? freshRosterPayload.students.length : 0,
+    }, perfStartedAtMs);
+    return result;
   },
 });

@@ -522,6 +522,9 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).not.toContain('edu-course-roster-status-leave');
     expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(app._eduCourseRosterPerfTimeline.map(entry => entry.stage)).toEqual(
+      expect.arrayContaining(['start', 'skeleton', 'cache_preview']),
+    );
 
     resolveRefresh(freshPayload);
     await flushPromises();
@@ -529,6 +532,7 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Fresh Student');
     expect(container.innerHTML).toContain('edu-course-roster-status-signin');
     expect(container.innerHTML).toContain('edu-roster-self-leave-btn');
+    expect(app._eduCourseRosterPerfTimeline.map(entry => entry.stage)).toContain('fresh_overlay');
   });
 
   test('staff roster paints cached public preview before fresh staff fields arrive', async () => {
