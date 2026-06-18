@@ -1073,7 +1073,8 @@ Object.assign(App, {
         return { ok: true, deferred: true };
       }
       const nextVersion = this._getCourseLessonRosterPayloadVersion(rosterPayload);
-      if (previousVersion && nextVersion && previousVersion === nextVersion) {
+      const currentPreview = ctx?.rosterPayload?.cacheMeta?.preview === true;
+      if (!currentPreview && previousVersion && nextVersion && previousVersion === nextVersion) {
         this._recordCourseLessonRosterPerf('fresh_unchanged', {
           teamId,
           planId,

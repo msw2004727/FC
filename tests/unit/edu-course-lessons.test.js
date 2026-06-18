@@ -505,7 +505,7 @@ describe('edu course lessons', () => {
     };
     const freshPayload = {
       rosterPublic: true,
-      cacheMeta: { payloadVersion: 'v2', cacheTtlMs: 30000 },
+      cacheMeta: { payloadVersion: 'v1', cacheTtlMs: 30000 },
       session: { id: 'sessionA', title: 'Fresh', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
       students: [{ studentId: 'stu1', displayName: 'Fresh Student', level: '1', attendanceKind: 'signin', canSelfLeave: true, selfUid: 'uidA' }],
     };
@@ -549,7 +549,7 @@ describe('edu course lessons', () => {
     const freshPayload = {
       rosterPublic: true,
       canManageRoster: true,
-      cacheMeta: { payloadVersion: 'staff-v2', cacheTtlMs: 15000 },
+      cacheMeta: { payloadVersion: 'staff-v1', cacheTtlMs: 15000 },
       session: { id: 'sessionA', title: 'Fresh Staff', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
       staffEnrollmentByStudentId: { stu1: { jerseyNumber: '8', position: 'MF', coachNotes: 'fresh private note' } },
       students: [{ studentId: 'stu1', displayName: 'Fresh Staff Student', level: '1', attendanceKind: 'signin' }],
