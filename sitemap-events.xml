@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://toosterx.com/events/ce_1778605033507_3ou7_4</loc>
-    <lastmod>2026-05-17</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1778605033507_nlir_5</loc>
     <lastmod>2026-05-17</lastmod>
     <changefreq>daily</changefreq>
@@ -26,12 +20,6 @@
   </url>
   <url>
     <loc>https://toosterx.com/events/ce_1779770595635_pioi_3</loc>
-    <lastmod>2026-05-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1779771324034_ixdx_2</loc>
     <lastmod>2026-05-26</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
@@ -73,12 +61,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1780425393642_u176_2</loc>
-    <lastmod>2026-06-02</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1780425393642_ya6v_3</loc>
     <lastmod>2026-06-02</lastmod>
     <changefreq>daily</changefreq>
@@ -87,12 +69,6 @@
   <url>
     <loc>https://toosterx.com/events/ce_1781429454613_6uqiu2</loc>
     <lastmod>2026-06-14</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1781577981119_dclk6k</loc>
-    <lastmod>2026-06-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -111,6 +87,12 @@
   <url>
     <loc>https://toosterx.com/events/ce_1781596293992_2gzeci</loc>
     <lastmod>2026-06-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1781706689212_t0k7tz</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
