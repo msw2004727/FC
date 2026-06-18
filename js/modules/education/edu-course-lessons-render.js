@@ -35,7 +35,7 @@ Object.assign(App, {
     )).join('');
     return '<div class="edu-course-roster-shell edu-course-roster-shell-loading" role="status" aria-live="polite" aria-busy="true">'
       + '<section class="edu-course-roster-head">'
-        + '<button type="button" class="outline-btn small" disabled aria-disabled="true">&#36820;&#22238;&#35406;&#22530;</button>'
+        + '<button type="button" class="outline-btn small" disabled aria-disabled="true">' + escapeHTML('\u8fd4\u56de\u8ab2\u5802') + '</button>'
         + '<div class="edu-course-roster-title-block">'
           + '<div class="edu-course-roster-title-line">'
             + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'

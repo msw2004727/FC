@@ -295,6 +295,136 @@ Object.assign(App, {
     };
   },
 
+  _isCourseLessonNamesFirstPreviewAllowed(plan) {
+    if (!plan || typeof plan !== 'object') return false;
+    return plan.active !== false
+      && plan.visibleOnTeamPage !== false
+      && plan.rosterPublic !== false;
+  },
+
+  _getCourseLessonCachedEnrollments(teamId, planId, plan) {
+    const key = typeof this._getCourseEnrollCacheKey === 'function'
+      ? this._getCourseEnrollCacheKey(teamId, planId)
+      : String(teamId || '') + ':' + String(planId || '');
+    const cached = this._courseEnrollCache?.[key];
+    if (Array.isArray(cached)) return cached;
+    if (Array.isArray(plan?._enrollments)) return plan._enrollments;
+    return [];
+  },
+
+  _getCourseLessonCachedStudents(teamId) {
+    const direct = typeof this.getEduStudents === 'function' ? this.getEduStudents(teamId) : null;
+    if (Array.isArray(direct)) return direct;
+    const cached = this._eduStudentsCache?.[teamId];
+    return Array.isArray(cached) ? cached : [];
+  },
+
+  _normalizeCourseLessonRosterPreviewStudent(source, fallbackId = '') {
+    if (!source || typeof source !== 'object') return null;
+    const studentId = String(source.studentId || source.id || source._docId || fallbackId || '').trim();
+    if (!studentId) return null;
+    const displayName = String(
+      source.displayName
+      || source.name
+      || source.nickname
+      || source.nickName
+      || source.studentName
+      || ''
+    ).trim();
+    if (!displayName) return null;
+    const clean = {
+      studentId,
+      id: studentId,
+      displayName,
+      name: displayName,
+    };
+    const assignIfPresent = (targetKey, ...sourceKeys) => {
+      const value = sourceKeys
+        .map(key => source[key])
+        .find(item => item !== undefined && item !== null && String(item).trim() !== '');
+      if (value !== undefined) clean[targetKey] = value;
+    };
+    assignIfPresent('level', 'level', 'levelName');
+    assignIfPresent('groupName', 'groupName', 'group', 'groupLabel');
+    assignIfPresent('group', 'group');
+    assignIfPresent('jerseyNumber', 'jerseyNumber', 'number', 'jersey');
+    assignIfPresent('number', 'number', 'jerseyNumber', 'jersey');
+    assignIfPresent('position', 'position');
+    return clean;
+  },
+
+  _buildCourseLessonRosterNamesFirstPreviewPayload(teamId, planId, sessionId, plan, sessions) {
+    if (!this._isCourseLessonNamesFirstPreviewAllowed(plan)) return null;
+    const targetSessionId = String(sessionId || '').trim();
+    const session = (Array.isArray(sessions) ? sessions : [])
+      .find(item => this._getCourseLessonSessionId(item) === targetSessionId);
+    if (!session || session.rosterPublic === false) return null;
+    const studentIds = Array.isArray(session.studentIds)
+      ? session.studentIds.map(value => String(value || '').trim()).filter(Boolean)
+      : [];
+    if (!studentIds.length) return null;
+
+    const byStudentId = new Map();
+    const addSource = (source, fallbackId = '') => {
+      const clean = this._normalizeCourseLessonRosterPreviewStudent(source, fallbackId);
+      if (!clean || byStudentId.has(clean.studentId)) return;
+      byStudentId.set(clean.studentId, clean);
+    };
+
+    const sessionStudentSources = [
+      session.students,
+      session.rosterStudents,
+      session.studentSnapshots,
+    ];
+    sessionStudentSources.forEach((list) => {
+      if (Array.isArray(list)) list.forEach(item => addSource(item));
+    });
+    if (session.studentMap && typeof session.studentMap === 'object') {
+      Object.entries(session.studentMap).forEach(([id, item]) => addSource(item, id));
+    }
+    if (session.studentNames && typeof session.studentNames === 'object') {
+      Object.entries(session.studentNames).forEach(([id, name]) => addSource({ studentId: id, displayName: name }, id));
+    }
+
+    this._getCourseLessonCachedEnrollments(teamId, planId, plan)
+      .filter(enrollment => this._isCourseEnrollmentActiveStatus?.(enrollment?.status) !== false)
+      .forEach(enrollment => addSource(enrollment, enrollment?.studentId));
+    this._getCourseLessonCachedStudents(teamId).forEach(student => addSource(student));
+
+    const students = studentIds
+      .map(id => byStudentId.get(id))
+      .filter(Boolean);
+    if (!students.length) return null;
+
+    return {
+      rosterPublic: true,
+      canManageRoster: false,
+      isStaff: false,
+      staffEnrollmentByStudentId: null,
+      session: {
+        id: session.id,
+        _docId: session._docId,
+        title: session.title,
+        topic: session.topic,
+        focus: session.focus,
+        date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        location: session.location,
+        status: session.status,
+        capacity: session.capacity,
+      },
+      students,
+      cacheMeta: {
+        payloadVersion: 'names-first:' + targetSessionId + ':' + studentIds.join(','),
+        preview: true,
+        namesFirstPreview: true,
+        attendancePending: true,
+        staffPending: false,
+      },
+    };
+  },
+
   _getCourseLessonRosterCachedRenderPayload(cachedPayload) {
     if (!cachedPayload || typeof cachedPayload !== 'object') return null;
     return this._buildCourseLessonRosterBasePreviewPayload(cachedPayload);
@@ -1333,6 +1463,42 @@ Object.assign(App, {
     const freshRosterPromise = forceRefresh
       ? FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
       : FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+    let namesFirstPreviewRendered = false;
+    let freshRosterApplied = false;
+    const applyNamesFirstPreview = async (state, source) => {
+      if (cachedRenderPayload || namesFirstPreviewRendered || freshRosterApplied) return null;
+      if (this._isEduCourseLessonsStale(requestSeq, teamId)) return null;
+      if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) return null;
+      const statePlan = state?.plan || cachedPlanForShell;
+      const stateSessions = Array.isArray(state?.sessions) ? state.sessions : (cachedSessionsForShell || []);
+      const previewPayload = this._buildCourseLessonRosterNamesFirstPreviewPayload(
+        teamId,
+        planId,
+        sessionId,
+        statePlan,
+        stateSessions,
+      );
+      if (!previewPayload) return null;
+      const result = await this._applyCourseLessonRosterPayload(
+        teamId,
+        planId,
+        sessionId,
+        statePlan,
+        previewPayload,
+        false,
+        requestSeq,
+      );
+      if (result?.ok !== true || result.closed === true) return result;
+      namesFirstPreviewRendered = true;
+      this._recordCourseLessonRosterPerf('names_first_preview', {
+        teamId,
+        planId,
+        sessionId,
+        source,
+        studentCount: Array.isArray(previewPayload.students) ? previewPayload.students.length : 0,
+      }, perfStartedAtMs);
+      return result;
+    };
 
     if (cachedRenderPayload && cachedPlan) {
       const result = await this._applyCourseLessonRosterPayload(
@@ -1367,6 +1533,16 @@ Object.assign(App, {
       return { ...result, cached: true };
     }
 
+    await applyNamesFirstPreview({ plan: cachedPlanForShell, sessions: cachedSessionsForShell || [] }, 'cached_shell');
+    const namesFirstPreviewPromise = namesFirstPreviewRendered
+      ? null
+      : lessonStatePromise
+        .then(state => applyNamesFirstPreview(state, 'lesson_state'))
+        .catch((err) => {
+          console.warn('[edu-course-lessons] names-first preview skipped:', err);
+          return null;
+        });
+
     const [lessonStateResult, freshRosterResult] = await Promise.allSettled([lessonStatePromise, freshRosterPromise]);
     const lessonState = lessonStateResult.status === 'fulfilled'
       ? lessonStateResult.value
@@ -1387,12 +1563,25 @@ Object.assign(App, {
     }
     if (freshRosterResult.status !== 'fulfilled' || !freshRosterPayload) {
       console.warn('[edu-course-lessons] roster load failed:', freshRosterResult.reason);
+      await applyNamesFirstPreview(lessonState, 'lesson_state_final');
+      const ctx = this._eduCourseLessonsContext;
+      if (ctx?.mode === 'roster'
+        && ctx.rosterPayload?.cacheMeta?.namesFirstPreview === true
+        && String(ctx.teamId || '') === String(teamId || '')
+        && String(ctx.planId || '') === String(planId || '')
+        && String(ctx.sessionId || '') === String(sessionId || '')) {
+        ctx.refreshError = true;
+        this._renderCourseLessonRosterFromContext?.();
+        return { ok: false, reason: 'roster_failed', preview: true };
+      }
       const jsTeamId = this._eduCourseLessonsJsArg?.(teamId) || String(teamId || '');
       const jsPlanId = this._eduCourseLessonsJsArg?.(planId) || String(planId || '');
       const jsSessionId = this._eduCourseLessonsJsArg?.(sessionId) || String(sessionId || '');
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>&#35531;&#30906;&#35469;&#32178;&#36335;&#29376;&#24907;&#24460;&#20877;&#35430;</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
       return { ok: false, reason: 'roster_failed' };
     }
+    if (namesFirstPreviewPromise) await namesFirstPreviewPromise;
+    freshRosterApplied = true;
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
     if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
     const result = await this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
