@@ -563,7 +563,7 @@ describe('edu course plan render', () => {
       App: app,
       ApiService: {},
       document: {},
-      window: { location: { href: 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended' } },
+      window: { location: { href: 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended&courseView=detail' } },
       MINI_APP_BASE_URL: 'https://miniapp.line.me/demo',
       URL,
       URLSearchParams,
@@ -579,11 +579,96 @@ describe('edu course plan render', () => {
     vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
 
     expect(app._buildEduCoursePlanMiniAppShareUrl('teamA', 'planA', { courseTab: 'ended' }))
-      .toBe('https://miniapp.line.me/demo?teamTab=courses&course=planA&courseTab=ended&team=teamA');
+      .toBe('https://miniapp.line.me/demo?teamTab=courses&course=planA&courseTab=ended&courseView=detail&team=teamA');
     expect(app._buildEduCoursePlanWebShareUrl('teamA', 'planA', { courseTab: 'ended' }))
-      .toBe('https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended');
+      .toBe('https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended&courseView=detail');
     expect(app._getEduCoursePlanShareIntent('teamA'))
-      .toEqual({ teamTab: 'courses', planId: 'planA', courseTab: 'ended' });
+      .toEqual({ teamTab: 'courses', planId: 'planA', courseTab: 'ended', openDetail: true });
+    context.window.location.href = 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended';
+    expect(app._getEduCoursePlanShareIntent('teamA'))
+      .toEqual({ teamTab: 'courses', planId: 'planA', courseTab: 'ended', openDetail: false });
+  });
+
+  test('course plan share detail intent opens the detail overlay after render', async () => {
+    let html = '';
+    const cards = [];
+    const cardById = new Map();
+    const makeCard = (id) => {
+      const node = {
+        getAttribute: jest.fn(name => name === 'data-course-plan-id' ? id : ''),
+        classList: { add: jest.fn(), remove: jest.fn() },
+        scrollIntoView: jest.fn(),
+      };
+      cardById.set(id, node);
+      return node;
+    };
+    const container = {};
+    Object.defineProperty(container, 'innerHTML', {
+      get: () => html,
+      set: (value) => {
+        html = String(value || '');
+        cards.length = 0;
+        cardById.clear();
+        const re = /data-course-plan-id="([^"]+)"/g;
+        let match;
+        while ((match = re.exec(html))) cards.push(makeCard(match[1]));
+      },
+    });
+    const plans = [{
+      id: 'planA',
+      name: 'Plan A',
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      maxCapacity: 8,
+      allowSignup: true,
+    }];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
+      _getCourseEnrollCacheKey: jest.fn(() => null),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: day => String(day),
+      currentPage: 'page-team-detail',
+      _eduDetailTeamId: 'teamA',
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn(id => id === 'edu-course-plan-list' ? container : null),
+        querySelectorAll: jest.fn(selector => selector === '[data-course-plan-id]' ? cards : []),
+      },
+      window: { location: { href: 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseView=detail' } },
+      setTimeout: (fn) => { fn(); return 0; },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+      Array,
+      URL,
+      URLSearchParams,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+    app.showEduCoursePlanDetail = jest.fn(() => Promise.resolve());
+
+    app._primeEduCoursePlanShareIntent('teamA');
+    await app.renderEduCoursePlanList('teamA', false);
+
+    expect(app._eduActiveTab).toBe('course');
+    expect(app._eduCoursePlanTabByTeam.teamA).toBe('active');
+    expect(app.showEduCoursePlanDetail).toHaveBeenCalledWith('teamA', 'planA');
+    expect(cardById.get('planA').classList.add).toHaveBeenCalledWith('edu-cp-card-share-target');
+    expect(cardById.get('planA').scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' });
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
   });
 
   test('course list refreshes only visible plans in the selected tab', async () => {

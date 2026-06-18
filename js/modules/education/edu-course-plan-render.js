@@ -22,6 +22,7 @@ Object.assign(App, {
     params.set('teamTab', 'courses');
     params.set('course', String(planId || '').trim());
     params.set('courseTab', options.courseTab === 'ended' ? 'ended' : 'active');
+    if (options.courseView !== 'card') params.set('courseView', 'detail');
     if (options.includeTeam !== false) params.set('team', String(teamId || '').trim());
     return params.toString();
   },
@@ -258,7 +259,9 @@ Object.assign(App, {
       const planId = String(params.get('course') || params.get('coursePlan') || params.get('plan') || '').trim();
       if (teamTab !== 'courses' && !planId) return null;
       const courseTab = String(params.get('courseTab') || '').trim().toLowerCase() === 'ended' ? 'ended' : 'active';
-      return { teamTab: 'courses', planId, courseTab };
+      const courseView = String(params.get('courseView') || params.get('view') || '').trim().toLowerCase();
+      const openDetail = courseView === 'detail' || courseView === 'info';
+      return { teamTab: 'courses', planId, courseTab, openDetail };
     } catch (_) {
       return null;
     }
@@ -276,6 +279,7 @@ Object.assign(App, {
     if (intent.planId) {
       this._eduCoursePlanShareFocusByTeam[teamId] = {
         planId: intent.planId,
+        openDetail: intent.openDetail === true,
         createdAt: Date.now(),
       };
     }
@@ -292,10 +296,27 @@ Object.assign(App, {
     cards.forEach(node => node.classList?.remove('edu-cp-card-share-target'));
     card.classList?.add('edu-cp-card-share-target');
     delete this._eduCoursePlanShareFocusByTeam[teamId];
-    setTimeout(() => {
+    const schedule = (fn, delay) => {
+      if (typeof setTimeout === 'function') return setTimeout(fn, delay);
+      try { fn(); } catch (_) {}
+      return null;
+    };
+    schedule(() => {
       try { card.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
     }, 80);
-    setTimeout(() => {
+    if (pending.openDetail === true && typeof this.showEduCoursePlanDetail === 'function') {
+      schedule(() => {
+        try {
+          const result = this.showEduCoursePlanDetail(teamId, planId);
+          if (result && typeof result.catch === 'function') {
+            result.catch(err => console.warn('[EduCourseShare] open detail intent failed:', err));
+          }
+        } catch (err) {
+          console.warn('[EduCourseShare] open detail intent failed:', err);
+        }
+      }, 120);
+    }
+    schedule(() => {
       try { card.classList?.remove('edu-cp-card-share-target'); } catch (_) {}
     }, 4200);
     return true;
