@@ -108,6 +108,48 @@ const LineAuth = {
     }
   },
 
+  _getLiffDecodedUserId() {
+    try {
+      const token = (typeof liff !== 'undefined' && typeof liff.getDecodedIDToken === 'function')
+        ? liff.getDecodedIDToken()
+        : null;
+      return String(token?.sub || '').trim();
+    } catch (_) {
+      return '';
+    }
+  },
+
+  canUseCachedProfileForFastCloudReady() {
+    try {
+      const cachedOrLive = this._profile || this.restoreCachedProfile();
+      if (!cachedOrLive?.userId) return false;
+      if (!this._firebaseSessionAlive() || !this._matchesFirebaseUid(cachedOrLive)) return false;
+      const decodedUid = this._getLiffDecodedUserId();
+      return !!decodedUid && decodedUid === cachedOrLive.userId;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  refreshProfileInBackground(reason = 'background') {
+    if (this._profileLoading || this._profilePromise) return true;
+    if (typeof liff === 'undefined' || !this.hasLiffSession()) return false;
+    if (typeof recordAuthTiming === 'function') {
+      recordAuthTiming('line:profile:background-start', { reason });
+    }
+    Promise.resolve(this.ensureProfile({ force: true })).then(profile => {
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('line:profile:background-done', { reason, ok: !!profile });
+      }
+    }).catch(err => {
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('line:profile:background-failed', { reason, code: err?.code || err?.message || 'unknown' });
+      }
+      console.warn('[LineAuth] Background profile refresh failed:', err);
+    });
+    return true;
+  },
+
   isLoggedInWithLiff() {
     return this._ready && this._profile !== null && this.hasLiffSession();
   },
@@ -185,6 +227,9 @@ const LineAuth = {
     if (typeof liff === 'undefined' || !this.hasLiffSession()) return null;
     if (this._profile && !force) return this._profile;
     if (this._profilePromise) return await this._profilePromise;
+    if (typeof recordAuthTiming === 'function') {
+      recordAuthTiming('line:profile:fetch-start', { force: !!force });
+    }
 
     this._profilePromise = (async () => {
       this._profileLoading = true;
@@ -199,6 +244,9 @@ const LineAuth = {
         const err = new Error('No access token available after liff.init()');
         err.code = 'no_access_token';
         this._profileError = err;
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('line:profile:fetch-failed', { code: err.code });
+        }
         console.error('[LineAuth] 無 Access Token，LIFF session 可能無效');
         return null;
       }
@@ -229,6 +277,9 @@ const LineAuth = {
           };
           this._persistProfileCache(this._profile);
           this._primeFirebaseCurrentUser();
+          if (typeof recordAuthTiming === 'function') {
+            recordAuthTiming('line:profile:fetch-done', { source: 'liff', attempt: i + 1 });
+          }
           console.log('[LineAuth] 已登入:', this._profile.displayName);
           return this._profile;
         } catch (err) {
@@ -255,6 +306,9 @@ const LineAuth = {
           };
           this._persistProfileCache(this._profile);
           this._primeFirebaseCurrentUser();
+          if (typeof recordAuthTiming === 'function') {
+            recordAuthTiming('line:profile:fetch-done', { source: 'direct' });
+          }
           console.log('[LineAuth] 已登入（直接 API fallback）:', this._profile.displayName);
           return this._profile;
         }
@@ -275,6 +329,9 @@ const LineAuth = {
           };
           this._persistProfileCache(this._profile);
           this._primeFirebaseCurrentUser();
+          if (typeof recordAuthTiming === 'function') {
+            recordAuthTiming('line:profile:fetch-done', { source: 'id-token' });
+          }
           console.log('[LineAuth] 已登入（ID Token fallback）:', this._profile.displayName);
           return this._profile;
         } else {
@@ -285,6 +342,9 @@ const LineAuth = {
       }
 
       this._profileError = lastErr;
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('line:profile:fetch-failed', { code: lastErr?.code || lastErr?.message || 'unknown' });
+      }
       console.error('[LineAuth] 所有取得用戶資料的方式均失敗:', lastErr);
       return null;
     })();

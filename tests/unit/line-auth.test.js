@@ -69,6 +69,20 @@ function _matchesFirebaseCurrentUserCache(currentUser, firebaseUid, hasExistingP
   return hasExistingProfile || !!String(currentUser.displayName || currentUser.name || '').trim();
 }
 
+function _canUseCachedProfileForFastCloudReady({
+  liveProfile,
+  cachedProfile,
+  firebaseUid,
+  firebaseSessionAlive,
+  liffDecodedUid,
+}) {
+  const profile = liveProfile || cachedProfile;
+  return !!firebaseSessionAlive
+    && _matchesFirebaseUid(profile, firebaseUid)
+    && !!liffDecodedUid
+    && liffDecodedUid === profile.userId;
+}
+
 function _isLoggedIn({ ready, profile, firebaseUid, cachedProfile, currentUser }) {
   const hasFirebaseUserFallback = () => {
     if (!firebaseUid) return false;
@@ -222,6 +236,48 @@ describe('_matchesFirebaseCurrentUserCache', () => {
     expect(_matchesFirebaseCurrentUserCache({ uid: 'u2', lineUserId: 'u3', displayName: 'Alice' }, 'u1')).toBe(false);
     expect(_matchesFirebaseCurrentUserCache({ uid: 'u1', displayName: 'Alice' }, '')).toBe(false);
     expect(_matchesFirebaseCurrentUserCache({ uid: 'u1' }, 'u1')).toBe(false);
+  });
+});
+
+describe('cached profile fast cloud-ready contract', () => {
+  test('allows fast path only when Firebase session is alive and uid matches', () => {
+    expect(_canUseCachedProfileForFastCloudReady({
+      liveProfile: { userId: 'u1', displayName: 'Alice' },
+      cachedProfile: null,
+      firebaseUid: 'u1',
+      firebaseSessionAlive: true,
+      liffDecodedUid: 'u1',
+    })).toBe(true);
+  });
+
+  test('rejects fast path when the cached profile belongs to another user', () => {
+    expect(_canUseCachedProfileForFastCloudReady({
+      liveProfile: { userId: 'u2', displayName: 'Bob' },
+      cachedProfile: null,
+      firebaseUid: 'u1',
+      firebaseSessionAlive: true,
+      liffDecodedUid: 'u2',
+    })).toBe(false);
+  });
+
+  test('rejects fast path before Firebase Auth has restored the session', () => {
+    expect(_canUseCachedProfileForFastCloudReady({
+      liveProfile: null,
+      cachedProfile: { userId: 'u1', displayName: 'Alice' },
+      firebaseUid: 'u1',
+      firebaseSessionAlive: false,
+      liffDecodedUid: 'u1',
+    })).toBe(false);
+  });
+
+  test('rejects fast path when LIFF decoded token is unavailable', () => {
+    expect(_canUseCachedProfileForFastCloudReady({
+      liveProfile: { userId: 'u1', displayName: 'Alice' },
+      cachedProfile: null,
+      firebaseUid: 'u1',
+      firebaseSessionAlive: true,
+      liffDecodedUid: '',
+    })).toBe(false);
   });
 });
 

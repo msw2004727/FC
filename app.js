@@ -3203,13 +3203,18 @@ const App = {
     if (this._cloudReadyPromise) return await this._cloudReadyPromise;
 
     console.log(`[Cloud] ensureCloudReady start: ${reason}`);
+    if (typeof recordAuthTiming === 'function') {
+      recordAuthTiming('cloud:ensure-start', { reason });
+    }
     this._cloudReadyError = null;
 
     const bootPromise = (async () => {
       await _loadCDNScripts();
+      if (typeof recordAuthTiming === 'function') recordAuthTiming('cloud:cdn-ready', { reason });
       if (!initFirebaseApp()) {
         throw new Error('FIREBASE_APP_INIT_FAILED');
       }
+      if (typeof recordAuthTiming === 'function') recordAuthTiming('cloud:firebase-ready', { reason });
       this.startPmThreadListener?.();
 
       if (typeof liff !== 'undefined') {
@@ -3220,6 +3225,9 @@ const App = {
       // LIFF init 與 Firebase init 並行，避免 LIFF 阻塞資料載入（guest deep link 需要快速載入事件）
       const liffReadyPromise = (typeof liff !== 'undefined')
         ? LineAuth.initSDK().then(() => {
+            if (typeof recordAuthTiming === 'function') {
+              recordAuthTiming('line:init-ready', { hasSession: LineAuth.hasLiffSession() });
+            }
             console.log('[Cloud] LIFF SDK ready');
             if (LineAuth.hasLiffSession()) {
               // Tier 1：正常 LIFF session
@@ -3246,13 +3254,32 @@ const App = {
           });
 
       await Promise.all([liffReadyPromise, FirebaseService.init()]);
+      if (typeof recordAuthTiming === 'function') recordAuthTiming('cloud:core-ready', { reason });
 
       // LIFF profile（需要 LIFF 已 ready）
       if (LineAuth.hasLiffSession()) {
-        // Tier 1：完整 LIFF 刷新
-        await LineAuth.ensureProfile({ force: true }).catch(err => {
-          console.warn('[Cloud] ensureProfile failed:', err);
-        });
+        const canUseCachedProfile = (typeof LineAuth.canUseCachedProfileForFastCloudReady === 'function')
+          ? LineAuth.canUseCachedProfileForFastCloudReady()
+          : false;
+        if (canUseCachedProfile) {
+          console.log('[Cloud] LIFF profile cache matches Firebase Auth; refresh in background.');
+          if (typeof recordAuthTiming === 'function') {
+            recordAuthTiming('line:profile:cache-fast-path', { reason });
+          }
+          try { this.renderLoginUI(); } catch (_) {}
+          if (typeof LineAuth.refreshProfileInBackground === 'function') {
+            LineAuth.refreshProfileInBackground('cloud-ready-cache');
+          } else {
+            LineAuth.ensureProfile({ force: true }).catch(err => {
+              console.warn('[Cloud] background ensureProfile failed:', err);
+            });
+          }
+        } else {
+          // Tier 1：完整 LIFF 刷新
+          await LineAuth.ensureProfile({ force: true }).catch(err => {
+            console.warn('[Cloud] ensureProfile failed:', err);
+          });
+        }
       } else if (LineAuth._profile && LineAuth._firebaseSessionAlive()) {
         // Tier 2：LIFF 過期但 Firebase Auth 存活
         if (LineAuth._matchesFirebaseUid(LineAuth._profile)) {
@@ -3270,6 +3297,7 @@ const App = {
       this._cloudReady = true;
       this._cloudReadyError = null;
       ApiService._errorLogReady = true;
+      if (typeof recordAuthTiming === 'function') recordAuthTiming('cloud:ready', { reason });
       console.log('[Cloud] Firebase + LIFF ready');
 
       // 背景載入 Auto-EXP 規則（Firestore → 記憶體快取 + localStorage fallback）

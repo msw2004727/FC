@@ -31,6 +31,33 @@ const _firebaseAuthReadyPromise = new Promise(resolve => {
   _firebaseAuthReadyResolve = resolve;
 });
 
+function recordAuthTiming(label, meta = {}) {
+  try {
+    const nowMs = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    const root = (typeof window !== 'undefined') ? window : null;
+    if (root && !root.__toosterxAuthTimingStartMs) {
+      root.__toosterxAuthTimingStartMs = nowMs;
+    }
+    const startMs = root ? root.__toosterxAuthTimingStartMs : nowMs;
+    const entry = {
+      label: String(label || 'unknown'),
+      atMs: Math.round(nowMs),
+      deltaMs: Math.max(0, Math.round(nowMs - startMs)),
+      ...(meta && typeof meta === 'object' ? meta : {}),
+    };
+    if (root) {
+      if (!Array.isArray(root.__toosterxAuthTimings)) root.__toosterxAuthTimings = [];
+      root.__toosterxAuthTimings.push(entry);
+      if (root.__toosterxAuthTimings.length > 80) root.__toosterxAuthTimings.shift();
+    }
+    if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+      console.debug('[AuthTiming]', entry.label, entry.deltaMs + 'ms', meta || {});
+    }
+  } catch (_) {}
+}
+
 // ─── WebSocket 降級偵測 ───
 const _WS_BLOCKED_KEY = 'shub_ws_blocked';
 const _WS_BLOCKED_SESSION_KEY = 'shub_ws_blocked_tab';
@@ -71,6 +98,7 @@ function initFirebaseApp() {
   if (db) return true; // 已初始化
   if (typeof firebase === 'undefined') return false;
   try {
+    if (typeof recordAuthTiming === 'function') recordAuthTiming('firebase:init:start');
     if (!firebase.apps || firebase.apps.length === 0) {
       firebase.initializeApp(firebaseConfig);
     }
@@ -99,6 +127,9 @@ function initFirebaseApp() {
       if (!_firebaseAuthReady) {
         _firebaseAuthReady = true;
         _firebaseAuthReadyResolve(user);
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase:auth:first-state', { signedIn: !!user });
+        }
         console.log('[Firebase] Auth 狀態已恢復:', user ? ('uid=' + user.uid) : '未登入');
       }
     });
@@ -130,6 +161,7 @@ function initFirebaseApp() {
       console.warn('[Firestore] enablePersistence 同步例外（已降級為無離線快取）:', persistErr.message || persistErr);
     }
     console.log('[Firebase] App 初始化成功');
+    if (typeof recordAuthTiming === 'function') recordAuthTiming('firebase:init:ready');
     return true;
   } catch (e) {
     console.error('[Firebase] 初始化失敗:', e.message);

@@ -3004,6 +3004,11 @@ const FirebaseService = {
     }
 
     const currentUid = auth?.currentUser?.uid || '__pending__';
+    if (typeof recordAuthTiming === 'function') {
+      recordAuthTiming('firebase-service:auth-work:start', {
+        uidState: currentUid === '__pending__' ? 'pending' : 'ready',
+      });
+    }
 
     // 2026-04-27：防止「cache 命中先用 __pending__ 呼叫一次、onAuthStateChanged 又用真 uid 呼叫一次」的雙重 seed
     // 已成功完成過此 uid 的 seed → 直接 return（避免重複寫 notifTemplates / 權限預設值）
@@ -3027,9 +3032,15 @@ const FirebaseService = {
           this._authPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000))
         ]);
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:auth-promise:ready');
+        }
       } catch (err) {
         console.error('[FirebaseService] Firebase Auth 登入失敗:', err?.code || err?.message);
         this._authError = err;
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:auth-promise:failed', { code: err?.code || err?.message || 'unknown' });
+        }
         return;
       }
 
@@ -3045,8 +3056,14 @@ const FirebaseService = {
       // 強制刷新 token，確保 persistence 恢復的 token 仍有效
       try {
         await auth.currentUser.getIdToken(true);
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:token-refresh:ready');
+        }
       } catch (tokenErr) {
         console.warn('[FirebaseService] Token refresh failed, skip auth-dependent work:', tokenErr?.code || tokenErr?.message);
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:token-refresh:failed', { code: tokenErr?.code || tokenErr?.message || 'unknown' });
+        }
         return;
       }
 
@@ -3069,11 +3086,20 @@ const FirebaseService = {
       this._staleWhileRevalidateRegistrations(authUid);
 
       try {
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:role-listeners:first-snapshot:start');
+        }
         await this._watchRolePermissionsRealtime(true);
         await this._watchRoleActivityCapabilitiesRealtime(true);
+        if (typeof recordAuthTiming === 'function') {
+          recordAuthTiming('firebase-service:role-listeners:first-snapshot:ready');
+        }
       } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
       const authRole = await this._resolveCurrentAuthRole();
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('firebase-service:role:resolved', { role: authRole });
+      }
       if (!BUILTIN_ROLE_KEYS.includes(authRole)) {
         try {
           await this._loadCollectionsByName(['customRoles']);
@@ -3119,6 +3145,9 @@ const FirebaseService = {
       // 2026-04-27：標記此 uid 的 seed 已完成、阻止 onAuthStateChanged 二度觸發 seed tasks
       this._authSeedCompletedForUid = authUid;
       console.log('[FirebaseService] Auth-dependent init complete.');
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('firebase-service:auth-work:complete');
+      }
 
       // fire-and-forget：記錄登入 IP + 地區（供用戶管理後台稽核）
       try {
@@ -3152,6 +3181,7 @@ const FirebaseService = {
     if (this._initialized) return;
     if (this._initInFlight) { console.warn('[FirebaseService] init() 已在執行中，跳過重複呼叫'); return; }
     this._initInFlight = true;
+    if (typeof recordAuthTiming === 'function') recordAuthTiming('firebase-service:init:start');
     try {
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
@@ -3215,6 +3245,9 @@ const FirebaseService = {
       this._setupVisibilityRefresh();
       const _cacheLabel = _cacheAge < _FRESH_CACHE_TTL ? 'Fresh' : 'Display';
       console.log(`[FirebaseService] ${_cacheLabel} cache hit (${Math.round(_cacheAge / 1000)}s old) — skip boot wait`);
+      if (typeof recordAuthTiming === 'function') {
+        recordAuthTiming('firebase-service:init:cache-ready', { cacheAgeMs: _cacheAge });
+      }
       this._loadRealtimeLimits().catch(function() {}); // 背景載入，不阻塞快取路徑
       this._startAuthDependentWork();
       this._schedulePostInitWarmups();
@@ -3268,6 +3301,7 @@ const FirebaseService = {
       this._initialized = true;
       this._setupVisibilityRefresh();
       console.log('[FirebaseService] Init timed out; continue with localStorage cache.');
+      if (typeof recordAuthTiming === 'function') recordAuthTiming('firebase-service:init:timeout-cache');
       this._startAuthDependentWork();
       this._fetchBootViaRest();
       this._continueLoadAfterTimeout();
@@ -3297,6 +3331,7 @@ const FirebaseService = {
 
     const bootCount = this._bootCollections.length;
     console.log(`[FirebaseService] Public data init complete - boot: ${bootCount}, static events preload, deferred: ${this._deferredCollections.length}`);
+    if (typeof recordAuthTiming === 'function') recordAuthTiming('firebase-service:init:public-ready', { bootCount });
     // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
     this._startAuthDependentWork();
     this._schedulePostInitWarmups();
