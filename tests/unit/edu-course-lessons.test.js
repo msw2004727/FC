@@ -739,8 +739,8 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Cached Student');
     expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
     expect(container.innerHTML).toContain('edu-inline-spinner');
-    expect(container.innerHTML).toContain('edu-course-roster-status-pending');
-    expect(container.innerHTML).not.toContain('edu-course-roster-status-leave');
+    expect(container.innerHTML).toContain('edu-course-roster-status-leave');
+    expect(container.innerHTML).not.toContain('edu-course-roster-status-pending');
     expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
     expect(app._eduCourseRosterPerfTimeline.map(entry => entry.stage)).toEqual(
@@ -792,10 +792,11 @@ describe('edu course lessons', () => {
 
     await expect(secondLoad).resolves.toMatchObject({ ok: true, cached: true });
     expect(container.innerHTML).toContain('Cached Staff Student');
-    expect(container.innerHTML).toContain('edu-course-roster-status-pending');
+    expect(container.innerHTML).toContain('edu-course-roster-status-none');
     expect(container.innerHTML).not.toContain('edu-course-roster-status-signin');
-    expect(container.innerHTML).not.toContain('old private note');
+    expect(container.innerHTML).toContain('old private note');
     expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
+    expect(container.innerHTML).not.toContain('App.editCourseSessionRosterNote');
 
     resolveRefresh(freshPayload);
     await flushPromises();
@@ -803,6 +804,73 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Fresh Staff Student');
     expect(container.innerHTML).toContain('fresh private note');
     expect(container.innerHTML).toContain('App.startCourseLessonRosterManage()');
+  });
+
+  test('keeps stale staff roster read only when background refresh fails', async () => {
+    const cachedPayload = {
+      rosterPublic: true,
+      canManageRoster: true,
+      cacheMeta: { payloadVersion: 'staff-fail-v1', cacheTtlMs: 15000 },
+      session: { id: 'sessionA', title: 'Cached Staff', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      staffEnrollmentByStudentId: { stu1: { jerseyNumber: '7', position: 'ST', coachNotes: 'old private note' } },
+      students: [{ studentId: 'stu1', displayName: 'Cached Staff Student', level: '1', attendanceKind: null }],
+    };
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      rosterPayload: cachedPayload,
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    firebase.listEduCoursePublicRoster.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({ ok: true, cached: true });
+    await flushPromises();
+
+    expect(container.innerHTML).toContain('Cached Staff Student');
+    expect(container.innerHTML).toContain('old private note');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-alert');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+    expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
+    expect(container.innerHTML).not.toContain('App.editCourseSessionRosterNote');
+    expect(container.innerHTML).toContain('返回課堂');
+    expect(container.innerHTML).not.toContain('App.showCourseLessons');
+    expect(app._eduCourseLessonsContext.staleCached).toBe(true);
+  });
+
+  test('keeps roster preview back action disabled while background refresh is pending', async () => {
+    let resolveRefresh;
+    const refreshPromise = new Promise(resolve => { resolveRefresh = resolve; });
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      rosterPayload: {
+        rosterPublic: true,
+        canManageRoster: true,
+        cacheMeta: { payloadVersion: 'preview-v1', cacheTtlMs: 15000 },
+        session: { id: 'sessionA', title: 'Preview Session', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+        students: [{ studentId: 'stu1', displayName: 'Preview Student', level: '1', attendanceKind: null }],
+      },
+    });
+
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => refreshPromise);
+    const loadPromise = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length < 1) {
+      await Promise.resolve();
+    }
+
+    expect(container.innerHTML).toContain('返回課堂');
+    expect(container.innerHTML).not.toContain('App.showCourseLessons');
+
+    resolveRefresh({
+      rosterPublic: true,
+      canManageRoster: true,
+      cacheMeta: { payloadVersion: 'preview-v2', cacheTtlMs: 15000 },
+      session: { id: 'sessionA', title: 'Fresh Session', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Fresh Student', level: '1', attendanceKind: null }],
+    });
+    await loadPromise;
+    await flushPromises();
+
+    expect(container.innerHTML).toContain('App.showCourseLessons');
   });
 
   test('persistent roster preview stores only sanitized public fields', async () => {

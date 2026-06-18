@@ -154,9 +154,14 @@ Object.assign(App, {
       this._eduActiveTab = tab;
       this._setEduDetailTabActiveState(tab);
     }
-    if (tab === 'student') this._renderEduMemberSection(teamId);
+    const renderOptions = { ...(options || {}) };
+    if ((tab === 'student' || tab === 'pending') && this._eduStudentsLoadFailedByTeam?.[teamId] === true) {
+      renderOptions.readOnly = true;
+      renderOptions.refreshError = true;
+    }
+    if (tab === 'student') this._renderEduMemberSection(teamId, renderOptions);
     else if (tab === 'group') this.renderEduGroupList(teamId);
-    else if (tab === 'pending') this._renderEduPendingSection(teamId);
+    else if (tab === 'pending') this._renderEduPendingSection(teamId, renderOptions);
     else if (typeof this.renderEduCoursePlanList === 'function') {
       return options && Object.keys(options).length
         ? this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId), options)
@@ -291,6 +296,8 @@ Object.assign(App, {
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const inlineTeamDetailV2 = !!container.closest?.('.td-v2-edu-card');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
+    const jsTeamId = escapeHTML(String(teamId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    const buttonTeamId = String(teamId || '').replace(/[^a-zA-Z0-9_-]/g, '-');
 
     if (tab === 'course') {
       if (inlineTeamDetailV2) {
@@ -302,53 +309,131 @@ Object.assign(App, {
         }
         return undefined;
       }
+      const hasCoursePlanCache = Array.isArray(this._eduCoursePlansCache?.[teamId]);
+      const courseAddButtonId = 'edu-course-plan-add-' + buttonTeamId;
+      const courseAddButton = isStaff
+        ? '<button id="' + courseAddButtonId + '" class="primary-btn small" '
+          + (hasCoursePlanCache ? 'disabled' : 'onclick="App.showEduCoursePlanForm(\'' + jsTeamId + '\')"')
+          + '>' + (hasCoursePlanCache ? '\u66f4\u65b0\u4e2d' : '\u65b0\u589e') + '</button>'
+        : '';
       container.innerHTML = '<div class="' + panelClass + '">'
         + '<div class="td-card-title td-card-title-row">'
         + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
-        + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
+        + courseAddButton
         + '</div>'
         + '<div id="edu-course-plan-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
       if (typeof this.renderEduCoursePlanList === 'function') {
-        return options && Object.keys(options).length
+        const renderResult = options && Object.keys(options).length
           ? this.renderEduCoursePlanList(teamId, isStaff, options)
           : this.renderEduCoursePlanList(teamId, isStaff);
+        if (hasCoursePlanCache && renderResult?.then) {
+          return renderResult.then((result) => {
+            const btn = document.getElementById(courseAddButtonId);
+            if (btn) {
+              const failed = this._eduCoursePlanLoadFailedByTeam?.[teamId] === true;
+              btn.disabled = failed;
+              btn.textContent = failed ? '\u66f4\u65b0\u5931\u6557' : '\u65b0\u589e';
+              if (failed) btn.removeAttribute?.('onclick');
+              else btn.setAttribute?.('onclick', "App.showEduCoursePlanForm('" + jsTeamId + "')");
+            }
+            return result;
+          });
+        }
+        return renderResult;
       }
     } else if (tab === 'group') {
+      const hasGroupCache = Array.isArray(this._eduGroupsCache?.[teamId]);
+      const groupAddButtonId = 'edu-group-add-' + buttonTeamId;
+      const groupAddButton = isStaff
+        ? '<button id="' + groupAddButtonId + '" class="primary-btn small" '
+          + (hasGroupCache ? 'disabled' : 'onclick="App.showEduGroupForm(\'' + jsTeamId + '\')"')
+          + '>' + (hasGroupCache ? '\u66f4\u65b0\u4e2d' : '\u65b0\u589e') + '</button>'
+        : '';
       container.innerHTML = '<div class="' + panelClass + '">'
         + '<div class="td-card-title td-card-title-row">'
         + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
-        + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
+        + groupAddButton
         + '</div>'
         + '<div id="edu-group-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
-      this.renderEduGroupList(teamId);
+      const renderResult = this.renderEduGroupList(teamId);
+      if (hasGroupCache && renderResult?.then) {
+        return renderResult.then((result) => {
+          const btn = document.getElementById(groupAddButtonId);
+          if (btn) {
+            const failed = this._eduGroupsLoadFailedByTeam?.[teamId] === true;
+            btn.disabled = failed;
+            btn.textContent = failed ? '\u66f4\u65b0\u5931\u6557' : '\u65b0\u589e';
+            if (failed) btn.removeAttribute?.('onclick');
+            else btn.setAttribute?.('onclick', "App.showEduGroupForm('" + jsTeamId + "')");
+          }
+          return result;
+        });
+      }
+      return renderResult;
     } else if (tab === 'student') {
-      container.innerHTML = '<div id="edu-member-section"></div>';
-      this._renderEduMemberSection(teamId);
+      const cachedStudents = typeof this.getEduStudents === 'function' ? this.getEduStudents(teamId) : null;
+      const hasStudentCache = Array.isArray(this._eduStudentsCache?.[teamId])
+        || (Array.isArray(cachedStudents) && cachedStudents.length > 0);
+      container.innerHTML = '<div id="edu-member-section">'
+        + (hasStudentCache ? '' : '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">\u5b78\u54e1\u8cc7\u6599\u8f09\u5165\u4e2d</div></div>')
+        + '</div>';
+      if (hasStudentCache) this._renderEduMemberSection(teamId, { refreshing: true, readOnly: true });
+      this._loadEduStudents?.(teamId)?.then?.(() => {
+        if (this._eduDetailTeamId === teamId && this._normalizeEduDetailTab(this._eduActiveTab) === 'student') {
+          const loadFailed = this._eduStudentsLoadFailedByTeam?.[teamId] === true;
+          this._refreshEduPendingTabState?.(teamId);
+          this._renderEduMemberSection(teamId, loadFailed ? { readOnly: true, refreshError: true } : {});
+          this._updateEduMineBadge?.(teamId);
+        }
+      }).catch?.(err => console.warn('[edu-detail] student tab refresh failed:', err));
     } else if (tab === 'pending') {
-      container.innerHTML = '<div id="edu-pending-section"></div>';
-      this._renderEduPendingSection(teamId);
+      const cachedStudents = typeof this.getEduStudents === 'function' ? this.getEduStudents(teamId) : null;
+      const hasStudentCache = Array.isArray(this._eduStudentsCache?.[teamId])
+        || (Array.isArray(cachedStudents) && cachedStudents.length > 0);
+      container.innerHTML = '<div id="edu-pending-section">'
+        + (hasStudentCache ? '' : '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">\u5f85\u5be9\u6838\u8cc7\u6599\u8f09\u5165\u4e2d</div></div>')
+        + '</div>';
+      if (hasStudentCache) this._renderEduPendingSection(teamId, { refreshing: true, readOnly: true });
+      this._loadEduStudents?.(teamId)?.then?.(() => {
+        if (this._eduDetailTeamId === teamId && this._normalizeEduDetailTab(this._eduActiveTab) === 'pending') {
+          const loadFailed = this._eduStudentsLoadFailedByTeam?.[teamId] === true;
+          this._refreshEduPendingTabState?.(teamId);
+          this._renderEduPendingSection(teamId, loadFailed ? { readOnly: true, refreshError: true } : {});
+        }
+      }).catch?.(err => console.warn('[edu-detail] pending tab refresh failed:', err));
     }
     return undefined;
   },
 
-  _renderEduPendingSection(teamId) {
+  _renderEduPendingSection(teamId, options = {}) {
     const container = document.getElementById('edu-pending-section');
     if (!container) return;
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
     const isStaff = this._isEduPendingTabStaff(teamId);
     const pending = this._getEduPendingStudentsForViewer(teamId);
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const refreshHtml = options.refreshError === true
+      ? (typeof this._renderEduRefreshStatus === 'function'
+        ? this._renderEduRefreshStatus('\u5f85\u5be9\u6838\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+        : '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>\u5f85\u5be9\u6838\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599</span></div>')
+      : (options.refreshing === true
+        ? (typeof this._renderEduRefreshStatus === 'function'
+          ? this._renderEduRefreshStatus('\u5f85\u5be9\u6838\u8cc7\u6599\u66f4\u65b0\u4e2d...')
+          : '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>\u5f85\u5be9\u6838\u8cc7\u6599\u66f4\u65b0\u4e2d...</span></div>')
+        : '');
     const rows = pending.length
       ? pending.map(s => {
-        if (isStaff && typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s);
+        if (isStaff && typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s, { readOnly });
         if (!isStaff) return this._renderPendingStudentStatusRow(s);
         return '<div class="edu-student-card edu-pending-card"><div class="edu-student-header"><span class="edu-student-name">' + escapeHTML(s.name || '未命名學員') + '</span></div></div>';
       }).join('')
       : '<div class="edu-empty-state">目前沒有待審核學員</div>';
     container.innerHTML = '<div class="' + panelClass + '">'
       + '<div class="td-card-title td-card-title-row"><span>待審核名單</span></div>'
+      + refreshHtml
       + rows
       + '</div>';
   },
@@ -356,13 +441,23 @@ Object.assign(App, {
   /**
    * 渲染「我的學員」區塊（可獨立重繪，供即時監聽呼叫）
    */
-  _renderEduMemberSection(teamId) {
+  _renderEduMemberSection(teamId, options = {}) {
     const container = document.getElementById('edu-member-section');
     if (!container) return;
 
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
     const isStaff = this.isEduClubStaff(teamId);
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const refreshHtml = options.refreshError === true
+      ? (typeof this._renderEduRefreshStatus === 'function'
+        ? this._renderEduRefreshStatus('\u5b78\u54e1\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+        : '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>\u5b78\u54e1\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599</span></div>')
+      : (options.refreshing === true
+        ? (typeof this._renderEduRefreshStatus === 'function'
+          ? this._renderEduRefreshStatus('\u5b78\u54e1\u8cc7\u6599\u66f4\u65b0\u4e2d...')
+          : '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>\u5b78\u54e1\u8cc7\u6599\u66f4\u65b0\u4e2d...</span></div>')
+        : '');
 
     const curUser = ApiService.getCurrentUser();
     const myStudents = this._getMyEduStudents(teamId, curUser);
@@ -371,7 +466,8 @@ Object.assign(App, {
 
     if (myStudents.length === 0) {
       container.innerHTML = '<div class="' + panelClass + '" style="padding:.6rem .8rem">'
-        + '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（本人/代理）</button>'
+        + refreshHtml
+        + (readOnly ? '<div class="edu-empty-state">學員資料暫時以上次資料顯示</div>' : '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（本人/代理）</button>')
         + '</div>';
       return;
     }
@@ -392,6 +488,7 @@ Object.assign(App, {
       + '<div class="td-card-title td-card-title-row">'
       + '<span>學員名冊<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
       + '</div>';
+    html += refreshHtml;
 
     html += myStudents.map(s => {
       const age = isStaff ? this.calcAge(s.birthday) : null;
@@ -438,7 +535,9 @@ Object.assign(App, {
       }
       // 右側按鈕列
       let actionBtns = '';
-      if (!isPending) {
+      if (readOnly) {
+        actionBtns = '';
+      } else if (!isPending) {
         actionBtns = '<button class="outline-btn small edu-attendance-btn" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
           + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
       } else {
@@ -462,7 +561,7 @@ Object.assign(App, {
     }).join('');
 
     // 追加學員按鈕（有任一 active 或 pending 時顯示）
-    if (hasActive || hasPending) {
+    if (!readOnly && (hasActive || hasPending)) {
       html += '<div style="margin-top:.5rem">'
         + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + teamId + '\')">追加學員</button>'
         + '</div>';

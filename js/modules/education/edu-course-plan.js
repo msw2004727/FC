@@ -8,6 +8,7 @@
 
 Object.assign(App, {
   _eduCoursePlansCache: {},
+  _eduCoursePlanLoadFailedByTeam: {},
   _eduCoursePlanEditTeamId: null,
   _eduCoursePlanEditId: null,
   _eduCoursePlanRequestSeq: 0,
@@ -17,9 +18,11 @@ Object.assign(App, {
     try {
       const plans = await FirebaseService.listEduCoursePlans(teamId);
       this._eduCoursePlansCache[teamId] = plans;
+      this._eduCoursePlanLoadFailedByTeam[teamId] = false;
       return plans;
     } catch (err) {
       console.error('[edu-course-plan] load failed:', err);
+      this._eduCoursePlanLoadFailedByTeam[teamId] = true;
       return this._eduCoursePlansCache[teamId] || [];
     }
   },

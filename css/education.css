@@ -922,6 +922,7 @@
   min-width: 0;
   line-height: 1.35;
 }
+.edu-refresh-status,
 .edu-course-roster-refresh-status {
   display: inline-flex;
   align-items: center;
@@ -938,11 +939,17 @@
   font-weight: 900;
   line-height: 1.2;
 }
+.edu-refresh-status span:last-child,
 .edu-course-roster-refresh-status span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.edu-refresh-status-compact {
+  margin-bottom: .35rem;
+  padding: .34rem .52rem;
+  font-size: .72rem;
 }
 .edu-course-roster-shell-loading .edu-course-roster-head {
   background:
@@ -1290,6 +1297,7 @@
   background: rgba(120, 53, 15, .22);
   color: #fcd34d;
 }
+[data-theme="dark"] .edu-refresh-status,
 [data-theme="dark"] .edu-course-roster-refresh-status {
   border-color: rgba(45, 212, 191, .3);
   background: rgba(20, 184, 166, .14);

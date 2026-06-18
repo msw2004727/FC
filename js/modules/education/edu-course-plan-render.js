@@ -521,6 +521,166 @@ Object.assign(App, {
     };
   },
 
+  _renderEduCoursePlanRefreshStatus(text) {
+    if (typeof this._renderEduRefreshStatus === 'function') return this._renderEduRefreshStatus(text);
+    return '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>' + escapeHTML(text || '\u8cc7\u6599\u66f4\u65b0\u4e2d...') + '</span></div>';
+  },
+
+  _renderEduCoursePlanCachedList(teamId, isStaff, plans, options = {}) {
+    const container = options.container || document.getElementById('edu-course-plan-list');
+    if (!container || !Array.isArray(plans)) return false;
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const today = this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
+    const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
+    this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
+    const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
+    const curUser = ApiService.getCurrentUser();
+    const myUid = curUser?.uid;
+    const students = this.getEduStudents?.(teamId) || [];
+    const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
+      && isEduAutoMigrationCompleted();
+    const listPlans = plans
+      .filter(p => p && p.active !== false)
+      .sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return (a.sortOrder || 0) - (b.sortOrder || 0);
+      })
+      .filter(p => isStaff || p.visibleOnTeamPage !== false);
+    const currentPlans = listPlans.filter(p => !isPlanEnded(p));
+    const endedPlans = listPlans.filter(isPlanEnded);
+    const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
+    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '\u672a\u8a2d\u5b9a') + '</strong></span>';
+    const getPlanKey = (plan) => String(plan?.id || plan?._docId || '').trim();
+    const applyCachedCounts = (plan) => {
+      const planId = getPlanKey(plan);
+      const key = this._getCourseEnrollCacheKey?.(teamId, planId);
+      const enrollments = key && Array.isArray(this._courseEnrollCache?.[key])
+        ? this._courseEnrollCache[key]
+        : (Array.isArray(plan?._enrollments) ? plan._enrollments : []);
+      const summary = enrollments?._summary || (key && this._courseEnrollSummaryCache?.[key]) || plan?._enrollmentSummary || null;
+      plan._enrollments = enrollments;
+      plan._enrollmentSummary = summary;
+      const summaryCount = Number(summary?.effectiveApprovedCount);
+      if (Number.isFinite(summaryCount) && summaryCount >= 0) {
+        plan._effectiveCount = summaryCount;
+        return;
+      }
+      const approved = new Set(enrollments.filter(e => String(e?.status || 'approved') === 'approved').map(e => e.studentId));
+      if (!autoMigrationCompleted && plan.groupId) {
+        students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId))
+          .forEach(s => approved.add(s.id));
+      }
+      plan._effectiveCount = Number.isFinite(Number(plan._effectiveCount)) ? Number(plan._effectiveCount) : approved.size;
+    };
+    displayPlans.forEach(applyCachedCounts);
+    const renderPlanCard = (p) => {
+      const planId = getPlanKey(p);
+      const planEnded = isPlanEnded(p);
+      const hiddenClass = p.visibleOnTeamPage === false ? ' edu-cp-card-hidden' : '';
+      const statusBadge = planEnded
+        ? '<span class="edu-cp-status edu-cp-status-ended">\u5df2\u7d50\u675f</span>'
+        : p.allowSignup
+          ? '<span class="edu-cp-status edu-cp-status-open">\u958b\u653e\u5831\u540d</span>'
+          : '<span class="edu-cp-status edu-cp-status-closed">\u672a\u958b\u653e</span>';
+      const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '\u672a\u8a2d\u5b9a';
+      const countText = (p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' \u4eba';
+      const coachName = String(p.coachName || p.coach || '').trim() || '\u672a\u8a2d\u5b9a';
+      const priceText = typeof this._formatCoursePlanBillingLabel === 'function'
+        ? this._formatCoursePlanBillingLabel(p, { prefix: 'NT$ ' })
+        : this._formatCoursePlanPriceLabel?.(p.price, { prefix: 'NT$ ', emptyText: '' }) || '';
+      const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState(teamId, p, {
+        curUser,
+        myUid,
+        students,
+        autoMigrationCompleted,
+      });
+      let signupBtn = '';
+      if (p.allowSignup) {
+        if (readOnly) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>\u66f4\u65b0\u4e2d</button>';
+        } else if (planEnded) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>\u8ab2\u7a0b\u5df2\u7d50\u675f</button>';
+        } else if (viewerEnrollmentState.pendingCount > 0) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\',this)">' + viewerEnrollmentState.pendingCount + '\u4f4d\u5b78\u54e1\u5be9\u6838\u4e2d</button>';
+        } else if (viewerEnrollmentState.allEnrolled) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>\u5b78\u54e1\u5df2\u5831\u540d</button>';
+        } else if (viewerEnrollmentState.isFull) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>\u5df2\u6eff\u54e1</button>';
+        } else {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\',this)">\u5831\u540d</button>';
+        }
+      }
+      const pendingReviewCount = isStaff ? Number(p._enrollmentSummary?.pendingReviewCount || 0) : 0;
+      const pendingReviewBadge = pendingReviewCount > 0
+        ? '<span class="notif-badge edu-cp-pending-badge" aria-hidden="true">' + escapeHTML(pendingReviewCount > 99 ? '99+' : String(pendingReviewCount)) + '</span>'
+        : '';
+      const manageHtml = isStaff
+        ? (readOnly
+          ? '<div class="edu-cp-manage-left">'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list" disabled>\u540d\u55ae</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" disabled>\u7de8\u8f2f</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" disabled>\u522a\u9664</button>'
+          + '</div>'
+          : '<div class="edu-cp-manage-left">'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u540d\u55ae' + pendingReviewBadge + '</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u7de8\u8f2f</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u522a\u9664</button>'
+          + '</div>')
+        : '';
+      const detailBtn = readOnly
+        ? '<button class="outline-btn edu-cp-detail-btn" disabled>\u8a73\u7d30\u8cc7\u6599</button>'
+        : '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u8a73\u7d30\u8cc7\u6599</button>';
+      const lessonsBtn = readOnly
+        ? '<button class="outline-btn edu-cp-lessons-btn" disabled>\u8ab2\u5802\u5217\u8868</button>'
+        : '<button class="outline-btn edu-cp-lessons-btn" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u8ab2\u5802\u5217\u8868</button>';
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + '" data-course-plan-id="' + escapeHTML(planId) + '">'
+        + '<div class="edu-cp-compact-main">'
+        + '<div class="edu-cp-compact-title">'
+        + '<span class="edu-course-name">' + escapeHTML(p.name || '\u672a\u547d\u540d\u8ab2\u7a0b') + '</span>'
+        + statusBadge
+        + '</div>'
+        + '<div class="edu-cp-compact-pills">'
+        + renderCompactPill('\u671f\u9593', dateText, 'edu-cp-date-pill')
+        + (priceText ? renderCompactPill('\u8cbb\u7528', priceText, 'edu-cp-fee-pill') : '')
+        + renderCompactPill('\u4eba\u6578', countText, 'edu-cp-count-pill')
+        + renderCompactPill('\u6559\u7df4', coachName, 'edu-cp-coach-pill')
+        + '</div>'
+        + '</div>'
+        + '<div class="edu-cp-card-actions">' + detailBtn + lessonsBtn + signupBtn + '</div>'
+        + manageHtml
+        + '</div>';
+    };
+    const groupedPlans = [
+      { type: 'weekly', title: '\u9031\u671f\u8ab2\u7a0b', hint: '\u56fa\u5b9a\u9031\u671f\u8207\u6642\u6bb5', plans: displayPlans.filter(p => p.planType === 'weekly') },
+      { type: 'session', title: '\u55ae\u6b21\u8ab2\u7a0b', hint: '\u6309\u5834\u6b21\u5b89\u6392', plans: displayPlans.filter(p => p.planType !== 'weekly') },
+    ].filter(group => group.plans.length);
+    const tabHtml = '<div class="edu-cp-view-tabs">'
+      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
+      + '</div>';
+    const emptyText = selectedTab === 'ended' ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u8ab2\u7a0b' : '\u76ee\u524d\u6c92\u6709\u9032\u884c\u4e2d\u8ab2\u7a0b';
+    const listHtml = groupedPlans.length
+      ? groupedPlans.map(group => '<section class="edu-course-plan-section edu-course-plan-section-' + group.type + '">'
+        + '<div class="edu-course-plan-section-head"><div><strong>' + group.title + '</strong><span>' + group.hint + '</span></div><em>' + group.plans.length + ' \u500b\u8ab2\u7a0b</em></div>'
+        + '<div class="edu-course-plan-grid">' + group.plans.map(renderPlanCard).join('') + '</div>'
+        + '</section>').join('')
+      : '<div class="edu-empty-state">' + emptyText + '</div>';
+    const refreshHtml = options.refreshError === true
+      ? this._renderEduCoursePlanRefreshStatus('\u8ab2\u7a0b\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+      : (options.refreshing === true ? this._renderEduCoursePlanRefreshStatus('\u8ab2\u7a0b\u8cc7\u6599\u66f4\u65b0\u4e2d...') : '');
+    container.innerHTML = tabHtml + '<div class="edu-course-plan-sections">'
+      + refreshHtml
+      + listHtml
+      + '</div>';
+    this._applyEduCoursePlanShareFocus?.(teamId);
+    return true;
+  },
+
   async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
@@ -533,21 +693,38 @@ Object.assign(App, {
 
     // 若未傳入 isStaff，自動判斷
     if (isStaff === undefined) isStaff = this.isEduClubStaff(teamId);
+    const hasCachedPlans = Array.isArray(this._eduCoursePlansCache?.[teamId]);
+    if (hasCachedPlans) {
+      this._renderEduCoursePlanCachedList(teamId, isStaff, this._eduCoursePlansCache[teamId], {
+        container,
+        refreshing: true,
+        readOnly: true,
+      });
+    }
     if (forceRefresh) {
-      container.innerHTML = this._renderEduCoursePlanLoading('\u6b63\u5728\u66f4\u65b0\u8ab2\u7a0b\u72c0\u614b');
+      if (!hasCachedPlans) container.innerHTML = this._renderEduCoursePlanLoading('\u6b63\u5728\u66f4\u65b0\u8ab2\u7a0b\u72c0\u614b');
       if (typeof this._loadEduStudents === 'function') {
         await this._loadEduStudents(teamId);
         if (isStale()) return false;
       }
     } else {
       const currentHtml = String(container.innerHTML || '').trim();
-      if (!currentHtml || currentHtml.indexOf('edu-loading') !== -1) {
+      if (!hasCachedPlans && (!currentHtml || currentHtml.indexOf('edu-loading') !== -1)) {
         container.innerHTML = this._renderEduCoursePlanLoading('\u8ab2\u7a0b\u8cc7\u6599\u8f09\u5165\u4e2d');
       }
     }
 
     const plans = await this._loadEduCoursePlans(teamId);
     if (isStale()) return false;
+    const loadFailed = this._eduCoursePlanLoadFailedByTeam?.[teamId] === true;
+    if (loadFailed && Array.isArray(this._eduCoursePlansCache?.[teamId])) {
+      this._renderEduCoursePlanCachedList(teamId, isStaff, this._eduCoursePlansCache[teamId], {
+        container,
+        readOnly: true,
+        refreshError: true,
+      });
+      return true;
+    }
     const activePlans = plans.filter(p => p.active !== false)
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;

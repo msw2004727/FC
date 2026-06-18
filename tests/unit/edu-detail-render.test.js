@@ -295,7 +295,205 @@ describe('renderEduClubDetail info card', () => {
     expect(contentEl.innerHTML).toContain('待審核名單');
     expect(contentEl.innerHTML).toContain('小麥');
     expect(contentEl.innerHTML).not.toContain('已通過');
-    expect(app._renderPendingStudentRow).toHaveBeenCalledWith('teamA', '', { id: 'pending-1', name: '小麥', enrollStatus: 'pending' });
+    expect(app._renderPendingStudentRow).toHaveBeenCalledWith('teamA', '', { id: 'pending-1', name: '小麥', enrollStatus: 'pending' }, { readOnly: true });
+  });
+
+  test('course tab keeps add action disabled while cached plans refresh', () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => null) };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'course',
+      _eduCoursePlansCache: { teamA: [{ id: 'planA', name: 'Cached Plan' }] },
+      isEduClubStaff: jest.fn(() => true),
+      renderEduCoursePlanList: jest.fn(() => Promise.resolve(true)),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'course';
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('id="edu-course-plan-add-teamA"');
+    expect(contentEl.innerHTML).toContain('disabled');
+    expect(contentEl.innerHTML).not.toContain('onclick="App.showEduCoursePlanForm');
+  });
+
+  test('group tab keeps add action disabled while cached groups refresh', () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => null) };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'group',
+      _eduGroupsCache: { teamA: [{ id: 'groupA', name: 'Cached Group' }] },
+      isEduClubStaff: jest.fn(() => true),
+      renderEduGroupList: jest.fn(() => Promise.resolve(true)),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'group';
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('id="edu-group-add-teamA"');
+    expect(contentEl.innerHTML).toContain('disabled');
+    expect(contentEl.innerHTML).not.toContain('onclick="App.showEduGroupForm');
+  });
+
+  test('active student refresh keeps cached data read only after student refresh fails', () => {
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'student',
+      isEduClubStaff: jest.fn(() => false),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'student';
+    context.App._eduStudentsLoadFailedByTeam = { teamA: true };
+    context.App._renderEduMemberSection = jest.fn();
+    context.App._refreshEduActiveTabContent('teamA');
+
+    expect(context.App._renderEduMemberSection).toHaveBeenCalledWith('teamA', {
+      readOnly: true,
+      refreshError: true,
+    });
+  });
+
+  test('student tab renders cached section while fresh students refresh in background', async () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => null) };
+    let resolveLoad;
+    const loadPromise = new Promise(resolve => { resolveLoad = resolve; });
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'student',
+      _eduStudentsCache: { teamA: [{ id: 'cached-student', enrollStatus: 'active' }] },
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => [{ id: 'cached-student', enrollStatus: 'active' }]),
+      _loadEduStudents: jest.fn(() => loadPromise),
+      _refreshEduPendingTabState: jest.fn(),
+      _updateEduMineBadge: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      console,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduDetailTeamId = 'teamA';
+    context.App._eduActiveTab = 'student';
+    context.App._refreshEduPendingTabState = jest.fn();
+    context.App._updateEduMineBadge = jest.fn();
+    context.App._renderEduMemberSection = jest.fn();
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('id="edu-member-section"');
+    expect(contentEl.innerHTML).not.toContain('edu-loading');
+    expect(context.App._renderEduMemberSection).toHaveBeenNthCalledWith(1, 'teamA', { refreshing: true, readOnly: true });
+
+    resolveLoad([{ id: 'fresh-student', enrollStatus: 'active' }]);
+    await loadPromise;
+    await Promise.resolve();
+
+    expect(context.App._refreshEduPendingTabState).toHaveBeenCalledWith('teamA');
+    expect(context.App._renderEduMemberSection).toHaveBeenNthCalledWith(2, 'teamA', {});
+    expect(context.App._updateEduMineBadge).toHaveBeenCalledWith('teamA');
+  });
+
+  test('pending tab renders cached section while fresh students refresh in background', async () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => null) };
+    let resolveLoad;
+    const loadPromise = new Promise(resolve => { resolveLoad = resolve; });
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'pending',
+      _eduStudentsCache: { teamA: [{ id: 'cached-pending', enrollStatus: 'pending' }] },
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => [{ id: 'cached-pending', enrollStatus: 'pending' }]),
+      _loadEduStudents: jest.fn(() => loadPromise),
+      _refreshEduPendingTabState: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      console,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduDetailTeamId = 'teamA';
+    context.App._eduActiveTab = 'pending';
+    context.App._refreshEduPendingTabState = jest.fn();
+    context.App._renderEduPendingSection = jest.fn();
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('id="edu-pending-section"');
+    expect(contentEl.innerHTML).not.toContain('edu-loading');
+    expect(context.App._renderEduPendingSection).toHaveBeenNthCalledWith(1, 'teamA', { refreshing: true, readOnly: true });
+
+    resolveLoad([{ id: 'fresh-pending', enrollStatus: 'pending' }]);
+    await loadPromise;
+    await Promise.resolve();
+
+    expect(context.App._refreshEduPendingTabState).toHaveBeenCalledWith('teamA');
+    expect(context.App._renderEduPendingSection).toHaveBeenNthCalledWith(2, 'teamA', {});
   });
 
   test('filters pending review tab to current viewer students for non staff', () => {
@@ -462,8 +660,7 @@ describe('renderEduClubDetail info card', () => {
 
     vm.createContext(context);
     vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
-    context.App._eduActiveTab = 'student';
-    context.App._renderEduTabContent('teamA');
+    context.App._renderEduMemberSection('teamA');
 
     expect(contentEl.innerHTML).toContain('Very Long Student Nickname');
     expect(contentEl.innerHTML).toContain('edu-header-actions edu-member-inline-actions');

@@ -151,6 +151,8 @@ Object.assign(App, {
       ? context.paidByStudentId
       : null;
     const isRosterPreview = payload?.cacheMeta?.preview === true || context.preview === true;
+    const staleCached = context.staleCached === true;
+    const backDisabled = staleCached || isRosterPreview || context.refreshPending === true;
     const shouldSplitUnpaid = context.isStaff === true && paidByStudentId !== null;
     const getRosterStudentId = (student) => (
       typeof this._getCourseLessonRosterStudentId === 'function'
@@ -180,7 +182,7 @@ Object.assign(App, {
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
-      const selfLeaveActionHtml = (!isRosterPreview && !context.isStaff && student.canSelfLeave === true)
+      const selfLeaveActionHtml = (!isRosterPreview && !staleCached && !context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
           + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
@@ -213,7 +215,7 @@ Object.assign(App, {
         : '<span class="td-member-name-pill uc-user edu-course-member-pill" onclick="event.stopPropagation();App.showUserProfile(\'' + this._eduCourseLessonsJsArg(name) + '\')">' + escapeHTML(name) + '</span>';
       const noteHtml = context.isStaff
         ? '<div class="edu-course-roster-note"><span>' + escapeHTML(note || '尚未填寫備註') + '</span>'
-          + '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[studentId] || '') + '\')"></button>'
+          + (staleCached ? '' : '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[studentId] || '') + '\')"></button>')
           + '</div>'
         : '';
       const paymentBadgeHtml = unpaid
@@ -250,7 +252,7 @@ Object.assign(App, {
     const refreshErrorHtml = context.refreshError === true
       ? '<div class="edu-course-roster-refresh-alert"><span>&#36039;&#26009;&#26283;&#26178;&#28961;&#27861;&#26356;&#26032;&#65292;&#24050;&#20445;&#30041;&#19978;&#27425;&#21517;&#21934;</span><button type="button" class="outline-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(context.sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>'
       : '';
-    const staffActions = context.isStaff
+    const staffActions = context.isStaff && !staleCached
       ? (manageMode
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
         : '<button type="button" class="primary-btn small" onclick="App.startCourseLessonRosterManage()">管理名單</button>')
@@ -263,12 +265,14 @@ Object.assign(App, {
           + '<textarea id="edu-course-roster-notes-input" maxlength="500" rows="4">' + escapeHTML(notesValue) + '</textarea>'
         + '</section>'
       : '<section class="edu-course-roster-notes">'
-          + '<div class="edu-course-roster-notes-head"><strong>課堂備註</strong>' + (context.isStaff ? '<button type="button" class="outline-btn small" onclick="App.startCourseLessonNotesEdit()">編輯</button>' : '') + '</div>'
+          + '<div class="edu-course-roster-notes-head"><strong>課堂備註</strong>' + (context.isStaff && !staleCached ? '<button type="button" class="outline-btn small" onclick="App.startCourseLessonNotesEdit()">編輯</button>' : '') + '</div>'
           + '<p>' + escapeHTML(notesValue || '尚未填寫課堂備註。') + '</p>'
         + '</section>';
     return '<div class="edu-course-roster-shell">'
       + '<section class="edu-course-roster-head">'
-        + '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>'
+        + (backDisabled
+          ? '<button type="button" class="outline-btn small" disabled>返回課堂</button>'
+          : '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>')
         + '<div class="edu-course-roster-title-block">'
           + '<div class="edu-course-roster-title-line">'
             + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'

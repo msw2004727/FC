@@ -425,8 +425,40 @@ Object.assign(App, {
     };
   },
 
-  _getCourseLessonRosterCachedRenderPayload(cachedPayload) {
+  _getCourseLessonRosterCachedRenderPayload(cachedPayload, options = {}) {
     if (!cachedPayload || typeof cachedPayload !== 'object') return null;
+    if (options.includeStaleDetails === true
+      && cachedPayload.cacheMeta?.persistentPreview !== true
+      && cachedPayload.rosterPublic !== false) {
+      const includeStaffFields = options.includeStaffFields === true && cachedPayload.canManageRoster === true;
+      const students = Array.isArray(cachedPayload.students)
+        ? cachedPayload.students.map((student) => {
+          const clean = { ...student };
+          delete clean.canSelfLeave;
+          delete clean.selfUid;
+          delete clean.parentUid;
+          delete clean.uid;
+          delete clean.lineUserId;
+          return clean;
+        })
+        : [];
+      return {
+        ...cachedPayload,
+        canManageRoster: includeStaffFields,
+        isStaff: includeStaffFields,
+        staffEnrollmentByStudentId: includeStaffFields
+          ? (cachedPayload.staffEnrollmentByStudentId || null)
+          : null,
+        students,
+        cacheMeta: {
+          ...(cachedPayload.cacheMeta || {}),
+          preview: false,
+          staleCached: true,
+          attendancePending: false,
+          staffPending: includeStaffFields ? false : cachedPayload.canManageRoster === true,
+        },
+      };
+    }
     return this._buildCourseLessonRosterBasePreviewPayload(cachedPayload);
   },
 
@@ -1050,6 +1082,7 @@ Object.assign(App, {
   startCourseLessonRosterManage() {
     const ctx = this._eduCourseLessonsContext;
     if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    if (ctx.staleCached === true) return;
     ctx.manageMode = true;
     ctx.draftByStudentId = { ...(ctx.attendanceByStudentId || {}) };
     this._renderCourseLessonRosterFromContext();
@@ -1118,6 +1151,7 @@ Object.assign(App, {
   startCourseLessonNotesEdit() {
     const ctx = this._eduCourseLessonsContext;
     if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    if (ctx.staleCached === true) return;
     ctx.notesEditMode = true;
     ctx.draftSessionNotes = String(ctx.rosterPayload?.session?.notes || '');
     this._renderCourseLessonRosterFromContext();
@@ -1329,6 +1363,7 @@ Object.assign(App, {
       draftSessionNotes: '',
       refreshPending: options.refreshPending === true,
       refreshError: options.refreshError === true,
+      staleCached: options.staleCached === true,
     };
     if (options.render !== false) this._renderCourseLessonRosterFromContext();
     return { ok: true };
@@ -1354,7 +1389,11 @@ Object.assign(App, {
         || this._isEduCourseLessonsStale(requestSeq, teamId)) {
         return;
       }
+      const preserveStaleCached = state.preserveStaleCached === true
+        || (state.refreshError === true && ctx.staleCached === true)
+        || (state.render === false && ctx.staleCached === true);
       ctx.refreshPending = false;
+      if (!preserveStaleCached) ctx.staleCached = false;
       if (state.refreshError === true) ctx.refreshError = true;
       if (state.render === false) {
         const status = this._getEduCourseLessonsContainer?.()
@@ -1403,7 +1442,7 @@ Object.assign(App, {
       }
       const nextVersion = this._getCourseLessonRosterPayloadVersion(rosterPayload);
       const currentPreview = ctx?.rosterPayload?.cacheMeta?.preview === true;
-      if (!currentPreview && previousVersion && nextVersion && previousVersion === nextVersion) {
+      if (!currentPreview && ctx?.staleCached !== true && previousVersion && nextVersion && previousVersion === nextVersion) {
         finishRefreshIndicator();
         this._recordCourseLessonRosterPerf('fresh_unchanged', {
           teamId,
@@ -1429,12 +1468,12 @@ Object.assign(App, {
       console.warn('[edu-course-lessons] roster background refresh failed:', err);
       const ctx = this._eduCourseLessonsContext;
       if (ctx?.mode === 'roster'
-        && ctx.rosterPayload?.cacheMeta?.preview === true
+        && (ctx.rosterPayload?.cacheMeta?.preview === true || ctx.staleCached === true)
         && String(ctx.teamId || '') === String(teamId || '')
         && String(ctx.planId || '') === String(planId || '')
         && String(ctx.sessionId || '') === String(sessionId || '')
         && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
-        finishRefreshIndicator({ refreshError: true });
+        finishRefreshIndicator({ refreshError: true, preserveStaleCached: true });
       }
       return { ok: false, reason: 'refresh_failed' };
     }
@@ -1484,7 +1523,10 @@ Object.assign(App, {
       cachedPayload = this._getCourseLessonRosterPersistentCachedPayload(teamId, planId, sessionId, 'public', viewerUidAtStart);
       if (cachedPayload) cachedSource = 'persistent';
     }
-    const cachedRenderPayload = this._getCourseLessonRosterCachedRenderPayload(cachedPayload);
+    const cachedRenderPayload = this._getCourseLessonRosterCachedRenderPayload(cachedPayload, {
+      includeStaleDetails: cachedSource === 'memory',
+      includeStaffFields: cachedSource === 'memory' && localStaff && cacheScope === 'staff',
+    });
     const cachedPlan = cachedRenderPayload ? (cachedPlanForShell || this._findEduCoursePlan(teamId, planId)) : null;
     const lessonStatePromise = this._loadEduCourseLessonsState(teamId, planId);
     const freshRosterPromise = forceRefresh
@@ -1537,7 +1579,7 @@ Object.assign(App, {
         cachedRenderPayload,
         localStaff,
         requestSeq,
-        { refreshPending: true },
+        { refreshPending: true, staleCached: cachedRenderPayload?.cacheMeta?.staleCached === true },
       );
       this._recordCourseLessonRosterPerf('cache_preview', {
         teamId,

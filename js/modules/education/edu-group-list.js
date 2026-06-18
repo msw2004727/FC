@@ -5,6 +5,7 @@
 Object.assign(App, {
 
   _eduGroupsCache: {},
+  _eduGroupsLoadFailedByTeam: {},
 
   /**
    * 載入並快取指定俱樂部的分組列表
@@ -14,9 +15,11 @@ Object.assign(App, {
     try {
       const groups = await FirebaseService.listEduGroups(teamId);
       this._eduGroupsCache[teamId] = groups;
+      this._eduGroupsLoadFailedByTeam[teamId] = false;
       return groups;
     } catch (err) {
       console.error('[edu-group-list] loadEduGroups failed:', err);
+      this._eduGroupsLoadFailedByTeam[teamId] = true;
       return this._eduGroupsCache[teamId] || [];
     }
   },
@@ -28,6 +31,101 @@ Object.assign(App, {
     return this._eduGroupsCache[teamId] || [];
   },
 
+  _renderEduGroupRefreshStatus(text) {
+    if (typeof this._renderEduRefreshStatus === 'function') return this._renderEduRefreshStatus(text);
+    return '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>' + escapeHTML(text || '\u8cc7\u6599\u66f4\u65b0\u4e2d...') + '</span></div>';
+  },
+
+  _renderEduGroupListRows(teamId, groups, options = {}) {
+    const container = options.container || document.getElementById('edu-group-list') || document.getElementById('edu-group-list-page');
+    if (!container) return;
+    const isStaff = this.isEduClubStaff(teamId);
+    const isDetailPanel = !!container.closest?.('#edu-detail-section');
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const refreshHtml = options.refreshError === true
+      ? this._renderEduGroupRefreshStatus('\u5206\u7d44\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+      : (options.refreshing === true ? this._renderEduGroupRefreshStatus('\u5206\u7d44\u8cc7\u6599\u66f4\u65b0\u4e2d...') : '');
+    const unmatchedCard = () => {
+      if (!isStaff || isDetailPanel) return '';
+      const unmatched = this.getUnmatchedPendingStudents(teamId);
+      if (!unmatched.length) return '';
+      return '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+        + '<div class="edu-group-header">'
+        + '<span class="edu-group-name">\u5f85\u5be9\u6838\u5b78\u54e1</span>'
+        + '<span class="edu-group-pending">' + unmatched.length + ' \u4eba\u5f85\u5206\u914d</span>'
+        + '</div>'
+        + '<div class="edu-group-desc">\u672a\u7d81\u5b9a\u5206\u7d44\u7684\u5831\u540d\u5b78\u54e1</div>'
+        + '</div>';
+    };
+
+    if (!Array.isArray(groups) || !groups.length) {
+      container.innerHTML = refreshHtml + '<div class="edu-empty-state">\u76ee\u524d\u6c92\u6709\u5206\u7d44'
+        + (isStaff && !readOnly ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + teamId + '\')">\u65b0\u589e\u5206\u7d44</button>' : '')
+        + '</div>' + unmatchedCard();
+      return;
+    }
+
+    const sorted = [...groups].filter(g => g.active !== false).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const students = this.getEduStudents(teamId);
+    sorted.forEach(g => {
+      g.memberCount = students.filter(s =>
+        s.enrollStatus === 'active' && (s.groupIds || []).includes(g.id)
+      ).length;
+      g.pendingCount = students.filter(s =>
+        s.enrollStatus === 'pending' && (s.groupIds || []).includes(g.id)
+      ).length;
+    });
+
+    const rows = sorted.map((g, idx) => {
+      const ageRange = (g.ageMin != null || g.ageMax != null)
+        ? '<span class="edu-group-age">' +
+          (g.ageMin != null ? g.ageMin : '?') + '-' +
+          (g.ageMax != null ? g.ageMax : '?') + ' \u6b72</span>'
+        : '';
+      const scheduleHtml = g.schedule
+        ? '<div class="edu-group-schedule">' + escapeHTML(g.schedule) + '</div>'
+        : '';
+      const genderLabel = g.gender === 'male'
+        ? '<span class="edu-group-gender-male">\u7537</span>'
+        : g.gender === 'female'
+          ? '<span class="edu-group-gender-female">\u5973</span>'
+          : '';
+      let rightHtml = '';
+      if (isStaff) {
+        const pendingTag = g.pendingCount > 0
+          ? '<span class="edu-group-pending">\u5f85\u5be9\u6838 ' + g.pendingCount + '</span>' : '';
+        rightHtml = readOnly
+          ? '<span class="edu-grp-staff-right">'
+          + '<span class="edu-group-count">' + g.memberCount + ' \u4eba</span>'
+          + pendingTag
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" disabled>\u7de8\u8f2f</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" disabled>\u522a\u9664</button>'
+          + '</span>'
+          : '<span class="edu-grp-staff-right">'
+          + '<span class="edu-group-count">' + g.memberCount + ' \u4eba</span>'
+          + pendingTag
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">\u7de8\u8f2f</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">\u522a\u9664</button>'
+          + '</span>';
+      } else {
+        rightHtml = '<span class="edu-grp-staff-right"><span class="edu-group-count">' + g.memberCount + ' \u4eba</span></span>';
+      }
+      const altBg = idx % 2 === 0
+        ? 'background:rgba(59,130,246,.06)'
+        : 'background:rgba(16,185,129,.06)';
+      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">'
+        + '<div class="edu-group-header">'
+        + '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>'
+        + ageRange + genderLabel
+        + rightHtml
+        + '</div>'
+        + scheduleHtml
+        + (g.description ? '<div class="edu-group-desc">' + escapeHTML(g.description) + '</div>' : '')
+        + '</div>';
+    }).join('');
+    container.innerHTML = refreshHtml + rows + unmatchedCard();
+  },
+
   /**
    * 渲染分組列表
    */
@@ -35,9 +133,22 @@ Object.assign(App, {
     const container = document.getElementById('edu-group-list') || document.getElementById('edu-group-list-page');
     if (!container) return;
 
-    const isStaff = this.isEduClubStaff(teamId);
-    const isDetailPanel = !!container.closest?.('#edu-detail-section');
+    const hasCachedGroups = Array.isArray(this._eduGroupsCache?.[teamId]);
+    if (hasCachedGroups) {
+      this._renderEduGroupListRows(teamId, this.getEduGroups(teamId), { container, refreshing: true, readOnly: true });
+    } else {
+      container.innerHTML = '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true">'
+        + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+        + '<div class="edu-loading-text">\u5206\u7d44\u8cc7\u6599\u8f09\u5165\u4e2d</div>'
+        + '</div>';
+    }
     const groups = await this._loadEduGroups(teamId);
+    if (this._eduGroupsLoadFailedByTeam?.[teamId] === true && hasCachedGroups) {
+      this._renderEduGroupListRows(teamId, this.getEduGroups(teamId), { container, readOnly: true, refreshError: true });
+      return;
+    }
+    this._renderEduGroupListRows(teamId, groups, { container });
+    return;
 
     if (!groups.length) {
       let emptyHtml = '<div class="edu-empty-state">尚未建立分組' +

@@ -5,6 +5,7 @@
 Object.assign(App, {
 
   _eduStudentsCache: {},
+  _eduStudentsLoadFailedByTeam: {},
   _eduCurrentGroupId: null,
   _eduCurrentTeamId: null,
   _eduStudentListRequestSeq: 0,
@@ -14,15 +15,22 @@ Object.assign(App, {
     try {
       const students = await FirebaseService.listEduStudents(teamId);
       this._eduStudentsCache[teamId] = students;
+      this._eduStudentsLoadFailedByTeam[teamId] = false;
       return students;
     } catch (err) {
       console.error('[edu-student-list] load failed:', err);
+      this._eduStudentsLoadFailedByTeam[teamId] = true;
       return this._eduStudentsCache[teamId] || [];
     }
   },
 
   getEduStudents(teamId) {
     return this._eduStudentsCache[teamId] || [];
+  },
+
+  _renderEduStudentRefreshStatus(text) {
+    if (typeof this._renderEduRefreshStatus === 'function') return this._renderEduRefreshStatus(text);
+    return '<div class="edu-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>' + escapeHTML(text || '\u8cc7\u6599\u66f4\u65b0\u4e2d...') + '</span></div>';
   },
 
   async showEduStudentList(teamId, groupId) {
@@ -44,8 +52,17 @@ Object.assign(App, {
 
     const titleEl = document.getElementById('edu-students-title');
     if (groupId === '__unmatched__') {
+      const container = document.getElementById('edu-student-list');
+      if (Array.isArray(this._eduStudentsCache?.[teamId])) {
+        this._renderUnmatchedStudentList(teamId, { refreshing: true, readOnly: true });
+      } else if (container) {
+        container.innerHTML = '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true">'
+          + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+          + '<div class="edu-loading-text">\u5f85\u5be9\u6838\u8cc7\u6599\u8f09\u5165\u4e2d</div>'
+          + '</div>';
+      }
       if (titleEl) titleEl.textContent = '待審核名單';
-      this._renderUnmatchedStudentList(teamId);
+      await this.renderEduStudentList(teamId, groupId, requestSeq);
       return { ok: true };
     }
     const groups = this.getEduGroups(teamId);
@@ -59,17 +76,36 @@ Object.assign(App, {
   async renderEduStudentList(teamId, groupId, requestSeq) {
     // 虛擬分組：委託專用渲染器
     if (groupId === '__unmatched__') {
+      const hadCachedStudents = Array.isArray(this._eduStudentsCache?.[teamId]);
       await this._loadEduStudents(teamId);
       if (requestSeq != null && requestSeq !== this._eduStudentListRequestSeq) return;
+      if (this._eduStudentsLoadFailedByTeam?.[teamId] === true && hadCachedStudents) {
+        this._renderUnmatchedStudentList(teamId, { readOnly: true, refreshError: true });
+        return;
+      }
       this._renderUnmatchedStudentList(teamId);
       return;
     }
     const container = document.getElementById('edu-student-list');
     if (!container) return;
 
+    const hasCachedStudents = Array.isArray(this._eduStudentsCache?.[teamId]);
+    if (hasCachedStudents) {
+      this._renderEduStudentListFromCache(teamId, groupId, { refreshing: true, readOnly: true });
+    } else {
+      container.innerHTML = '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true">'
+        + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+        + '<div class="edu-loading-text">\u5b78\u54e1\u8cc7\u6599\u8f09\u5165\u4e2d</div>'
+        + '</div>';
+    }
+
     const isStaff = this.isEduClubStaff(teamId);
     const allStudents = await this._loadEduStudents(teamId);
     if (requestSeq != null && requestSeq !== this._eduStudentListRequestSeq) return;
+    if (this._eduStudentsLoadFailedByTeam?.[teamId] === true && hasCachedStudents) {
+      this._renderEduStudentListFromCache(teamId, groupId, { readOnly: true, refreshError: true });
+      return;
+    }
 
     const inGroup = groupId
       ? allStudents.filter(s => s.enrollStatus !== 'inactive' && (s.groupIds || []).includes(groupId))
@@ -112,11 +148,25 @@ Object.assign(App, {
   /**
    * 待審核學員行（通過/拒絕 置右與姓名並行）
    */
-  _renderPendingStudentRow(teamId, groupId, s) {
+  _renderPendingStudentRow(teamId, groupId, s, options = {}) {
     const age = this.calcAge(s.birthday);
     const ageLabel = age != null ? age + ' 歲' : '';
     const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
     const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+
+    if (options.readOnly === true) {
+      return '<div class="edu-student-card edu-pending-card">'
+        + '<div class="edu-student-header">'
+        + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
+        + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
+        + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
+        + '<span class="edu-header-actions">'
+        + '<button class="edu-approve-btn" disabled>\u901a\u904e</button>'
+        + '<button class="edu-reject-btn" disabled data-name="' + escapeHTML(s.name) + '">\u62d2\u7d55</button>'
+        + '</span>'
+        + '</div>'
+        + '</div>';
+    }
 
     return '<div class="edu-student-card edu-pending-card">'
       + '<div class="edu-student-header">'
@@ -134,12 +184,25 @@ Object.assign(App, {
   /**
    * 正式學員行（編輯/移除 置右）
    */
-  _renderActiveStudentRow(teamId, groupId, s, isStaff) {
+  _renderActiveStudentRow(teamId, groupId, s, isStaff, options = {}) {
     const age = isStaff ? this.calcAge(s.birthday) : null;
     const ageLabel = age != null ? age + ' 歲' : '';
     const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
     const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
     const isSelf = !!s.selfUid;
+
+    if (isStaff && options.readOnly === true) {
+      const editBtn = '<button class="outline-btn small" disabled style="font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem">\u7de8\u8f2f</button>';
+      const removeBtn = '<button class="outline-btn small" disabled style="font-size:.68rem;padding:.15rem .4rem;min-width:1.6rem;color:var(--danger);border-color:var(--danger)" data-name="' + escapeHTML(s.name) + '">\u79fb\u9664</button>';
+      return '<div class="edu-student-card">'
+        + '<div class="edu-student-header">'
+        + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
+        + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
+        + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
+        + '<span class="edu-header-actions">' + editBtn + removeBtn + '</span>'
+        + '</div>'
+        + '</div>';
+    }
 
     let actionBtns = '';
     if (isStaff) {
@@ -163,13 +226,17 @@ Object.assign(App, {
   /**
    * 從快取渲染（不重新 fetch，供 onSnapshot 呼叫）
    */
-  _renderEduStudentListFromCache(teamId, groupId) {
-    if (groupId === '__unmatched__') { this._renderUnmatchedStudentList(teamId); return; }
+  _renderEduStudentListFromCache(teamId, groupId, options = {}) {
+    if (groupId === '__unmatched__') { this._renderUnmatchedStudentList(teamId, options); return; }
     const container = document.getElementById('edu-student-list');
     if (!container) return;
 
     const isStaff = this.isEduClubStaff(teamId);
     const allStudents = this.getEduStudents(teamId);
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const refreshHtml = options.refreshError === true
+      ? this._renderEduStudentRefreshStatus('\u5b78\u54e1\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+      : (options.refreshing === true ? this._renderEduStudentRefreshStatus('\u5b78\u54e1\u8cc7\u6599\u66f4\u65b0\u4e2d...') : '');
 
     const inGroup = groupId
       ? allStudents.filter(s => s.enrollStatus !== 'inactive' && (s.groupIds || []).includes(groupId))
@@ -178,24 +245,29 @@ Object.assign(App, {
     const pendingStudents = inGroup.filter(s => s.enrollStatus === 'pending');
     const activeStudents = inGroup.filter(s => s.enrollStatus === 'active');
 
+    if (readOnly && !inGroup.length) {
+      container.innerHTML = refreshHtml + '<div class="edu-empty-state">\u6b64\u5206\u7d44\u5c1a\u7121\u5b78\u54e1</div>';
+      return;
+    }
+
     if (!inGroup.length) {
-      container.innerHTML = '<div class="edu-empty-state">此分組尚無學員'
+      container.innerHTML = refreshHtml + '<div class="edu-empty-state">此分組尚無學員'
         + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">新增學員</button>' : '')
         + '</div>';
       return;
     }
 
-    let html = '';
+    let html = refreshHtml;
     if (isStaff && pendingStudents.length) {
       html += '<div class="edu-section-label">待審核（' + pendingStudents.length + '）</div>';
-      html += pendingStudents.map(s => this._renderPendingStudentRow(teamId, groupId, s)).join('');
+      html += pendingStudents.map(s => this._renderPendingStudentRow(teamId, groupId, s, { readOnly })).join('');
       html += '<hr style="border:none;border-top:1px solid var(--border);margin:.6rem 0">';
     }
-    if (isStaff) {
+    if (isStaff && !readOnly) {
       html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">＋ 新增學員</button></div>';
     }
     if (activeStudents.length) {
-      html += activeStudents.map(s => this._renderActiveStudentRow(teamId, groupId, s, isStaff)).join('');
+      html += activeStudents.map(s => this._renderActiveStudentRow(teamId, groupId, s, isStaff, { readOnly })).join('');
     } else if (!pendingStudents.length) {
       html += '<div class="edu-empty-state">此分組尚無正式學員</div>';
     }
@@ -205,17 +277,46 @@ Object.assign(App, {
   /**
    * 渲染未匹配 pending 學員列表（虛擬分組）
    */
-  _renderUnmatchedStudentList(teamId) {
+  _renderUnmatchedStudentList(teamId, options = {}) {
     const container = document.getElementById('edu-student-list');
     if (!container) return;
 
     const unmatched = this.getUnmatchedPendingStudents(teamId);
+    const readOnly = options.readOnly === true || options.refreshing === true || options.refreshError === true;
+    const refreshHtml = options.refreshError === true
+      ? this._renderEduStudentRefreshStatus('\u5f85\u5be9\u6838\u8cc7\u6599\u66ab\u6642\u7121\u6cd5\u66f4\u65b0\uff0c\u5148\u986f\u793a\u4e0a\u6b21\u8cc7\u6599')
+      : (options.refreshing === true ? this._renderEduStudentRefreshStatus('\u5f85\u5be9\u6838\u8cc7\u6599\u66f4\u65b0\u4e2d...') : '');
     if (!unmatched.length) {
-      container.innerHTML = '<div class="edu-empty-state">目前沒有未分配的申請學員</div>';
+      container.innerHTML = refreshHtml + '<div class="edu-empty-state">目前沒有未分配的申請學員</div>';
       return;
     }
 
-    let html = '<div class="edu-section-label">以下學員不符合任何分組條件，請手動分配</div>';
+    if (readOnly) {
+      let readonlyHtml = refreshHtml + '<div class="edu-section-label">待審核資料暫時以上次資料顯示</div>';
+      readonlyHtml += '<table class="edu-ci-table"><thead><tr>'
+        + '<th class="edu-ci-th-name">姓名</th>'
+        + '<th style="width:3rem;text-align:center">性別</th>'
+        + '<th style="width:3rem;text-align:center">年齡</th>'
+        + '<th style="width:5rem;text-align:center">操作</th>'
+        + '</tr></thead><tbody>';
+      unmatched.forEach(s => {
+        const age = this.calcAge(s.birthday);
+        const ageLabel = age != null ? age : '-';
+        const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+        const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+        readonlyHtml += '<tr>'
+          + '<td class="edu-ci-td-name">' + escapeHTML(s.name) + '</td>'
+          + '<td style="text-align:center"><span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span></td>'
+          + '<td style="text-align:center;font-size:.78rem">' + ageLabel + '</td>'
+          + '<td style="text-align:center"><button class="primary-btn small" style="font-size:.68rem;padding:.15rem .5rem" disabled>分配</button></td>'
+          + '</tr>';
+      });
+      readonlyHtml += '</tbody></table>';
+      container.innerHTML = readonlyHtml;
+      return;
+    }
+
+    let html = refreshHtml + '<div class="edu-section-label">以下學員不符合任何分組條件，請手動分配</div>';
     html += '<table class="edu-ci-table"><thead><tr>'
       + '<th class="edu-ci-th-name">姓名</th>'
       + '<th style="width:3rem;text-align:center">性別</th>'

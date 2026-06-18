@@ -86,6 +86,15 @@ Object.assign(App, {
     };
   },
 
+  _renderEduRefreshStatus(text, options = {}) {
+    const label = escapeHTML(text || '\u8cc7\u6599\u66f4\u65b0\u4e2d...');
+    const extraClass = options.compact === true ? ' edu-refresh-status-compact' : '';
+    return '<div class="edu-refresh-status' + extraClass + '" role="status" aria-live="polite">'
+      + '<span class="edu-inline-spinner" aria-hidden="true"></span>'
+      + '<span>' + label + '</span>'
+      + '</div>';
+  },
+
   // ══════════════════════════════════
   //  Type Detection
   // ══════════════════════════════════

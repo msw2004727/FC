@@ -181,6 +181,138 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).not.toContain('edu-course-plan-list-loading');
   });
 
+  test('renders cached course plans with a non-blocking refresh status before fresh data resolves', async () => {
+    const container = { innerHTML: '' };
+    let resolvePlans;
+    const plansPromise = new Promise(resolve => { resolvePlans = resolve; });
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlansCache: {
+        teamA: [{
+          id: 'cachedPlan',
+          name: 'Cached Plan',
+          active: true,
+          planType: 'weekly',
+          startDate: '2099-01-01',
+          endDate: '2099-02-01',
+          allowSignup: true,
+        }],
+      },
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => true),
+      _loadEduCoursePlans: jest.fn(() => plansPromise),
+      _getCourseEnrollCacheKey: jest.fn(() => null),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    const renderPromise = context.App.renderEduCoursePlanList('teamA', true);
+
+    expect(container.innerHTML).toContain('Cached Plan');
+    expect(container.innerHTML).toContain('edu-refresh-status');
+    expect(container.innerHTML).not.toContain('edu-course-plan-list-loading');
+    expect(container.innerHTML).not.toContain('App.applyCourseEnrollment');
+    expect(container.innerHTML).not.toContain('App.showCourseEnrollmentList');
+    expect(container.innerHTML).not.toContain('App.showEduCoursePlanForm');
+    expect(container.innerHTML).not.toContain('App.deleteEduCoursePlan');
+    expect(container.innerHTML).not.toContain('App.showEduCoursePlanDetail');
+    expect(container.innerHTML).not.toContain('App.showCourseLessons');
+
+    resolvePlans([{
+      id: 'freshPlan',
+      name: 'Fresh Plan',
+      active: true,
+      planType: 'weekly',
+      startDate: '2099-03-01',
+      endDate: '2099-04-01',
+      allowSignup: true,
+    }]);
+    await renderPromise;
+
+    expect(container.innerHTML).toContain('Fresh Plan');
+    expect(container.innerHTML).not.toContain('Cached Plan');
+    expect(container.innerHTML).not.toContain('edu-refresh-status');
+    expect(container.innerHTML).toContain('App.showEduCoursePlanDetail');
+    expect(container.innerHTML).toContain('App.showCourseLessons');
+    expect(container.innerHTML).toContain('App.applyCourseEnrollment');
+    expect(container.innerHTML).toContain('App.showCourseEnrollmentList');
+  });
+
+  test('keeps cached course plans read only when refresh falls back to cache', async () => {
+    const container = { innerHTML: '' };
+    const cachedPlans = [{
+      id: 'cachedPlan',
+      name: 'Cached Plan',
+      active: true,
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      allowSignup: true,
+    }];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlansCache: { teamA: cachedPlans },
+      _eduCoursePlanLoadFailedByTeam: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => true),
+      _loadEduCoursePlans: jest.fn(() => {
+        app._eduCoursePlanLoadFailedByTeam.teamA = true;
+        return Promise.resolve(cachedPlans);
+      }),
+      _getCourseEnrollCacheKey: jest.fn(() => null),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.renderEduCoursePlanList('teamA', true);
+
+    expect(container.innerHTML).toContain('Cached Plan');
+    expect(container.innerHTML).toContain('edu-refresh-status');
+    expect(container.innerHTML).toContain('disabled');
+    expect(container.innerHTML).not.toContain('App.applyCourseEnrollment');
+    expect(container.innerHTML).not.toContain('App.showCourseEnrollmentList');
+    expect(container.innerHTML).not.toContain('App.showEduCoursePlanForm');
+    expect(container.innerHTML).not.toContain('App.deleteEduCoursePlan');
+    expect(container.innerHTML).not.toContain('App.showEduCoursePlanDetail');
+    expect(container.innerHTML).not.toContain('App.showCourseLessons');
+  });
+
   test('compact course cards keep cover overlays and equal-width actions', () => {
     expect(cssSource).toContain('.edu-cp-compact-cover');
     expect(cssSource).toContain('width: 62%;');
