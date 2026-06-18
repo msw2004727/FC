@@ -183,6 +183,8 @@
 .td-v2-member strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .td-v2-member .td-member-name-pill{display:inline-flex;max-width:100%;padding:2px 7px;font-size:11.5px;vertical-align:middle}
 .td-v2-member em{display:block;color:#64748b;font-style:normal;font-size:10.5px}
+.td-v2-member-management{width:100%;min-width:0}
+.td-v2-member-management .td-member-management-panel{width:100%;max-width:none;align-self:stretch;margin-right:0;margin-left:0}
 .td-v2-member-management .td-card{box-shadow:none;border:0;padding:0}
 .td-v2-member-management .td-card-title{display:none}
 .td-v2-record-hero{display:grid;grid-template-columns:110px 1fr;gap:16px;align-items:center}

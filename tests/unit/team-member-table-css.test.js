@@ -7,6 +7,10 @@ function readCss() {
   return fs.readFileSync(path.join(root, 'css/team.css'), 'utf8');
 }
 
+function readV2Css() {
+  return fs.readFileSync(path.join(root, 'css/team-detail-v2.css'), 'utf8');
+}
+
 function ruleBlock(css, selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = css.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`));
@@ -34,6 +38,15 @@ describe('team member list CSS contract', () => {
     expect(css).toContain('.td-member-list-note-hint');
     expect(css).not.toContain('.td-member-sort-hint');
     expect(css).not.toContain('.td-member-view-hint');
+  });
+
+  test('member management panel stretches to match detail cards on wide layouts', () => {
+    const css = readCss();
+    const v2Css = readV2Css();
+
+    expect(css).toMatch(/\.td-detail-shell > \.td-member-management-panel\s*\{[\s\S]*width: 100%[\s\S]*max-width: none[\s\S]*align-self: stretch/);
+    expect(v2Css).toContain('.td-v2-member-management{width:100%;min-width:0}');
+    expect(v2Css).toContain('.td-v2-member-management .td-member-management-panel{width:100%;max-width:none;align-self:stretch;margin-right:0;margin-left:0}');
   });
 
   test('member list fills the card with stable row sizing and no avatar lane', () => {
