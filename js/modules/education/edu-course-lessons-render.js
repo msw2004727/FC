@@ -45,6 +45,7 @@ Object.assign(App, {
   },
 
   _getCourseLessonAttendanceMeta(kind) {
+    if (kind === 'pending') return { label: '更新中', cls: 'pending' };
     if (kind === 'leave') return { label: '請假', cls: 'leave' };
     if (kind === 'signin') return { label: '已簽到', cls: 'signin' };
     return { label: '未簽到', cls: 'none' };
@@ -116,6 +117,7 @@ Object.assign(App, {
     const paidByStudentId = context.paidByStudentId && typeof context.paidByStudentId === 'object'
       ? context.paidByStudentId
       : null;
+    const isRosterPreview = payload?.cacheMeta?.preview === true || context.preview === true;
     const shouldSplitUnpaid = context.isStaff === true && paidByStudentId !== null;
     const getRosterStudentId = (student) => (
       typeof this._getCourseLessonRosterStudentId === 'function'
@@ -134,16 +136,18 @@ Object.assign(App, {
       const index = rosterRowIndex++;
       const name = student.displayName || '學員';
       const studentId = getRosterStudentId(student);
-      const draftKind = manageMode
-        ? (context.draftByStudentId?.[studentId] || null)
-        : student.attendanceKind;
+      const draftKind = isRosterPreview
+        ? 'pending'
+        : (manageMode
+          ? (context.draftByStudentId?.[studentId] || null)
+          : student.attendanceKind);
       const attendance = this._getCourseLessonAttendanceMeta(draftKind);
       const note = notesByStudentId[studentId] || '';
       const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
-      const selfLeaveActionHtml = (!context.isStaff && student.canSelfLeave === true)
+      const selfLeaveActionHtml = (!isRosterPreview && !context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
           + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'

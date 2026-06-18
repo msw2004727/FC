@@ -660,6 +660,7 @@
 .edu-course-lesson-status-soon { background: rgba(217, 119, 6, .13); color: #b45309; }
 .edu-course-lesson-status-done { background: rgba(16, 185, 129, .15); color: #047857; }
 .edu-course-lesson-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
+.edu-course-roster-status-pending { background: rgba(100, 116, 139, .12); color: #64748b; }
 .edu-course-roster-status-signin { background: rgba(13, 148, 136, .13); color: #0f766e; }
 .edu-course-roster-status-leave { background: rgba(217, 119, 6, .14); color: #b45309; }
 .edu-course-lesson-meta {
@@ -1177,6 +1178,7 @@
   color: #cbd5e1;
 }
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+[data-theme="dark"] .edu-course-roster-status-pending { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
 [data-theme="dark"] .edu-course-lesson-adjust-btn {
   border-color: rgba(45, 212, 191, .28);

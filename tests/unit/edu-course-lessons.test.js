@@ -494,20 +494,20 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).not.toContain('未繳費區');
   });
 
-  test('renders cached roster first and refreshes in background', async () => {
+  test('renders cached roster preview first and refreshes attendance in background', async () => {
     let resolveRefresh;
     const refreshPromise = new Promise(resolve => { resolveRefresh = resolve; });
     const cachedPayload = {
       rosterPublic: true,
       cacheMeta: { payloadVersion: 'v1', cacheTtlMs: 30000 },
       session: { id: 'sessionA', title: 'Cached', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
-      students: [{ studentId: 'stu1', displayName: 'Cached Student', level: '1', attendanceKind: null }],
+      students: [{ studentId: 'stu1', displayName: 'Cached Student', level: '1', attendanceKind: 'leave', canSelfLeave: true, selfUid: 'uidA' }],
     };
     const freshPayload = {
       rosterPublic: true,
       cacheMeta: { payloadVersion: 'v2', cacheTtlMs: 30000 },
       session: { id: 'sessionA', title: 'Fresh', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
-      students: [{ studentId: 'stu1', displayName: 'Fresh Student', level: '1', attendanceKind: 'signin' }],
+      students: [{ studentId: 'stu1', displayName: 'Fresh Student', level: '1', attendanceKind: 'signin', canSelfLeave: true, selfUid: 'uidA' }],
     };
     const { app, container, firebase } = loadCourseLessonsContext({ rosterPayload: cachedPayload });
 
@@ -518,12 +518,17 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('Cached Student');
+    expect(container.innerHTML).toContain('edu-course-roster-status-pending');
+    expect(container.innerHTML).not.toContain('edu-course-roster-status-leave');
+    expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
 
     resolveRefresh(freshPayload);
     await flushPromises();
 
     expect(container.innerHTML).toContain('Fresh Student');
+    expect(container.innerHTML).toContain('edu-course-roster-status-signin');
+    expect(container.innerHTML).toContain('edu-roster-self-leave-btn');
   });
 
   test('staff roster paints cached public preview before fresh staff fields arrive', async () => {
@@ -561,6 +566,8 @@ describe('edu course lessons', () => {
 
     await expect(secondLoad).resolves.toMatchObject({ ok: true, cached: true });
     expect(container.innerHTML).toContain('Cached Staff Student');
+    expect(container.innerHTML).toContain('edu-course-roster-status-pending');
+    expect(container.innerHTML).not.toContain('edu-course-roster-status-signin');
     expect(container.innerHTML).not.toContain('old private note');
     expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
 

@@ -117,11 +117,13 @@ Object.assign(App, {
     return entry.payload;
   },
 
-  _buildCourseLessonRosterPublicPreviewPayload(payload) {
+  _buildCourseLessonRosterBasePreviewPayload(payload) {
     if (!payload || typeof payload !== 'object' || payload.rosterPublic === false) return null;
     const students = Array.isArray(payload.students)
       ? payload.students.map((student) => {
         const clean = { ...student };
+        delete clean.attendanceKind;
+        delete clean.canSelfLeave;
         delete clean.selfUid;
         delete clean.parentUid;
         delete clean.uid;
@@ -135,16 +137,18 @@ Object.assign(App, {
       isStaff: false,
       staffEnrollmentByStudentId: null,
       students,
-      cacheMeta: payload.cacheMeta ? { ...payload.cacheMeta, preview: true } : { preview: true },
+      cacheMeta: {
+        ...(payload.cacheMeta || {}),
+        preview: true,
+        attendancePending: true,
+        staffPending: payload.canManageRoster === true,
+      },
     };
   },
 
   _getCourseLessonRosterCachedRenderPayload(cachedPayload) {
     if (!cachedPayload || typeof cachedPayload !== 'object') return null;
-    if (cachedPayload.canManageRoster === true) {
-      return this._buildCourseLessonRosterPublicPreviewPayload(cachedPayload);
-    }
-    return cachedPayload;
+    return this._buildCourseLessonRosterBasePreviewPayload(cachedPayload);
   },
 
   _rememberCourseLessonRosterPayload(teamId, planId, sessionId, payload, viewerUid = this._getCourseLessonRosterViewerUid()) {
