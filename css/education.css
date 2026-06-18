@@ -922,6 +922,28 @@
   min-width: 0;
   line-height: 1.35;
 }
+.edu-course-roster-refresh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: .42rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: .55rem;
+  padding: .42rem .58rem;
+  border: 1px solid rgba(13, 148, 136, .22);
+  border-radius: 999px;
+  background: rgba(240, 253, 250, .86);
+  color: #0f766e;
+  font-size: .76rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.edu-course-roster-refresh-status span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .edu-course-roster-shell-loading .edu-course-roster-head {
   background:
     linear-gradient(135deg, rgba(20,184,166,.1), rgba(96,165,250,.08)),
@@ -1267,6 +1289,11 @@
   border-color: rgba(251, 191, 36, .28);
   background: rgba(120, 53, 15, .22);
   color: #fcd34d;
+}
+[data-theme="dark"] .edu-course-roster-refresh-status {
+  border-color: rgba(45, 212, 191, .3);
+  background: rgba(20, 184, 166, .14);
+  color: #5eead4;
 }
 [data-theme="dark"] .edu-course-roster-shell-loading .edu-course-roster-head {
   background:

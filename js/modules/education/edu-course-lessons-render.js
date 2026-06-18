@@ -244,6 +244,9 @@ Object.assign(App, {
       ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
         + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
       : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
+    const refreshPendingHtml = context.refreshPending === true && context.refreshError !== true
+      ? '<div class="edu-course-roster-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>&#27491;&#22312;&#26356;&#26032;&#31805;&#21040;&#33287;&#20633;&#35387;...</span></div>'
+      : '';
     const refreshErrorHtml = context.refreshError === true
       ? '<div class="edu-course-roster-refresh-alert"><span>&#36039;&#26009;&#26283;&#26178;&#28961;&#27861;&#26356;&#26032;&#65292;&#24050;&#20445;&#30041;&#19978;&#27425;&#21517;&#21934;</span><button type="button" class="outline-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(context.sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>'
       : '';
@@ -276,6 +279,7 @@ Object.assign(App, {
         + staffActions
       + '</section>'
       + '<section class="edu-course-roster-list-panel">'
+        + refreshPendingHtml
         + refreshErrorHtml
         + '<div class="edu-course-lessons-section-title"><strong>本堂名單</strong><span>' + students.length + ' 位</span></div>'
         + rosterListHtml

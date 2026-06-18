@@ -1327,6 +1327,7 @@ Object.assign(App, {
       manageMode: false,
       notesEditMode: false,
       draftSessionNotes: '',
+      refreshPending: options.refreshPending === true,
       refreshError: options.refreshError === true,
     };
     if (options.render !== false) this._renderCourseLessonRosterFromContext();
@@ -1344,6 +1345,28 @@ Object.assign(App, {
     viewerUidAtStart = this._getCourseLessonRosterViewerUid(),
     options = {},
   ) {
+    const finishRefreshIndicator = (state = {}) => {
+      const ctx = this._eduCourseLessonsContext;
+      if (ctx?.mode !== 'roster'
+        || String(ctx.teamId || '') !== String(teamId || '')
+        || String(ctx.planId || '') !== String(planId || '')
+        || String(ctx.sessionId || '') !== String(sessionId || '')
+        || this._isEduCourseLessonsStale(requestSeq, teamId)) {
+        return;
+      }
+      ctx.refreshPending = false;
+      if (state.refreshError === true) ctx.refreshError = true;
+      if (state.render === false) {
+        const status = this._getEduCourseLessonsContainer?.()
+          ?.querySelector?.('.edu-course-roster-refresh-status');
+        status?.remove?.();
+        return;
+      }
+      const editing = ctx.manageMode === true || ctx.notesEditMode === true;
+      if (!editing && !this._hasCourseLessonRosterBlockingOverlay()) {
+        this._renderCourseLessonRosterFromContext?.();
+      }
+    };
     try {
       const rosterPromise = options.rosterPromise || FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
       const statePromise = planOrState && typeof planOrState.then === 'function'
@@ -1361,10 +1384,14 @@ Object.assign(App, {
       if (options.forceRefresh === true) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
       const plan = stateOrPlan?.plan || stateOrPlan;
-      if (!plan) return { ok: false, reason: 'plan_not_found' };
+      if (!plan) {
+        finishRefreshIndicator({ refreshError: true });
+        return { ok: false, reason: 'plan_not_found' };
+      }
       const ctx = this._eduCourseLessonsContext;
       const editing = ctx?.mode === 'roster' && (ctx.manageMode === true || ctx.notesEditMode === true);
       if (editing || this._hasCourseLessonRosterBlockingOverlay()) {
+        finishRefreshIndicator({ render: false });
         this._recordCourseLessonRosterPerf('fresh_deferred', {
           teamId,
           planId,
@@ -1377,6 +1404,7 @@ Object.assign(App, {
       const nextVersion = this._getCourseLessonRosterPayloadVersion(rosterPayload);
       const currentPreview = ctx?.rosterPayload?.cacheMeta?.preview === true;
       if (!currentPreview && previousVersion && nextVersion && previousVersion === nextVersion) {
+        finishRefreshIndicator();
         this._recordCourseLessonRosterPerf('fresh_unchanged', {
           teamId,
           planId,
@@ -1406,8 +1434,7 @@ Object.assign(App, {
         && String(ctx.planId || '') === String(planId || '')
         && String(ctx.sessionId || '') === String(sessionId || '')
         && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
-        ctx.refreshError = true;
-        this._renderCourseLessonRosterFromContext?.();
+        finishRefreshIndicator({ refreshError: true });
       }
       return { ok: false, reason: 'refresh_failed' };
     }
@@ -1487,6 +1514,7 @@ Object.assign(App, {
         previewPayload,
         false,
         requestSeq,
+        { refreshPending: true },
       );
       if (result?.ok !== true || result.closed === true) return result;
       namesFirstPreviewRendered = true;
@@ -1509,6 +1537,7 @@ Object.assign(App, {
         cachedRenderPayload,
         localStaff,
         requestSeq,
+        { refreshPending: true },
       );
       this._recordCourseLessonRosterPerf('cache_preview', {
         teamId,
@@ -1570,6 +1599,7 @@ Object.assign(App, {
         && String(ctx.teamId || '') === String(teamId || '')
         && String(ctx.planId || '') === String(planId || '')
         && String(ctx.sessionId || '') === String(sessionId || '')) {
+        ctx.refreshPending = false;
         ctx.refreshError = true;
         this._renderCourseLessonRosterFromContext?.();
         return { ok: false, reason: 'roster_failed', preview: true };

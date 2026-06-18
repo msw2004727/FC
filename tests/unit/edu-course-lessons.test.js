@@ -278,6 +278,8 @@ describe('edu course lessons', () => {
     expect(cssSource).toMatch(/\.edu-course-roster-note\s*\{[^}]*flex: 1 1 auto;/s);
     expect(cssSource).toContain('.edu-course-roster-section-unpaid');
     expect(cssSource).toContain('.edu-course-roster-payment-unpaid');
+    expect(cssSource).toContain('.edu-course-roster-refresh-status');
+    expect(cssSource).toContain('[data-theme="dark"] .edu-course-roster-refresh-status');
   });
 
   test('preloads course lesson sessions without duplicate pending requests', async () => {
@@ -551,6 +553,8 @@ describe('edu course lessons', () => {
 
     expect(container.innerHTML).toContain('Cached Alpha');
     expect(container.innerHTML).toContain('Cached Beta');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+    expect(container.innerHTML).toContain('edu-inline-spinner');
     expect(container.innerHTML).toContain('edu-course-roster-status-pending');
     expect(container.innerHTML).not.toContain('edu-course-roster-status-signin');
     expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
@@ -566,6 +570,7 @@ describe('edu course lessons', () => {
     await expect(loading).resolves.toMatchObject({ ok: true });
 
     expect(container.innerHTML).toContain('Fresh Alpha');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
     expect(container.innerHTML).toContain('edu-course-roster-status-signin');
     expect(container.innerHTML).toContain('edu-roster-self-leave-btn');
   });
@@ -703,6 +708,7 @@ describe('edu course lessons', () => {
 
     expect(container.innerHTML).toContain('Cached Retry');
     expect(container.innerHTML).toContain('edu-course-roster-refresh-alert');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
     expect(container.innerHTML).toContain('{forceRefresh:true}');
     expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
   });
@@ -731,6 +737,8 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('Cached Student');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+    expect(container.innerHTML).toContain('edu-inline-spinner');
     expect(container.innerHTML).toContain('edu-course-roster-status-pending');
     expect(container.innerHTML).not.toContain('edu-course-roster-status-leave');
     expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
@@ -743,6 +751,7 @@ describe('edu course lessons', () => {
     await flushPromises();
 
     expect(container.innerHTML).toContain('Fresh Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
     expect(container.innerHTML).toContain('edu-course-roster-status-signin');
     expect(container.innerHTML).toContain('edu-roster-self-leave-btn');
     expect(app._eduCourseRosterPerfTimeline.map(entry => entry.stage)).toContain('fresh_overlay');
@@ -956,7 +965,7 @@ describe('edu course lessons', () => {
   });
 
   test('background roster refresh does not rerender while manage mode is active', async () => {
-    const { app, firebase } = loadCourseLessonsContext({
+    const { app, container, firebase } = loadCourseLessonsContext({
       rosterPayload: {
         rosterPublic: true,
         cacheMeta: { payloadVersion: 'v1', cacheTtlMs: 30000 },
@@ -966,6 +975,11 @@ describe('edu course lessons', () => {
     });
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
     app._eduCourseLessonsContext.manageMode = true;
+    app._eduCourseLessonsContext.refreshPending = true;
+    const pendingStatus = { remove: jest.fn() };
+    container.querySelector = jest.fn((selector) => (
+      selector === '.edu-course-roster-refresh-status' ? pendingStatus : null
+    ));
     const applySpy = jest.spyOn(app, '_applyCourseLessonRosterPayload');
     firebase.listEduCoursePublicRoster.mockResolvedValueOnce({
       rosterPublic: true,
@@ -986,6 +1000,9 @@ describe('edu course lessons', () => {
 
     expect(result).toMatchObject({ ok: true, deferred: true });
     expect(applySpy).not.toHaveBeenCalled();
+    expect(app._eduCourseLessonsContext.refreshPending).toBe(false);
+    expect(container.querySelector).toHaveBeenCalledWith('.edu-course-roster-refresh-status');
+    expect(pendingStatus.remove).toHaveBeenCalled();
   });
 
   test('roster invalidation forces the next load past local and server snapshots', async () => {
