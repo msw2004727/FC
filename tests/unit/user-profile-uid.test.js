@@ -15,7 +15,7 @@ const mockUsers = [
 // ---------------------------------------------------------------------------
 function _findUserByUid(uid, users) {
   if (!uid) return null;
-  return users.find(u => u.uid === uid || u.lineUserId === uid) || null;
+  return users.find(u => u.uid === uid || u.lineUserId === uid || u._docId === uid || u.docId === uid) || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@ function _findUserByUid(uid, users) {
 // Name-based fallback lookup
 // ---------------------------------------------------------------------------
 function _findUserByName(name, users) {
-  return users.find(u => u.name === name) || null;
+  return users.find(u => u.name === name || u.displayName === name) || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +77,13 @@ describe('UID-first User Profile Lookup', () => {
       expect(result.uid).toBe('U_bob_002');
     });
 
+    test('finds user by Firestore doc id fallback', () => {
+      const users = [{ _docId: 'doc_123', uid: '', lineUserId: '', name: 'Doc User' }];
+      const result = _findUserByUid('doc_123', users);
+      expect(result).not.toBeNull();
+      expect(result.name).toBe('Doc User');
+    });
+
     test('returns null for non-existent uid', () => {
       expect(_findUserByUid('U_nonexistent', mockUsers)).toBeNull();
     });
@@ -110,6 +117,13 @@ describe('UID-first User Profile Lookup', () => {
       expect(result).not.toBeNull();
       expect(result.name).toBe('小明');
       // 回傳第一個匹配的（name lookup 的限制）
+    });
+
+    test('falls back to displayName when name is not populated', () => {
+      const users = [{ uid: 'U_display_001', name: '', displayName: 'Display Only' }];
+      const result = resolveUser('Display Only', null, users);
+      expect(result).not.toBeNull();
+      expect(result.uid).toBe('U_display_001');
     });
 
     test('falls back to name when UID does not match', () => {

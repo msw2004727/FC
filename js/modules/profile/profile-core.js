@@ -148,17 +148,177 @@ Object.assign(App, {
 
   _findUserByName(name) {
     const users = ApiService.getAdminUsers();
-    return users.find(u => u.name === name) || null;
+    return users.find(u => u.name === name || u.displayName === name) || null;
   },
 
   _findUserByUid(uid) {
     if (!uid) return null;
     const users = ApiService.getAdminUsers();
-    return users.find(u => u.uid === uid || u.lineUserId === uid) || null;
+    return users.find(u => u.uid === uid || u.lineUserId === uid || u._docId === uid || u.docId === uid) || null;
+  },
+
+  _cacheUserProfileRecord(user) {
+    if (!user || typeof FirebaseService === 'undefined' || !FirebaseService._cache) return user;
+    const users = FirebaseService._cache.adminUsers;
+    if (!Array.isArray(users)) return user;
+
+    const ids = [user.uid, user.lineUserId, user._docId, user.docId]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    const names = [user.name, user.displayName]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    const idx = users.findIndex(u => {
+      const userIds = [u.uid, u.lineUserId, u._docId, u.docId].map(v => String(v || '').trim());
+      if (ids.some(id => userIds.includes(id))) return true;
+      if (!ids.length && names.length) {
+        return names.some(n => u.name === n || u.displayName === n);
+      }
+      return false;
+    });
+
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], ...user };
+      try { FirebaseService._saveToLS?.('adminUsers', users); } catch (_) {}
+      return users[idx];
+    }
+
+    users.push(user);
+    try { FirebaseService._saveToLS?.('adminUsers', users); } catch (_) {}
+    return user;
+  },
+
+  _mapUserProfileDoc(data, docId) {
+    if (!data) return null;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._mapUserDoc === 'function') {
+      return FirebaseService._mapUserDoc(data, docId);
+    }
+    return {
+      ...data,
+      name: data.displayName || data.name || 'Unknown',
+      uid: data.uid || data.lineUserId || docId,
+      lastActive: data.lastLogin || data.lastActive || null,
+      _docId: docId,
+    };
+  },
+
+  _getUserProfileFirestoreDb() {
+    if (typeof db !== 'undefined' && db?.collection) return db;
+    if (typeof firebase !== 'undefined' && firebase?.firestore) return firebase.firestore();
+    return null;
+  },
+
+  async _fetchUserProfileByUid(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    const firestoreDb = this._getUserProfileFirestoreDb();
+    if (!firestoreDb?.collection) return null;
+
+    const mapAndCache = (snap) => {
+      if (!snap?.exists) return null;
+      return this._cacheUserProfileRecord(this._mapUserProfileDoc(snap.data(), snap.id || safeUid));
+    };
+
+    try {
+      const directSnap = await firestoreDb.collection('users').doc(safeUid).get();
+      const directUser = mapAndCache(directSnap);
+      if (directUser) return directUser;
+
+      for (const field of ['uid', 'lineUserId']) {
+        const querySnap = await firestoreDb.collection('users').where(field, '==', safeUid).limit(1).get();
+        const doc = querySnap?.docs?.[0];
+        const queryUser = mapAndCache(doc);
+        if (queryUser) return queryUser;
+      }
+    } catch (err) {
+      console.warn('[UserProfile] fetch by uid failed:', err);
+    }
+    return null;
+  },
+
+  async _fetchUserProfileByName(name) {
+    const safeName = String(name || '').trim();
+    if (!safeName) return null;
+    const firestoreDb = this._getUserProfileFirestoreDb();
+    if (!firestoreDb?.collection) return null;
+
+    const mapAndCache = (snap) => {
+      if (!snap?.exists) return null;
+      return this._cacheUserProfileRecord(this._mapUserProfileDoc(snap.data(), snap.id));
+    };
+
+    try {
+      for (const field of ['displayName', 'name']) {
+        const querySnap = await firestoreDb.collection('users').where(field, '==', safeName).limit(1).get();
+        const doc = querySnap?.docs?.[0];
+        const user = mapAndCache(doc);
+        if (user) return user;
+      }
+    } catch (err) {
+      console.warn('[UserProfile] fetch by name failed:', err);
+    }
+    return null;
+  },
+
+  async _resolveUserProfileRecord(name, uidHint) {
+    const cached = this._findUserByUid(uidHint) || this._findUserByName(name);
+    if (cached) return cached;
+
+    const key = `${String(uidHint || '').trim()}::${String(name || '').trim()}`;
+    if (!this._userProfileFetchPromises) this._userProfileFetchPromises = {};
+    if (this._userProfileFetchPromises[key]) return this._userProfileFetchPromises[key];
+
+    this._userProfileFetchPromises[key] = (async () => {
+      const cachedAfterQueue = this._findUserByUid(uidHint) || this._findUserByName(name);
+      if (cachedAfterQueue) return cachedAfterQueue;
+      return (await this._fetchUserProfileByUid(uidHint)) || (await this._fetchUserProfileByName(name));
+    })().finally(() => {
+      if (this._userProfileFetchPromises?.[key]) delete this._userProfileFetchPromises[key];
+    });
+    return this._userProfileFetchPromises[key];
+  },
+
+  _renderUserProfileLoading(name, uidHint) {
+    const container = document.getElementById('user-card-full');
+    if (!container) return false;
+    const cardHeader = document.querySelector('#page-user-card .page-header h2');
+    if (cardHeader) cardHeader.textContent = '用戶資料卡片';
+    container.classList.remove('is-secondary-private');
+    container.innerHTML = `
+      <div class="uc-card-loading" role="status" aria-live="polite">
+        <div class="uc-card-spinner" aria-hidden="true"></div>
+        <div class="uc-card-loading-title" data-no-translate>${escapeHTML(name || uidHint || '')}</div>
+        <div class="uc-card-loading-text">&#36039;&#26009;&#36617;&#20837;&#20013;</div>
+      </div>
+    `;
+    return true;
+  },
+
+  _renderUserProfileUnavailable(name, uidHint) {
+    const container = document.getElementById('user-card-full');
+    if (!container) return false;
+    const safeName = String(name || uidHint || '').trim();
+    const safeUid = String(uidHint || '').trim();
+    const retryName = escapeHTML(safeName);
+    const retryUid = escapeHTML(safeUid);
+    const retryAction = safeUid
+      ? `App.showUserProfile('${retryName}',{uid:'${retryUid}',bypassPageLock:true,skipPageHistory:true})`
+      : `App.showUserProfile('${retryName}',{bypassPageLock:true,skipPageHistory:true})`;
+    const actionPanel = safeUid ? this._buildUserCardActionPanel(safeUid) : '';
+    container.classList.remove('is-secondary-private');
+    container.innerHTML = `
+      <div class="uc-card-loading uc-card-unavailable" role="status" aria-live="polite">
+        <div class="uc-card-loading-title" data-no-translate>${escapeHTML(safeName || 'User')}</div>
+        <div class="uc-card-loading-text">&#26283;&#26178;&#28961;&#27861;&#36617;&#20837;&#23436;&#25972;&#29992;&#25142;&#36039;&#26009;</div>
+        ${actionPanel}
+        <button type="button" class="outline-btn uc-card-retry-btn" onclick="${retryAction}">&#37325;&#26032;&#36617;&#20837;</button>
+      </div>
+    `;
+    return true;
   },
 
   async showUserProfile(name, options = {}) {
-    if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name }, { suppressToast: true })) {
+    if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name, uid: options.uid || '' }, { suppressToast: true })) {
       return;
     }
     const requestSeq = ++this._userProfileRequestSeq;
@@ -184,9 +344,37 @@ Object.assign(App, {
     );
 
     // 如果是自己，優先用 currentUser + identityPrivate 資料；否則 UID 查找 → name 查找
-    const user = isSelf
+    let user = isSelf
       ? currentUser
       : (this._findUserByUid(uidHint) || this._findUserByName(name));
+    let pageShownForLoading = false;
+    if (!isSelf && !user && (uidHint || name)) {
+      this._ucRecordUid = uidHint || null;
+      this._renderUserProfileLoading(name || uidHint, uidHint);
+      await this.showPage('page-user-card', {
+        bypassPageLock: options?.bypassPageLock,
+        skipPageHistory: options?.skipPageHistory,
+        suppressHashSync: options?.suppressHashSync,
+      });
+      pageShownForLoading = true;
+      if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
+        if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+          console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage, stage: 'after-loading-page' });
+        }
+        return { ok: false, reason: 'stale' };
+      }
+      user = await this._resolveUserProfileRecord(name, uidHint);
+      if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
+        if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+          console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage, stage: 'after-profile-fetch' });
+        }
+        return { ok: false, reason: 'stale' };
+      }
+      if (!user) {
+        this._renderUserProfileUnavailable(name || uidHint, uidHint);
+        return { ok: false, reason: 'not-found' };
+      }
+    }
     const displayName = isSelf && currentIdentity?.displayName
       ? currentIdentity.displayName
       : (name || user?.displayName || user?.name || uidHint || '');
@@ -321,11 +509,18 @@ Object.assign(App, {
     }
     // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
     this._ucRecordUid = isSecondaryIdentity ? null : (targetUid || null);
-    await this.showPage('page-user-card', {
-      bypassPageLock: options?.bypassPageLock,
-      skipPageHistory: options?.skipPageHistory,
-      suppressHashSync: options?.suppressHashSync,
-    });
+    if (!pageShownForLoading) {
+      await this.showPage('page-user-card', {
+        bypassPageLock: options?.bypassPageLock,
+        skipPageHistory: options?.skipPageHistory,
+        suppressHashSync: options?.suppressHashSync,
+      });
+    } else if (targetUid) {
+      this._setRouteUrl?.({ pageId: 'page-user-card', id: targetUid }, {
+        replace: true,
+        suppressHashSync: options?.suppressHashSync,
+      });
+    }
     if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
         console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage });
@@ -496,7 +691,10 @@ Object.assign(App, {
   // 用戶資料卡片三功能按鈕（純裝飾，功能未啟用；身分膠囊下方橫排）
   _buildUserCardActionPanel(targetUid) {
     const rawUid = String(targetUid || '').trim();
-    const safeUid = this.isValidLineUid?.(rawUid) ? rawUid : '';
+    const isValidUid = typeof this.isValidLineUid === 'function'
+      ? this.isValidLineUid(rawUid)
+      : /^U[0-9a-f]{32}$/i.test(rawUid);
+    const safeUid = isValidUid ? rawUid : '';
     const pmAction = safeUid
       ? `App.openPmDialog('${escapeHTML(safeUid)}')`
       : `App.showToast('無法開啟私訊')`;

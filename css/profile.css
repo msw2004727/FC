@@ -729,6 +729,49 @@ a.social-btn { text-decoration: none; }
   transition: background-color .2s;
 }
 .uc-blur-overlay:hover { background: rgba(0, 0, 0, 0.45); }
+.uc-card-loading {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.uc-card-spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid rgba(15, 148, 136, .16);
+  border-top-color: var(--accent);
+  animation: uc-card-spin .8s linear infinite;
+}
+.uc-card-loading-title {
+  max-width: min(100%, 360px);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.uc-card-loading-text {
+  color: var(--text-muted);
+  font-size: .85rem;
+  line-height: 1.5;
+}
+.uc-card-unavailable {
+  min-height: 300px;
+}
+.uc-card-retry-btn {
+  margin-top: .2rem;
+  font-size: .82rem;
+  padding: .45rem 1rem;
+}
+@keyframes uc-card-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .uc-blur-text {
   color: #fff;
   font-size: .85rem;

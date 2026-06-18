@@ -10,7 +10,7 @@ function readProjectFile(file) {
 describe('user profile card action buttons', () => {
   test('reserved actions show unavailable toast instead of being disabled', () => {
     const source = readProjectFile('js/modules/profile/profile-core.js');
-    const actionPanel = source.slice(source.indexOf('_buildUserCardActionPanel'));
+    const actionPanel = source.slice(source.indexOf('_buildUserCardActionPanel(targetUid)'));
 
     expect(actionPanel).toContain("App.showToast('功能尚未開放')");
     expect(actionPanel).toContain('>加好友</button>');

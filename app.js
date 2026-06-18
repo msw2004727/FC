@@ -1592,7 +1592,9 @@ const App = {
       }
       case 'showUserProfile': {
         const name = normalizeName(action.name);
-        return name ? { type, name } : null;
+        const uid = normalizeId(action.uid || action.userId || '');
+        if (!name && !uid) return null;
+        return uid ? { type, name, uid } : { type, name };
       }
       // v8 M1：延遲登入新增的 4 種寫入類 action type
       case 'createEvent':
@@ -1812,7 +1814,7 @@ const App = {
             this.toggleFavoriteTournament?.(action.tournId);
             return true;
           case 'showUserProfile':
-            this.showUserProfile?.(action.name);
+            this.showUserProfile?.(action.name || action.uid, action.uid ? { uid: action.uid } : undefined);
             return true;
           // v8 M1：延遲登入新增的 4 種寫入 action type
           case 'createEvent':
