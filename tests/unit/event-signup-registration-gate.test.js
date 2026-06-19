@@ -630,6 +630,67 @@ describe('event detail signup registration loading gate', () => {
     expect(app._tryShowFirstLoginModal).toHaveBeenCalledTimes(1);
   });
 
+  test('age restriction click opens profile completion modal when birthday data is missing', () => {
+    const currentUser = { uid: 'user-1', displayName: 'User One', gender: 'male', region: 'Taichung' };
+    const { app } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser,
+    });
+    app._getCurrentSignupUserForWrite = jest.fn(() => currentUser);
+    app._tryShowFirstLoginModal = jest.fn();
+    app.showToast = jest.fn();
+
+    app._handleEventAgeRestrictionClick('evt-1');
+
+    expect(app.showToast).toHaveBeenCalledWith('\u8acb\u5148\u88dc\u9f4a\u751f\u65e5\u8cc7\u6599\u5f8c\u518d\u5831\u540d');
+    expect(app._pendingFirstLogin).toBe(true);
+    expect(app._tryShowFirstLoginModal).toHaveBeenCalledTimes(1);
+  });
+
+  test('refresh signup button routes missing birthday CTA to age restriction handler', () => {
+    const currentUser = { uid: 'user-1', displayName: 'User One', gender: 'male', region: 'Taichung' };
+    const { app } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser,
+    });
+    document.body.innerHTML = '<div id="detail-action-primary"></div>';
+    app._syncEventEffectiveStatus = jest.fn(e => e);
+    app._isUserSignedUp = jest.fn(() => false);
+    app._isUserOnWaitlist = jest.fn(() => false);
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({ count: 0 }));
+    app._getEventParticipantStats = jest.fn(() => ({ isCapacityFull: false }));
+
+    app._refreshSignupButton('evt-1');
+
+    const button = document.querySelector('#detail-action-primary button');
+    expect(button).not.toBeNull();
+    expect(button.textContent).toBe('\u88dc\u9f4a\u751f\u65e5');
+    expect(button.getAttribute('onclick')).toBe("App._handleEventAgeRestrictionClick('evt-1')");
+  });
+
+  test('initial detail render routes age blocked CTA through the age restriction handler', () => {
+    const source = readProjectFile('js/modules/event/event-detail.js');
+
+    expect(source).toContain('App._handleEventAgeRestrictionClick');
+    expect(source).not.toContain("onclick='App.showToast(");
+  });
+
   test('refresh signup button renders profile syncing instead of an age threshold for minimal users', () => {
     const { app } = loadSignupModule({
       event: {

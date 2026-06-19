@@ -1240,9 +1240,6 @@ Object.assign(App, {
     const ageSignupState = (typeof this._getEventAgeSignupState === 'function')
       ? this._getEventAgeSignupState(e, isGuestView ? null : (ApiService.getCurrentUser?.() || null))
       : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
-    const ageBlockedMessage = (typeof this._getEventAgeRestrictionMessage === 'function')
-      ? this._getEventAgeRestrictionMessage(e, ageSignupState)
-      : '';
     const ageSyncing = !isGuestView
       && typeof this._isEventAgeSignupStateSyncing === 'function'
       && this._isEventAgeSignupStateSyncing(ageSignupState);
@@ -1269,7 +1266,7 @@ Object.assign(App, {
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
     } else if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
-      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(ageBlockedMessage)})'>${escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageSignupState) || '年齡限制')}</button>`;
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App._handleEventAgeRestrictionClick('${e.id}')">${escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageSignupState) || '年齡限制')}</button>`;
     } else if (isMainFull && hasTeamReservationSignup) {
       signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {

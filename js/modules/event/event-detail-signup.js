@@ -714,6 +714,21 @@ Object.assign(App, {
     return true;
   },
 
+  _handleEventAgeRestrictionClick(eventId) {
+    const safeEventId = String(eventId || '').trim();
+    const event = safeEventId && typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function'
+      ? ApiService.getEvent(safeEventId)
+      : null;
+    const user = this._getCurrentSignupUserForWrite?.() || ApiService.getCurrentUser?.() || null;
+    const state = event && typeof this._getEventAgeSignupState === 'function'
+      ? this._getEventAgeSignupState(event, user)
+      : null;
+    this.showToast(this._getEventAgeRestrictionMessage?.(event, state) || '\u6b64\u6d3b\u52d5\u6709\u5e74\u9f61\u9650\u5236');
+    if (state?.reason === 'birthday-missing') {
+      this._promptEventBirthdayProfileCompletion?.();
+    }
+  },
+
   _isEventAgeSignupStateSyncing(state = null) {
     return state?.syncing === true || state?.reason === 'profile-syncing';
   },
@@ -2709,8 +2724,8 @@ Object.assign(App, {
     } else if (ageSyncing) {
       html = this._buildEventSignupLoadingButton?.() || _btn('#64748b', '\u7528\u6236\u8cc7\u6599\u540c\u6b65\u4e2d', '', true);
     } else if (ageBlocked) {
-      html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App.showToast(' +
-        JSON.stringify(ageMsg) + ')\'>' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageState) || '年齡限制') + '</button>';
+      html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App._handleEventAgeRestrictionClick(\'' +
+        eventId + '\')">' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageState) || '年齡限制') + '</button>';
     } else if (isMainFull && hasTeamReservationSignup) {
       html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
