@@ -154,11 +154,26 @@ Object.assign(App, {
 
   _renderEventCommentOfficialCrown(identitySnapshot) {
     if (identitySnapshot?.identityId !== 'secondary') return '';
-    return `<svg class="event-comment-official-crown" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle class="event-comment-official-crown-base" cx="12" cy="12" r="10.5"/>
-      <path class="event-comment-official-crown-mark" d="M6.5 15 7.4 9.6l3.3 2.8L12 7.2l1.3 5.2 3.3-2.8.9 5.4H6.5Z"/>
-      <path class="event-comment-official-crown-rim" d="M6.8 15.4h10.4"/>
-      <path class="event-comment-official-crown-shine" d="M3 24 10.5 0h4L7 24H3Z"/>
+    return `<svg class="identity-crown" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="identityCrownGold" x1="3" y1="5" x2="20" y2="19" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#fff4c2"/>
+          <stop offset=".42" stop-color="#ffd24a"/>
+          <stop offset=".72" stop-color="#f2a517"/>
+          <stop offset="1" stop-color="#b5710b"/>
+        </linearGradient>
+        <clipPath id="identityCrownClip">
+          <path d="M2.7 9.1 6.8 13 12 5.6 17.2 13 21.3 9.1V16.4q0 1.7-1.7 1.7H4.4Q2.7 18.1 2.7 16.4Z"/>
+        </clipPath>
+      </defs>
+      <path class="identity-crown-body" d="M2.7 9.1 6.8 13 12 5.6 17.2 13 21.3 9.1V16.4q0 1.7-1.7 1.7H4.4Q2.7 18.1 2.7 16.4Z"/>
+      <path class="identity-crown-band" d="M4 15.3h16"/>
+      <circle class="identity-crown-gem" cx="12" cy="5.9" r="1.6"/>
+      <circle class="identity-crown-gem" cx="2.9" cy="9.1" r="1.3"/>
+      <circle class="identity-crown-gem" cx="21.1" cy="9.1" r="1.3"/>
+      <g clip-path="url(#identityCrownClip)">
+        <rect class="identity-crown-shine" x="-9" y="-5" width="7" height="34"/>
+      </g>
     </svg>`;
   },
 
@@ -526,6 +541,7 @@ Object.assign(App, {
     const container = guard.container;
     this._clearEventCommentRetryTimer();
     container.innerHTML = this._renderEventCommentsHtml(eventRecord, state?.comments || []);
+    this._bindEventCommentInputAutosize?.(container);
     if (options.hydrateLikes !== false) {
       this._hydrateEventCommentLikeState?.(eventId, state?.eventDocId || '', state?.comments || []);
     }
@@ -784,13 +800,30 @@ Object.assign(App, {
     }
   },
 
+  _resizeEventCommentInput(input) {
+    if (!input) return;
+    input.style.height = 'auto';
+    const style = window.getComputedStyle ? window.getComputedStyle(input) : null;
+    const maxHeight = parseFloat(style?.maxHeight || '') || 160;
+    const nextHeight = Math.min(input.scrollHeight || input.offsetHeight || maxHeight, maxHeight);
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = (input.scrollHeight || 0) > maxHeight ? 'auto' : 'hidden';
+  },
+
+  _bindEventCommentInputAutosize(container) {
+    const input = container?.querySelector?.('#event-comment-input');
+    if (!input) return;
+    input.addEventListener('input', () => this._resizeEventCommentInput(input));
+    this._resizeEventCommentInput(input);
+  },
+
   _renderEventCommentsHtml(eventRecord, comments) {
     const closed = this._isEventCommentsClosed(eventRecord);
     const canManage = this._canManageEventComments(eventRecord);
     const eventId = escapeHTML(eventRecord.id || '');
     const inputHtml = closed ? '<div class="event-comments-closed">活動已結束，留言輸入已關閉</div>' : `
       <form class="event-comment-form" onsubmit="App._submitEventComment('${eventId}');return false;">
-        <textarea id="event-comment-input" maxlength="300" rows="3" placeholder="輸入留言，最多 300 字"></textarea>
+        <textarea id="event-comment-input" maxlength="300" rows="1" placeholder="輸入留言，最多 300 字"></textarea>
         <div class="event-comment-form-foot">
           <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言（僅主辦與委託能見）</label>
           <button type="submit" class="event-comment-submit">送出</button>

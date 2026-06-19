@@ -108,10 +108,10 @@ describe('activity detail comments source contracts', () => {
     const mainAvatar = app._renderEventCommentAvatar('Main', '', { identityId: 'main', displayName: 'Main', avatarUrl: '' });
     const secondaryAvatar = app._renderEventCommentAvatar('Alias', '', secondarySnapshot);
 
-    expect(mainAvatar).not.toContain('event-comment-official-crown');
+    expect(mainAvatar).not.toContain('identity-crown');
     expect(secondaryAvatar).toContain('event-comment-avatar-wrap is-official-identity');
-    expect(secondaryAvatar).toContain('event-comment-official-crown-shine');
-    expect(secondaryAvatar).toContain('event-comment-official-crown-mark');
+    expect(secondaryAvatar).toContain('identity-crown-shine');
+    expect(secondaryAvatar).toContain('identity-crown-body');
     expect(secondaryAvatar).toContain('viewBox="0 0 24 24"');
 
     const cardHtml = app._renderEventCommentCard({ id: 'event-1' }, {
@@ -141,7 +141,7 @@ describe('activity detail comments source contracts', () => {
       likers: [],
     }, { closed: false, canManage: false });
 
-    expect((cardHtml.match(/event-comment-official-crown/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect((cardHtml.match(/class="identity-crown"/g) || []).length).toBeGreaterThanOrEqual(2);
     expect(cardHtml).toContain('event-comment-author-static');
     expect(cardHtml).not.toContain("showUserProfile('Alias'");
   });
@@ -202,6 +202,9 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_renderEventCommentsLoadIssue');
     expect(comments).toContain('_scheduleEventCommentAutoRetry');
     expect(comments).toContain('_retryEventComments');
+    expect(comments).toContain('_bindEventCommentInputAutosize?.(container)');
+    expect(comments).toContain('_resizeEventCommentInput');
+    expect(comments).toContain('rows="1"');
     expect(comments).toContain('Promise.all([');
     expect(comments).not.toContain("cRef.collection('likes').limit(500)");
     expect(comments).not.toContain("cRef.collection('replies').limit(20)");
@@ -225,6 +228,7 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_clearEventCommentsCacheForEvent?.(eventId)');
     expect(actions).toContain('_clearActivityCommentBadgeCacheForEvent?.(eventId)');
     expect(actions).toContain('this._renderEventComments?.(eventId, { forceRefresh: true })');
+    expect(actions).toContain('_resizeEventCommentInput?.(input)');
     expect(actions).toContain("_requireEventCommentUser(requestedIdentityId = '')");
     expect(actions).toContain('const author = this._requireEventCommentUser();');
     expect(actions).not.toContain('_getEventCommentIdentityChoice');
@@ -243,13 +247,18 @@ describe('activity detail comments source contracts', () => {
     expect(timeline).toContain('replyCount');
     expect(timeline).not.toContain("collection('likes').limit");
     expect(timeline).not.toContain("collection('replies').limit");
+    const baseCss = readProjectFile('css/base.css');
+    expect(css).toContain('min-height:2.25rem;height:2.25rem');
+    expect(css).toContain('resize:none');
+    expect(css).toContain('overflow-y:hidden');
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-avatar-wrap');
-    expect(css).toContain('.event-comment-official-crown');
-    expect(css).toContain('width:17px;height:17px');
-    expect(css).toContain('event-comment-official-crown-shine 2.4s');
-    expect(css).toContain('.event-comment-reply .event-comment-official-crown{top:-7px;width:14px;height:14px}');
-    expect(css).toContain('prefers-reduced-motion:reduce');
+    expect(css).toContain('.event-comment-avatar-wrap .identity-crown');
+    expect(css).toContain('--identity-crown-size:18px');
+    expect(css).toContain('--identity-crown-size:16px');
+    expect(baseCss).toContain('@keyframes identity-crown-shine');
+    expect(baseCss).toContain('identity-crown-shine 2.4s');
+    expect(baseCss).toContain('prefers-reduced-motion: reduce');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
     expect(css).toContain('.event-comment-reply-actions');

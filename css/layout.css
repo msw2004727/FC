@@ -938,6 +938,9 @@
 .line-user-topbar { display: flex; align-items: center; position: relative; }
 .line-login-btn.large { padding: .5rem 1.2rem; font-size: .85rem; }
 .line-avatar-topbar { cursor: pointer; }
+/* 第二身份：右上角頭像金色皇冠尺寸（頭像 32px） */
+.line-user-topbar.has-identity-crown { --identity-crown-size: 17px; }
+.line-user-topbar.has-identity-crown .identity-crown { left: 16px; }
 
 /* ─── User Menu Dropdown（右上角頭像選單）─── */
 .user-menu-dropdown {
@@ -963,6 +966,9 @@
 /* ─── Drawer Avatar (LINE image) ─── */
 .drawer-avatar-img { background: none !important; overflow: hidden; }
 .drawer-avatar-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* 第二身份：抽屜頭像金色皇冠（頭像 44px，img 自帶圓角故容器可 overflow:visible） */
+.drawer-avatar.has-identity-crown { overflow: visible; --identity-crown-size: 22px; }
+.drawer-avatar.has-identity-crown img { border-radius: 50%; }
 
 /* ─── Profile Login Prompt ─── */
 .profile-login-prompt {

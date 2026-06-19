@@ -63,6 +63,7 @@ Object.assign(App, {
       fallbackClass: 'profile-avatar',
       containerImageClass: 'profile-avatar profile-avatar-img',
       candidateUrls: avatarCandidates,
+      identityCrown: identity?.identityId === 'secondary',
     });
 
     // 稱號（HTML 版：金色/銀色標籤）
@@ -382,6 +383,7 @@ Object.assign(App, {
       fallbackClass: 'profile-identity-avatar',
       containerImageClass: 'profile-identity-avatar',
       candidateUrls: previewUrl ? [previewUrl] : [],
+      identityCrown: true,
     });
     this._syncIdentityFormState();
   },
@@ -515,6 +517,7 @@ Object.assign(App, {
         fallbackClass: 'profile-identity-avatar',
         containerImageClass: 'profile-identity-avatar',
         candidateUrls: [avatarUrl],
+        identityCrown: true,
       });
       this.renderLoginUI?.();
       this.showToast('次身份頭像已更新');
@@ -549,6 +552,7 @@ Object.assign(App, {
         fallbackClass: 'profile-identity-avatar',
         containerImageClass: 'profile-identity-avatar',
         candidateUrls: [],
+        identityCrown: true,
       });
       this.renderLoginUI?.();
       this.showToast('次身份頭像已清除');

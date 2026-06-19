@@ -19,7 +19,10 @@ Object.assign(App, {
       return;
     }
 
-    if (input) input.value = '';
+    if (input) {
+      input.value = '';
+      this._resizePmDialogInput?.(input);
+    }
     const localId = this._addPmOptimisticMessage?.(state.conversationId, state.targetUid, body) || '';
     this._renderPmDialogMessages(
       this._getPmDialogRenderMessages?.(state.conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
@@ -51,7 +54,10 @@ Object.assign(App, {
           this._getPmDialogRenderMessages?.(state.conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
         );
       }
-      if (input && !input.value) input.value = body;
+      if (input && !input.value) {
+        input.value = body;
+        this._resizePmDialogInput?.(input);
+      }
       const code = String(err?.code || '');
       if (code.includes('resource-exhausted')) this.showToast?.('\u79c1\u8a0a\u592a\u983b\u7e41\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       else if (code.includes('permission-denied')) this.showToast?.('\u76ee\u524d\u7121\u6cd5\u79c1\u8a0a\u6b64\u7528\u6236');

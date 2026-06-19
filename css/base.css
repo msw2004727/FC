@@ -1583,3 +1583,42 @@ body.modal-open { overflow: hidden; }
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
   .multi-tab-overlay { background: rgba(0, 0, 0, 0.72); }
 }
+
+/* ─── 第二身份金色反光皇冠徽章（共用：留言 / 頭像 / 右上角 / 第二身份欄位）─── */
+.has-identity-crown { position: relative; overflow: visible; }
+.identity-crown {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: var(--identity-crown-size, 18px);
+  height: var(--identity-crown-size, 18px);
+  transform: translate(-50%, -60%);
+  pointer-events: none;
+  z-index: 3;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1.4px rgba(120, 53, 15, .42)) drop-shadow(0 0 3px rgba(250, 204, 21, .5));
+}
+.identity-crown-body {
+  fill: url(#identityCrownGold);
+  stroke: #8a5208;
+  stroke-width: .9;
+  stroke-linejoin: round;
+}
+.identity-crown-band { fill: none; stroke: rgba(138, 82, 8, .5); stroke-width: 1; stroke-linecap: round; }
+.identity-crown-gem { fill: #fffbe8; stroke: rgba(138, 82, 8, .38); stroke-width: .45; }
+.identity-crown-shine {
+  fill: #fffdf2;
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: identity-crown-shine 2.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes identity-crown-shine {
+  0%, 26% { opacity: 0; transform: translateX(2px) skewX(-18deg); }
+  42% { opacity: .95; }
+  60%, 100% { opacity: 0; transform: translateX(30px) skewX(-18deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .identity-crown-shine { animation: none; opacity: .3; }
+}

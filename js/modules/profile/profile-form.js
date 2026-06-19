@@ -276,6 +276,7 @@ Object.assign(App, {
     this._setTopbarAvatar(userTopbar, avatarImg, displayProfile, {
       candidateUrls: avatarCandidates,
       isSyncing: isAvatarSyncing,
+      crown: identity?.identityId === 'secondary',
     });
     this.updatePointsDisplay?.();
 
@@ -289,6 +290,7 @@ Object.assign(App, {
       fallbackClass: 'drawer-avatar',
       containerImageClass: 'drawer-avatar drawer-avatar-img',
       candidateUrls: avatarCandidates,
+      identityCrown: identity?.identityId === 'secondary',
     });
 
     // 依資料庫角色套用抽屜選單與身份標籤

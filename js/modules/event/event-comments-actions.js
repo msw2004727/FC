@@ -75,7 +75,10 @@ Object.assign(App, {
         const { replyCount, likeCount, recentLikers, ...legacyPayload } = commentPayload;
         await commentsRef.add(legacyPayload);
       }
-      if (input) input.value = '';
+      if (input) {
+        input.value = '';
+        this._resizeEventCommentInput?.(input);
+      }
       if (privateInput) privateInput.checked = false;
       this.showToast?.('留言已送出');
       this._clearEventCommentsCacheForEvent?.(eventId);

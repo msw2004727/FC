@@ -50,8 +50,10 @@ Object.assign(App, {
     if (searchToggle) searchToggle.setAttribute('aria-expanded', 'false');
     if (searchToggle) searchToggle.classList.remove('is-active');
     if (searchInput) searchInput.value = '';
-    overlay.querySelector('.pm-dialog-input').value = '';
+    const dialogInput = overlay.querySelector('.pm-dialog-input');
+    if (dialogInput) dialogInput.value = '';
     overlay.style.display = 'flex';
+    if (dialogInput) this._resizePmDialogInput?.(dialogInput);
     document.body.classList.add('pm-dialog-open');
     this._installPmDialogViewportGuard?.(overlay);
     const initialMessages = await this._loadPmMessages(cId, 50);
@@ -87,7 +89,7 @@ Object.assign(App, {
         </header>
         <div class="pm-dialog-messages"></div>
         <form class="pm-dialog-compose">
-          <textarea class="pm-dialog-input" maxlength="${maxLength}" rows="2" placeholder=""></textarea>
+          <textarea class="pm-dialog-input" maxlength="${maxLength}" rows="1" placeholder=""></textarea>
           <button type="submit" class="pm-dialog-send">送出</button>
         </form>
       </section>`;
@@ -95,6 +97,7 @@ Object.assign(App, {
     if (input) {
       input.maxLength = maxLength;
       input.placeholder = `\u8f38\u5165\u8a0a\u606f\uff0c\u6700\u591a ${maxLength} \u5b57`;
+      input.addEventListener('input', () => this._resizePmDialogInput(input));
     }
     overlay.addEventListener('click', e => {
       if (e.target === overlay) this._closePmDialog();
@@ -108,6 +111,16 @@ Object.assign(App, {
     });
     document.body.appendChild(overlay);
     return overlay;
+  },
+
+  _resizePmDialogInput(input) {
+    if (!input) return;
+    input.style.height = 'auto';
+    const style = window.getComputedStyle ? window.getComputedStyle(input) : null;
+    const maxHeight = parseFloat(style?.maxHeight || '') || 112;
+    const nextHeight = Math.min(input.scrollHeight || input.offsetHeight || maxHeight, maxHeight);
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = (input.scrollHeight || 0) > maxHeight ? 'auto' : 'hidden';
   },
 
   _isPmDialogTextControl(el) {

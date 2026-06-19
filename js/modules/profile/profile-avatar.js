@@ -82,6 +82,25 @@ Object.assign(App, {
     return escapeHTML(text ? text.charAt(0) : '?');
   },
 
+  // 第二身份金色反光皇冠徽章（與留言區共用 .identity-crown 樣式，定義於 css/base.css）
+  _identityCrownBadgeHtml() {
+    return '<svg class="identity-crown" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+      + '<defs>'
+      + '<linearGradient id="identityCrownGold" x1="3" y1="5" x2="20" y2="19" gradientUnits="userSpaceOnUse">'
+      + '<stop offset="0" stop-color="#fff4c2"/><stop offset=".42" stop-color="#ffd24a"/>'
+      + '<stop offset=".72" stop-color="#f2a517"/><stop offset="1" stop-color="#b5710b"/>'
+      + '</linearGradient>'
+      + '<clipPath id="identityCrownClip"><path d="M2.7 9.1 6.8 13 12 5.6 17.2 13 21.3 9.1V16.4q0 1.7-1.7 1.7H4.4Q2.7 18.1 2.7 16.4Z"/></clipPath>'
+      + '</defs>'
+      + '<path class="identity-crown-body" d="M2.7 9.1 6.8 13 12 5.6 17.2 13 21.3 9.1V16.4q0 1.7-1.7 1.7H4.4Q2.7 18.1 2.7 16.4Z"/>'
+      + '<path class="identity-crown-band" d="M4 15.3h16"/>'
+      + '<circle class="identity-crown-gem" cx="12" cy="5.9" r="1.6"/>'
+      + '<circle class="identity-crown-gem" cx="2.9" cy="9.1" r="1.3"/>'
+      + '<circle class="identity-crown-gem" cx="21.1" cy="9.1" r="1.3"/>'
+      + '<g clip-path="url(#identityCrownClip)"><rect class="identity-crown-shine" x="-9" y="-5" width="7" height="34"/></g>'
+      + '</svg>';
+  },
+
   _buildTopbarAvatarFallback(initial, isSyncing = false) {
     const loadingClass = isSyncing ? ' line-avatar-loading' : '';
     const label = isSyncing ? '同步中' : '使用者選單';
@@ -195,10 +214,20 @@ Object.assign(App, {
     if (!container) return;
     const fallbackClass = options.fallbackClass || container.className || 'profile-avatar';
     const imageClass = options.imageClass || '';
+    // 第二身份頭像：以金色皇冠徽章覆蓋於頭像上（className 重設會洗掉 class，故每次都重貼）
+    const wantCrown = options.identityCrown === true;
+    const applyCrown = () => {
+      if (!wantCrown) return;
+      container.classList.add('has-identity-crown');
+      if (!container.querySelector('.identity-crown')) {
+        container.insertAdjacentHTML('beforeend', this._identityCrownBadgeHtml());
+      }
+    };
     const candidateUrls = this._getAvatarCandidateUrls(options.candidateUrls || url);
     if (!candidateUrls.length) {
       container.className = fallbackClass;
       container.innerHTML = this._getAvatarInitial(name);
+      applyCrown();
       return;
     }
     container.className = options.containerImageClass || fallbackClass;
@@ -206,9 +235,11 @@ Object.assign(App, {
     const img = document.createElement('img');
     if (imageClass) img.className = imageClass;
     container.appendChild(img);
+    applyCrown();
     this._loadAvatarIntoImage(img, candidateUrls, name, () => {
       container.className = fallbackClass;
       container.innerHTML = this._getAvatarInitial(name);
+      applyCrown();
     });
   },
 
@@ -219,10 +250,15 @@ Object.assign(App, {
     const initial = this._getAvatarInitial(displayName);
     const isSyncing = !!options.isSyncing && !candidateUrls.length;
 
+    // 第二身份：右上角頭像加金色皇冠（皇冠相對 .line-user-topbar 定位，換圖時只替換頭像本體故皇冠保留）
+    const wantCrown = options.crown === true;
+    userTopbar.classList.toggle('has-identity-crown', wantCrown);
+    const crownHtml = wantCrown ? this._identityCrownBadgeHtml() : '';
+
     // 永遠先顯示 fallback（文字頭像），避免出現破圖
     const dropdown = document.getElementById('user-menu-dropdown');
     const dropdownHtml = dropdown ? dropdown.outerHTML : '';
-    userTopbar.innerHTML = `${this._buildTopbarAvatarFallback(initial, isSyncing)}${dropdownHtml}`;
+    userTopbar.innerHTML = `${this._buildTopbarAvatarFallback(initial, isSyncing)}${crownHtml}${dropdownHtml}`;
 
     const candidates = this._getRenderableAvatarCandidateUrls(candidateUrls);
     if (!candidates.length) return;

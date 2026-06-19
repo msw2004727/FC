@@ -95,6 +95,9 @@
 .profile-header { text-align: center; padding: 1.5rem 1rem .5rem; }
 .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.5rem; font-weight: 800; margin: 0 auto .6rem; border: 3px solid var(--bg-card); box-shadow: 0 0 0 3px var(--accent); }
 .profile-avatar.small { width: 40px; height: 40px; font-size: .9rem; margin: 0; box-shadow: none; border: none; }
+/* 第二身份：我的資料頁主頭像金色皇冠（頭像 72px，img 自帶圓角故容器可 overflow:visible） */
+.profile-avatar.has-identity-crown { overflow: visible; --identity-crown-size: 28px; }
+.profile-avatar.has-identity-crown img { border-radius: 50%; }
 .profile-title { font-weight: 700; font-size: 1rem; margin-bottom: .4rem; line-height: 1.5; }
 /* Title Tags (稱號樣式) */
 .title-tag { display: inline-block; font-size: .72em; font-weight: 700; padding: .12em .4em; border-radius: .3rem; vertical-align: baseline; letter-spacing: .3px; }
@@ -238,6 +241,9 @@ a.social-btn { text-decoration: none; }
   transition: filter .18s ease, opacity .18s ease, box-shadow .18s ease;
 }
 .profile-identity-avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* 第二身份欄位頭像金色皇冠（頭像 58px；容器原 overflow:hidden，皇冠需 overflow:visible 並讓 img 自帶圓角） */
+.profile-identity-avatar.has-identity-crown { overflow: visible; --identity-crown-size: 24px; }
+.profile-identity-avatar.has-identity-crown img { border-radius: 50%; }
 #profile-identity-card:not(.is-secondary-enabled) .profile-identity-avatar {
   filter: grayscale(1) brightness(.62) saturate(.45);
   opacity: .68;

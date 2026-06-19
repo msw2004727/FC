@@ -96,10 +96,13 @@ describe('private message feature wiring', () => {
     expect(dialog).toContain('_pmOptimisticMessages');
     expect(dialog).toContain('_getPmDialogRenderMessages');
     expect(dialog).toContain('maxlength="${maxLength}"');
+    expect(dialog).toContain('rows="1"');
+    expect(dialog).toContain('_resizePmDialogInput');
     expect(dialog).toContain('PM_MAX_BODY_LENGTH || 300');
     expect(actions).toContain('_addPmOptimisticMessage');
     expect(actions).toContain('_markPmOptimisticMessage');
     expect(actions).toContain('PM_MAX_BODY_LENGTH || 300');
+    expect(actions).toContain('_resizePmDialogInput?.(input)');
     expect(actions).not.toContain('body.length > 1000');
     expect(search).toContain('togglePmDialogSearch');
     expect(search).toContain("querySelector('.pm-dialog-title')");
@@ -141,6 +144,9 @@ describe('private message feature wiring', () => {
     expect(css).toContain('backdrop-filter:blur(18px) saturate(1.15)');
     expect(css).toContain('pointer-events:auto');
     expect(css).toContain('.pm-dialog-overlay.is-keyboard-open');
+    expect(css).toContain('--pm-compose-control-height:2.5rem');
+    expect(css).toContain('height:var(--pm-compose-control-height)');
+    expect(css).toContain('resize:none; overflow-y:hidden');
     expect(css).toContain('.pm-dialog-input,');
     expect(css).toContain('.pm-dialog-search { font-size:16px; }');
   });
