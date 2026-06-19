@@ -154,12 +154,11 @@ Object.assign(App, {
 
   _renderEventCommentOfficialCrown(identitySnapshot) {
     if (identitySnapshot?.identityId !== 'secondary') return '';
-    return `<svg class="event-comment-official-crown" viewBox="0 0 44 28" aria-hidden="true" focusable="false">
-      <path class="event-comment-official-crown-shadow" d="M7 23h30v3H7z"/>
-      <path class="event-comment-official-crown-base" d="M6 23 9 8l9 8 4-12 4 12 9-8 3 15H6Z"/>
-      <path class="event-comment-official-crown-rim" d="M6 23h32"/>
-      <path class="event-comment-official-crown-highlight" d="M13 11l5 5 4-12 4 12 5-5"/>
-      <path class="event-comment-official-crown-shine" d="M9 24 18 4h7L16 24H9Z"/>
+    return `<svg class="event-comment-official-crown" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle class="event-comment-official-crown-base" cx="12" cy="12" r="10.5"/>
+      <path class="event-comment-official-crown-mark" d="M6.5 15 7.4 9.6l3.3 2.8L12 7.2l1.3 5.2 3.3-2.8.9 5.4H6.5Z"/>
+      <path class="event-comment-official-crown-rim" d="M6.8 15.4h10.4"/>
+      <path class="event-comment-official-crown-shine" d="M3 24 10.5 0h4L7 24H3Z"/>
     </svg>`;
   },
 

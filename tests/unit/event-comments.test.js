@@ -111,6 +111,8 @@ describe('activity detail comments source contracts', () => {
     expect(mainAvatar).not.toContain('event-comment-official-crown');
     expect(secondaryAvatar).toContain('event-comment-avatar-wrap is-official-identity');
     expect(secondaryAvatar).toContain('event-comment-official-crown-shine');
+    expect(secondaryAvatar).toContain('event-comment-official-crown-mark');
+    expect(secondaryAvatar).toContain('viewBox="0 0 24 24"');
 
     const cardHtml = app._renderEventCommentCard({ id: 'event-1' }, {
       id: 'comment-1',
@@ -244,7 +246,9 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-avatar-wrap');
     expect(css).toContain('.event-comment-official-crown');
+    expect(css).toContain('width:17px;height:17px');
     expect(css).toContain('event-comment-official-crown-shine 2.4s');
+    expect(css).toContain('.event-comment-reply .event-comment-official-crown{top:-7px;width:14px;height:14px}');
     expect(css).toContain('prefers-reduced-motion:reduce');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
