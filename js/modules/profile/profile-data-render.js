@@ -41,7 +41,7 @@ Object.assign(App, {
     if (teamSet.size === 0) return '無';
     return Array.from(teamSet.entries()).map(([id, name]) =>
       `<span class="uc-team-link" onclick="App.showTeamDetail('${escapeHTML(id)}')">${escapeHTML(name)}</span>`
-    ).join('、');
+    ).join('');
   },
 
   renderProfileData() {

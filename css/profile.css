@@ -494,10 +494,11 @@ a.social-btn { text-decoration: none; }
 #profile-team,
 #profile-team-display {
   display: flex;
-  flex-wrap: wrap;
-  gap: .3rem .36rem;
-  justify-content: flex-end;
-  align-items: center;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: .34rem;
+  justify-content: flex-start;
+  align-items: flex-end;
   min-width: 0;
   max-width: 100%;
   text-align: right;
@@ -507,6 +508,7 @@ a.social-btn { text-decoration: none; }
   display: inline-flex;
   align-items: center;
   max-width: 100%;
+  width: fit-content;
   min-height: 24px;
   margin: 0;
   padding: 0 .5rem;
