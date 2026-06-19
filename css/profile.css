@@ -492,7 +492,8 @@ a.social-btn { text-decoration: none; }
 }
 
 #profile-team,
-#profile-team-display {
+#profile-team-display,
+.uc-team-list {
   display: flex;
   flex-direction: column;
   flex-wrap: nowrap;
@@ -504,7 +505,8 @@ a.social-btn { text-decoration: none; }
   text-align: right;
 }
 
-#profile-info-card .uc-team-link {
+#profile-info-card .uc-team-link,
+.uc-team-list .uc-team-link {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
@@ -526,7 +528,8 @@ a.social-btn { text-decoration: none; }
   vertical-align: middle;
 }
 
-#profile-info-card .uc-team-link:hover {
+#profile-info-card .uc-team-link:hover,
+.uc-team-list .uc-team-link:hover {
   background: var(--accent-bg);
   border-color: var(--accent);
 }

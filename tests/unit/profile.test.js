@@ -284,17 +284,21 @@ describe('secondary identity profile controls', () => {
     expect(navigationSource).toContain("'nav.profile'");
   });
 
-  test('my profile edit fields keep stable columns and team names as one-per-line non-wrapping chips', () => {
+  test('profile and user-card team fields keep club chips one per line without separators', () => {
     const profileCss = readProjectFile('css/profile.css');
     const profileRenderSource = readProjectFile('js/modules/profile/profile-data-render.js');
+    const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
+    const profileCoreSource = readProjectFile('js/modules/profile/profile-core.js');
 
     expect(profileCss).toMatch(/#profile-info-card #profile-info-display \.info-row,[\s\S]*#profile-info-card #profile-info-edit \.info-row \{[\s\S]*display: grid[\s\S]*grid-template-columns: 5\.4rem minmax\(0, 1fr\)/);
     expect(profileCss).toMatch(/#profile-info-card \.info-row > span:first-child \{[\s\S]*white-space: nowrap/);
     expect(profileCss).toMatch(/#profile-info-card #profile-info-edit \.profile-edit-input \{[\s\S]*max-width: none[\s\S]*min-width: 0/);
-    expect(profileCss).toMatch(/#profile-team,[\s\S]*#profile-team-display \{[\s\S]*display: flex[\s\S]*flex-direction: column[\s\S]*flex-wrap: nowrap[\s\S]*align-items: flex-end/);
-    expect(profileCss).toMatch(/#profile-info-card \.uc-team-link \{[\s\S]*display: inline-flex[\s\S]*white-space: nowrap[\s\S]*text-overflow: ellipsis/);
+    expect(profileCss).toMatch(/#profile-team,[\s\S]*#profile-team-display,[\s\S]*\.uc-team-list \{[\s\S]*display: flex[\s\S]*flex-direction: column[\s\S]*flex-wrap: nowrap[\s\S]*align-items: flex-end/);
+    expect(profileCss).toMatch(/#profile-info-card \.uc-team-link,[\s\S]*\.uc-team-list \.uc-team-link \{[\s\S]*display: inline-flex[\s\S]*white-space: nowrap[\s\S]*text-overflow: ellipsis/);
     expect(profileRenderSource).toContain(").join('');");
     expect(profileRenderSource).not.toMatch(/\.join\('[^']+'\);/);
+    expect(profileCardSource).toContain('class="uc-team-list">${teamHtml}</span>');
+    expect(profileCoreSource).toContain('class="uc-team-list">${teamHtml}</span>');
   });
 
   test('topbar avatar shows a spinner while logged-in profile data is still syncing', () => {
