@@ -600,6 +600,36 @@ describe('event detail signup registration loading gate', () => {
     expect(pendingFirstLoginState).toMatchObject({ reason: 'birthday-missing', age: null });
   });
 
+  test('handleSignup opens profile completion modal when an age-restricted event needs birthday data', async () => {
+    const currentUser = { uid: 'user-1', displayName: 'User One', gender: 'male', region: '台中市' };
+    const { app } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser,
+    });
+    app._requireProtectedActionLogin = jest.fn(() => false);
+    app._requireProfileComplete = jest.fn(() => false);
+    app._isEventVisibleToUser = jest.fn(() => true);
+    app._syncEventEffectiveStatus = jest.fn(e => e);
+    app._getCurrentSignupUserForWrite = jest.fn(() => currentUser);
+    app._getEventGenderSignupState = jest.fn(() => ({ restricted: false, canSignup: true, requiresLogin: false, reason: '' }));
+    app._tryShowFirstLoginModal = jest.fn();
+    app.showToast = jest.fn();
+
+    await app.handleSignup('evt-1');
+
+    expect(app.showToast).toHaveBeenCalledWith('請先補齊生日資料後再報名');
+    expect(app._pendingFirstLogin).toBe(true);
+    expect(app._tryShowFirstLoginModal).toHaveBeenCalledTimes(1);
+  });
+
   test('refresh signup button renders profile syncing instead of an age threshold for minimal users', () => {
     const { app } = loadSignupModule({
       event: {

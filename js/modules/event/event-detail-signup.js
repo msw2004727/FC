@@ -707,6 +707,13 @@ Object.assign(App, {
     return minAge > 0 ? `${minAge}\u6b72\u4ee5\u4e0a` : '\u5e74\u9f61\u9650\u5236';
   },
 
+  _promptEventBirthdayProfileCompletion() {
+    if (!ApiService.getCurrentUser?.()) return false;
+    this._pendingFirstLogin = true;
+    this._tryShowFirstLoginModal?.();
+    return true;
+  },
+
   _isEventAgeSignupStateSyncing(state = null) {
     return state?.syncing === true || state?.reason === 'profile-syncing';
   },
@@ -1661,6 +1668,9 @@ Object.assign(App, {
       : { restricted: false, canSignup: true, requiresLogin: false };
     if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
       this.showToast(this._getEventAgeRestrictionMessage?.(e, ageSignupState) || '\u6b64\u6d3b\u52d5\u6709\u5e74\u9f61\u9650\u5236');
+      if (ageSignupState.reason === 'birthday-missing') {
+        this._promptEventBirthdayProfileCompletion?.();
+      }
       return;
     }
 
