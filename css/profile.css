@@ -447,6 +447,101 @@ a.social-btn { text-decoration: none; }
   max-width: 180px;
 }
 
+#profile-info-card #profile-info-display .info-row,
+#profile-info-card #profile-info-edit .info-row {
+  display: grid;
+  grid-template-columns: 5.4rem minmax(0, 1fr);
+  column-gap: .72rem;
+  align-items: center;
+}
+
+#profile-info-card .info-row > span:first-child {
+  min-width: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+#profile-info-card .info-row > :not(:first-child) {
+  min-width: 0;
+  justify-self: stretch;
+}
+
+#profile-info-card #profile-info-display .info-row > :not(:first-child) {
+  text-align: right;
+}
+
+#profile-info-card #profile-info-edit .profile-edit-input {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  padding-inline: .72rem;
+}
+
+#profile-info-edit .info-row > div {
+  width: 100%;
+  min-width: 0;
+}
+
+#profile-info-card #profile-region-list {
+  margin-left: calc(5.4rem + .72rem);
+  width: calc(100% - 5.4rem - .72rem);
+  box-sizing: border-box;
+}
+
+#profile-team,
+#profile-team-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .36rem;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  text-align: right;
+}
+
+#profile-info-card .uc-team-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 .5rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-card));
+  color: var(--accent);
+  font-size: .74rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+#profile-info-card .uc-team-link:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+@media (max-width: 360px) {
+  #profile-info-card #profile-info-display .info-row,
+  #profile-info-card #profile-info-edit .info-row {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    column-gap: .55rem;
+  }
+
+  #profile-info-card #profile-region-list {
+    margin-left: calc(5rem + .55rem);
+    width: calc(100% - 5rem - .55rem);
+  }
+}
+
 /* ─── LINE Notify Card ─── */
 .line-notify-status { font-size:.68rem; padding:.15rem .5rem; border-radius:var(--radius-full); font-weight:600; }
 .line-notify-status.bound { background:rgba(6,199,85,.15); color:#06C755; }

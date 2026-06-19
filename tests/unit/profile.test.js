@@ -284,6 +284,16 @@ describe('secondary identity profile controls', () => {
     expect(navigationSource).toContain("'nav.profile'");
   });
 
+  test('my profile edit fields keep stable columns and team names as non-wrapping chips', () => {
+    const profileCss = readProjectFile('css/profile.css');
+
+    expect(profileCss).toMatch(/#profile-info-card #profile-info-display \.info-row,[\s\S]*#profile-info-card #profile-info-edit \.info-row \{[\s\S]*display: grid[\s\S]*grid-template-columns: 5\.4rem minmax\(0, 1fr\)/);
+    expect(profileCss).toMatch(/#profile-info-card \.info-row > span:first-child \{[\s\S]*white-space: nowrap/);
+    expect(profileCss).toMatch(/#profile-info-card #profile-info-edit \.profile-edit-input \{[\s\S]*max-width: none[\s\S]*min-width: 0/);
+    expect(profileCss).toMatch(/#profile-team,[\s\S]*#profile-team-display \{[\s\S]*display: flex[\s\S]*flex-wrap: wrap[\s\S]*justify-content: flex-end/);
+    expect(profileCss).toMatch(/#profile-info-card \.uc-team-link \{[\s\S]*display: inline-flex[\s\S]*white-space: nowrap[\s\S]*text-overflow: ellipsis/);
+  });
+
   test('topbar avatar shows a spinner while logged-in profile data is still syncing', () => {
     const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
     const profileAvatarSource = readProjectFile('js/modules/profile/profile-avatar.js');
