@@ -152,15 +152,33 @@ Object.assign(App, {
     return Number.isFinite(ms) ? ms : 0;
   },
 
-  _renderEventCommentAvatar(name, photo) {
-    const safeName = escapeHTML(name || '用戶');
-    const safePhoto = String(photo || '').trim();
-    if (safePhoto) {
-      return `<img class="event-comment-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'event-comment-avatar event-comment-avatar-fallback',textContent:'${escapeHTML(String(name || '?').trim().charAt(0) || '?')}' }))">`;
-    }
-    return `<span class="event-comment-avatar event-comment-avatar-fallback">${escapeHTML(String(name || '?').trim().charAt(0) || '?')}</span>`;
+  _renderEventCommentOfficialCrown(identitySnapshot) {
+    if (identitySnapshot?.identityId !== 'secondary') return '';
+    return `<svg class="event-comment-official-crown" viewBox="0 0 44 28" aria-hidden="true" focusable="false">
+      <path class="event-comment-official-crown-shadow" d="M7 23h30v3H7z"/>
+      <path class="event-comment-official-crown-base" d="M6 23 9 8l9 8 4-12 4 12 9-8 3 15H6Z"/>
+      <path class="event-comment-official-crown-rim" d="M6 23h32"/>
+      <path class="event-comment-official-crown-highlight" d="M13 11l5 5 4-12 4 12 5-5"/>
+      <path class="event-comment-official-crown-shine" d="M9 24 18 4h7L16 24H9Z"/>
+    </svg>`;
   },
 
+  _renderEventCommentAvatar(name, photo, identitySnapshot = null) {
+    const safeName = escapeHTML(name || '用戶');
+    const safePhoto = String(photo || '').trim();
+    const initial = String(name || '?').trim().charAt(0) || '?';
+    const safeInitial = escapeHTML(initial);
+    const safeInitialJs = escapeHTML(JSON.stringify(initial));
+    const crownHtml = this._renderEventCommentOfficialCrown(identitySnapshot);
+    let avatarHtml = '';
+    if (safePhoto) {
+      avatarHtml = `<img class="event-comment-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'event-comment-avatar event-comment-avatar-fallback',textContent:${safeInitialJs}}))">`;
+    } else {
+      avatarHtml = `<span class="event-comment-avatar event-comment-avatar-fallback">${safeInitial}</span>`;
+    }
+    if (!crownHtml) return avatarHtml;
+    return `<span class="event-comment-avatar-wrap is-official-identity" title="官方人員（第二身份）">${crownHtml}${avatarHtml}</span>`;
+  },
   _normalizeEventCommentLikers(value) {
     if (!Array.isArray(value)) return [];
     const seen = new Set();
@@ -835,7 +853,7 @@ Object.assign(App, {
     const auditTraceHtml = this._renderEventCommentAuditTrace(comment, ctx);
     return `<article class="event-comment-card" data-comment-id="${safeCommentId}">
       <div class="event-comment-head">
-        ${this._renderEventCommentAvatar(comment.authorName, comment.authorPhoto)}
+        ${this._renderEventCommentAvatar(comment.authorName, comment.authorPhoto, comment.identitySnapshot)}
         ${authorHtml}
         <span class="event-comment-time">${escapeHTML(this._eventCommentTimeLabel(comment.createdAt))}</span>
         ${privateBadge}${lockedBadge}${auditTraceHtml}
@@ -864,7 +882,7 @@ Object.assign(App, {
         <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${eventId}','${commentId}','${safeReplyId}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(r)}
       </div>`;
-      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
+      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
     }).join('')}</div>`;
   },
 

@@ -99,6 +99,51 @@ describe('activity detail comments source contracts', () => {
     expect(document.getElementById('detail-comments-container').innerHTML).toContain('留言載入中');
   });
 
+  test('secondary identity avatars show official crown while main identity does not', () => {
+    const { app } = loadEventCommentsModule({
+      eventRecord: { id: 'event-1', _docId: 'doc-1' },
+      currentUser: { uid: 'user-1', displayName: 'User' },
+    });
+    const secondarySnapshot = { identityId: 'secondary', displayName: 'Alias', avatarUrl: '' };
+    const mainAvatar = app._renderEventCommentAvatar('Main', '', { identityId: 'main', displayName: 'Main', avatarUrl: '' });
+    const secondaryAvatar = app._renderEventCommentAvatar('Alias', '', secondarySnapshot);
+
+    expect(mainAvatar).not.toContain('event-comment-official-crown');
+    expect(secondaryAvatar).toContain('event-comment-avatar-wrap is-official-identity');
+    expect(secondaryAvatar).toContain('event-comment-official-crown-shine');
+
+    const cardHtml = app._renderEventCommentCard({ id: 'event-1' }, {
+      id: 'comment-1',
+      authorUid: 'uid-official',
+      authorName: 'Alias',
+      authorPhoto: '',
+      identitySnapshot: secondarySnapshot,
+      body: 'official note',
+      visibility: 'public',
+      replyLocked: false,
+      deleted: false,
+      createdAt: null,
+      replies: [{
+        id: 'reply-1',
+        authorName: 'Alias',
+        authorPhoto: '',
+        identitySnapshot: secondarySnapshot,
+        body: 'official reply',
+        deleted: false,
+        createdAt: null,
+        likeCount: 0,
+        likers: [],
+      }],
+      likeCount: 0,
+      likedByMe: false,
+      likers: [],
+    }, { closed: false, canManage: false });
+
+    expect((cardHtml.match(/event-comment-official-crown/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(cardHtml).toContain('event-comment-author-static');
+    expect(cardHtml).not.toContain("showUserProfile('Alias'");
+  });
+
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
     const comments = readProjectFile('js/modules/event/event-comments.js');
     const actions = readProjectFile('js/modules/event/event-comments-actions.js');
@@ -110,6 +155,9 @@ describe('activity detail comments source contracts', () => {
     expect(comments).not.toContain('event-comment-identity-picker');
     expect(comments).toContain('IdentityResolver.buildPublicSnapshot');
     expect(comments).toContain('identitySnapshot');
+    expect(comments).toContain('_renderEventCommentOfficialCrown');
+    expect(comments).toContain("identitySnapshot?.identityId !== 'secondary'");
+    expect(comments).toContain('is-official-identity');
     expect(comments).toContain('event-comment-author-static');
     expect(comments).toContain('_renderEventCommentAuditTrace');
     expect(comments).toContain('ApiService.getAdminUsers');
@@ -194,6 +242,10 @@ describe('activity detail comments source contracts', () => {
     expect(timeline).not.toContain("collection('likes').limit");
     expect(timeline).not.toContain("collection('replies').limit");
     expect(css).toContain('.event-comment-avatar');
+    expect(css).toContain('.event-comment-avatar-wrap');
+    expect(css).toContain('.event-comment-official-crown');
+    expect(css).toContain('event-comment-official-crown-shine 2.4s');
+    expect(css).toContain('prefers-reduced-motion:reduce');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
     expect(css).toContain('.event-comment-reply-actions');
