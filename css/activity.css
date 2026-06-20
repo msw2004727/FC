@@ -439,6 +439,12 @@
   pointer-events: none;
   z-index: 3;
 }
+/* 寬版(PC)：正取印章往左移，緊鄰不公開印章右側；窄版維持原位不變 */
+@media (min-width: 641px) {
+  .tl-stamp-confirmed {
+    right: calc(28% - 50px);
+  }
+}
 .tl-event-gender-ribbon {
   position: absolute;
   top: 8px;
