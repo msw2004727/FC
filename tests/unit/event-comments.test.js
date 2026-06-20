@@ -145,7 +145,7 @@ describe('activity detail comments source contracts', () => {
     expect(cardHtml).toContain('event-comment-author-static');
     expect(cardHtml).not.toContain("showUserProfile('Alias'");
     expect(cardHtml).toContain('ToosterX官方認證');
-    expect(cardHtml).toContain('event-comment-official-badge');
+    expect((cardHtml.match(/event-comment-official-badge/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {

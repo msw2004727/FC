@@ -894,7 +894,7 @@ Object.assign(App, {
         <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${eventId}','${commentId}','${safeReplyId}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(r)}
       </div>`;
-      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
+      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${this._renderEventCommentAuditTrace(r)}${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
     }).join('')}</div>`;
   },
 
