@@ -2711,9 +2711,10 @@ body.activity-map-open{overflow:hidden}
 .event-comment-reply .event-comment-avatar-wrap{width:24px;height:24px;flex-basis:24px;--identity-crown-size:16px}
 .event-comment-reply-main{flex:1;min-width:0}
 .event-comment-reply-meta{display:flex;align-items:center;gap:.35rem;min-width:0}
-.event-comment-reply-meta>span:first-child{font-size:.78rem;font-weight:800;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-comment-reply-meta span{font-size:.78rem;font-weight:800;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .event-comment-reply-meta small{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
-.event-comment-reply-meta .event-comment-audit-trace{margin-left:0;flex:0 0 auto}
+.event-comment-reply-badge-line{margin:.18rem 0 .02rem}
+.event-comment-reply-badge-line .event-comment-audit-trace{margin-left:0}
 .event-comment-reply-body{font-size:.8rem;line-height:1.55;color:var(--text-secondary);white-space:pre-wrap;margin-top:.12rem}
 .event-comment-reply-actions{display:flex;align-items:center;gap:.5rem;margin-top:.22rem;min-width:0}
 .event-comment-reply-like{font-size:.74rem}

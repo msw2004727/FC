@@ -146,6 +146,7 @@ describe('activity detail comments source contracts', () => {
     expect(cardHtml).not.toContain("showUserProfile('Alias'");
     expect(cardHtml).toContain('ToosterX官方認證');
     expect((cardHtml.match(/event-comment-official-badge/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(cardHtml).toContain('event-comment-reply-badge-line');
   });
 
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
@@ -168,6 +169,7 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('event-comment-audit-trace');
     expect(comments).toContain('event-comment-official-badge');
     expect(comments).toContain('ToosterX官方認證');
+    expect(comments).toContain('event-comment-reply-badge-line');
     expect(comments).not.toContain('event-comment-audit-uid');
     expect(comments).toContain('authorPhoto');
     expect(comments).toContain('maxlength="300"');
@@ -271,6 +273,7 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-author-static');
     expect(css).toContain('.event-comment-audit-trace');
     expect(css).toContain('.event-comment-official-check');
+    expect(css).toContain('.event-comment-reply-badge-line');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
     expect(css).toContain('.tl-event-status-stack');

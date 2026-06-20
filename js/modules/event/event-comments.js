@@ -890,11 +890,13 @@ Object.assign(App, {
       const safeReplyId = escapeHTML(r.id);
       const del = r.deleted ? '<span class="event-comment-deleted">回覆已刪除</span>' : escapeHTML(r.body);
       const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${safeReplyId}')">刪除</button>` : '';
+      const replyBadge = this._renderEventCommentAuditTrace(r);
+      const replyBadgeLine = replyBadge ? `<div class="event-comment-reply-badge-line">${replyBadge}</div>` : '';
       const likeHtml = r.deleted ? '' : `<div class="event-comment-reply-actions">
         <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${eventId}','${commentId}','${safeReplyId}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(r)}
       </div>`;
-      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${this._renderEventCommentAuditTrace(r)}${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
+      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div>${replyBadgeLine}<div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
     }).join('')}</div>`;
   },
 
