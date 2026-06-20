@@ -91,6 +91,10 @@ Object.assign(App, {
   },
 
   _renderEventCommentAuditTrace(comment, ctx = {}) {
+    // 2026-06-20：隱藏第二身份留言的「主帳號」審計標籤，避免在留言板曝光第二身份背後的真實主帳號與層級，
+    // 否則第二身份對其他管理者就失去匿名性、違背初衷。審計資料（authorUid / rootAuthorName）仍保留於
+    // Firestore，僅前台不再顯示；下方原審計邏輯保留，日後若要恢復顯示，移除這行 return 即可。
+    return '';
     if (!ctx?.canManage || comment?.identitySnapshot?.identityId !== 'secondary') return '';
     const rootUser = this._findEventCommentRootUser(comment.authorUid, comment.rootAuthorName);
     const rootUid = String(comment.authorUid || rootUser?.uid || rootUser?._docId || rootUser?.lineUserId || '').trim();
