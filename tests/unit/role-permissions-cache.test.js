@@ -7,7 +7,34 @@ const KNOWN_PERMS = new Set([
   'admin.users.entry',
   'event.edit_all',
   'team.create',
+  'profile.secondary_identity',
 ]);
+
+
+function loadRoleHarness() {
+  const sandbox = {
+    console,
+    App: {
+      currentRole: 'user',
+      _canAccessOwnActivityManageEntry() { return true; },
+    },
+    ROLE_LEVEL_MAP: { user: 0, coach: 2, admin: 4, super_admin: 5 },
+    ROLES: { user: {}, admin: {}, super_admin: {} },
+    DRAWER_MENUS: [{ page: 'page-admin-users', permissionCode: 'admin.users.entry', minRole: 'admin' }],
+    AUTH_REQUIRED_PAGES: [],
+    getAdminDrawerPermissionCodes() { return ['admin.users.entry']; },
+    normalizePermissionCode(code) { return typeof code === 'string' ? code.trim() : ''; },
+    ApiService: {
+      getCurrentUser() { return { uid: 'uid-1', role: 'user' }; },
+      getCurrentUserEffectivePermissions() { return ['admin.users.entry']; },
+      getRolePermissions(role) { return role === 'admin' ? ['admin.users.entry'] : []; },
+    },
+  };
+  vm.createContext(sandbox);
+  const roleSource = fs.readFileSync(path.join(__dirname, '../../js/modules/role.js'), 'utf8');
+  vm.runInContext(roleSource, sandbox, { filename: 'js/modules/role.js' });
+  return sandbox;
+}
 
 function loadHarness() {
   const sandbox = {
@@ -27,6 +54,21 @@ function loadHarness() {
     sanitizePermissionCodeList(codes) {
       return Array.from(new Set(
         (Array.isArray(codes) ? codes : []).filter(code => KNOWN_PERMS.has(code))
+      ));
+    },
+    normalizePermissionCode(code) {
+      if (typeof code !== 'string') return '';
+      const trimmed = code.trim();
+      if (!trimmed || trimmed === 'admin.roles.entry') return '';
+      if (trimmed === 'event.edit_own') return 'event.edit_self';
+      return trimmed;
+    },
+    sanitizeUserPermissionGrantCodeList(codes) {
+      const allowed = new Set([...KNOWN_PERMS, 'profile.secondary_identity']);
+      return Array.from(new Set(
+        (Array.isArray(codes) ? codes : [])
+          .map(code => (typeof code === 'string' ? code.trim() : ''))
+          .filter(code => code && allowed.has(code) && sandbox.normalizePermissionCode(code) === code)
       ));
     },
     getDefaultRolePermissions(roleKey) {
@@ -136,5 +178,79 @@ describe('rolePermissions cache shape', () => {
     };
 
     expect(ApiService.getRolePermissions('admin')).toEqual([]);
+  });
+
+  test('current user effective permissions merge UID grants without enabling rolePermissions/user', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.currentUser = { uid: 'uid-1', role: 'user' };
+    FirebaseService._cache.rolePermissions = { user: ['admin.users.entry'] };
+    FirebaseService._cache.currentUserPermissionGrant = {
+      uid: 'uid-1',
+      enabled: true,
+      permissions: ['profile.secondary_identity', 'admin.users.entry', 'admin.roles.entry', 'event.edit_own', { code: 'team.create' }],
+    };
+
+    expect(ApiService.getRolePermissions('user')).toEqual([]);
+    expect(ApiService.getCurrentUserPermissionGrants()).toEqual(['profile.secondary_identity', 'admin.users.entry']);
+    expect(ApiService.getCurrentUserEffectivePermissions()).toEqual(['profile.secondary_identity', 'admin.users.entry']);
+    expect(ApiService.hasCurrentUserEffectivePermission('profile.secondary_identity')).toBe(true);
+    expect(ApiService.canUseSecondaryIdentityFeature()).toBe(true);
+    expect(ApiService.canUseSecondaryIdentityFeature('user')).toBe(false);
+  });
+
+  test('current user UID grants fail closed before current user is known', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.currentUser = null;
+    FirebaseService._cache.currentUserPermissionGrant = {
+      uid: 'uid-1',
+      enabled: true,
+      permissions: ['profile.secondary_identity'],
+    };
+
+    expect(ApiService.getCurrentUserPermissionGrants()).toEqual([]);
+    expect(ApiService.canUseSecondaryIdentityFeature()).toBe(false);
+  });
+
+  test('current user UID grants fail closed when disabled, missing, or mismatched', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.currentUser = { uid: 'uid-1', role: 'user' };
+
+    FirebaseService._cache.currentUserPermissionGrant = null;
+    expect(ApiService.getCurrentUserEffectivePermissions()).toEqual([]);
+    expect(ApiService.canUseSecondaryIdentityFeature()).toBe(false);
+
+    FirebaseService._cache.currentUserPermissionGrant = {
+      uid: 'uid-1',
+      enabled: false,
+      permissions: ['profile.secondary_identity'],
+    };
+    expect(ApiService.getCurrentUserPermissionGrants()).toEqual([]);
+    expect(ApiService.canUseSecondaryIdentityFeature()).toBe(false);
+
+    FirebaseService._cache.currentUserPermissionGrant = {
+      uid: 'uid-2',
+      enabled: true,
+      permissions: ['profile.secondary_identity'],
+    };
+    expect(ApiService.getCurrentUserPermissionGrants()).toEqual([]);
+    expect(ApiService.canUseSecondaryIdentityFeature()).toBe(false);
+  });
+
+  test('App.hasPermission keeps explicit role checks role-only while no-role checks use current effective permissions', () => {
+    const { App } = loadRoleHarness();
+
+    expect(App.hasPermission('admin.users.entry')).toBe(true);
+    expect(App.hasPermission('admin.users.entry', 'user')).toBe(false);
+    expect(App.hasPermission('admin.users.entry', 'admin')).toBe(true);
+    expect(App._canAccessDrawerItem({ page: 'page-admin-users', permissionCode: 'admin.users.entry', minRole: 'admin' })).toBe(true);
+    expect(App._canAccessDrawerItem({ page: 'page-admin-users', permissionCode: 'admin.users.entry', minRole: 'admin' }, 'user')).toBe(false);
+  });
+
+  test('App drawer item keeps page-my-activities role-only when role is explicit', () => {
+    const { App } = loadRoleHarness();
+    const item = { page: 'page-my-activities', permissionCode: 'activity.manage.entry', minRole: 'coach' };
+
+    expect(App._canAccessDrawerItem(item)).toBe(true);
+    expect(App._canAccessDrawerItem(item, 'user')).toBe(false);
   });
 });

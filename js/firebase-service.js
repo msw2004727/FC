@@ -75,6 +75,7 @@ const FirebaseService = {
     customRoles: [],
     currentUser: null,
     currentUserIdentitySettings: null,
+    currentUserPermissionGrant: null,
   },
 
   _singleDocCache: {},  // { 'collection/docId': { ...data } }
@@ -138,6 +139,22 @@ const FirebaseService = {
     return normalized;
   },
 
+  _normalizeCurrentUserPermissionGrant(value, expectedUid = '') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const safeExpectedUid = String(expectedUid || '').trim();
+    const uid = String(value.uid || value._docId || '').trim();
+    if (!uid || (safeExpectedUid && uid !== safeExpectedUid)) return null;
+    const sanitize = (permissions) => (typeof sanitizeUserPermissionGrantCodeList === 'function')
+      ? sanitizeUserPermissionGrantCodeList(permissions)
+      : (Array.isArray(permissions) ? [...new Set(permissions.filter(code => typeof code === 'string' && code.trim()).map(code => code.trim()))] : []);
+    const enabled = value.enabled !== false;
+    return {
+      uid,
+      enabled,
+      permissions: enabled ? sanitize(value.permissions) : [],
+    };
+  },
+
   _normalizeRolePermissionMetaCache(value) {
     const normalized = {};
     const sanitize = (permissions) => (typeof sanitizePermissionCodeList === 'function')
@@ -176,6 +193,8 @@ const FirebaseService = {
   _userListener: null,
   _identityPrivateListener: null,
   _identityPrivateListenerUid: '',
+  _currentUserPermissionGrantUnsub: null,
+  _currentUserPermissionGrantUid: '',
   _identityPrivateFetchPromise: null,
   _identityPrivateFetchUid: '',
   _identityPrivateLastFetchAt: 0,
@@ -2146,6 +2165,76 @@ const FirebaseService = {
   },
 
   /** Firebase Auth 登入方式 */
+  _stopCurrentUserPermissionGrantListener() {
+    if (this._currentUserPermissionGrantUnsub) {
+      try { this._currentUserPermissionGrantUnsub(); } catch (_) {}
+    }
+    this._currentUserPermissionGrantUnsub = null;
+    this._currentUserPermissionGrantUid = '';
+  },
+
+  _watchCurrentUserPermissionGrantRealtime(waitForFirstSnapshot = false) {
+    return new Promise(resolve => {
+      const uid = String(auth?.currentUser?.uid || '').trim();
+      if (!uid) {
+        this._cache.currentUserPermissionGrant = null;
+        resolve();
+        return;
+      }
+
+      this._stopCurrentUserPermissionGrantListener();
+      let firstSnapshot = true;
+      let settled = false;
+      const done = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+
+      const unsub = db.collection('userPermissionGrants').doc(uid).onSnapshot(
+        snapshot => {
+          const prev = JSON.stringify(this._cache.currentUserPermissionGrant || null);
+          const nextGrant = snapshot.exists
+            ? this._normalizeCurrentUserPermissionGrant({ _docId: snapshot.id, ...(snapshot.data() || {}) }, uid)
+            : null;
+          this._cache.currentUserPermissionGrant = nextGrant;
+          const next = JSON.stringify(this._cache.currentUserPermissionGrant || null);
+
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            done();
+            return;
+          }
+
+          if (prev !== next) {
+            this._onRolePermissionsUpdated();
+          }
+        },
+        err => {
+          const prev = JSON.stringify(this._cache.currentUserPermissionGrant || null);
+          this._cache.currentUserPermissionGrant = null;
+          if (!firstSnapshot && prev !== JSON.stringify(null)) {
+            this._onRolePermissionsUpdated();
+          }
+          console.warn('[FirebaseService] current user permission grant realtime failed:', err);
+          done();
+        }
+      );
+
+      this._currentUserPermissionGrantUnsub = unsub;
+      this._currentUserPermissionGrantUid = uid;
+      this._listeners.push(() => {
+        if (this._currentUserPermissionGrantUnsub === unsub) {
+          this._currentUserPermissionGrantUnsub = null;
+          this._currentUserPermissionGrantUid = '';
+          try { unsub(); } catch (_) {}
+        }
+      });
+      if (!waitForFirstSnapshot) done();
+    });
+  },
+
   _watchRoleActivityCapabilitiesRealtime(waitForFirstSnapshot = false) {
     return new Promise(resolve => {
       if (!auth?.currentUser) {
@@ -3091,6 +3180,7 @@ const FirebaseService = {
         }
         await this._watchRolePermissionsRealtime(true);
         await this._watchRoleActivityCapabilitiesRealtime(true);
+        await this._watchCurrentUserPermissionGrantRealtime(true);
         if (typeof recordAuthTiming === 'function') {
           recordAuthTiming('firebase-service:role-listeners:first-snapshot:ready');
         }
@@ -3218,6 +3308,8 @@ const FirebaseService = {
       const unsubAuthObserver = auth.onAuthStateChanged(user => {
         if (!user) {
           this._lastLoginAuditAtByUid = {};
+          this._stopCurrentUserPermissionGrantListener();
+          this._cache.currentUserPermissionGrant = null;
           return;
         }
         Promise.resolve(this._startAuthDependentWork()).catch(err => {
@@ -4543,6 +4635,7 @@ const FirebaseService = {
     this._stopEventsRealtimeListener();
     this._stopTeamsRealtimeListener();
     this._stopTournamentsRealtimeListener();
+    this._stopCurrentUserPermissionGrantListener();
     if (this._userListener) {
       this._userListener();
       this._userListener = null;
@@ -4581,6 +4674,7 @@ const FirebaseService = {
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }
       else if (k === 'currentUserIdentitySettings') { this._cache[k] = null; }
+      else if (k === 'currentUserPermissionGrant') { this._cache[k] = null; }
       else if (k === 'rolePermissions' || k === 'rolePermissionMeta' || k === 'roleActivityCapabilities') { this._cache[k] = {}; }
       else { this._cache[k] = []; }
     });

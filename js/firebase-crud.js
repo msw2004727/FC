@@ -146,6 +146,56 @@ Object.assign(FirebaseService, {
     await db.collection('rolePermissions').doc(roleKey).delete();
   },
 
+  async getUserPermissionGrant(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_PERMISSION_GRANT_UID_REQUIRED');
+    const snap = await db.collection('userPermissionGrants').doc(safeUid).get();
+    if (!snap.exists) {
+      return { uid: safeUid, permissions: [], enabled: true, _docId: safeUid, exists: false };
+    }
+    const data = snap.data() || {};
+    return {
+      uid: safeUid,
+      permissions: sanitizeUserPermissionGrantCodeList(data.permissions || []),
+      enabled: data.enabled !== false,
+      updatedAt: data.updatedAt || null,
+      _docId: safeUid,
+      exists: true,
+    };
+  },
+
+  async saveUserPermissionGrant(uid, grant = {}) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_PERMISSION_GRANT_UID_REQUIRED');
+    const permissions = sanitizeUserPermissionGrantCodeList(grant.permissions || []);
+    const enabled = grant.enabled !== false;
+    const previousPermissions = sanitizeUserPermissionGrantCodeList(grant.previousPermissions || []);
+    const previousEnabled = grant.previousEnabled !== false;
+    const actorUid = auth?.currentUser?.uid || '';
+    const grantRef = db.collection('userPermissionGrants').doc(safeUid);
+    const auditRef = db.collection('userPermissionGrantAudit').doc(safeUid).collection('entries').doc();
+    const batch = db.batch();
+    batch.set(grantRef, {
+      uid: safeUid,
+      permissions,
+      enabled,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.set(auditRef, {
+      targetUid: safeUid,
+      targetName: String(grant.targetName || '').trim(),
+      actorUid,
+      action: grant.changedPermission ? 'toggle_permission' : 'update_enabled',
+      changedPermission: String(grant.changedPermission || '').trim(),
+      enabled,
+      previousEnabled,
+      permissions,
+      previousPermissions,
+      at: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return { uid: safeUid, permissions, enabled, _docId: safeUid, exists: true };
+  },
   async saveUserCorrection(uid, data) {
     const safeUid = String(uid || '').trim();
     if (!safeUid) throw new Error('USER_CORRECTION_UID_REQUIRED');

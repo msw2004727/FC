@@ -176,6 +176,19 @@ function sanitizePermissionCodeList(codes) {
   ));
 }
 
+function getUserPermissionGrantAllowedCodes() {
+  return sanitizePermissionCodeList(ALL_PERMISSION_CODES).filter(code => isPermissionCodeEnabled(code));
+}
+
+function sanitizeUserPermissionGrantCodeList(codes) {
+  const allowed = new Set(getUserPermissionGrantAllowedCodes());
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .map(code => (typeof code === 'string' ? code.trim() : ''))
+      .filter(code => code && allowed.has(code) && normalizePermissionCode(code) === code)
+  ));
+}
+
 // ---------------------------------------------------------------------------
 // from js/config.js:614-616 — getInherentRolePermissions
 // ---------------------------------------------------------------------------
@@ -244,6 +257,21 @@ function hasPermission(roleKey, storedPermissions, code) {
   return getRolePermissions(roleKey, storedPermissions).includes(normalized);
 }
 
+function getEffectivePermissions(roleKey, storedPermissions, userGrantPermissions) {
+  const rolePermissions = getRolePermissions(roleKey, storedPermissions);
+  const userGrants = roleKey === 'super_admin'
+    ? []
+    : sanitizeUserPermissionGrantCodeList(userGrantPermissions);
+  return sanitizePermissionCodeList([...rolePermissions, ...userGrants]);
+}
+
+function hasEffectivePermission(roleKey, storedPermissions, userGrantPermissions, code) {
+  if (!code) return false;
+  const normalized = normalizePermissionCode(code);
+  if (!normalized) return false;
+  return getEffectivePermissions(roleKey, storedPermissions, userGrantPermissions).includes(normalized);
+}
+
 // ---------------------------------------------------------------------------
 // from js/modules/role.js:43-52 — canAccessDrawerItem (pure function version)
 // ---------------------------------------------------------------------------
@@ -286,10 +314,14 @@ module.exports = {
   DATA_MIN_ROLE_DIVS,
   isPermissionCodeEnabled,
   sanitizePermissionCodeList,
+  getUserPermissionGrantAllowedCodes,
+  sanitizeUserPermissionGrantCodeList,
   getInherentRolePermissions,
   getDefaultRolePermissions,
   getRolePermissions,
   hasPermission,
+  getEffectivePermissions,
+  hasEffectivePermission,
   canAccessDrawerItem,
   canAccessPage,
 };

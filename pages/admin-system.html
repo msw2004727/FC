@@ -168,6 +168,7 @@
       </div>
       <div class="role-admin-tabs">
         <button class="role-admin-tab active" id="role-admin-tab-settings" type="button" onclick="App.switchPermissionAdminTab('settings')">權限設定</button>
+        <button class="role-admin-tab" id="role-admin-tab-user-grants" type="button" onclick="App.switchPermissionAdminTab('user-grants')">個別授權</button>
         <button class="role-admin-tab" id="role-admin-tab-audit" type="button" onclick="App.switchPermissionAdminTab('audit')">權限測試</button>
       </div>
       <div class="role-admin-pane" id="role-admin-settings-pane">
@@ -207,6 +208,23 @@
         <div class="permissions-list" id="permissions-list" style="display:none"></div>
       </div>
       </div>
+      <div class="role-admin-pane" id="role-admin-user-grants-pane" style="display:none">
+        <div class="permission-audit-card">
+          <div class="permission-audit-head">
+            <div>
+              <div class="permission-audit-title">個別用戶授權</div>
+              <div class="permission-audit-note">用暱稱或 UID 搜尋用戶，針對單一用戶開啟指定權限。這不會改變他的身份層級，也不會讓一般 user 角色預設取得權限。</div>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:.75rem">
+            <label>搜尋用戶</label>
+            <input type="search" id="user-permission-grant-search" placeholder="輸入暱稱或 UID" oninput="App.filterUserPermissionGrantUsers()">
+          </div>
+          <div id="user-permission-grant-results" class="permission-audit-list"></div>
+          <div id="user-permission-grant-editor" class="permission-audit-report" style="margin-top:.85rem"></div>
+        </div>
+      </div>
+
       <div class="role-admin-pane" id="role-admin-audit-pane" style="display:none">
         <div class="permission-audit-card">
           <div class="permission-audit-head">

@@ -180,6 +180,12 @@ Object.assign(App, {
 
   _hasRolePermission(code) {
     if (!code) return false;
+    if (typeof this.hasPermission === 'function') {
+      return this.hasPermission(code);
+    }
+    if (typeof ApiService !== 'undefined' && typeof ApiService.hasCurrentUserEffectivePermission === 'function') {
+      return ApiService.hasCurrentUserEffectivePermission(code);
+    }
     const role = (this.currentRole || ApiService.getCurrentUser?.()?.role || 'user');
     const perms = ApiService.getRolePermissions(role) || [];
     return perms.includes(code);

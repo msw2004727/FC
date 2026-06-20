@@ -524,6 +524,7 @@ const ScriptLoader = {
       'js/modules/user-admin/user-admin-list.js',
       'js/modules/user-admin/user-admin-exp.js',
       'js/modules/user-admin/user-admin-roles.js',
+      'js/modules/user-admin/user-admin-user-grants.js',
       'js/modules/user-admin/user-admin-perm-info.js',
       'js/modules/user-admin/permission-audit/permission-audit.js',
       'js/modules/user-admin/permission-audit/permission-audit-render.js',

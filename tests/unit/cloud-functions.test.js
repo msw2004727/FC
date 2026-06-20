@@ -22,6 +22,18 @@ const VALID_ROLES = new Set([
   "user", "coach", "captain", "venue_owner", "admin", "super_admin",
 ]);
 const DISABLED_PERMISSION_CODES = new Set(["admin.roles.entry"]);
+const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
+  "event.edit_own": "event.edit_self",
+  "event.delete_own": "event.delete_self",
+  "event.scan_qr": "event.scan",
+  "event.view_participants": "event.view_registrations",
+  "team.manage_own": "team.manage_self",
+  "team.approve_join": "team.review_join",
+  "team.create_team_event": "team.create_event",
+  "team.toggle_event_public": "team.toggle_event_visibility",
+  "admin.teams.entry": "team.manage.entry",
+  "admin.scoreboard.entry": "",
+});
 const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
@@ -60,6 +72,46 @@ const DEFAULT_ADMIN_PERMISSION_CODES = Object.freeze([
   "admin.tournaments.end",
   "admin.tournaments.reopen",
   "admin.tournaments.delete",
+]);
+const USER_PERMISSION_GRANT_ALLOWED_CODES = new Set([
+  ...DEFAULT_ROLE_ENTRY_PERMISSION_RULES.map(rule => rule.code),
+  "event.create",
+  "event.edit_self",
+  "event.edit_all",
+  "event.delete_self",
+  "event.delete",
+  "event.publish",
+  "event.scan",
+  "event.manual_checkin",
+  "event.view_registrations",
+  "admin.tournaments.create",
+  "admin.tournaments.manage_all",
+  "admin.tournaments.review",
+  "admin.tournaments.end",
+  "admin.tournaments.reopen",
+  "admin.tournaments.delete",
+  "team.create",
+  "team.manage_all",
+  "team.manage_self",
+  "team.review_join",
+  "team.assign_coach",
+  "team.create_event",
+  "team.toggle_event_visibility",
+  "admin.users.edit_profile",
+  "admin.users.change_role",
+  "admin.users.restrict",
+  "admin.messages.compose",
+  "admin.messages.delete",
+  "admin.repair.team_join_repair",
+  "admin.repair.no_show_adjust",
+  "admin.repair.data_sync",
+  "admin.repair.event_blocklist",
+  "activity.view_noshow",
+  "admin.logs.error_read",
+  "admin.logs.error_delete",
+  "admin.logs.audit_read",
+  "admin.notif.toggle",
+  "profile.secondary_identity",
 ]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success", "login_failure", "logout",
@@ -142,6 +194,9 @@ function normalizePermissionCode(code) {
   if (typeof code !== 'string') return '';
   const trimmed = code.trim();
   if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return '';
+  if (Object.prototype.hasOwnProperty.call(LEGACY_PERMISSION_CODE_REPLACEMENTS, trimmed)) {
+    return LEGACY_PERMISSION_CODE_REPLACEMENTS[trimmed] || '';
+  }
   return trimmed;
 }
 
@@ -150,6 +205,17 @@ function sanitizePermissionCodeList(codes) {
     (Array.isArray(codes) ? codes : [])
       .map(code => normalizePermissionCode(code))
       .filter(Boolean)
+  ));
+}
+
+function sanitizeUserPermissionGrantCodeList(codes) {
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .filter(code => typeof code === 'string')
+      .map(code => code.trim())
+      .filter(code => code
+        && normalizePermissionCode(code) === code
+        && USER_PERMISSION_GRANT_ALLOWED_CODES.has(code))
   ));
 }
 
@@ -183,6 +249,22 @@ function resolveStoredRolePermissions(roleKey, snapshot) {
   return sanitizePermissionCodeList(data.permissions);
 }
 
+function resolveUserPermissionGrants(snapshot) {
+  if (!snapshot?.exists) return [];
+  const data = snapshot.data || {};
+  if (data.enabled === false) return [];
+  return sanitizeUserPermissionGrantCodeList(data.permissions);
+}
+
+function resolveEffectivePermissions(userRole, rolePermissions, userPermissionGrants) {
+  const inherent = INHERENT_ROLE_PERMISSIONS[userRole] || [];
+  return Array.from(new Set([
+    ...sanitizePermissionCodeList(rolePermissions),
+    ...sanitizePermissionCodeList(userPermissionGrants),
+    ...inherent,
+  ]));
+}
+
 /** Permission check: inherent + dynamic */
 function hasPermission(userRole, dynamicPermissions, permCode) {
   if (DISABLED_PERMISSION_CODES.has(permCode)) return false;
@@ -193,7 +275,6 @@ function hasPermission(userRole, dynamicPermissions, permCode) {
 
 function canUseSecondaryIdentityAccess(access) {
   return !!access
-    && access.role !== 'user'
     && access.hasPermission(SECONDARY_IDENTITY_PERMISSION);
 }
 
@@ -1162,6 +1243,44 @@ describe('Permission check (inherent + dynamic)', () => {
     expect(resolveStoredRolePermissions('coach', { exists: true, data: { permissions: [] } })).toEqual([]);
     expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(false);
   });
+
+  test('user permission grants keep only enabled catalog codes', () => {
+    const grants = resolveUserPermissionGrants({
+      exists: true,
+      data: { permissions: [
+        'profile.secondary_identity',
+        'admin.roles.entry',
+        'event.edit_own',
+        'unknown.permission',
+        { code: 'admin.messages.entry' },
+        '',
+        'profile.secondary_identity',
+      ] },
+    });
+    expect(grants).toEqual(['profile.secondary_identity']);
+
+    const effective = resolveEffectivePermissions('user', [], grants);
+    expect(hasPermission('user', effective, 'profile.secondary_identity')).toBe(true);
+    expect(hasPermission('user', effective, 'admin.roles.entry')).toBe(false);
+    expect(hasPermission('user', effective, 'event.edit_self')).toBe(false);
+    expect(hasPermission('user', effective, 'unknown.permission')).toBe(false);
+  });
+
+  test('disabled or missing user permission grants fail closed', () => {
+    expect(resolveUserPermissionGrants({ exists: false })).toEqual([]);
+    expect(resolveUserPermissionGrants({ exists: true, data: { enabled: false, permissions: ['profile.secondary_identity'] } })).toEqual([]);
+  });
+
+  test('caller access context source merges user-specific grants', () => {
+    const helperSource = readSourceBetween('async function getUserPermissionGrantsFromFirestore', 'function sanitizeRoleActivityCapabilityList');
+    expect(helperSource).toContain('collection("userPermissionGrants")');
+    expect(helperSource).toContain('data.enabled === false');
+    expect(helperSource).toContain('sanitizeUserPermissionGrantCodeList(data.permissions)');
+
+    const accessSource = readSourceBetween('async function getCallerAccessContext', 'function canUseSecondaryIdentityAccess');
+    expect(accessSource).toContain('getUserPermissionGrantsFromFirestore(request.auth?.uid)');
+    expect(accessSource).toContain('[...stored, ...userGrants, ...inherent]');
+  });
 });
 
 describe('VALID_ROLES', () => {
@@ -1864,10 +1983,14 @@ function validateSecondaryIdentityAvatarCommit(data, uid, projectId = 'demo-proj
 }
 
 describe('commitIdentitySettings validation', () => {
-  test('second identity callable access is locked off for user and on for super_admin', () => {
+  test('second identity callable access follows effective permission including user grants', () => {
     expect(canUseSecondaryIdentityAccess({
       role: 'user',
-      hasPermission: () => true,
+      hasPermission: (code) => code === SECONDARY_IDENTITY_PERMISSION,
+    })).toBe(true);
+    expect(canUseSecondaryIdentityAccess({
+      role: 'user',
+      hasPermission: () => false,
     })).toBe(false);
     expect(canUseSecondaryIdentityAccess({
       role: 'admin',

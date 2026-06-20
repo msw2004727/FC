@@ -7,16 +7,21 @@ Object.assign(App, {
   _permissionAuditLastReport: null,
 
   switchPermissionAdminTab(tab) {
-    const active = tab === 'audit' ? 'audit' : 'settings';
+    const active = tab === 'audit' ? 'audit' : (tab === 'user-grants' ? 'user-grants' : 'settings');
     this._permissionAdminTab = active;
     const settingsPane = document.getElementById('role-admin-settings-pane');
+    const userGrantsPane = document.getElementById('role-admin-user-grants-pane');
     const auditPane = document.getElementById('role-admin-audit-pane');
     const settingsTab = document.getElementById('role-admin-tab-settings');
+    const userGrantsTab = document.getElementById('role-admin-tab-user-grants');
     const auditTab = document.getElementById('role-admin-tab-audit');
     if (settingsPane) settingsPane.style.display = active === 'settings' ? '' : 'none';
+    if (userGrantsPane) userGrantsPane.style.display = active === 'user-grants' ? '' : 'none';
     if (auditPane) auditPane.style.display = active === 'audit' ? '' : 'none';
     if (settingsTab) settingsTab.classList.toggle('active', active === 'settings');
+    if (userGrantsTab) userGrantsTab.classList.toggle('active', active === 'user-grants');
     if (auditTab) auditTab.classList.toggle('active', active === 'audit');
+    if (active === 'user-grants') this.renderUserPermissionGrantShell?.();
     if (active === 'audit') this.renderPermissionAuditShell();
   },
 

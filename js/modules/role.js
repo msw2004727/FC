@@ -29,27 +29,51 @@ Object.assign(App, {
     return ApiService.getRolePermissions(roleKey) || [];
   },
 
+  _shouldUseCurrentUserEffectivePermissions(role) {
+    if (typeof ApiService === 'undefined' || typeof ApiService.getCurrentUserEffectivePermissions !== 'function') {
+      return false;
+    }
+    const currentUser = typeof ApiService.getCurrentUser === 'function' ? ApiService.getCurrentUser() : null;
+    if (!currentUser) return false;
+    const roleKey = this._getEffectiveRoleKey(role);
+    const currentRole = String(currentUser.role || 'user').trim() || 'user';
+    const activeRole = String(this.currentRole || currentRole).trim() || 'user';
+    return roleKey === currentRole && activeRole === currentRole;
+  },
+
+  _getPermissionListForContext(role, useCurrentUser = false) {
+    if (useCurrentUser && this._shouldUseCurrentUserEffectivePermissions(role)) {
+      return ApiService.getCurrentUserEffectivePermissions() || [];
+    }
+    return this._getRolePermissionList(role);
+  },
+
   hasPermission(code, role) {
     if (!code) return false;
     const normalized = typeof normalizePermissionCode === 'function' ? normalizePermissionCode(code) : code;
     if (!normalized) return false;
-    return this._getRolePermissionList(role).includes(normalized);
+    const useCurrentUser = arguments.length < 2 || role === null || role === undefined;
+    return this._getPermissionListForContext(role, useCurrentUser).includes(normalized);
   },
 
   _usesAdminDrawerPermissionMode(role) {
     const knownCodes = getAdminDrawerPermissionCodes();
     if (!knownCodes.length) return false;
-    return this._getRolePermissionList(role).some(code => knownCodes.includes(code));
+    const useCurrentUser = arguments.length < 1 || role === null || role === undefined;
+    return this._getPermissionListForContext(role, useCurrentUser).some(code => knownCodes.includes(code));
   },
 
   _canAccessDrawerItem(item, role) {
     if (!item || item.divider || item.sectionLabel) return true;
     const roleKey = this._getEffectiveRoleKey(role);
-    if (item.page === 'page-my-activities' && typeof this._canAccessOwnActivityManageEntry === 'function') {
+    const useCurrentUser = arguments.length < 2 || role === null || role === undefined;
+    if (useCurrentUser && item.page === 'page-my-activities' && typeof this._canAccessOwnActivityManageEntry === 'function') {
       return this._canAccessOwnActivityManageEntry();
     }
     if (item.permissionCode) {
-      return this.hasPermission(item.permissionCode, roleKey);
+      return useCurrentUser
+        ? this.hasPermission(item.permissionCode)
+        : this.hasPermission(item.permissionCode, roleKey);
     }
     const roleLevel = this._getEffectiveRoleLevel(roleKey);
     const minLevel = ROLE_LEVEL_MAP[item.minRole || 'user'] || 0;
@@ -78,8 +102,8 @@ Object.assign(App, {
     // page-team-manage: 領隊以上
     if (pageId === 'page-team-manage') return this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP.captain || 0);
     // 日誌子頁面：由入口權限控制
-    if (pageId === 'page-admin-audit-logs') return this.hasPermission('admin.logs.audit_read', role);
-    if (pageId === 'page-admin-error-logs') return this.hasPermission('admin.logs.error_read', role);
+    if (pageId === 'page-admin-audit-logs') return (arguments.length < 2 || role === null || role === undefined) ? this.hasPermission('admin.logs.audit_read') : this.hasPermission('admin.logs.audit_read', role);
+    if (pageId === 'page-admin-error-logs') return (arguments.length < 2 || role === null || role === undefined) ? this.hasPermission('admin.logs.error_read') : this.hasPermission('admin.logs.error_read', role);
 
     // 3. 保留 data-min-role 回退（供尚未遷移的元素使用）
     const pageEl = document.getElementById(pageId);
@@ -112,7 +136,7 @@ Object.assign(App, {
 
     document.querySelectorAll('[data-min-role]').forEach(el => {
       if (el.classList.contains('page') && el.id) {
-        el.style.display = this._canAccessPage(el.id, role) ? '' : 'none';
+        el.style.display = this._canAccessPage(el.id) ? '' : 'none';
         return;
       }
       const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
@@ -122,7 +146,7 @@ Object.assign(App, {
     document.querySelectorAll('[data-permission-code]').forEach(el => {
       const code = String(el.dataset.permissionCode || '').trim();
       if (!code) return;
-      el.style.display = this.hasPermission(code, role) ? '' : 'none';
+      el.style.display = this.hasPermission(code) ? '' : 'none';
     });
 
     document.querySelectorAll('.contact-row').forEach(el => {
@@ -219,7 +243,7 @@ Object.assign(App, {
       this.renderAdminUsers();
     }
 
-    if (this.currentPage && !this._canAccessPage(this.currentPage, role)) {
+    if (this.currentPage && !this._canAccessPage(this.currentPage)) {
       void this.showPage('page-home', { bypassRestrictionGuard: true, resetHistory: true });
     }
 

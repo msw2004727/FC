@@ -26,6 +26,9 @@ const {
   getDefaultRolePermissions,
   getRolePermissions,
   hasPermission,
+  getEffectivePermissions,
+  hasEffectivePermission,
+  sanitizeUserPermissionGrantCodeList,
   canAccessDrawerItem,
 } = require('./permissions-fixtures');
 
@@ -155,6 +158,35 @@ describe('getRolePermissions', () => {
   test('user cannot receive second identity through normal role permissions', () => {
     expect(getRolePermissions('user', PROFILE_FEATURE_PERMISSION_CODES)).toEqual([]);
     expect(hasPermission('user', PROFILE_FEATURE_PERMISSION_CODES, 'profile.secondary_identity')).toBe(false);
+  });
+  test('user UID grants are effective without enabling rolePermissions/user', () => {
+    const roleStored = ['profile.secondary_identity', 'admin.users.entry'];
+    const rawGrant = [
+      'profile.secondary_identity',
+      'admin.users.entry',
+      'admin.roles.entry',
+      'event.edit_own',
+      'unknown.permission',
+      { code: 'admin.shop.entry' },
+    ];
+
+    expect(getRolePermissions('user', roleStored)).toEqual([]);
+    expect(sanitizeUserPermissionGrantCodeList(rawGrant)).toEqual([
+      'profile.secondary_identity',
+      'admin.users.entry',
+    ]);
+    expect(getEffectivePermissions('user', [], rawGrant)).toEqual([
+      'profile.secondary_identity',
+      'admin.users.entry',
+    ]);
+    expect(hasEffectivePermission('user', [], rawGrant, 'profile.secondary_identity')).toBe(true);
+    expect(hasEffectivePermission('user', [], rawGrant, 'admin.users.entry')).toBe(true);
+    expect(hasPermission('user', roleStored, 'admin.users.entry')).toBe(false);
+  });
+
+  test('empty or removed UID grants fail closed for user effective permissions', () => {
+    expect(getEffectivePermissions('user', [], [])).toEqual([]);
+    expect(hasEffectivePermission('user', [], [], 'profile.secondary_identity')).toBe(false);
   });
 
   test('super_admin gets ALL enabled permission codes', () => {

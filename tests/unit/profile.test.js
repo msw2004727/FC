@@ -248,7 +248,7 @@ describe('secondary identity profile controls', () => {
     expect(firebaseSource).toContain('this._setupIdentityPrivateListener(authUser.uid);');
     expect(firebaseSource).toContain("identityPrivate/settings resume load failed");
     expect(roleSource).toContain("document.querySelectorAll('[data-permission-code]')");
-    expect(roleSource).toContain('this.hasPermission(code, role)');
+    expect(roleSource).toContain('this.hasPermission(code)');
     expect(crudSource).toContain("httpsCallable('commitIdentitySettings')");
     expect(crudSource).toContain("httpsCallable('commitSecondaryIdentityAvatar')");
     expect(crudSource).toContain('_normalizeStorageBucketName');

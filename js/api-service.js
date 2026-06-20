@@ -1199,6 +1199,13 @@ const ApiService = {
   // ════════════════════════════════
 
   getAdminUsers() { return this._src('adminUsers'); },
+  async getUserPermissionGrant(uid) {
+    return FirebaseService.getUserPermissionGrant(uid);
+  },
+
+  async saveUserPermissionGrant(uid, grant) {
+    return FirebaseService.saveUserPermissionGrant(uid, grant);
+  },
 
   getUserCorrections() { return this._src('userCorrections'); },
 
@@ -1343,6 +1350,40 @@ const ApiService = {
     }
 
     return sanitizePermissionCodeList([...resolved, ...inherent]);
+  },
+
+  getCurrentUserPermissionGrants() {
+    const grant = FirebaseService._cache.currentUserPermissionGrant || null;
+    const currentUser = this.getCurrentUser?.() || null;
+    const uid = String(currentUser?.uid || currentUser?.lineUserId || currentUser?._docId || '').trim();
+    if (!uid || !grant || grant.enabled === false) return [];
+    if (String(grant.uid || '').trim() !== uid) return [];
+    const permissions = Array.isArray(grant.permissions) ? grant.permissions : [];
+    if (typeof sanitizeUserPermissionGrantCodeList === 'function') {
+      return sanitizeUserPermissionGrantCodeList(permissions);
+    }
+    return sanitizePermissionCodeList(permissions);
+  },
+
+  getCurrentUserEffectivePermissions(user = null) {
+    const activeUser = this.getCurrentUser?.() || null;
+    const targetUser = user || activeUser || {};
+    const roleKey = String(targetUser.role || 'user').trim() || 'user';
+    const rolePermissions = this.getRolePermissions(roleKey) || [];
+    const targetUid = String(targetUser.uid || targetUser.lineUserId || targetUser._docId || '').trim();
+    const activeUid = String(activeUser?.uid || activeUser?.lineUserId || activeUser?._docId || '').trim();
+    const isCurrentUser = !user || (!!targetUid && !!activeUid && targetUid === activeUid);
+    const userGrants = isCurrentUser && roleKey !== 'super_admin'
+      ? this.getCurrentUserPermissionGrants()
+      : [];
+    return sanitizePermissionCodeList([...rolePermissions, ...userGrants]);
+  },
+
+  hasCurrentUserEffectivePermission(code, user = null) {
+    if (!code) return false;
+    const normalized = typeof normalizePermissionCode === 'function' ? normalizePermissionCode(code) : code;
+    if (!normalized) return false;
+    return this.getCurrentUserEffectivePermissions(user).includes(normalized);
   },
 
   getRolePermissionDefaults(role) {
@@ -3237,9 +3278,12 @@ const ApiService = {
   },
 
   canUseSecondaryIdentityFeature(role = null) {
-    const roleKey = role || this.getCurrentUser()?.role || 'user';
-    if (roleKey === 'user') return false;
-    return this.getRolePermissions(roleKey).includes('profile.secondary_identity');
+    if (role !== null && role !== undefined) {
+      const roleKey = role || 'user';
+      if (roleKey === 'user') return false;
+      return this.getRolePermissions(roleKey).includes('profile.secondary_identity');
+    }
+    return this.hasCurrentUserEffectivePermission('profile.secondary_identity');
   },
 
   getCurrentIdentitySettings() {

@@ -186,6 +186,15 @@ async function seedRolePermissions(roleKey, permissions = []) {
   });
 }
 
+async function seedUserPermissionGrant(uid, permissions = [], overrides = {}) {
+  await seedDoc("userPermissionGrants", uid, {
+    uid,
+    permissions: [...permissions],
+    enabled: true,
+    ...overrides,
+  });
+}
+
 async function seedRoleActivityCapabilities(capabilities = DEFAULT_USER_ACTIVITY_CAPABILITIES) {
   await seedDoc("roleActivityCapabilities", "user", {
     capabilities: [...capabilities],
@@ -657,6 +666,21 @@ describe("/users/{userId}", () => {
     await assertSucceeds(
       setDoc(
         doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
+        identitySettingsPayload({
+          profileActiveIdentityId: "secondary",
+          secondary: { enabled: true },
+        })
+      )
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] regular user with individual grant can write own settings", async () => {
+    await seedUserPermissionGrant("uidUser", ["profile.secondary_identity"]);
+    const ownerRef = doc(user(), "users", "uidUser", "identityPrivate", "settings");
+
+    await assertSucceeds(
+      setDoc(
+        ownerRef,
         identitySettingsPayload({
           profileActiveIdentityId: "secondary",
           secondary: { enabled: true },
@@ -2454,6 +2478,16 @@ describe("/messages/{msgId}", () => {
     await seedDoc("messages", "msgA", { fromUid: "uidA", toUid: "uidB", body: "restored" });
     await assertSucceeds(deleteDoc(doc(superAdmin(), "messages", "msgA")));
   });
+  test("userPermissionGrants(admin.messages.delete) cannot hard delete root messages", async () => {
+    await seedUserPermissionGrant("uidUser", ["admin.messages.delete"]);
+    await seedDoc("messages", "msgGrantDeleteBlocked", {
+      fromUid: "uidA",
+      toUid: "uidB",
+      body: "protected",
+    });
+
+    await assertFails(deleteDoc(doc(user(), "messages", "msgGrantDeleteBlocked")));
+  });
 });
 
 describe("/linePushQueue/{docId}", () => {
@@ -3652,6 +3686,113 @@ describe("/rolePermissions/{roleKey}", () => {
   });
 });
 
+describe("/userPermissionGrants/{uid}", () => {
+  test("owner and superAdmin can read grant document only for allowed scope", async () => {
+    await seedUserPermissionGrant("uidA", ["profile.secondary_identity"]);
+
+    await assertSucceeds(getDoc(doc(memberA(), "userPermissionGrants", "uidA")));
+    await assertSucceeds(getDoc(doc(superAdmin(), "userPermissionGrants", "uidA")));
+    await assertFails(getDoc(doc(memberB(), "userPermissionGrants", "uidA")));
+    await assertFails(getDoc(doc(guest(), "userPermissionGrants", "uidA")));
+  });
+
+  test("only superAdmin can write minimal public grant shape", async () => {
+    const ref = doc(superAdmin(), "userPermissionGrants", "uidA");
+    await assertSucceeds(setDoc(ref, {
+      uid: "uidA",
+      permissions: ["profile.secondary_identity"],
+      enabled: true,
+      updatedAt: serverTimestamp(),
+    }));
+
+    await assertFails(setDoc(doc(admin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: ["profile.secondary_identity"],
+      enabled: true,
+    }));
+    await assertFails(setDoc(doc(memberA(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: ["profile.secondary_identity"],
+      enabled: true,
+    }));
+  });
+
+  test("grant document rejects internal metadata and uid mismatch", async () => {
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: [],
+      enabled: true,
+      updatedByUid: "uidSA",
+    }));
+
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidB",
+      permissions: [],
+      enabled: true,
+    }));
+  });
+
+  test("grant document accepts enabled catalog permission codes", async () => {
+    await assertSucceeds(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: [
+        "profile.secondary_identity",
+        "admin.tournaments.delete",
+        "admin.seo.entry",
+        "activity.view_noshow",
+      ],
+      enabled: true,
+    }));
+  });
+
+  test("grant document rejects disabled, legacy, unknown, and non-string permission values", async () => {
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: ["admin.roles.entry"],
+      enabled: true,
+    }));
+
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: ["event.edit_own"],
+      enabled: true,
+    }));
+
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: ["unknown.permission"],
+      enabled: true,
+    }));
+
+    await assertFails(setDoc(doc(superAdmin(), "userPermissionGrants", "uidA"), {
+      uid: "uidA",
+      permissions: [{ code: "profile.secondary_identity" }],
+      enabled: true,
+    }));
+  });
+
+  test("audit entries are superAdmin only and hidden from target user", async () => {
+    await seedPath(["userPermissionGrantAudit", "uidA", "entries", "entry1"], {
+      action: "update",
+      actorUid: "uidSA",
+      note: "internal",
+    });
+
+    await assertSucceeds(getDoc(doc(superAdmin(), "userPermissionGrantAudit", "uidA", "entries", "entry1")));
+    await assertFails(getDoc(doc(memberA(), "userPermissionGrantAudit", "uidA", "entries", "entry1")));
+    await assertFails(getDoc(doc(admin(), "userPermissionGrantAudit", "uidA", "entries", "entry1")));
+
+    await assertSucceeds(setDoc(doc(superAdmin(), "userPermissionGrantAudit", "uidA", "entries", "entry2"), {
+      action: "update",
+      actorUid: "uidSA",
+    }));
+    await assertFails(setDoc(doc(admin(), "userPermissionGrantAudit", "uidA", "entries", "entry3"), {
+      action: "update",
+      actorUid: "uidAdmin",
+    }));
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 // Phase 4: hasPerm() 權限碼授予 → 存取控制矩陣
 // ═══════════════════════════════════════════════════════════════
@@ -4050,6 +4191,15 @@ describe("Phase 4: hasPerm() permission-grant access control", () => {
       await assertFails(
         setDoc(doc(coach(), "announcements", "ann2"), {
           title: "Test", body: "Hello", createdAt: new Date(),
+        })
+      );
+    });
+
+    test("regular user with individual grant can create announcement", async () => {
+      await seedUserPermissionGrant("uidUser", ["admin.announcements.entry"]);
+      await assertSucceeds(
+        setDoc(doc(user(), "announcements", "ann_user_grant"), {
+          title: "User Grant", body: "Hello", createdAt: new Date(),
         })
       );
     });

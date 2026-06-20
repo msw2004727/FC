@@ -131,6 +131,46 @@ const DEFAULT_ADMIN_PERMISSION_CODES = Object.freeze([
   "admin.tournaments.reopen",
   "admin.tournaments.delete",
 ]);
+const USER_PERMISSION_GRANT_ALLOWED_CODES = new Set([
+  ...DEFAULT_ROLE_ENTRY_PERMISSION_RULES.map(rule => rule.code),
+  "event.create",
+  "event.edit_self",
+  "event.edit_all",
+  "event.delete_self",
+  "event.delete",
+  "event.publish",
+  "event.scan",
+  "event.manual_checkin",
+  "event.view_registrations",
+  "admin.tournaments.create",
+  "admin.tournaments.manage_all",
+  "admin.tournaments.review",
+  "admin.tournaments.end",
+  "admin.tournaments.reopen",
+  "admin.tournaments.delete",
+  "team.create",
+  "team.manage_all",
+  "team.manage_self",
+  "team.review_join",
+  "team.assign_coach",
+  "team.create_event",
+  "team.toggle_event_visibility",
+  "admin.users.edit_profile",
+  "admin.users.change_role",
+  "admin.users.restrict",
+  "admin.messages.compose",
+  "admin.messages.delete",
+  "admin.repair.team_join_repair",
+  "admin.repair.no_show_adjust",
+  "admin.repair.data_sync",
+  "admin.repair.event_blocklist",
+  "activity.view_noshow",
+  "admin.logs.error_read",
+  "admin.logs.error_delete",
+  "admin.logs.audit_read",
+  "admin.notif.toggle",
+  SECONDARY_IDENTITY_PERMISSION,
+]);
 const ROLE_ACTIVITY_CAPABILITY_CODES = new Set([
   "user.activity.basic_create",
   "user.activity.external_create",
@@ -484,6 +524,17 @@ function sanitizePermissionCodeList(codes) {
     (Array.isArray(codes) ? codes : [])
       .map(code => normalizePermissionCode(code))
       .filter(Boolean)
+  ));
+}
+
+function sanitizeUserPermissionGrantCodeList(codes) {
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .filter(code => typeof code === "string")
+      .map(code => code.trim())
+      .filter(code => code
+        && normalizePermissionCode(code) === code
+        && USER_PERMISSION_GRANT_ALLOWED_CODES.has(code))
   ));
 }
 
@@ -1578,6 +1629,16 @@ async function getRolePermissionsFromFirestore(roleKey) {
   return sanitizePermissionCodeList(data.permissions);
 }
 
+async function getUserPermissionGrantsFromFirestore(uid) {
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return [];
+  const snapshot = await db.collection("userPermissionGrants").doc(safeUid).get();
+  if (!snapshot.exists) return [];
+  const data = snapshot.data() || {};
+  if (data.enabled === false) return [];
+  return sanitizeUserPermissionGrantCodeList(data.permissions);
+}
+
 function sanitizeRoleActivityCapabilityList(capabilities) {
   if (!Array.isArray(capabilities)) return [];
   return Array.from(new Set(capabilities.filter((code) => ROLE_ACTIVITY_CAPABILITY_CODES.has(code))));
@@ -1596,8 +1657,11 @@ async function getCallerAccessContext(request) {
   const stored = role === "super_admin"
     ? []
     : await getRolePermissionsFromFirestore(role);
+  const userGrants = role === "super_admin"
+    ? []
+    : await getUserPermissionGrantsFromFirestore(request.auth?.uid);
   const inherent = INHERENT_ROLE_PERMISSIONS[role] || [];
-  const permissions = Array.from(new Set([...stored, ...inherent]));
+  const permissions = Array.from(new Set([...stored, ...userGrants, ...inherent]));
   const activityCapabilities = await getRoleActivityCapabilitiesFromFirestore(role);
   return {
     role,
@@ -1616,7 +1680,6 @@ async function getCallerAccessContext(request) {
 
 function canUseSecondaryIdentityAccess(access) {
   return !!access
-    && access.role !== "user"
     && access.hasPermission(SECONDARY_IDENTITY_PERMISSION);
 }
 

@@ -145,6 +145,16 @@ const denyAll = {
   superAdmin: false,
 };
 
+const DEFAULT_USER_ACTIVITY_CAPABILITIES = [
+  "user.activity.basic_create",
+  "user.activity.external_create",
+  "user.activity.own_manage_entry",
+  "user.activity.own_edit_basic",
+  "user.activity.own_cancel",
+  "user.activity.site_operate",
+  "user.activity.delegate_assign",
+];
+
 async function assertByRole(opFactory, expectedByRole) {
   for (const role of roles) {
     const db = roleDb[role]();
@@ -185,6 +195,22 @@ async function seedUserDoc(id, overrides = {}) {
 async function seedRolePermissions(roleKey, permissions = []) {
   await seedDoc("rolePermissions", roleKey, {
     permissions: [...permissions],
+  });
+}
+
+async function seedRoleActivityCapabilities(capabilities = DEFAULT_USER_ACTIVITY_CAPABILITIES) {
+  await seedDoc("roleActivityCapabilities", "user", {
+    capabilities: [...capabilities],
+    catalogVersion: "test",
+  });
+}
+
+async function seedUserPermissionGrant(uid, permissions = [], overrides = {}) {
+  await seedDoc("userPermissionGrants", uid, {
+    uid,
+    permissions: [...permissions],
+    enabled: true,
+    ...overrides,
   });
 }
 
@@ -2244,6 +2270,53 @@ describe("/adminMessages/{msgId}", () => {
       deleteDoc(doc(contentManager(), "adminMessages", "am_cm"))
     );
   });
+
+  test("userPermissionGrants(admin.messages.compose) can create only", async () => {
+    await seedUserPermissionGrant("uidUser", ["admin.messages.compose"]);
+    await seedDoc("adminMessages", "am_compose_existing", {
+      title: "Existing",
+      status: "sent",
+    });
+
+    await assertSucceeds(
+      setDoc(doc(user(), "adminMessages", "am_compose"), {
+        title: "Compose",
+        status: "sent",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "adminMessages", "am_compose_existing"), {
+        title: "Blocked",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(user(), "adminMessages", "am_compose_existing"))
+    );
+  });
+
+  test("userPermissionGrants(admin.messages.delete) can soft-delete only", async () => {
+    await seedUserPermissionGrant("uidUser", ["admin.messages.delete"]);
+    await seedDoc("adminMessages", "am_delete", {
+      title: "Delete",
+      status: "sent",
+    });
+    await seedDoc("adminMessages", "am_delete_blocked", {
+      title: "Delete Blocked",
+      status: "sent",
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "adminMessages", "am_delete"), {
+        status: "deleted",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "adminMessages", "am_delete_blocked"), {
+        title: "Blocked",
+      })
+    );
+    await assertFails(deleteDoc(doc(user(), "adminMessages", "am_delete_blocked")));
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -4148,8 +4221,7 @@ describe("hasPerm() permission codes integration", () => {
     );
   });
 
-  test("user role is always ignored by hasPerm even if rolePermissions doc exists for user", async () => {
-    // hasPerm() requires role != 'user'
+  test("user role is always ignored when only rolePermissions/user exists", async () => {
     await seedRolePermissions("user", [
       "admin.announcements.entry",
       "admin.banners.entry",
@@ -4167,6 +4239,256 @@ describe("hasPerm() permission codes integration", () => {
     );
   });
 
+  test("user role can use userPermissionGrants without enabling rolePermissions/user", async () => {
+    await seedUserPermissionGrant("uidUser", ["admin.announcements.entry"]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "announcements", "ann_user_grant"), { title: "OK" })
+    );
+    await assertFails(
+      setDoc(doc(user(), "siteThemes", "theme_user_no_grant"), { name: "No" })
+    );
+  });
+
+  test("userPermissionGrants(team.review_join) can add only managed team membership", async () => {
+    await seedUserPermissionGrant("uidUser", ["team.review_join"]);
+    await seedDoc("teams", "teamUserGrantJoin", {
+      id: "teamUserGrantJoin",
+      name: "Grant Join Team",
+      coachUids: ["uidUser"],
+    });
+    await seedUserDoc("uidJoinApplicant", { displayName: "Join Applicant" });
+
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidJoinApplicant"), {
+        teamId: "teamA",
+        teamName: "Team A",
+        teamIds: ["teamA"],
+        teamNames: ["Team A"],
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidJoinApplicant"), {
+        teamId: "teamUserGrantJoin",
+        teamName: "Grant Join Team",
+        teamIds: ["teamUserGrantJoin"],
+        teamNames: ["Grant Join Team"],
+      })
+    );
+
+    await seedUserDoc("uidJoinExisting", {
+      displayName: "Existing Member",
+      teamId: "teamB",
+      teamName: "Team B",
+      teamIds: ["teamB"],
+      teamNames: ["Team B"],
+    });
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidJoinExisting"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB", "teamUserGrantJoin"],
+        teamNames: ["Team B", "Grant Join Team"],
+      })
+    );
+
+    await seedUserDoc("uidJoinExistingBad", {
+      displayName: "Existing Bad Member",
+      teamId: "teamB",
+      teamName: "Team B",
+      teamIds: ["teamB"],
+      teamNames: ["Team B"],
+    });
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidJoinExistingBad"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB", "teamA"],
+        teamNames: ["Team B", "Team A"],
+      })
+    );
+
+    await seedUserDoc("uidJoinReorder", {
+      displayName: "Reorder Member",
+      teamId: "teamB",
+      teamName: "Team B",
+      teamIds: ["teamB"],
+      teamNames: ["Team B"],
+    });
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidJoinReorder"), {
+        teamId: "teamUserGrantJoin",
+        teamName: "Grant Join Team",
+        teamIds: ["teamUserGrantJoin", "teamB"],
+        teamNames: ["Grant Join Team", "Team B"],
+      })
+    );
+
+    await seedUserDoc("uidJoinRename", {
+      displayName: "Rename Member",
+      teamId: "teamB",
+      teamName: "Team B",
+      teamIds: ["teamB"],
+      teamNames: ["Team B"],
+    });
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidJoinRename"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB", "teamUserGrantJoin"],
+        teamNames: ["Renamed Team B", "Grant Join Team"],
+      })
+    );
+  });
+
+  test("userPermissionGrants align exposed grant codes with Rules write gates", async () => {
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter(
+        (code) => ![
+          "user.activity.basic_create",
+          "user.activity.external_create",
+          "user.activity.own_edit_basic",
+          "user.activity.own_cancel",
+        ].includes(code)
+      )
+    );
+    await seedUserPermissionGrant("uidUser", [
+      "event.create",
+      "event.edit_self",
+      "event.edit_all",
+      "event.delete_self",
+      "event.delete",
+      "team.create_event",
+      "team.manage_all",
+      "admin.tournaments.manage_all",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "evt_user_grant_create"), {
+        title: "Grant Create",
+        creatorUid: "uidUser",
+        status: "open",
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "evt_user_grant_team_create_unmanaged"), {
+        title: "Grant Team Create Unmanaged",
+        creatorUid: "uidUser",
+        status: "open",
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: true,
+        isPublic: true,
+        creatorTeamId: "teamA",
+        creatorTeamName: "Team A",
+        creatorTeamIds: ["teamA"],
+        creatorTeamNames: ["Team A"],
+      })
+    );
+
+    await seedDoc("teams", "teamUserGrant", {
+      id: "teamUserGrant",
+      name: "Grant User Team",
+      coachUids: ["uidUser"],
+    });
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "evt_user_grant_team_create"), {
+        title: "Grant Team Create",
+        creatorUid: "uidUser",
+        status: "open",
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: true,
+        isPublic: true,
+        creatorTeamId: "teamUserGrant",
+        creatorTeamName: "Grant User Team",
+        creatorTeamIds: ["teamUserGrant"],
+        creatorTeamNames: ["Grant User Team"],
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "evt_user_grant_non_team_addon_denied"), {
+        title: "Grant Non Team Addon Denied",
+        creatorUid: "uidUser",
+        status: "open",
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: true,
+        isPublic: true,
+        creatorTeamId: "teamUserGrant",
+        creatorTeamIds: ["teamUserGrant"],
+        feeEnabled: true,
+        fee: 200,
+      })
+    );
+
+    await seedDoc("events", "evt_user_grant_self", {
+      title: "Grant Self",
+      creatorUid: "uidUser",
+      status: "open",
+    });
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "evt_user_grant_self"), {
+        title: "Grant Self Updated",
+      })
+    );
+    await assertSucceeds(deleteDoc(doc(user(), "events", "evt_user_grant_self")));
+
+    await seedDoc("events", "evt_user_grant_other", {
+      title: "Grant Other",
+      creatorUid: "uidOther",
+      ownerUid: "uidOther",
+      status: "open",
+    });
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "evt_user_grant_other"), {
+        status: "closed",
+      })
+    );
+    await assertSucceeds(deleteDoc(doc(user(), "events", "evt_user_grant_other")));
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "teams", "teamA"), {
+        name: "Grant Managed Team",
+      })
+    );
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "tournaments", "tourA"), {
+        name: "Grant Managed Tournament",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(user(), "tournaments", "tourA", "entries", "teamGrant"), {
+        teamId: "teamGrant",
+        status: "confirmed",
+      })
+    );
+  });
   test("content_manager with multiple permissions can access all granted collections", async () => {
     await seedRolePermissions("content_manager", [
       "admin.announcements.entry",

@@ -132,6 +132,13 @@ Object.assign(App, {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser || !code) return false;
     const role = String(currentUser.role || '').trim().toLowerCase();
+    const activeUser = ApiService.getCurrentUser?.() || null;
+    const targetUid = String(currentUser.uid || currentUser.lineUserId || currentUser._docId || '').trim();
+    const activeUid = String(activeUser?.uid || activeUser?.lineUserId || activeUser?._docId || '').trim();
+    const isCurrentUser = !user || (!!targetUid && !!activeUid && targetUid === activeUid);
+    if (isCurrentUser && typeof this.hasPermission === 'function') {
+      return this.hasPermission(code);
+    }
     if (role === 'super_admin') return true;
     if (role === 'user') return false;
     if (typeof this.hasPermission === 'function') {
@@ -186,8 +193,14 @@ Object.assign(App, {
   _hasTournamentCreatePermission(user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return false;
+    const activeUser = ApiService.getCurrentUser?.() || null;
+    const targetUid = String(currentUser.uid || currentUser.lineUserId || currentUser._docId || '').trim();
+    const activeUid = String(activeUser?.uid || activeUser?.lineUserId || activeUser?._docId || '').trim();
+    const isCurrentUser = !user || (!!targetUid && !!activeUid && targetUid === activeUid);
     if (typeof this.hasPermission === 'function') {
-      return this.hasPermission('admin.tournaments.create', currentUser.role);
+      return isCurrentUser
+        ? this.hasPermission('admin.tournaments.create')
+        : this.hasPermission('admin.tournaments.create', currentUser.role);
     }
     return String(currentUser.role || '').trim().toLowerCase() === 'super_admin';
   },

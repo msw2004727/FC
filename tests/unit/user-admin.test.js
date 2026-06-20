@@ -467,3 +467,36 @@ describe('user admin filter panel wiring', () => {
     expect(adminCss).toContain('.admin-user-filter-panel.admin-search');
   });
 });
+describe('individual user permission grants admin wiring', () => {
+  test('UI module searches admin users and renders the strict grant catalog', () => {
+    const source = readProjectFile('js/modules/user-admin/user-admin-user-grants.js');
+    expect(source).toContain('ApiService.getAdminUsers');
+    expect(source).toContain('_filterUserPermissionGrantUsers');
+    expect(source).toContain('getUserPermissionGrantAllowedCodes');
+    expect(source).toContain('sanitizeUserPermissionGrantCodeList');
+    expect(source).toContain('ApiService.getPermissions');
+    expect(source).toContain('toggleUserPermissionGrantCode');
+    expect(source).toContain('saveUserPermissionGrant');
+  });
+
+  test('Firebase CRUD writes safe public grant shape and super-admin audit entries', () => {
+    const crud = readProjectFile('js/firebase-crud.js');
+    expect(crud).toContain("collection('userPermissionGrants').doc(safeUid)");
+    expect(crud).toContain("collection('userPermissionGrantAudit').doc(safeUid).collection('entries')");
+    expect(crud).toContain('sanitizeUserPermissionGrantCodeList');
+    expect(crud).toContain('uid: safeUid');
+    expect(crud).toContain('permissions,');
+    expect(crud).toContain('enabled,');
+    expect(crud).toContain('updatedAt: firebase.firestore.FieldValue.serverTimestamp()');
+    expect(crud).toContain('previousPermissions');
+    expect(crud).toContain('actorUid');
+  });
+
+  test('ApiService exposes grant read/write wrappers for the admin UI', () => {
+    const api = readProjectFile('js/api-service.js');
+    expect(api).toContain('async getUserPermissionGrant(uid)');
+    expect(api).toContain('return FirebaseService.getUserPermissionGrant(uid);');
+    expect(api).toContain('async saveUserPermissionGrant(uid, grant)');
+    expect(api).toContain('return FirebaseService.saveUserPermissionGrant(uid, grant);');
+  });
+});

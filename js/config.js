@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260620k';
+const CACHE_VERSION = '0.20260620l';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -949,6 +949,31 @@ function sanitizePermissionCodeList(codes) {
     (Array.isArray(codes) ? codes : [])
       .map(code => normalizePermissionCode(code))
       .filter(Boolean)
+  ));
+}
+
+function getUserPermissionGrantAllowedCodes() {
+  const codes = [];
+  getAdminDrawerPermissionDefinitions().forEach(def => {
+    if (def.entryCode) codes.push(def.entryCode);
+    (def.items || []).forEach(item => {
+      if (item?.code) codes.push(item.code);
+    });
+  });
+  getProfileFeaturePermissionDefinitions().forEach(category => {
+    (category.items || []).forEach(item => {
+      if (item?.code) codes.push(item.code);
+    });
+  });
+  return sanitizePermissionCodeList(codes).filter(code => isPermissionCodeEnabled(code));
+}
+
+function sanitizeUserPermissionGrantCodeList(codes) {
+  const allowed = new Set(getUserPermissionGrantAllowedCodes());
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .map(code => (typeof code === 'string' ? code.trim() : ''))
+      .filter(code => code && allowed.has(code) && normalizePermissionCode(code) === code)
   ));
 }
 

@@ -20,8 +20,17 @@ describe('permission audit page wiring', () => {
     expect(html).toContain('App.runPermissionAuditReport()');
   });
 
+  test('admin roles page exposes the individual user grants tab', () => {
+    const html = read('pages/admin-system.html');
+    expect(html).toContain('id="role-admin-tab-user-grants"');
+    expect(html).toContain('id="role-admin-user-grants-pane"');
+    expect(html).toContain('id="user-permission-grant-search"');
+    expect(html).toContain('id="user-permission-grant-results"');
+    expect(html).toContain('id="user-permission-grant-editor"');
+  });
   test('script loader loads permission audit modules from the isolated folder', () => {
     const loader = read('js/core/script-loader.js');
+    expect(loader).toContain('js/modules/user-admin/user-admin-user-grants.js');
     expect(loader).toContain('js/modules/user-admin/permission-audit/permission-audit.js');
     expect(loader).toContain('js/modules/user-admin/permission-audit/permission-audit-render.js');
     expect(loader).not.toContain('js/modules/user-admin/user-admin-permission-audit.js');

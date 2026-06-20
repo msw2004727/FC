@@ -61,6 +61,35 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
+
+    function hasUserPermissionGrantForUid(uid, perm) {
+      let grantPath = /databases/$(database)/documents/userPermissionGrants/$(uid);
+      let grantData = exists(grantPath) ? get(grantPath).data : {};
+      return uid != ''
+        && grantData.permissions is list
+        && (!('enabled' in grantData) || grantData.enabled == true)
+        && perm in grantData.permissions;
+    }
+
+    function hasUserPermissionGrant(perm) {
+      return request.auth != null
+        && hasUserPermissionGrantForUid(request.auth.uid, perm);
+    }
+
+    function hasAllUserPermissionGrantsForUid(uid, perms) {
+      let grantPath = /databases/$(database)/documents/userPermissionGrants/$(uid);
+      let grantData = exists(grantPath) ? get(grantPath).data : {};
+      return uid != ''
+        && grantData.permissions is list
+        && (!('enabled' in grantData) || grantData.enabled == true)
+        && grantData.permissions.hasAll(perms);
+    }
+
+    function hasAllUserPermissionGrants(perms) {
+      return request.auth != null
+        && hasAllUserPermissionGrantsForUid(request.auth.uid, perms);
+    }
+
     function hasPerm(perm) {
       let role = authRole();
       let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
@@ -70,8 +99,12 @@ service cloud.firestore {
         && perm in get(rpPath).data.permissions;
     }
 
+    function hasEffectivePerm(perm) {
+      return hasPerm(perm) || hasUserPermissionGrant(perm);
+    }
+
     function canUseSecondaryIdentity() {
-      return isSuperAdmin() || hasPerm('profile.secondary_identity');
+      return isSuperAdmin() || hasEffectivePerm('profile.secondary_identity');
     }
 
     function userRootPath(uid) {
@@ -150,15 +183,15 @@ service cloud.firestore {
 
     // ── 動態權限檢查（即時讀取 rolePermissions collection）──
     function canRunTeamJoinRepair() {
-      return isSuperAdmin() || hasPerm('admin.repair.team_join_repair');
+      return isSuperAdmin() || hasEffectivePerm('admin.repair.team_join_repair');
     }
 
     function canManageNoShowCorrections() {
-      return isSuperAdmin() || hasPerm('admin.repair.no_show_adjust');
+      return isSuperAdmin() || hasEffectivePerm('admin.repair.no_show_adjust');
     }
 
     function canManageEventBlocklist() {
-      return isSuperAdmin() || hasPerm('admin.repair.event_blocklist');
+      return isSuperAdmin() || hasEffectivePerm('admin.repair.event_blocklist');
     }
 
     function notificationToggleAllowedKeys() {
@@ -190,7 +223,7 @@ service cloud.firestore {
     }
 
     function canCreateNotificationFeatureFlags(docId) {
-      return hasPerm('admin.notif.toggle')
+      return hasEffectivePerm('admin.notif.toggle')
         && docId == 'featureFlags'
         && request.resource.data.keys().hasOnly(['notificationToggles'])
         && ('notificationToggles' in request.resource.data)
@@ -198,7 +231,7 @@ service cloud.firestore {
     }
 
     function canUpdateNotificationFeatureFlags(docId) {
-      return hasPerm('admin.notif.toggle')
+      return hasEffectivePerm('admin.notif.toggle')
         && docId == 'featureFlags'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notificationToggles'])
         && ('notificationToggles' in request.resource.data)
@@ -206,7 +239,7 @@ service cloud.firestore {
     }
 
     function canManageAutoExpSiteConfig(docId) {
-      return hasPerm('admin.auto_exp.entry')
+      return hasEffectivePerm('admin.auto_exp.entry')
         && docId == 'autoExpRules';
     }
 
@@ -244,7 +277,9 @@ service cloud.firestore {
       return isAdmin()
         || isCoachPlus()
         || hasPerm('activity.manage.entry')
-        || hasPerm('event.edit_all');
+        || hasPerm('event.edit_all')
+        || hasUserPermissionGrant('activity.manage.entry')
+        || hasUserPermissionGrant('event.edit_all');
     }
 
     function eventDataHasDelegateUid(eventData, uid) {
@@ -294,7 +329,7 @@ service cloud.firestore {
     }
 
     function canBroadManageEventData(eventData) {
-      return (isSuperAdmin() || hasPerm('event.edit_all'))
+      return (isSuperAdmin() || hasPerm('event.edit_all') || hasUserPermissionGrant('event.edit_all'))
         && canOperatePrivateEventData(eventData);
     }
 
@@ -313,26 +348,26 @@ service cloud.firestore {
       return isAuth()
         && eventData != null
         && (
-          canBroadManageEventData(eventData)
-          || canScopedManageEventData(eventData)
-          || (
+          (
             authRole() == 'user'
             && hasActivityCap('user.activity.site_operate')
             && canOperatePrivateEventData(eventData)
             && isEventOwnerOrDelegateForData(eventData)
           )
+          || canBroadManageEventData(eventData)
+          || canScopedManageEventData(eventData)
         );
     }
 
     function isEventSiteOperatorForData(eventData) {
-      return isEventOperatorForData(eventData)
-        || (
+      return (
           isAuth()
           && eventData != null
           && authRole() == 'user'
           && canOperatePrivateEventData(eventData)
           && eventDataHasDelegateUid(eventData, request.auth.uid)
-        );
+        )
+        || isEventOperatorForData(eventData);
     }
 
     function pathEventData(eventDocId) {
@@ -741,13 +776,50 @@ service cloud.firestore {
           || !isEmptyOptionalList(request.resource.data.get('creatorTeamNames', []));
       }
 
+      function eventCreateHasOnlyTeamScopedAddon() {
+        return eventCreateHasTeamScopedAddon()
+          && request.resource.data.get('feeEnabled', false) == false
+          && request.resource.data.get('fee', 0) == 0
+          && request.resource.data.get('genderRestrictionEnabled', false) == false
+          && isEmptyOptionalString(request.resource.data.get('allowedGender', null))
+          && request.resource.data.get('privateEvent', false) == false
+          && request.resource.data.get('teamSplit', null) == null
+          && request.resource.data.get('socialLinksEnabled', false) == false
+          && isEmptyOptionalList(request.resource.data.get('socialLinks', []))
+          && request.resource.data.get('earlyBirdEnabled', false) == false
+          && request.resource.data.get('earlyBirdCost', 0) == 0
+          && request.resource.data.get('gpsEnabled', false) == false
+          && request.resource.data.get('lat', null) == null
+          && request.resource.data.get('lng', null) == null
+          && request.resource.data.get('mapAddress', null) == null
+          && request.resource.data.get('mapPlaceId', null) == null
+          && request.resource.data.get('mapProvider', null) == null
+          && request.resource.data.get('mapLocationConfirmed', false) == false
+          && request.resource.data.get('mapLocationUpdatedAt', null) == null;
+      }
+
+      function eventCreateHasAuthorizedCreatorTeamScope() {
+        let creatorTeamId = request.resource.data.get('creatorTeamId', '');
+        let creatorTeamIds = request.resource.data.get('creatorTeamIds', []);
+        return request.resource.data.get('teamOnly', false) == true
+          && creatorTeamId is string
+          && creatorTeamId.size() > 0
+          && creatorTeamIds is list
+          && creatorTeamIds.size() == 1
+          && creatorTeamIds[0] == creatorTeamId
+          && isCurrentUserTeamStaff(creatorTeamId);
+      }
+
       function eventCreateAddonsAllowed() {
         return hasActivityCap('user.activity.addons_use')
           ? (
-            !eventCreateHasTeamScopedAddon()
-            || hasPerm('team.create_event')
-            || hasActivityManageEntry()
-          )
+              !eventCreateHasTeamScopedAddon()
+              || hasActivityManageEntry()
+              || (
+                hasUserPermissionGrant('team.create_event')
+                && eventCreateHasAuthorizedCreatorTeamScope()
+              )
+            )
           : eventCreateHasNoAddons();
       }
 
@@ -813,12 +885,33 @@ service cloud.firestore {
         let isExternal = request.resource.data.get('type', '') == 'external';
         return authRole() == 'user'
           && isUserCreateOwner()
-          && eventCreateAddonsAllowed()
           && eventCreateHasSafeInitialProjection()
           && eventCreateDelegateFieldsAllowed()
           && (
-            (isExternal && hasActivityCap('user.activity.external_create'))
-            || (!isExternal && hasActivityCap('user.activity.basic_create'))
+            request.resource.data.get('teamOnly', false) == true
+              ? (
+                  (
+                    hasAllUserPermissionGrants(['event.create', 'team.create_event'])
+                    && eventCreateHasAuthorizedCreatorTeamScope()
+                    && eventCreateHasOnlyTeamScopedAddon()
+                  )
+                  || (
+                    eventCreateAddonsAllowed()
+                    && (
+                      (isExternal && hasActivityCap('user.activity.external_create'))
+                      || (!isExternal && hasActivityCap('user.activity.basic_create'))
+                      || hasUserPermissionGrant('event.create')
+                    )
+                  )
+                )
+              : (
+                  eventCreateAddonsAllowed()
+                  && (
+                    (isExternal && hasActivityCap('user.activity.external_create'))
+                    || (!isExternal && hasActivityCap('user.activity.basic_create'))
+                    || hasUserPermissionGrant('event.create')
+                  )
+                )
           );
       }
 
@@ -826,7 +919,7 @@ service cloud.firestore {
         let role = authRole();
         return role == 'user'
           ? isUserActivityCapEventCreate()
-          : (hasActivityManageEntry() || hasPerm('event.create'));
+          : (hasActivityManageEntry() || hasPerm('event.create') || hasUserPermissionGrant('event.create'));
       }
 
       function eventUpdateChangedAddonFields(changed) {
@@ -931,12 +1024,14 @@ service cloud.firestore {
           isUserOwnerBasicUpdate()
           || isScopedRoleBasicUpdate()
           || canBroadManageEventUpdate()
-          || (isEventOwner() && hasPerm('event.edit_self'))
+          || (isEventOwner() && hasEffectivePerm('event.edit_self'))
           || isSignupFieldsOnly()
           || (isBlocklistFieldsOnly() && canManageEventBlocklist())
           || isViewCountIncrementOnly()
         );
-      allow delete: if isAdmin() || hasPerm('event.delete');
+      allow delete: if isAdmin()
+        || hasEffectivePerm('event.delete')
+        || (isEventOwner() && hasEffectivePerm('event.delete_self'));
     }
 
     match /eventTemplates/{templateId} {
@@ -1304,10 +1399,68 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
+      function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
+        return newTeamIds.size() > index
+          && newTeamIds[index] is string
+          && !(newTeamIds[index] in oldTeamIds)
+          && isCurrentUserTeamStaff(newTeamIds[index]);
+      }
+
+      function isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, index) {
+        return oldTeamIds.size() <= index
+          || (
+            newTeamIds.size() > index
+            && newTeamIds[index] == oldTeamIds[index]
+            && (
+              oldTeamNames.size() <= index
+              || (newTeamNames.size() > index && newTeamNames[index] == oldTeamNames[index])
+            )
+          );
+      }
+
+      function isTeamMembershipPrefixUnchanged(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames) {
+        return isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 0)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 1)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 2)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 3)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 4)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 5)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 6)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 7)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 8)
+          && isTeamMembershipPrefixUnchangedAt(oldTeamIds, oldTeamNames, newTeamIds, newTeamNames, 9);
+      }
+
+      function isSafeGrantedTeamReviewJoinUpdate() {
+        let oldData = resource.data;
+        let newData = request.resource.data;
+        let oldTeamIds = (oldData.teamIds is list && oldData.teamIds.size() > 0)
+          ? oldData.teamIds
+          : (oldData.teamId == null ? [] : [oldData.teamId]);
+        let oldTeamNames = (oldData.teamNames is list && oldData.teamNames.size() > 0)
+          ? oldData.teamNames
+          : (oldData.teamName == null ? [] : [oldData.teamName]);
+        return !isOwner(userId)
+          && hasUserPermissionGrant('team.review_join')
+          && isSafeTeamMembershipUpdateByStaff()
+          && newData.teamId is string
+          && newData.teamName is string
+          && newData.teamIds is list
+          && newData.teamNames is list
+          && oldTeamIds.size() <= 10
+          && newData.teamIds.size() == oldTeamIds.size() + 1
+          && newData.teamIds.hasAll(oldTeamIds)
+          && newData.teamNames.size() == newData.teamIds.size()
+          && newData.teamId == newData.teamIds[0]
+          && newData.teamName == newData.teamNames[0]
+          && isTeamMembershipPrefixUnchanged(oldTeamIds, oldTeamNames, newData.teamIds, newData.teamNames)
+          && isManagedAddedTeamAt(oldTeamIds, newData.teamIds, oldTeamIds.size());
+      }
+
       function canWriteIdentityPrivateSettings() {
         return (isOwner(userId) && canUseSecondaryIdentity())
           || isSuperAdmin()
-          || (isAdmin() && hasPerm('profile.secondary_identity'));
+          || (isAdmin() && hasEffectivePerm('profile.secondary_identity'));
       }
 
       allow read: if isAuth();
@@ -1317,7 +1470,8 @@ service cloud.firestore {
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
         || (isSuperAdmin() && isSafeSuperAdminUserUpdate())
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
-        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
+        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff())
+        || isSafeGrantedTeamReviewJoinUpdate();
       allow delete: if false;
 
       match /identityPrivate/{settingsId} {
@@ -1477,12 +1631,12 @@ service cloud.firestore {
           && isAuth()
           && isTeamKeyOnlyUpdate()
           && (
-            (
+            canUserManageTeamSplitData(eventData)
+            || (
               hasActivityManageEntry()
               && (eventData.creatorUid == request.auth.uid
                   || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids))
             )
-            || canUserManageTeamSplitData(eventData)
           );
       }
 
@@ -1507,8 +1661,8 @@ service cloud.firestore {
         || (isWaitlistDemotion() && isEventOperatorForData(getRegEventData()))
         || (isManagerRegistrationRemoval() && isEventOperatorForData(getRegEventData()))
         || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
-        || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
-        || (isActiveRegistration() && isSelfSelectTeamKeyUpdate());
+        || (isActiveRegistration() && isSelfSelectTeamKeyUpdate())
+        || (isActiveRegistration() && isEventManagerTeamKeyUpdate());
       allow delete: if isAdmin() || isRegistrationOwnerResource();
     }
 
@@ -1532,7 +1686,7 @@ service cloud.firestore {
       }
 
       function canManageAnyTeam() {
-        return isSuperAdmin() || hasPerm('team.manage_all');
+        return isSuperAdmin() || hasPerm('team.manage_all') || hasUserPermissionGrant('team.manage_all');
       }
 
       function isTeamViewCountIncrementOnly() {
@@ -1731,7 +1885,7 @@ service cloud.firestore {
       }
 
       function canManageAllTournaments() {
-        return isSuperAdmin() || hasPerm('admin.tournaments.manage_all');
+        return isSuperAdmin() || hasPerm('admin.tournaments.manage_all') || hasUserPermissionGrant('admin.tournaments.manage_all');
       }
 
       function canManageTournamentScope() {
@@ -1745,11 +1899,11 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if false;
-      allow update: if canManageAllTournaments()
-        || (tournamentExists()
+      allow update: if (tournamentExists()
           && canManageTournamentScope()
           && tournamentRootImmutableFieldsSafe()
-          && delegateUidsUnchangedOrCreator());
+          && delegateUidsUnchangedOrCreator())
+        || canManageAllTournaments();
       allow delete: if false;
 
       match /applications/{applicationId} {
@@ -1782,8 +1936,8 @@ service cloud.firestore {
             ]);
         }
 
-        allow read: if canManageAllTournaments()
-          || canManageTournamentScope()
+        allow read: if canManageTournamentScope()
+          || canManageAllTournaments()
           || ((resource.data.requestedByUid is string) && resource.data.requestedByUid == request.auth.uid)
           || ((resource.data.teamId is string) && isCurrentUserInTeam(resource.data.teamId))
           || ((resource.data.teamId is string) && isCurrentUserTeamCaptainOrLeader(resource.data.teamId));
@@ -1819,10 +1973,10 @@ service cloud.firestore {
           allow read: if isAuth();
           allow create: if tournamentExists() && canManageAllTournaments();
           allow update: if tournamentExists()
-            && (canManageAllTournaments()
-              || (isCurrentUserTeamStaff(teamId) && isTournamentEntryMemberProfileUpdate()));
+            && ((isCurrentUserTeamStaff(teamId) && isTournamentEntryMemberProfileUpdate())
+              || canManageAllTournaments());
           allow delete: if tournamentExists()
-            && (canManageAllTournaments() || isCurrentUserTeamStaff(teamId));
+            && (isCurrentUserTeamStaff(teamId) || canManageAllTournaments());
         }
       }
 
@@ -1873,15 +2027,15 @@ service cloud.firestore {
         }
 
         allow read: if true;
-        allow create: if canManageAllTournaments()
-          || (tournamentExists() && canManageTournamentScope());
-        allow update: if canManageAllTournaments()
-          || (tournamentExists() && canManageTournamentScope())
+        allow create: if (tournamentExists() && canManageTournamentScope())
+          || canManageAllTournaments();
+        allow update: if (tournamentExists() && canManageTournamentScope())
+          || canManageAllTournaments()
           || (tournamentNotEnded()
             && isRefereeScoreOnlyUpdate()
             && (isTournamentRefereeHead() || isAllowedMatchReferee()));
-        allow delete: if canManageAllTournaments()
-          || (tournamentExists() && canManageTournamentScope());
+        allow delete: if (tournamentExists() && canManageTournamentScope())
+          || canManageAllTournaments();
       }
     }
 
@@ -1954,8 +2108,8 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth();
       allow update: if isAuth()
-        && (isShopItemOwner() || isAdmin() || hasPerm('admin.shop.entry'));
-      allow delete: if isAdmin() || isShopItemOwner() || hasPerm('admin.shop.entry');
+        && (isShopItemOwner() || isAdmin() || hasEffectivePerm('admin.shop.entry'));
+      allow delete: if isAdmin() || isShopItemOwner() || hasEffectivePerm('admin.shop.entry');
     }
 
     // ═══════════════════════════════════════════
@@ -1964,9 +2118,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /announcements/{annId} {
       allow read: if true;
-      allow create: if isAdmin() || hasPerm('admin.announcements.entry');
-      allow update: if isAdmin() || hasPerm('admin.announcements.entry');
-      allow delete: if isAdmin() || hasPerm('admin.announcements.entry');
+      allow create: if isAdmin() || hasEffectivePerm('admin.announcements.entry');
+      allow update: if isAdmin() || hasEffectivePerm('admin.announcements.entry');
+      allow delete: if isAdmin() || hasEffectivePerm('admin.announcements.entry');
     }
 
     // ═══════════════════════════════════════════
@@ -1975,11 +2129,11 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /achievements/{achId} {
       allow read: if true;
-      allow write: if isAdmin() || hasPerm('admin.achievements.entry');
+      allow write: if isAdmin() || hasEffectivePerm('admin.achievements.entry');
     }
     match /badges/{badgeId} {
       allow read: if true;
-      allow write: if isAdmin() || hasPerm('admin.achievements.entry');
+      allow write: if isAdmin() || hasEffectivePerm('admin.achievements.entry');
     }
 
     // ═══════════════════════════════════════════
@@ -1988,17 +2142,17 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /banners/{bannerId} {
       allow read: if true;
-      allow create, update: if isAdmin() || hasPerm('admin.banners.entry');
+      allow create, update: if isAdmin() || hasEffectivePerm('admin.banners.entry');
       allow delete: if false;
     }
     match /floatingAds/{adId} {
       allow read: if true;
-      allow create, update: if isAdmin() || hasPerm('admin.banners.entry');
+      allow create, update: if isAdmin() || hasEffectivePerm('admin.banners.entry');
       allow delete: if false;
     }
     match /sponsors/{sponsorId} {
       allow read: if true;
-      allow create, update: if isAdmin() || hasPerm('admin.banners.entry');
+      allow create, update: if isAdmin() || hasEffectivePerm('admin.banners.entry');
       allow delete: if false;
     }
 
@@ -2008,7 +2162,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /popupAds/{adId} {
       allow read: if true;
-      allow write: if isAdmin() || hasPerm('admin.banners.entry');
+      allow write: if isAdmin() || hasEffectivePerm('admin.banners.entry');
     }
 
     // ═══════════════════════════════════════════
@@ -2026,7 +2180,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /siteThemes/{themeId} {
       allow read: if true;
-      allow create, update: if isAdmin() || hasPerm('admin.themes.entry');
+      allow create, update: if isAdmin() || hasEffectivePerm('admin.themes.entry');
       allow delete: if false;
     }
     // ═══════════════════════════════════════════
@@ -2051,7 +2205,7 @@ service cloud.firestore {
 
     match /gameConfigs/{configId} {
       allow read: if true;
-      allow create, update: if isAdmin() || hasPerm('admin.games.entry');
+      allow create, update: if isAdmin() || hasEffectivePerm('admin.games.entry');
       allow delete: if false;
     }
 
@@ -2087,17 +2241,17 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /errorLogs/{docId} {
-      allow read: if isSuperAdmin() || hasPerm('admin.logs.error_read');
+      allow read: if isSuperAdmin() || hasEffectivePerm('admin.logs.error_read');
       allow create: if isAuth();
       allow update: if false;
-      allow delete: if isSuperAdmin() || hasPerm('admin.logs.error_delete');
+      allow delete: if isSuperAdmin() || hasEffectivePerm('admin.logs.error_delete');
     }
     match /userCorrections/{uid} {
       allow read: if isAuth();
       allow create, update, delete: if canManageNoShowCorrections();
     }
     match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
-      allow read: if isSuperAdmin() || hasPerm('admin.logs.audit_read');
+      allow read: if isSuperAdmin() || hasEffectivePerm('admin.logs.audit_read');
       allow create, update, delete: if false;
     }
 
@@ -2135,6 +2289,89 @@ service cloud.firestore {
       allow read: if isAuth();
       allow write: if isSuperAdmin();
     }
+    function allowedUserPermissionGrantCodes() {
+      return [
+        'activity.manage.entry',
+        'admin.tournaments.entry',
+        'team.manage.entry',
+        'admin.games.entry',
+        'admin.users.entry',
+        'admin.banners.entry',
+        'admin.shop.entry',
+        'admin.messages.entry',
+        'admin.dashboard.entry',
+        'admin.seo.entry',
+        'admin.themes.entry',
+        'admin.exp.entry',
+        'admin.auto_exp.entry',
+        'admin.notif.entry',
+        'admin.announcements.entry',
+        'admin.achievements.entry',
+        'admin.logs.entry',
+        'admin.repair.entry',
+        'admin.inactive.entry',
+        'event.create',
+        'event.edit_self',
+        'event.edit_all',
+        'event.delete_self',
+        'event.delete',
+        'event.publish',
+        'event.scan',
+        'event.manual_checkin',
+        'event.view_registrations',
+        'admin.tournaments.create',
+        'admin.tournaments.manage_all',
+        'admin.tournaments.review',
+        'admin.tournaments.end',
+        'admin.tournaments.reopen',
+        'admin.tournaments.delete',
+        'team.create',
+        'team.manage_all',
+        'team.manage_self',
+        'team.review_join',
+        'team.assign_coach',
+        'team.create_event',
+        'team.toggle_event_visibility',
+        'admin.users.edit_profile',
+        'admin.users.change_role',
+        'admin.users.restrict',
+        'admin.messages.compose',
+        'admin.messages.delete',
+        'admin.repair.team_join_repair',
+        'admin.repair.no_show_adjust',
+        'admin.repair.data_sync',
+        'admin.repair.event_blocklist',
+        'activity.view_noshow',
+        'admin.logs.error_read',
+        'admin.logs.error_delete',
+        'admin.logs.audit_read',
+        'admin.notif.toggle',
+        'profile.secondary_identity',
+      ];
+    }
+    function isSafeUserPermissionGrantWrite(uid) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['uid', 'permissions', 'enabled', 'updatedAt'])
+        && data.keys().hasAll(['uid', 'permissions'])
+        && data.uid == uid
+        && data.permissions is list
+        && data.permissions.size() <= 500
+        && data.permissions.hasOnly(allowedUserPermissionGrantCodes())
+        && (!('enabled' in data) || data.enabled is bool)
+        && (!('updatedAt' in data) || data.updatedAt == request.time);
+    }
+    match /userPermissionGrants/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+      allow create, update: if isSuperAdmin()
+        && isSafeUserPermissionGrantWrite(uid);
+      allow delete: if isSuperAdmin();
+    }
+    match /userPermissionGrantAudit/{uid} {
+      allow read, write: if false;
+      match /entries/{entryId} {
+        allow read, write: if isSuperAdmin();
+      }
+    }
     match /roleActivityCapabilities/{roleId} {
       allow read: if isAuth();
       allow write: if isSuperAdmin();
@@ -2149,8 +2386,21 @@ service cloud.firestore {
     //  登入可讀；admin 或持有 admin.messages.entry 可寫
     // ═══════════════════════════════════════════
     match /adminMessages/{msgId} {
+      function isAdminMessageDeleteStatusOnlyUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status'])
+          && request.resource.data.status is string
+          && request.resource.data.status == 'deleted';
+      }
+
       allow read: if isAuth();
-      allow write: if isAdmin() || hasPerm('admin.messages.entry');
+      allow create: if isAdmin()
+        || hasEffectivePerm('admin.messages.entry')
+        || hasEffectivePerm('admin.messages.compose');
+      allow update: if isAdmin()
+        || hasEffectivePerm('admin.messages.entry')
+        || (hasEffectivePerm('admin.messages.delete') && isAdminMessageDeleteStatusOnlyUpdate());
+      allow delete: if isAdmin() || hasEffectivePerm('admin.messages.entry');
     }
 
     // ═══════════════════════════════════════════
@@ -2229,7 +2479,7 @@ service cloud.firestore {
             isCurrentUserTeamStaff(data.teamId)
             || isEduCourseRosterAgent(data)
             || isSuperAdmin()
-            || hasPerm('team.manage_all')
+            || hasEffectivePerm('team.manage_all')
           );
       }
 
@@ -2328,7 +2578,7 @@ service cloud.firestore {
     //  admin / super_admin / 持有 admin.seo.entry 權限者可讀
     // ═══════════════════════════════════════════
     match /seoSnapshots/{dateId} {
-      allow read: if isAuth() && (isAdmin() || isSuperAdmin() || hasPerm('admin.seo.entry'));
+      allow read: if isAuth() && (isAdmin() || isSuperAdmin() || hasEffectivePerm('admin.seo.entry'));
       allow write: if false;
     }
 
@@ -2512,12 +2762,12 @@ service cloud.firestore {
           && isAuth()
           && isSubTeamKeyOnlyUpdate()
           && (
-            (
+            canUserManageTeamSplitData(eventData)
+            || (
               hasActivityManageEntry()
               && (eventData.creatorUid == request.auth.uid
                   || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids))
             )
-            || canUserManageTeamSplitData(eventData)
           );
       }
 
@@ -2541,8 +2791,8 @@ service cloud.firestore {
         || (isSubWaitlistDemotion() && isEventOperatorForData(getSubRegEventData()))
         || (isSubManagerRegistrationRemoval() && isEventOperatorForData(getSubRegEventData()))
         || (isSubRegOwner() && isSubBadgeOnlyUpdate())
-        || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
-        || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate());
+        || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate())
+        || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate());
       allow delete: if isAdmin() || isSubRegOwner();
     }
 
