@@ -76,35 +76,11 @@ Object.assign(App, {
     };
   },
 
-  _findEventCommentRootUser(authorUid, rootAuthorName = '') {
-    const uid = String(authorUid || '').trim();
-    const rootName = String(rootAuthorName || '').trim();
-    const users = (typeof ApiService !== 'undefined' && typeof ApiService.getAdminUsers === 'function')
-      ? (ApiService.getAdminUsers() || [])
-      : [];
-    return users.find(user => {
-      const userUid = String(user?.uid || user?._docId || user?.lineUserId || '').trim();
-      if (uid && userUid === uid) return true;
-      const userName = String(user?.displayName || user?.name || '').trim();
-      return !uid && rootName && userName === rootName;
-    }) || null;
-  },
-
-  _renderEventCommentAuditTrace(comment, ctx = {}) {
-    // 2026-06-20：隱藏第二身份留言的「主帳號」審計標籤，避免在留言板曝光第二身份背後的真實主帳號與層級，
-    // 否則第二身份對其他管理者就失去匿名性、違背初衷。審計資料（authorUid / rootAuthorName）仍保留於
-    // Firestore，僅前台不再顯示；下方原審計邏輯保留，日後若要恢復顯示，移除這行 return 即可。
-    return '';
-    if (!ctx?.canManage || comment?.identitySnapshot?.identityId !== 'secondary') return '';
-    const rootUser = this._findEventCommentRootUser(comment.authorUid, comment.rootAuthorName);
-    const rootUid = String(comment.authorUid || rootUser?.uid || rootUser?._docId || rootUser?.lineUserId || '').trim();
-    const rootName = String(rootUser?.displayName || rootUser?.name || comment.rootAuthorName || rootUid || 'unknown').trim();
-    const roleKey = String(rootUser?.role || '').trim();
-    const roleLabel = (typeof ROLES !== 'undefined' && roleKey && ROLES[roleKey]?.label)
-      ? ROLES[roleKey].label
-      : (roleKey || 'unknown');
-    const title = `Root: ${rootName} / ${roleLabel}`;
-    return `<span class="event-comment-audit-trace" title="${escapeHTML(title)}"><span class="event-comment-audit-label">&#20027;&#24115;&#34399;</span><span>${escapeHTML(rootName)}</span><span>${escapeHTML(roleLabel)}</span></span>`;
+  _renderEventCommentAuditTrace(comment) {
+    // 2026-06-20：第二身份（官方分身）留言顯示「ToosterX官方認證」公開標章，取代原本只給管理者看、會還原真實主帳號的審計標籤。
+    // 公開給所有人，只標示官方身份、不曝光第二身份背後的真實帳號。
+    if (comment?.identitySnapshot?.identityId !== 'secondary') return '';
+    return `<span class="event-comment-audit-trace event-comment-official-badge" title="ToosterX 官方認證帳號"><svg class="event-comment-official-check" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M10.4 15.3 6.9 11.8 8 10.7l2.4 2.4 5.6-5.6 1.1 1.1z" fill="#fff"/></svg><span>ToosterX官方認證</span></span>`;
   },
 
   _isEventCommentsClosed(eventRecord) {
@@ -886,7 +862,7 @@ Object.assign(App, {
     const authorHtml = isSecondarySnapshot
       ? `<span class="event-comment-author event-comment-author-static">${escapeHTML(comment.authorName)}</span>`
       : `<button type="button" class="event-comment-author" onclick="App.showUserProfile('${escapeHTML(comment.authorName)}',{uid:'${escapeHTML(comment.authorUid)}',allowGuest:true})">${escapeHTML(comment.authorName)}</button>`;
-    const auditTraceHtml = this._renderEventCommentAuditTrace(comment, ctx);
+    const auditTraceHtml = this._renderEventCommentAuditTrace(comment);
     return `<article class="event-comment-card" data-comment-id="${safeCommentId}">
       <div class="event-comment-head">
         ${this._renderEventCommentAvatar(comment.authorName, comment.authorPhoto, comment.identitySnapshot)}
