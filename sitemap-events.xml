@@ -48,16 +48,4 @@
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1781706689212_t0k7tz</loc>
-    <lastmod>2026-06-19</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1781865067633_j3vv30</loc>
-    <lastmod>2026-06-19</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
 </urlset>
