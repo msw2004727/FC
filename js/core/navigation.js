@@ -1122,6 +1122,9 @@ Object.assign(App, {
     }
     // 離開俱樂部相關頁面：清理教育即時監聽
     // 教育子頁面（分組學員、簽到、行事曆等）保留 students listener
+    if (this.currentPage === 'page-tournament-detail' && pageId !== 'page-tournament-detail') {
+      this._stopFriendlyTournamentDetailRealtime?.();
+    }
     if (this.currentPage === 'page-team-detail' && pageId !== 'page-team-detail') {
       this._completeTeamMemberManagement?.(this._teamDetailId);
       this._cleanupTeamDetailV2Runtime?.(this._teamDetailId);

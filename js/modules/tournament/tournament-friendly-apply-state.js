@@ -315,10 +315,11 @@ Object.assign(App, {
       const aliases = this._getFriendlyTournamentTeamAliasIds(item, { includeRecordId: false });
       return !!teamKey && (teamIdSet.has(teamKey) || aliases.some(alias => teamIdSet.has(alias)));
     };
+    const hasEntryForStatusItem = item => entriesByTeam.has(recordTeamKey(item));
     return {
       availableTeams,
       blockedTeams,
-      pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && String(item.status || '').trim().toLowerCase() === 'pending'),
+      pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && !hasEntryForStatusItem(item) && String(item.status || '').trim().toLowerCase() === 'pending'),
       rejectedTeams: (state?.applications || []).filter(item =>
         inStatusScope(item)
         && String(item.status || '').trim().toLowerCase() === 'rejected'

@@ -1400,4 +1400,151 @@ describe('friendly tournament teams tab actions', () => {
     expect(tabs[0].classList.toggle).toHaveBeenCalledWith('active', false);
     expect(tabs[1].classList.toggle).toHaveBeenCalledWith('active', true);
   });
+
+  test('merges friendly tournament realtime entries and members into current detail state', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'host_uid', role: 'user' }),
+      getTeam: () => null,
+      getTournament: () => ({ id: 'ct_live', hostTeamId: 'tm_host' }),
+      getFriendlyTournamentRecord: () => null,
+    };
+    global.App = {
+      _friendlyTournamentDetailStateById: {
+        ct_live: {
+          tournament: { id: 'ct_live', hostTeamId: 'tm_host' },
+          applications: [],
+          entries: [],
+          matches: [],
+        },
+      },
+      _buildFriendlyTournamentApplicationRecord: item => ({
+        id: item.id || item._docId || item.teamId,
+        teamId: item.teamId || '',
+        teamName: item.teamName || '',
+        status: item.status || 'pending',
+        appliedAt: item.appliedAt || '',
+      }),
+      _buildFriendlyTournamentEntryRecord: item => ({
+        teamId: item.teamId || '',
+        teamName: item.teamName || '',
+        entryStatus: item.entryStatus || 'approved',
+        countsTowardLimit: item.countsTowardLimit !== false,
+        approvedAt: item.approvedAt || '',
+        memberRoster: Array.isArray(item.memberRoster) ? item.memberRoster : [],
+      }),
+      _buildFriendlyTournamentRosterMemberRecord: item => ({ uid: item.uid || '', name: item.name || '', joinedAt: item.joinedAt || '' }),
+      _buildFriendlyTournamentRecord: item => ({ ...item }),
+      _getFriendlyTournamentRegisteredTeamIdsFromEntries: entries => entries.map(entry => entry.teamId).filter(Boolean),
+      _isTournamentHostParticipating: () => true,
+      _canManageTournamentRecord: jest.fn(() => true),
+      _isTournamentViewerInTeam: jest.fn(() => true),
+      _getFriendlyTournamentState(id) { return this._friendlyTournamentDetailStateById[id] || null; },
+      _syncFriendlyTournamentCacheRecord: jest.fn(),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    global.App._friendlyTournamentDetailRealtime = {
+      tournamentId: 'ct_live',
+      tournament: { id: 'ct_live', hostTeamId: 'tm_host' },
+      applicationsById: new Map([['ta_tm_guest', { id: 'ta_tm_guest', teamId: 'tm_guest', teamName: 'Guest', status: 'pending' }]]),
+      entriesByTeam: new Map([['tm_guest', { teamId: 'tm_guest', teamName: 'Guest', entryStatus: 'approved' }]]),
+      membersByTeam: new Map([['tm_guest', [{ uid: 'player_uid', name: 'Player' }]]]),
+      expectedMemberTeamIds: new Set(['tm_guest']),
+      applicationsReady: true,
+      entriesReady: true,
+      unsubs: [],
+      memberUnsubs: {},
+    };
+
+    const state = global.App._composeFriendlyTournamentRealtimeState('ct_live');
+
+    expect(state.applications).toEqual([expect.objectContaining({ id: 'ta_tm_guest', teamId: 'tm_guest' })]);
+    expect(state.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ teamId: 'tm_host', entryStatus: 'host' }),
+      expect.objectContaining({ teamId: 'tm_guest', memberRoster: [expect.objectContaining({ uid: 'player_uid' })] }),
+    ]));
+    expect(state.rosterHydrated).toBe(true);
+    expect(global.App._getFriendlyTournamentVisibleApplications(state)).toEqual([]); // stale approved entry application is hidden
+    expect(global.App._friendlyTournamentDetailStateById.ct_live).toBe(state);
+  });
+
+  test('friendly tournament realtime starts subcollection listeners and cleans them up', async () => {
+    const callbacks = { members: {} };
+    const unsubs = {
+      tournament: jest.fn(),
+      applications: jest.fn(),
+      entries: jest.fn(),
+      memberGuest: jest.fn(),
+    };
+    const makeDoc = (id, data, exists = true) => ({ id, exists, data: () => data });
+    const tournamentRef = {
+      onSnapshot: jest.fn((next) => { callbacks.tournament = next; return unsubs.tournament; }),
+      collection: jest.fn(name => {
+        if (name === 'applications') {
+          return {
+            onSnapshot: jest.fn((next) => { callbacks.applications = next; return unsubs.applications; }),
+          };
+        }
+        if (name === 'entries') {
+          return {
+            onSnapshot: jest.fn((next) => { callbacks.entries = next; return unsubs.entries; }),
+            doc: teamId => ({
+              collection: sub => ({
+                onSnapshot: jest.fn((next) => {
+                  callbacks.members[teamId] = next;
+                  return unsubs.memberGuest;
+                }),
+              }),
+            }),
+          };
+        }
+        throw new Error('unexpected collection ' + name);
+      }),
+    };
+    global.FirebaseService = { _getTournamentDocRefById: jest.fn(() => Promise.resolve(tournamentRef)) };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'host_uid', role: 'user' }),
+      getTeam: () => null,
+      getTournament: () => ({ id: 'ct_live', hostTeamId: 'tm_host' }),
+      getFriendlyTournamentRecord: () => null,
+    };
+    global.App = {
+      _friendlyTournamentDetailStateById: {},
+      _canManageTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentUserActionTeamIds: jest.fn(() => []),
+      _buildFriendlyTournamentApplicationRecord: item => ({ id: item.id || item._docId || item.teamId, teamId: item.teamId || '', status: item.status || 'pending' }),
+      _buildFriendlyTournamentEntryRecord: item => ({ teamId: item.teamId || '', teamName: item.teamName || '', entryStatus: item.entryStatus || 'approved', memberRoster: Array.isArray(item.memberRoster) ? item.memberRoster : [] }),
+      _buildFriendlyTournamentRosterMemberRecord: item => ({ uid: item.uid || '', name: item.name || '' }),
+      _buildFriendlyTournamentRecord: item => ({ ...item }),
+      _getFriendlyTournamentRegisteredTeamIdsFromEntries: entries => entries.map(entry => entry.teamId).filter(Boolean),
+      _isTournamentHostParticipating: () => true,
+      _getFriendlyTournamentState(id) { return this._friendlyTournamentDetailStateById[id] || null; },
+      _syncFriendlyTournamentCacheRecord: jest.fn(),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+    const originalCompose = global.App._composeFriendlyTournamentRealtimeState;
+    global.App._scheduleFriendlyTournamentRealtimeRender = jest.fn(function(id) {
+      return originalCompose.call(this, id);
+    });
+
+    await global.App._startFriendlyTournamentDetailRealtime('ct_live', { tournament: { id: 'ct_live', hostTeamId: 'tm_host' }, applications: [], entries: [] });
+    callbacks.tournament(makeDoc('ct_live_doc', { id: 'ct_live', hostTeamId: 'tm_host' }));
+    callbacks.applications({ docs: [makeDoc('ta_tm_guest', { teamId: 'tm_guest', status: 'pending' })] });
+    callbacks.entries({ docs: [makeDoc('tm_guest', { teamName: 'Guest', entryStatus: 'approved' })] });
+    callbacks.members.tm_guest({ docs: [makeDoc('player_uid', { name: 'Player' })] });
+
+    const state = global.App._getFriendlyTournamentState('ct_live');
+    expect(state.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ teamId: 'tm_guest', memberRoster: [expect.objectContaining({ uid: 'player_uid' })] }),
+    ]));
+    expect(global.App._scheduleFriendlyTournamentRealtimeRender).toHaveBeenCalled();
+
+    global.App._stopFriendlyTournamentDetailRealtime('ct_live');
+    expect(unsubs.tournament).toHaveBeenCalled();
+    expect(unsubs.applications).toHaveBeenCalled();
+    expect(unsubs.entries).toHaveBeenCalled();
+    expect(unsubs.memberGuest).toHaveBeenCalled();
+    expect(global.App._friendlyTournamentDetailRealtime).toBeNull();
+  });
+
 });

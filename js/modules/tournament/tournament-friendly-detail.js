@@ -96,9 +96,11 @@ Object.assign(App, {
     // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
     if (!base) base = await ApiService.getTournamentAsync?.(id);
     if (!base || !this._isFriendlyTournamentRecord(base)) {
+      this._stopFriendlyTournamentDetailRealtime?.();
       return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id, options);
     }
     if (!(options && options.allowGuest) && this._requireLogin()) return;
+    this._stopFriendlyTournamentDetailRealtime?.();
 
     const seq = ++this._friendlyTournamentDetailSeq;
     const currentUser = ApiService.getCurrentUser?.();
@@ -148,6 +150,7 @@ Object.assign(App, {
     });
     document.querySelectorAll('#td-tabs .tab').forEach(node => node.classList.toggle('active', node.dataset.ttab === 'teams'));
     this.renderTournamentTab('teams');
+    this._startFriendlyTournamentDetailRealtime?.(id, state);
     this._updateRouteMetaTags?.('page-tournament-detail', { id });
   },
 
