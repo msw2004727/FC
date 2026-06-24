@@ -33,10 +33,20 @@ Object.assign(App, {
     const originalText = btn.textContent;
     const originalDisabled = btn.disabled;
     const originalOpacity = btn.style.opacity;
+    const originalAriaBusy = btn.getAttribute?.('aria-busy');
+    const glowWrap = typeof btn.closest === 'function'
+      ? btn.closest('.signup-glow-wrap')
+      : null;
     btn.dataset.btnLoading = '1';
     btn.disabled = true;
     if (loadingText) btn.textContent = loadingText;
-    btn.style.opacity = '.6';
+    if (glowWrap) {
+      glowWrap.classList.add('loading');
+      btn.setAttribute?.('aria-busy', 'true');
+      btn.style.opacity = originalOpacity || '';
+    } else {
+      btn.style.opacity = '.6';
+    }
 
     return Promise.resolve().then(() => asyncFn()).finally(() => {
       // 即使 DOM 被換掉(例如 modal 重渲染)也不要拋
@@ -46,6 +56,9 @@ Object.assign(App, {
           btn.disabled = originalDisabled;
           if (loadingText) btn.textContent = originalText;
           btn.style.opacity = originalOpacity;
+          if (glowWrap?.isConnected !== false) glowWrap?.classList.remove('loading');
+          if (originalAriaBusy === null) btn.removeAttribute?.('aria-busy');
+          else if (originalAriaBusy !== undefined) btn.setAttribute?.('aria-busy', originalAriaBusy);
         }
       } catch (_) { /* noop */ }
     });

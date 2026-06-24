@@ -176,6 +176,21 @@
   flex-direction: column;
   gap: .45rem;
 }
+.tfd-action-main .tfd-apply-glow-wrap {
+  display: flex;
+  width: 100%;
+  margin-top: .5rem;
+  transition: margin-bottom var(--transition);
+}
+.tfd-action-main .tfd-apply-glow-wrap.loading {
+  margin-bottom: 1.35rem;
+}
+.tfd-action-main .tfd-apply-glow-wrap .signup-flipper {
+  width: 100%;
+}
+.tfd-action-main .tfd-apply-glow-wrap .primary-btn.full-width {
+  margin-top: 0;
+}
 .tfd-action-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

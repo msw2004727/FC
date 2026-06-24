@@ -56,6 +56,9 @@ describe('friendly tournament teams tab actions', () => {
     global.App.renderRegisterButton({ id: 'ct_test' });
 
     expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
+    expect(area.innerHTML).toContain('signup-glow-wrap tfd-apply-glow-wrap');
+    expect(area.innerHTML).toContain('signup-glow-border');
+    expect(area.innerHTML).toContain('<span class="mini-text">報名中</span>');
     expect(area.innerHTML).toContain('參加賽事');
   });
 

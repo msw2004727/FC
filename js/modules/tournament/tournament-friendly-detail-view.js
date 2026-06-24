@@ -673,6 +673,15 @@ Object.assign(App, {
     let primaryHtml = '';
     let extraActionHtml = '';
     const pendingStatusButton = `<button type="button" class="primary-btn full-width tfd-status-btn" onclick="App.showToast('審核中請耐心等待')">俱樂部審核中</button>`;
+    const applyButtonHtml = `
+      <div class="signup-glow-wrap tfd-apply-glow-wrap" style="--glow-c:var(--accent);--glow-c-light:var(--accent-hover)">
+        <div class="signup-glow-border"></div>
+        <div class="signup-glow-shadow"></div>
+        <div class="signup-flipper">
+          <button class="primary-btn full-width" onclick="return App.registerTournament('${escapeHTML(tournament.id)}', this)">參加賽事</button>
+        </div>
+        <div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名中</span></div>
+      </div>`;
     if (selectedTeam?.status === 'pending') {
       primaryHtml = `${selector}${pendingStatusButton}`;
       if (canWithdrawSelectedTeam) {
@@ -694,7 +703,7 @@ Object.assign(App, {
     } else if (approvedCount >= teamLimit) {
       primaryHtml = `${selector}<button class="primary-btn full-width" disabled>隊伍名額已滿</button>`;
     } else if (selectedTeam?.status === 'available') {
-      primaryHtml = `${selector}<button class="primary-btn full-width" onclick="return App.registerTournament('${tournament.id}', this)">參加賽事</button>`;
+      primaryHtml = `${selector}${applyButtonHtml}`;
     } else if (ctx.pendingTeams.length > 0) {
       primaryHtml = pendingStatusButton;
     } else if (ctx.approvedTeams.length > 0) {
