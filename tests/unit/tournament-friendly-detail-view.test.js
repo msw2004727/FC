@@ -172,6 +172,40 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).not.toContain('俱樂部審核中</button>');
   });
 
+  test('defaults to an available managed club when status clubs are also listed', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
+      getTeam: id => ({ id, captainUid: 'guest_cap' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [{ id: 'tm_free', name: 'Free Team' }],
+        pendingTeams: [{ teamId: 'tm_pending', teamName: 'Pending Team', status: 'pending' }],
+        approvedTeams: [],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, user) => team.captainUid === user.uid),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('value="tm_free" selected');
+    expect(area.innerHTML).toContain('data-friendly-team-action-status="available"');
+    expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
+    expect(area.innerHTML).not.toContain('tfd-status-btn');
+  });
   test('keeps available register action from being replaced by roster hints', () => {
     const actionMain = {
       dataset: { friendlyTeamActionStatus: '' },
@@ -953,7 +987,7 @@ describe('friendly tournament teams tab actions', () => {
       ],
     }, adminUser);
 
-    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_alpha', 'tm_admin_officer']);
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_admin_officer', 'tm_alpha']);
     expect(ctx.pendingTeams.map(team => team.teamId)).toEqual(['tm_beta']);
     expect(ctx.approvedTeams.map(team => team.teamId)).toEqual(['tm_approved']);
     expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_host');
@@ -961,6 +995,48 @@ describe('friendly tournament teams tab actions', () => {
     expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_stranger_approved');
   });
 
+  test('apply context sorts managed clubs by team officer role and excludes coaches', () => {
+    const user = { uid: 'staff_uid', role: 'user' };
+    const teams = [
+      { id: 'tm_leader', name: 'Leader Club', leaderUids: ['staff_uid'], sportTag: 'football' },
+      { id: 'tm_coach', name: 'Coach Club', coachUids: ['staff_uid'], sportTag: 'football' },
+      { id: 'tm_captain', name: 'Captain Club', captainUid: 'staff_uid', sportTag: 'football' },
+      { id: 'tm_owner', name: 'Owner Club', ownerUid: 'staff_uid', sportTag: 'football' },
+      { id: 'tm_creator', name: 'Creator Club', creatorUid: 'staff_uid', sportTag: 'football' },
+    ];
+    const isOfficer = (team, item) => {
+      const uid = item?.uid;
+      return team?.captainUid === uid
+        || team?.creatorUid === uid
+        || team?.ownerUid === uid
+        || team?.leaderUid === uid
+        || (Array.isArray(team?.leaderUids) && team.leaderUids.includes(uid));
+    };
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => teams,
+      getTeam: teamId => teams.find(team => team.id === teamId) || null,
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(item => teams.filter(team => isOfficer(team, item))),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn(isOfficer),
+    };
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, { applications: [], entries: [] }, user);
+
+    expect(global.App._getFriendlyTournamentTeamOfficerRoleLevel(teams[0], user)).toBe(2);
+    expect(global.App._getFriendlyTournamentTeamOfficerRoleLevel(teams[1], user)).toBe(0);
+    expect(global.App._getFriendlyTournamentTeamOfficerRoleLevel(teams[2], user)).toBe(3);
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_captain', 'tm_owner', 'tm_creator', 'tm_leader']);
+    expect(ctx.availableTeams.map(team => team.id)).not.toContain('tm_coach');
+  });
   test('non-admin apply context uses hydrated joined officer clubs when teams list is cold', () => {
     const user = { uid: 'cap_uid', role: 'user', teamIds: ['tm_joined'] };
     const joinedTeam = { id: 'tm_joined', name: 'Joined Club', captainUid: 'cap_uid', sportTag: 'football' };
@@ -1208,7 +1284,7 @@ describe('friendly tournament teams tab actions', () => {
     const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
 
     expect(global.FirebaseService.ensureStaticCollectionsLoaded).toHaveBeenCalledWith(['teams']);
-    expect(teams.map(team => team.id)).toEqual(['tm_joined', 'tm_officer']);
+    expect(teams.map(team => team.id)).toEqual(['tm_officer', 'tm_joined']);
   });
 
   test('forces a teams refresh when cold cache has no eligible apply teams', async () => {

@@ -5,6 +5,29 @@
 
 Object.assign(App, {
 
+  _getFriendlyTournamentTeamOfficerRoleLevel(team, user = ApiService.getCurrentUser?.()) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!team || !currentUser) return 0;
+    const uid = String(currentUser.uid || currentUser.lineUserId || currentUser._docId || '').trim();
+    if (!uid) return 0;
+    const hasUid = value => String(value || '').trim() === uid;
+    if (['captainUid', 'creatorUid', 'ownerUid'].some(field => hasUid(team[field]))) return 3;
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
+    if (leaderUids.some(hasUid)) return 2;
+    return 0;
+  },
+
+  _sortFriendlyTournamentTeamsByOfficerRole(teams = [], user = ApiService.getCurrentUser?.()) {
+    return (Array.isArray(teams) ? teams : [])
+      .map((team, index) => ({ team, index }))
+      .sort((a, b) => {
+        const aLevel = this._getFriendlyTournamentTeamOfficerRoleLevel?.(a.team, user) || 0;
+        const bLevel = this._getFriendlyTournamentTeamOfficerRoleLevel?.(b.team, user) || 0;
+        if (aLevel !== bLevel) return bLevel - aLevel;
+        return a.index - b.index;
+      })
+      .map(item => item.team);
+  },
   _getFriendlyTournamentJoinedTeams(user = ApiService.getCurrentUser?.()) {
     const teamIds = typeof this._getUserTeamIds === 'function'
       ? this._getUserTeamIds(user)
@@ -119,13 +142,19 @@ Object.assign(App, {
     const responsibleTeams = this._getFriendlyResponsibleTeams?.(user) || [];
     const joinedOfficerTeams = this._getFriendlyTournamentJoinedTeams(user)
       .filter(team => this._isTournamentTeamOfficerForTeam?.(team, user));
-    return this._mergeFriendlyTournamentTeamLists(responsibleTeams, joinedOfficerTeams);
+    return this._sortFriendlyTournamentTeamsByOfficerRole(
+      this._mergeFriendlyTournamentTeamLists(responsibleTeams, joinedOfficerTeams),
+      user
+    );
   },
 
   _getFriendlyTournamentRepresentativeTeams(user = ApiService.getCurrentUser?.()) {
-    return this._mergeFriendlyTournamentTeamLists(
-      this._getFriendlyTournamentJoinedTeams(user),
-      this._getFriendlyTournamentOfficerApplyTeams(user)
+    return this._sortFriendlyTournamentTeamsByOfficerRole(
+      this._mergeFriendlyTournamentTeamLists(
+        this._getFriendlyTournamentJoinedTeams(user),
+        this._getFriendlyTournamentOfficerApplyTeams(user)
+      ),
+      user
     );
   },
 

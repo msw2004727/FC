@@ -67,9 +67,9 @@ Object.assign(App, {
         options.push(option);
       });
     };
+    push(ctx.availableTeams, 'available');
     push(ctx.pendingTeams, 'pending');
     push(ctx.approvedTeams, 'approved');
-    push(ctx.availableTeams, 'available');
     push(ctx.blockedTeams, 'sport-mismatch');
     return options;
   },
@@ -81,6 +81,8 @@ Object.assign(App, {
     const selectedId = String(domSelected || remembered || '').trim();
     const selectedTeam = actionTeams.find(team => team.id === selectedId);
     if (selectedTeam && !selectedTeam.disabled) return selectedTeam;
+    const availableTeam = actionTeams.find(team => team.status === 'available' && !team.disabled);
+    if (availableTeam) return availableTeam;
     return actionTeams.find(team => !team.disabled) || selectedTeam || actionTeams[0] || null;
   },
 
