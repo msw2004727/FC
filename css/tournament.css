@@ -259,54 +259,92 @@
   font-weight: 700;
 }
 .tfd-team-board {
-  padding: .1rem .4rem 1rem;
+  padding: .05rem .35rem .85rem;
   display: flex;
   flex-direction: column;
-  gap: .55rem;
+  gap: .46rem;
 }
 .tfd-team-summary {
   font-size: .76rem;
   color: var(--text-muted);
-  padding: 0 .1rem;
+  padding: 0 .05rem .05rem;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 .tfd-team-row {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: .7rem;
-  display: flex;
+  border-radius: var(--radius-sm);
+  padding: .58rem .66rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "side action"
+    "roster action";
   align-items: center;
-  gap: .75rem;
+  column-gap: .72rem;
+  row-gap: .3rem;
+  min-height: 74px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, .03);
+}
+.tfd-team-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .62rem;
+  bottom: .62rem;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: rgba(20, 184, 166, .42);
 }
 .tfd-team-row-pending {
-  background: rgba(148, 163, 184, 0.08);
-  border-style: dashed;
+  background: linear-gradient(180deg, rgba(20, 184, 166, .06), rgba(148, 163, 184, .08));
+  border-color: rgba(20, 184, 166, .22);
+}
+.tfd-team-row-pending::before {
+  background: rgba(20, 184, 166, .64);
 }
 .tfd-team-row-rejected {
   background: rgba(254, 202, 202, 0.08);
+  border-color: rgba(239, 68, 68, .22);
+}
+.tfd-team-row-rejected::before {
+  background: rgba(239, 68, 68, .58);
 }
 [data-theme="dark"] .tfd-team-row-pending {
-  background: rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(20, 184, 166, .10), rgba(148, 163, 184, .12));
 }
 [data-theme="dark"] .tfd-team-row-rejected {
   background: rgba(254, 202, 202, 0.10);
 }
 .tfd-team-row-slot {
+  min-height: 60px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "side roster";
   border-style: dashed;
-  opacity: .8;
+  background: rgba(148, 163, 184, .05);
+  opacity: .86;
+}
+.tfd-team-row-slot::before {
+  background: rgba(148, 163, 184, .36);
+}
+.tfd-team-row-slot .tfd-team-roster {
+  justify-content: flex-end;
 }
 .tfd-team-side {
-  width: 170px;
-  flex-shrink: 0;
+  grid-area: side;
   display: flex;
   align-items: center;
-  gap: .65rem;
+  gap: .55rem;
   min-width: 0;
 }
 .tfd-team-thumb {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   overflow: hidden;
   display: flex;
@@ -324,6 +362,12 @@
 }
 .tfd-team-thumb-slot {
   border: 1px dashed var(--border);
+  background: rgba(148, 163, 184, .08);
+}
+.tfd-team-row-slot .tfd-team-thumb {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
 }
 .tfd-team-meta {
   min-width: 0;
@@ -349,7 +393,7 @@
   white-space: nowrap;
 }
 .tfd-team-roster {
-  flex: 1;
+  grid-area: roster;
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
@@ -357,21 +401,18 @@
   align-items: center;
 }
 .tfd-team-footer {
-  flex: 1;
+  display: contents;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: .75rem;
 }
 .tfd-team-action {
-  margin-left: auto;
-  flex: 0 0 auto;
+  grid-area: action;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: .36rem;
 }
 .tfd-team-action-multi {
-  gap: .4rem;
+  flex-wrap: nowrap;
 }
 .tfd-team-withdraw-btn,
 .tfd-entry-remove-btn,
@@ -508,26 +549,36 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: .45rem;
+  justify-content: flex-start;
+  gap: .36rem;
   min-width: 0;
 }
 .tfd-roster-summary > span {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
+  max-width: 100%;
+  padding: .13rem .46rem;
+  border: 1px solid rgba(37, 99, 235, .12);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .06);
   color: var(--text-secondary);
-  font-size: .74rem;
+  font-size: .72rem;
   font-weight: 800;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .tfd-roster-list-btn {
-  min-height: 30px;
-  padding: .26rem .58rem;
+  min-height: 26px;
+  padding: .2rem .52rem;
   border: 1.5px solid rgba(20, 184, 166, .32);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(20, 184, 166, .08);
   color: #0f766e;
   cursor: pointer;
-  font-size: .72rem;
+  font-size: .7rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -702,18 +753,45 @@
   text-align: center;
 }
 .tfd-empty-text {
-  display: block;
+  display: inline-flex;
+  align-items: center;
   max-width: 100%;
+  min-height: 24px;
+  padding: .12rem .48rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .10);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: .74rem;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.15;
   color: var(--text-muted);
 }
 .tfd-review-actions {
+  grid-area: action;
   display: flex;
-  gap: .4rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .32rem;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+.tfd-review-actions .primary-btn,
+.tfd-review-actions .outline-btn {
+  min-width: 50px;
+  min-height: 30px;
+  padding: .28rem .56rem;
+  border-radius: var(--radius-sm);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tfd-review-actions .outline-btn {
+  border-color: rgba(239, 68, 68, .42);
+  color: var(--danger);
+  background: var(--bg-card);
 }
 .tfd-empty-state {
   text-align: center;
@@ -774,21 +852,33 @@
     grid-template-columns: 1fr;
   }
   .tfd-team-row {
-    display: flex;
-    align-items: stretch;
-    gap: .46rem;
-    padding: .58rem .62rem;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "side action"
+      "roster action";
+    align-items: center;
+    gap: .32rem .5rem;
+    padding: .5rem .56rem;
+    min-height: 68px;
+  }
+  .tfd-team-row-slot {
+    min-height: 56px;
+    grid-template-areas: "side roster";
   }
   .tfd-team-side {
-    width: 100%;
-    gap: .54rem;
+    width: auto;
+    gap: .48rem;
   }
   .tfd-team-thumb {
-    width: 48px;
-    height: 48px;
-    border-radius: 11px;
-    flex: 0 0 48px;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-sm);
+    flex: 0 0 42px;
+  }
+  .tfd-team-row-slot .tfd-team-thumb {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
   }
   .tfd-team-name {
     font-size: .84rem;
@@ -798,11 +888,8 @@
     margin-top: .05rem;
   }
   .tfd-team-footer {
-    width: 100%;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: .45rem;
+    width: auto;
+    display: contents;
   }
   .tfd-team-roster {
     flex-wrap: nowrap;
@@ -812,24 +899,25 @@
   .tfd-roster-summary {
     width: 100%;
     justify-content: flex-start;
-    gap: .42rem;
+    gap: .34rem;
   }
   .tfd-roster-summary > span {
-    font-size: .7rem;
+    max-width: min(48vw, 150px);
+    font-size: .68rem;
+    padding: .1rem .4rem;
   }
   .tfd-roster-list-btn {
-    min-height: 28px;
-    padding: .22rem .48rem;
-    font-size: .69rem;
-    border-radius: 7px;
+    min-height: 26px;
+    padding: .18rem .44rem;
+    font-size: .68rem;
+    border-radius: var(--radius-sm);
   }
   .tfd-team-action {
     width: auto;
-    margin-left: 0;
     justify-content: flex-end;
     align-self: center;
     justify-self: end;
-    gap: .3rem;
+    gap: .28rem;
   }
   .tfd-team-withdraw-btn,
   .tfd-entry-remove-btn,
@@ -839,11 +927,11 @@
   .tfd-roster-blocked-btn,
   .tfd-roster-joined-btn,
   .tfd-roster-loading-btn {
-    min-width: 58px;
-    min-height: 30px;
-    padding: .25rem .46rem;
-    font-size: .7rem;
-    border-radius: 8px;
+    min-width: 54px;
+    min-height: 28px;
+    padding: .22rem .42rem;
+    font-size: .68rem;
+    border-radius: var(--radius-sm);
   }
   .tfd-team-action .tfd-team-withdraw-btn,
   .tfd-team-action .tfd-entry-remove-btn,
@@ -857,21 +945,23 @@
   }
   .tfd-team-action-multi {
     flex-direction: row;
-    gap: .3rem;
+    gap: .28rem;
   }
   .tfd-review-actions {
-    grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-area: action;
     width: auto;
-    flex-direction: column;
+    flex-direction: row;
     align-self: center;
     justify-self: end;
+    gap: .28rem;
   }
   .tfd-review-actions .primary-btn,
   .tfd-review-actions .outline-btn {
     flex: 0 0 auto;
-    min-width: 48px;
-    padding: .32rem .5rem;
+    min-width: 46px;
+    min-height: 28px;
+    padding: .24rem .46rem;
+    font-size: .68rem;
   }
   .tfd-member-chip {
     max-width: 100%;
