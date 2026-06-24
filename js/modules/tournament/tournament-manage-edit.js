@@ -139,7 +139,7 @@ Object.assign(App, {
     const editTeamRange = this._getTournamentModeTeamLimitRange?.(editMode) || { min: 2, max: 4, fallback: 4 };
     const editTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
     const editTeamLimit = this._getTournamentTeamLimitValue('tf', editTeamRange.fallback);
-    const editCompetitionConfig = editMode !== 'friendly' ? this._getTournamentCompetitionConfigFromForm?.('tf') : null;
+    const editCompetitionConfig = !['friendly', 'single'].includes(editMode) ? this._getTournamentCompetitionConfigFromForm?.('tf') : null;
     const editRefereeHead = (this._tournamentFormState.refereeHeads || [])[0] || null;
     const hostTeamId = String(document.getElementById('tf-host-team')?.value || '').trim();
     const hostTeam = hostTeamId

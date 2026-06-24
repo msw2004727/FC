@@ -792,11 +792,24 @@ Object.assign(App, {
       </div>`;
   },
 
+  _renderFriendlyTournamentScheduleLiveSlot(match = {}) {
+    const liveUrl = String(match.liveUrl || match.streamUrl || '').trim();
+    const hasLive = !!liveUrl;
+    const liveLabel = hasLive ? '直播連結已設定' : '直播尚未提供';
+    return `
+      <div class="tfg-live-slot ${hasLive ? 'has-live' : 'is-empty'}" data-live-state="${hasLive ? 'ready' : 'empty'}" data-live-url="${escapeHTML(liveUrl)}" aria-label="${escapeHTML(liveLabel)}">
+        <div class="tfg-live-stage">
+          <span class="tfg-live-pill">LIVE</span>
+          <span class="tfg-live-label">${escapeHTML(liveLabel)}</span>
+        </div>
+      </div>`;
+  },
   _renderFriendlyTournamentScheduleMatchCard(tournament, match, context = {}) {
     const matchesBySlot = context.matchesBySlot || {};
     const nameById = context.nameById || {};
     const logoById = context.logoById || {};
     const viewer = context.viewer || ApiService.getCurrentUser?.();
+    const modeLabel = context.modeLabel || this._getTournamentModeLabel?.(tournament) || '友誼賽';
     const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
     const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
     const dateParts = this._getFriendlyTournamentScheduleDateParts(match.scheduledAt);
@@ -805,7 +818,7 @@ Object.assign(App, {
     const scoreHtml = hasScore
       ? `<span class="tfg-score"><b>${escapeHTML(String(match.scoreHome))}</b><span>-</span><b>${escapeHTML(String(match.scoreAway))}</b></span>`
       : `<span class="tfg-time">${escapeHTML(dateParts.time)}</span>`;
-    const roundLabel = this._getTournamentRoundLabel?.(match) || (match.round ? `第 ${match.round} 輪` : '友誼賽');
+    const roundLabel = this._getTournamentRoundLabel?.(match) || (match.round ? `第 ${match.round} 輪` : modeLabel);
     const refereeNames = (match.referees || [])
       .map(ref => String(ref?.name || '').trim())
       .filter(Boolean)
@@ -831,12 +844,15 @@ Object.assign(App, {
           <span>${escapeHTML(metaItems.join(' · ') || '場次資訊待補')}</span>
           ${manageHtml}
         </div>
+        ${this._renderFriendlyTournamentScheduleLiveSlot(match)}
       </article>`;
   },
 
   _renderFriendlyTournamentScheduleHtml(state) {
     const tournament = state?.tournament;
     if (!tournament) return '<div class="tfg-empty">找不到賽事資料</div>';
+    const modeLabel = this._getTournamentModeLabel?.(tournament) || (this._getTournamentMode?.(tournament) === 'single' ? '單賽制' : '友誼賽');
+    const scheduleTitle = `${modeLabel}賽程`;
     const matches = this._sortFriendlyTournamentScheduleMatches(state.matches || []);
     const viewer = ApiService.getCurrentUser?.();
     const canManage = !!(this._isTournamentGlobalAdmin?.(viewer) || this._canManageTournamentRecord?.(tournament, viewer));
@@ -849,7 +865,7 @@ Object.assign(App, {
       return `
         <section class="tfg-schedule">
           <div class="tfg-head">
-            <div><span>Matches</span><strong>友誼賽賽程</strong></div>
+            <div><span>Matches</span><strong>${escapeHTML(scheduleTitle)}</strong></div>
             ${manageButton}
           </div>
           <div class="tfg-empty">
@@ -861,7 +877,7 @@ Object.assign(App, {
     const matchesBySlot = this._buildTournamentMatchesBySlot(matches);
     const nameById = this._getTournamentTeamNameMap(state);
     const logoById = this._getTournamentTeamLogoMap?.(state) || {};
-    const context = { matchesBySlot, nameById, logoById, viewer };
+    const context = { matchesBySlot, nameById, logoById, viewer, modeLabel };
     const groups = new Map();
     matches.forEach(match => {
       const parts = this._getFriendlyTournamentScheduleDateParts(match.scheduledAt);
@@ -882,7 +898,7 @@ Object.assign(App, {
     return `
       <section class="tfg-schedule">
         <div class="tfg-head">
-          <div><span>Matches</span><strong>友誼賽賽程</strong></div>
+          <div><span>Matches</span><strong>${escapeHTML(scheduleTitle)}</strong></div>
           <div class="tfg-head-actions">
             <span>${escapeHTML(String(finishedCount))}/${escapeHTML(String(matches.length))} 已完成</span>
             ${manageButton}

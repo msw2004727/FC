@@ -183,13 +183,13 @@ Object.assign(App, {
   _getTournamentFormModeValue(prefix) {
     const p = prefix || 'tf';
     const raw = String(document.getElementById(`${p}-type`)?.value || 'friendly').trim().toLowerCase();
-    return ['friendly', 'cup', 'league'].includes(raw) ? raw : 'friendly';
+    return ['friendly', 'single', 'cup', 'league'].includes(raw) ? raw : 'friendly';
   },
 
   _getTournamentCompetitionConfigFromForm(prefix) {
     const p = prefix || 'tf';
     const mode = this._getTournamentFormModeValue(p);
-    if (mode === 'friendly') return null;
+    if (mode === 'friendly' || mode === 'single') return null;
     const val = id => document.getElementById(`${p}-${id}`)?.value;
     const checked = id => document.getElementById(`${p}-${id}`)?.checked === true;
     return this._sanitizeTournamentCompetitionConfig({

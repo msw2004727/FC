@@ -1,7 +1,7 @@
 /* ================================================
    SportHub Tournament Core
    Shared helpers for public tournament pages and
-   the upcoming friendly/cup/league refactor.
+   the upcoming friendly/single/cup/league refactor.
    ================================================ */
 
 // Tournament status constants (used for logic comparisons — do NOT i18n these)
@@ -66,8 +66,9 @@ Object.assign(App, {
     const rawMode = String(t?.mode || t?.typeCode || t?.type || 'friendly').trim().toLowerCase();
     if (rawMode === 'cup' || rawMode.includes('\u76c3') || rawMode.includes('\u676f')) return 'cup';
     if (rawMode === 'league' || rawMode.includes('\u806f\u8cfd') || rawMode.includes('\u8054\u8d5b')) return 'league';
+    if (rawMode === 'single' || rawMode.includes('\u55ae\u8cfd\u5236') || rawMode.includes('\u5355\u8d5b\u5236')) return 'single';
     if (rawMode === 'friendly' || rawMode.includes('\u53cb\u8abc')) return 'friendly';
-    return ['friendly', 'cup', 'league'].includes(rawMode) ? rawMode : 'friendly';
+    return ['friendly', 'single', 'cup', 'league'].includes(rawMode) ? rawMode : 'friendly';
   },
 
   _getFriendlyTournamentTeamLimit(t) {
@@ -87,6 +88,7 @@ Object.assign(App, {
   _getTournamentModeTeamLimitRange(mode) {
     const map = {
       friendly: { min: 2, max: 4, fallback: 4 },
+      single: { min: 2, max: 4, fallback: 4 },
       cup: { min: 2, max: 32, fallback: 8 },
       league: { min: 2, max: 20, fallback: 6 },
     };
@@ -107,6 +109,7 @@ Object.assign(App, {
       : this._getTournamentMode(modeOrRecord);
     const labelMap = {
       friendly: '\u53cb\u8abc\u8cfd',
+      single: '\u55ae\u8cfd\u5236',
       cup: '\u76c3\u8cfd',
       league: '\u806f\u8cfd',
     };

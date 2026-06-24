@@ -20,10 +20,10 @@ Object.assign(App, {
   _friendlyTournamentEntryRemoveBusyById: {},
 
   // 2026-06-12 盃賽/聯賽升級：此判斷代表「走俱樂部報名管線的賽事」。
-  // friendly / cup / league 三種賽制共用同一條申請→審核→參賽名單流程，
+  // friendly / single / cup / league 三種賽制共用同一條申請→審核→參賽名單流程，
   // 僅嚴格限定友誼賽行為時改用 _getTournamentMode(t) === 'friendly' 判斷。
   _isFriendlyTournamentRecord(record) {
-    return ['friendly', 'cup', 'league'].includes(this._getTournamentMode?.(record) || 'friendly');
+    return ['friendly', 'single', 'cup', 'league'].includes(this._getTournamentMode?.(record) || 'friendly');
   },
 
   _getFriendlyTournamentState(id = this.currentTournament) {

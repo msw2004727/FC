@@ -87,7 +87,7 @@ Object.assign(App, {
 
     // Safety: tournament.id is escaped
     const safeId = escapeHTML(tournament.id);
-    const canManageSchedule = ['friendly', 'cup', 'league'].includes(this._getTournamentMode?.(tournament) || 'friendly');
+    const canManageSchedule = ['friendly', 'single', 'cup', 'league'].includes(this._getTournamentMode?.(tournament) || 'friendly');
     toolbar.innerHTML = `
       ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯</button>` : ''}
       ${canManage && canManageSchedule ? `<button class="td-schedule-btn" onclick="App.openTournamentScheduleManager('${safeId}')">賽程管理</button>` : ''}

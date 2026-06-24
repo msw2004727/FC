@@ -219,6 +219,7 @@ Object.assign(App, {
       // Note: innerHTML usage is safe — no user content in this template
       typeSelect.innerHTML = `
         <option value="friendly">友誼賽（小型交流）</option>
+        <option value="single">單賽制（單場對戰）</option>
         <option value="cup">盃賽（單淘汰）</option>
         <option value="league">聯賽（循環積分）</option>
       `;
@@ -293,6 +294,7 @@ Object.assign(App, {
       }
       const noteMap = {
         friendly: `友誼賽 ${range.min}-${range.max} 隊`,
+        single: `單賽制 ${range.min}-${range.max} 隊；賽程規則同友誼賽`,
         cup: `盃賽 ${range.min}-${range.max} 隊；非 2 的次方時部分隊伍首輪輪空`,
         league: `聯賽 ${range.min}-${range.max} 隊；賽程由系統自動排定`,
       };
@@ -304,7 +306,7 @@ Object.assign(App, {
     const commonConfig = document.getElementById(`${p}-competition-common`);
     if (leagueConfig) leagueConfig.style.display = mode === 'league' ? '' : 'none';
     if (cupConfig) cupConfig.style.display = mode === 'cup' ? '' : 'none';
-    if (commonConfig) commonConfig.style.display = mode === 'friendly' ? 'none' : '';
+    if (commonConfig) commonConfig.style.display = ['friendly', 'single'].includes(mode) ? 'none' : '';
   },
 
   // ══════════════════════════════════

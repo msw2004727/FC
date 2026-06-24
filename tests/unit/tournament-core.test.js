@@ -34,14 +34,15 @@ function isTournamentEnded(t) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from tournament-core.js:30-36
+// Extracted from tournament-core.js:65-72
 // ---------------------------------------------------------------------------
 function _getTournamentMode(t) {
   const rawMode = String(t?.mode || t?.typeCode || t?.type || 'friendly').trim().toLowerCase();
   if (rawMode === 'cup' || rawMode.includes('盃') || rawMode.includes('杯')) return 'cup';
   if (rawMode === 'league' || rawMode.includes('聯賽') || rawMode.includes('联赛')) return 'league';
+  if (rawMode === 'single' || rawMode.includes('\u55ae\u8cfd\u5236') || rawMode.includes('\u5355\u8d5b\u5236')) return 'single';
   if (rawMode === 'friendly' || rawMode.includes('友誼')) return 'friendly';
-  return ['friendly', 'cup', 'league'].includes(rawMode) ? rawMode : 'friendly';
+  return ['friendly', 'single', 'cup', 'league'].includes(rawMode) ? rawMode : 'friendly';
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +291,12 @@ describe('_getTournamentMode', () => {
   test('detects friendly mode', () => {
     expect(_getTournamentMode({ mode: 'friendly' })).toBe('friendly');
     expect(_getTournamentMode({ type: '友誼賽' })).toBe('friendly');
+  });
+
+  test('detects single mode', () => {
+    expect(_getTournamentMode({ mode: 'single' })).toBe('single');
+    expect(_getTournamentMode({ mode: 'Single' })).toBe('single');
+    expect(_getTournamentMode({ typeCode: '\u55ae\u8cfd\u5236' })).toBe('single');
   });
 
   test('falls back to friendly for unknown modes', () => {

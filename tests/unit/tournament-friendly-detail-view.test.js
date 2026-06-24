@@ -1619,6 +1619,7 @@ describe('friendly tournament schedule tab rendering', () => {
       _buildTournamentMatchesBySlot: jest.fn(() => ({})),
       _getTournamentTeamNameMap: jest.fn(() => ({ tm_a: 'Alpha Club', tm_b: 'Beta Club' })),
       _getTournamentTeamLogoMap: jest.fn(() => ({ tm_a: 'https://cdn.example/a.png', tm_b: 'https://cdn.example/b.png' })),
+      _getTournamentModeLabel: jest.fn(() => 'Friendly'),
       _renderTournamentMatchSideLabel(match, side, _matchesBySlot, nameById) {
         const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
         return { teamId, label: nameById[teamId] || teamId };
@@ -1636,5 +1637,24 @@ describe('friendly tournament schedule tab rendering', () => {
     expect(container.innerHTML).toContain('<b>2</b>');
     expect(container.innerHTML).toContain('Court A');
     expect(container.innerHTML).toContain('tfg-manage-btn');
+    expect(container.innerHTML).toContain('tfg-live-slot is-empty');
+    expect(container.innerHTML).toContain('data-live-state="empty"');
+    expect(container.innerHTML).toContain('tfg-live-label');
+  });
+
+  test('uses the single mode label in the schedule heading', () => {
+    const tournament = { id: 'tf_single_schedule', mode: 'single' };
+    global.ApiService = { getCurrentUser: () => ({ uid: 'manager' }) };
+    global.App = {
+      renderTournamentTab: jest.fn(),
+      _getTournamentModeLabel: jest.fn(() => 'Single Mode'),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _canManageTournamentRecord: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentScheduleHtml({ tournament, entries: [], matches: [] });
+
+    expect(html).toContain('Single Mode');
   });
 });

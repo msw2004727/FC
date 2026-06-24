@@ -51,7 +51,7 @@ Object.assign(App, {
     const state = this._getFriendlyTournamentState?.(safeId) || await this._loadFriendlyTournamentDetailState?.(safeId);
     const tournament = state?.tournament;
     const mode = tournament ? (this._getTournamentMode?.(tournament) || 'friendly') : '';
-    if (!tournament || !['friendly', 'cup', 'league'].includes(mode)) {
+    if (!tournament || !['friendly', 'single', 'cup', 'league'].includes(mode)) {
       this.showToast('此賽事無賽程功能');
       return;
     }
@@ -108,7 +108,9 @@ Object.assign(App, {
       ? `聯賽（${config.doubleRound ? '主客雙循環' : '單循環'}）`
       : mode === 'cup'
         ? `盃賽（淘汰賽${config.thirdPlace ? '，含季軍戰' : ''}）`
-        : '友誼賽（隨機對戰）';
+        : mode === 'single'
+          ? '單賽制（隨機對戰）'
+          : '友誼賽（隨機對戰）';
     const configuredTimeCount = matches.filter(m => m.scheduledAt).length;
     const configuredVenueCount = matches.filter(m => String(m.venue || '').trim()).length;
     summary.innerHTML = `

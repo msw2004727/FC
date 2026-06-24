@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260624d';
+const CACHE_VERSION = '0.20260624e';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -790,6 +790,7 @@ function generateId(prefix) {
 // ─── Gradient Map (for event creation) ───
 const GRADIENT_MAP = {
   friendly: 'linear-gradient(135deg,#0d9488,#065f46)',
+  single:   'linear-gradient(135deg,#0f766e,#115e59)',
   camp:     'linear-gradient(135deg,#ec4899,#be185d)',
   play:     'linear-gradient(135deg,#7c3aed,#4338ca)',
   watch:    'linear-gradient(135deg,#f59e0b,#d97706)',
