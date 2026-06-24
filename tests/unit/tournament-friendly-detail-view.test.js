@@ -1434,6 +1434,7 @@ describe('friendly tournament teams tab actions', () => {
       }),
       _buildFriendlyTournamentRosterMemberRecord: item => ({ uid: item.uid || '', name: item.name || '', joinedAt: item.joinedAt || '' }),
       _buildFriendlyTournamentRecord: item => ({ ...item }),
+      _buildTournamentMatchRecord: item => ({ id: item.id || item._docId || '', ...item }),
       _getFriendlyTournamentRegisteredTeamIdsFromEntries: entries => entries.map(entry => entry.teamId).filter(Boolean),
       _isTournamentHostParticipating: () => true,
       _canManageTournamentRecord: jest.fn(() => true),
@@ -1474,6 +1475,7 @@ describe('friendly tournament teams tab actions', () => {
       tournament: jest.fn(),
       applications: jest.fn(),
       entries: jest.fn(),
+      matches: jest.fn(),
       memberGuest: jest.fn(),
     };
     const makeDoc = (id, data, exists = true) => ({ id, exists, data: () => data });
@@ -1498,6 +1500,11 @@ describe('friendly tournament teams tab actions', () => {
             }),
           };
         }
+        if (name === 'matches') {
+          return {
+            onSnapshot: jest.fn((next) => { callbacks.matches = next; return unsubs.matches; }),
+          };
+        }
         throw new Error('unexpected collection ' + name);
       }),
     };
@@ -1516,6 +1523,7 @@ describe('friendly tournament teams tab actions', () => {
       _buildFriendlyTournamentEntryRecord: item => ({ teamId: item.teamId || '', teamName: item.teamName || '', entryStatus: item.entryStatus || 'approved', memberRoster: Array.isArray(item.memberRoster) ? item.memberRoster : [] }),
       _buildFriendlyTournamentRosterMemberRecord: item => ({ uid: item.uid || '', name: item.name || '' }),
       _buildFriendlyTournamentRecord: item => ({ ...item }),
+      _buildTournamentMatchRecord: item => ({ id: item.id || item._docId || '', ...item }),
       _getFriendlyTournamentRegisteredTeamIdsFromEntries: entries => entries.map(entry => entry.teamId).filter(Boolean),
       _isTournamentHostParticipating: () => true,
       _getFriendlyTournamentState(id) { return this._friendlyTournamentDetailStateById[id] || null; },
@@ -1531,20 +1539,102 @@ describe('friendly tournament teams tab actions', () => {
     callbacks.tournament(makeDoc('ct_live_doc', { id: 'ct_live', hostTeamId: 'tm_host' }));
     callbacks.applications({ docs: [makeDoc('ta_tm_guest', { teamId: 'tm_guest', status: 'pending' })] });
     callbacks.entries({ docs: [makeDoc('tm_guest', { teamName: 'Guest', entryStatus: 'approved' })] });
+    callbacks.matches({ docs: [makeDoc('m1', { stage: 'friendly', homeTeamId: 'tm_host', awayTeamId: 'tm_guest' })] });
     callbacks.members.tm_guest({ docs: [makeDoc('player_uid', { name: 'Player' })] });
 
     const state = global.App._getFriendlyTournamentState('ct_live');
     expect(state.entries).toEqual(expect.arrayContaining([
       expect.objectContaining({ teamId: 'tm_guest', memberRoster: [expect.objectContaining({ uid: 'player_uid' })] }),
     ]));
+    expect(state.matches).toEqual([expect.objectContaining({ id: 'm1', stage: 'friendly' })]);
     expect(global.App._scheduleFriendlyTournamentRealtimeRender).toHaveBeenCalled();
 
     global.App._stopFriendlyTournamentDetailRealtime('ct_live');
     expect(unsubs.tournament).toHaveBeenCalled();
     expect(unsubs.applications).toHaveBeenCalled();
     expect(unsubs.entries).toHaveBeenCalled();
+    expect(unsubs.matches).toHaveBeenCalled();
     expect(unsubs.memberGuest).toHaveBeenCalled();
     expect(global.App._friendlyTournamentDetailRealtime).toBeNull();
   });
 
+});
+
+describe('friendly tournament schedule tab rendering', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    global.escapeHTML = value => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  });
+
+  afterEach(() => {
+    delete global.App;
+    delete global.ApiService;
+    delete global.escapeHTML;
+    delete global.document;
+  });
+
+  test('renders compact Google-style friendly schedule cards', () => {
+    const container = { innerHTML: '' };
+    const tournament = { id: 'tf_schedule', mode: 'friendly' };
+    const state = {
+      tournament,
+      entries: [
+        { teamId: 'tm_a', teamName: 'Alpha Club', teamImage: 'https://cdn.example/a.png' },
+        { teamId: 'tm_b', teamName: 'Beta Club', teamImage: 'https://cdn.example/b.png' },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          stage: 'friendly',
+          round: 1,
+          slot: 0,
+          status: 'finished',
+          homeTeamId: 'tm_a',
+          awayTeamId: 'tm_b',
+          scoreHome: 2,
+          scoreAway: 1,
+          scheduledAt: '2026-06-24T10:00:00.000Z',
+          venue: 'Court A',
+        },
+      ],
+    };
+    global.document = { getElementById: id => (id === 'tournament-content' ? container : null) };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager' }),
+      getFriendlyTournamentRecord: () => tournament,
+      getTournament: () => tournament,
+    };
+    global.App = {
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => state),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _canManageTournamentRecord: jest.fn(() => true),
+      _canRecordTournamentMatch: jest.fn(() => false),
+      _buildTournamentMatchesBySlot: jest.fn(() => ({})),
+      _getTournamentTeamNameMap: jest.fn(() => ({ tm_a: 'Alpha Club', tm_b: 'Beta Club' })),
+      _getTournamentTeamLogoMap: jest.fn(() => ({ tm_a: 'https://cdn.example/a.png', tm_b: 'https://cdn.example/b.png' })),
+      _renderTournamentMatchSideLabel(match, side, _matchesBySlot, nameById) {
+        const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
+        return { teamId, label: nameById[teamId] || teamId };
+      },
+      _getTournamentRoundLabel: jest.fn(match => `Round ${match.round}`),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderTournamentTab('schedule');
+
+    expect(container.innerHTML).toContain('tfg-schedule');
+    expect(container.innerHTML).toContain('tfg-match-card tfg-match-finished');
+    expect(container.innerHTML).toContain('Alpha Club');
+    expect(container.innerHTML).toContain('Beta Club');
+    expect(container.innerHTML).toContain('<b>2</b>');
+    expect(container.innerHTML).toContain('Court A');
+    expect(container.innerHTML).toContain('tfg-manage-btn');
+  });
 });

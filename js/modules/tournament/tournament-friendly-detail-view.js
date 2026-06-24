@@ -731,6 +731,166 @@ Object.assign(App, {
       </div>`;
   },
 
+  _getFriendlyTournamentScheduleDateParts(value) {
+    if (!value) return { date: '時間待定', time: '待定', weekday: '', sortKey: Number.POSITIVE_INFINITY, groupKey: 'unscheduled' };
+    let millis = Number.NaN;
+    if (typeof value?.toMillis === 'function') millis = value.toMillis();
+    else if (typeof value?.toDate === 'function') millis = value.toDate().getTime();
+    else if (typeof this._getTournamentDateTimeMillis === 'function') millis = this._getTournamentDateTimeMillis(value);
+    if (!Number.isFinite(millis)) millis = new Date(value).getTime();
+    if (!Number.isFinite(millis)) {
+      const text = String(value || '').trim();
+      return { date: text || '時間待定', time: '待定', weekday: '', sortKey: Number.POSITIVE_INFINITY, groupKey: text || 'unscheduled' };
+    }
+    const dt = new Date(millis);
+    const pad = n => String(n).padStart(2, '0');
+    const weekday = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'][dt.getDay()] || '';
+    const date = `${dt.getFullYear()}/${pad(dt.getMonth() + 1)}/${pad(dt.getDate())}`;
+    return {
+      date,
+      time: `${pad(dt.getHours())}:${pad(dt.getMinutes())}`,
+      weekday,
+      sortKey: millis,
+      groupKey: date,
+    };
+  },
+
+  _sortFriendlyTournamentScheduleMatches(matches = []) {
+    return (Array.isArray(matches) ? matches : [])
+      .slice()
+      .sort((a, b) => {
+        const timeA = this._getFriendlyTournamentScheduleDateParts(a?.scheduledAt).sortKey;
+        const timeB = this._getFriendlyTournamentScheduleDateParts(b?.scheduledAt).sortKey;
+        return timeA - timeB
+          || Number(a?.round || 0) - Number(b?.round || 0)
+          || Number(a?.slot || 0) - Number(b?.slot || 0)
+          || Number(a?.matchNo || 0) - Number(b?.matchNo || 0);
+      });
+  },
+
+  _getFriendlyTournamentScheduleStatusMeta(match = {}) {
+    const status = String(match.status || 'scheduled').trim();
+    if (status === 'finished') return { key: 'finished', label: '已完賽', center: 'FT' };
+    if (status === 'walkover') return { key: 'walkover', label: '判定勝', center: 'WO' };
+    if (status === 'bye') return { key: 'bye', label: '輪空', center: 'BYE' };
+    const hasLiveData = (Array.isArray(match.events) && match.events.length > 0)
+      || match.scoreHome !== null || match.scoreAway !== null;
+    return hasLiveData
+      ? { key: 'live', label: '進行中', center: 'LIVE' }
+      : { key: 'scheduled', label: '未開賽', center: '' };
+  },
+
+  _renderFriendlyTournamentScheduleTeam(team = {}, side = 'home', logoById = {}) {
+    const teamId = String(team.teamId || '').trim();
+    const label = String(team.label || teamId || '待定球隊').trim();
+    const logo = logoById[teamId] || '';
+    const initial = label.slice(0, 1) || '?';
+    return `
+      <div class="tfg-team tfg-team-${escapeHTML(side)}">
+        <span class="tfg-team-logo">${logo ? `<img src="${escapeHTML(logo)}" alt="${escapeHTML(label)}">` : `<b>${escapeHTML(initial)}</b>`}</span>
+        <span class="tfg-team-name" title="${escapeHTML(label)}">${escapeHTML(label)}</span>
+      </div>`;
+  },
+
+  _renderFriendlyTournamentScheduleMatchCard(tournament, match, context = {}) {
+    const matchesBySlot = context.matchesBySlot || {};
+    const nameById = context.nameById || {};
+    const logoById = context.logoById || {};
+    const viewer = context.viewer || ApiService.getCurrentUser?.();
+    const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
+    const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
+    const dateParts = this._getFriendlyTournamentScheduleDateParts(match.scheduledAt);
+    const statusMeta = this._getFriendlyTournamentScheduleStatusMeta(match);
+    const hasScore = match.scoreHome !== null && match.scoreAway !== null;
+    const scoreHtml = hasScore
+      ? `<span class="tfg-score"><b>${escapeHTML(String(match.scoreHome))}</b><span>-</span><b>${escapeHTML(String(match.scoreAway))}</b></span>`
+      : `<span class="tfg-time">${escapeHTML(dateParts.time)}</span>`;
+    const roundLabel = this._getTournamentRoundLabel?.(match) || (match.round ? `第 ${match.round} 輪` : '友誼賽');
+    const refereeNames = (match.referees || [])
+      .map(ref => String(ref?.name || '').trim())
+      .filter(Boolean)
+      .join('、');
+    const metaItems = [roundLabel, match.venue || '', refereeNames ? `裁判 ${refereeNames}` : '']
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const canRecord = !!(this._canRecordTournamentMatch?.(tournament, match, viewer) && match.status !== 'bye');
+    const manageHtml = canRecord
+      ? `<button type="button" class="tfg-record-btn" onclick="event.stopPropagation();return App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">更新賽況</button>`
+      : '';
+    return `
+      <article class="tfg-match-card tfg-match-${escapeHTML(statusMeta.key)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}');}">
+        <div class="tfg-match-main">
+          ${this._renderFriendlyTournamentScheduleTeam(home, 'home', logoById)}
+          <div class="tfg-center">
+            ${scoreHtml}
+            <span class="tfg-status">${escapeHTML(statusMeta.label)}</span>
+          </div>
+          ${this._renderFriendlyTournamentScheduleTeam(away, 'away', logoById)}
+        </div>
+        <div class="tfg-match-meta">
+          <span>${escapeHTML(metaItems.join(' · ') || '場次資訊待補')}</span>
+          ${manageHtml}
+        </div>
+      </article>`;
+  },
+
+  _renderFriendlyTournamentScheduleHtml(state) {
+    const tournament = state?.tournament;
+    if (!tournament) return '<div class="tfg-empty">找不到賽事資料</div>';
+    const matches = this._sortFriendlyTournamentScheduleMatches(state.matches || []);
+    const viewer = ApiService.getCurrentUser?.();
+    const canManage = !!(this._isTournamentGlobalAdmin?.(viewer) || this._canManageTournamentRecord?.(tournament, viewer));
+    const finishedCount = matches.filter(match => match.status === 'finished' || match.status === 'walkover').length;
+    const safeTournamentId = escapeHTML(tournament.id);
+    const manageButton = canManage
+      ? `<button type="button" class="tfg-manage-btn" onclick="return App.openTournamentScheduleManager('${safeTournamentId}')">賽程管理</button>`
+      : '';
+    if (!matches.length) {
+      return `
+        <section class="tfg-schedule">
+          <div class="tfg-head">
+            <div><span>Matches</span><strong>友誼賽賽程</strong></div>
+            ${manageButton}
+          </div>
+          <div class="tfg-empty">
+            <strong>尚未產生賽程</strong>
+            <span>可依已核准俱樂部與賽事日期隨機產生對戰，產生後再手動微調時間、場地與裁判。</span>
+          </div>
+        </section>`;
+    }
+    const matchesBySlot = this._buildTournamentMatchesBySlot(matches);
+    const nameById = this._getTournamentTeamNameMap(state);
+    const logoById = this._getTournamentTeamLogoMap?.(state) || {};
+    const context = { matchesBySlot, nameById, logoById, viewer };
+    const groups = new Map();
+    matches.forEach(match => {
+      const parts = this._getFriendlyTournamentScheduleDateParts(match.scheduledAt);
+      const key = parts.groupKey || 'unscheduled';
+      if (!groups.has(key)) groups.set(key, { parts, items: [] });
+      groups.get(key).items.push(match);
+    });
+    const groupHtml = [...groups.values()].map(group => `
+      <section class="tfg-date-group">
+        <div class="tfg-date-row">
+          <strong>${escapeHTML(group.parts.date)}</strong>
+          ${group.parts.weekday ? `<span>${escapeHTML(group.parts.weekday)}</span>` : ''}
+        </div>
+        <div class="tfg-match-list">
+          ${group.items.map(match => this._renderFriendlyTournamentScheduleMatchCard(tournament, match, context)).join('')}
+        </div>
+      </section>`).join('');
+    return `
+      <section class="tfg-schedule">
+        <div class="tfg-head">
+          <div><span>Matches</span><strong>友誼賽賽程</strong></div>
+          <div class="tfg-head-actions">
+            <span>${escapeHTML(String(finishedCount))}/${escapeHTML(String(matches.length))} 已完成</span>
+            ${manageButton}
+          </div>
+        </div>
+        ${groupHtml}
+      </section>`;
+  },
   _renderFriendlyTournamentTeamsTab(state) {
     const tournament = state?.tournament;
     if (!tournament) {
@@ -840,12 +1000,16 @@ Object.assign(App, {
 
   renderTournamentTab(tab) {
     const tournament = ApiService.getFriendlyTournamentRecord?.(this.currentTournament) || ApiService.getTournament?.(this.currentTournament);
-    if (!tournament || !this._isFriendlyTournamentRecord?.(tournament) || tab !== 'teams') {
+    if (!tournament || !this._isFriendlyTournamentRecord?.(tournament) || !['teams', 'schedule'].includes(tab)) {
       return _tournamentFriendlyDetailViewLegacy.renderTournamentTab.call(this, tab);
     }
     const container = document.getElementById('tournament-content');
     if (!container) return;
-    const state = this._getFriendlyTournamentState(tournament.id) || { tournament, applications: [], entries: tournament.teamEntries || [] };
+    const state = this._getFriendlyTournamentState(tournament.id) || { tournament, applications: [], entries: tournament.teamEntries || [], matches: [] };
+    if (tab === 'schedule') {
+      container.innerHTML = this._renderFriendlyTournamentScheduleHtml(state);
+      return;
+    }
     container.innerHTML = this._renderFriendlyTournamentTeamsTab(state);
     this._ensureFriendlyTournamentRosterHydratedForRender?.(tournament.id);
   },

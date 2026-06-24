@@ -50,7 +50,8 @@ Object.assign(App, {
     const safeId = String(tournamentId || '').trim();
     const state = this._getFriendlyTournamentState?.(safeId) || await this._loadFriendlyTournamentDetailState?.(safeId);
     const tournament = state?.tournament;
-    if (!tournament || !this._isCompetitionTournamentRecord?.(tournament)) {
+    const mode = tournament ? (this._getTournamentMode?.(tournament) || 'friendly') : '';
+    if (!tournament || !['friendly', 'cup', 'league'].includes(mode)) {
       this.showToast('此賽事無賽程功能');
       return;
     }
@@ -104,8 +105,10 @@ Object.assign(App, {
     const finishedCount = matches.filter(m => m.status === 'finished' || m.status === 'walkover').length;
     const repeatDefault = this._getTournamentScheduleRepeatDefault(matches, config);
     const modeText = mode === 'league'
-      ? `聯賽（${config.doubleRound ? '雙循環' : '單循環'}）`
-      : `盃賽（單淘汰${config.thirdPlace ? '＋季軍戰' : ''}）`;
+      ? `聯賽（${config.doubleRound ? '主客雙循環' : '單循環'}）`
+      : mode === 'cup'
+        ? `盃賽（淘汰賽${config.thirdPlace ? '，含季軍戰' : ''}）`
+        : '友誼賽（隨機對戰）';
     const configuredTimeCount = matches.filter(m => m.scheduledAt).length;
     const configuredVenueCount = matches.filter(m => String(m.venue || '').trim()).length;
     summary.innerHTML = `
@@ -154,7 +157,7 @@ Object.assign(App, {
     const cupMatches = matches.filter(m => m.stage === 'cup');
     const bracketSize = this._getTournamentBracketSize?.(cupMatches) || cupMatches.filter(m => m.round === 1).length * 2;
     const orderedMatches = [...matches].sort((a, b) => {
-      const stageOrder = { cup: 0, third: 1, league: 2 };
+      const stageOrder = { friendly: 0, cup: 1, third: 2, league: 3 };
       const stageA = stageOrder[a.stage] ?? 9;
       const stageB = stageOrder[b.stage] ?? 9;
       return stageA - stageB || Number(a.round || 0) - Number(b.round || 0) || Number(a.slot || 0) - Number(b.slot || 0);
@@ -223,7 +226,7 @@ Object.assign(App, {
             </label>
           </div>
           ${refereeOptions.length ? `<div class="tc-manage-ref-panel"><div class="tc-manage-section-title">裁判指派</div><div class="tc-manage-refs">${refereeChecks}</div></div>` : '<div class="tc-manage-ref-panel"><div class="tc-manage-refs-empty">尚未設定裁判名單</div></div>'}
-          ${match.stage === 'league' && !locked ? `<div class="tc-manage-actions"><button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button></div>` : ''}
+          ${['friendly', 'league'].includes(match.stage) && !locked ? `<div class="tc-manage-actions"><button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button></div>` : ''}
         </div>`;
     }).join('');
   },
@@ -255,9 +258,12 @@ Object.assign(App, {
       if (!(await this.appConfirm(warnText))) return;
     }
     const repeatCount = this._readTournamentScheduleRepeatCount(config);
+    const scheduleSeed = `${safeId}|${teamIds.join('|')}|${(tournament.matchDates || []).join('|')}`;
     const rawFixtures = mode === 'league'
       ? this._generateLeagueFixtures(teamIds, { doubleRound: config.doubleRound === true, matchRepeatCount: repeatCount })
-      : this._generateCupBracket(teamIds, { thirdPlace: config.thirdPlace === true, matchRepeatCount: repeatCount });
+      : mode === 'cup'
+        ? this._generateCupBracket(teamIds, { thirdPlace: config.thirdPlace === true, matchRepeatCount: repeatCount })
+        : this._generateFriendlyFixtures(teamIds, { matchRepeatCount: repeatCount, seed: scheduleSeed, tournament });
     const fixtures = rawFixtures.map(match => this._buildTournamentMatchRecord?.(match) || match);
     if (fixtures.length === 0) {
       this.showToast('無法產生賽程，請確認隊伍數');

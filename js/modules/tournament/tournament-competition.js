@@ -106,7 +106,7 @@ Object.assign(App, {
       : [];
     return {
       id: String(data.id || data._docId || '').trim(),
-      stage: ['league', 'cup', 'third'].includes(String(data.stage || '').trim()) ? String(data.stage).trim() : 'league',
+      stage: ['friendly', 'league', 'cup', 'third'].includes(String(data.stage || '').trim()) ? String(data.stage).trim() : 'league',
       round: Math.max(1, Math.floor(Number(data.round) || 1)),
       slot: Math.max(0, Math.floor(Number(data.slot) || 0)),
       slotKey: String(data.slotKey || '').trim(),
@@ -197,6 +197,78 @@ Object.assign(App, {
     return repeated;
   },
 
+  _getTournamentFixtureRandom(seedText = '') {
+    const source = String(seedText || '').trim() || 'friendly-fixture';
+    let seed = 2166136261;
+    for (let i = 0; i < source.length; i++) {
+      seed ^= source.charCodeAt(i);
+      seed = Math.imul(seed, 16777619) >>> 0;
+    }
+    return () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+  },
+
+  _shuffleTournamentFixtureItems(items = [], seedText = '') {
+    const list = (Array.isArray(items) ? items : []).slice();
+    const random = this._getTournamentFixtureRandom(seedText);
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  },
+
+  _getTournamentScheduleBaseMillis(value, fallbackHour = 9) {
+    if (value === null || value === undefined || value === '') return null;
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+    const source = dateOnly ? `${raw}T${String(fallbackHour).padStart(2, '0')}:00:00` : raw;
+    let millis = Number.NaN;
+    if (typeof this._getTournamentDateTimeMillis === 'function') {
+      millis = this._getTournamentDateTimeMillis(source);
+    }
+    if (!Number.isFinite(millis)) millis = new Date(source).getTime();
+    return Number.isFinite(millis) ? millis : null;
+  },
+
+  _getTournamentScheduleTimeSlots(tournament = {}, matchCount = 0, options = {}) {
+    const total = Math.max(0, Math.floor(Number(matchCount) || 0));
+    if (total <= 0) return [];
+    const dates = (Array.isArray(tournament?.matchDates) ? tournament.matchDates : [])
+      .map(item => this._getTournamentScheduleBaseMillis(item, options.fallbackHour || 9))
+      .filter(millis => Number.isFinite(millis))
+      .sort((a, b) => a - b);
+    if (!dates.length) return [];
+    const intervalMinutes = Math.max(30, Math.floor(Number(options.intervalMinutes) || 120));
+    const perDate = Math.max(1, Math.ceil(total / dates.length));
+    return Array.from({ length: total }, (_, index) => {
+      const dateIndex = Math.min(dates.length - 1, Math.floor(index / perDate));
+      const offset = index - dateIndex * perDate;
+      return new Date(dates[dateIndex] + offset * intervalMinutes * 60000).toISOString();
+    });
+  },
+
+  _applyTournamentFixtureScheduleMeta(fixtures = [], tournament = {}, options = {}) {
+    const list = Array.isArray(fixtures) ? fixtures : [];
+    const timeSlots = this._getTournamentScheduleTimeSlots(tournament, list.filter(match => match?.status !== 'bye').length, options);
+    const venues = (Array.isArray(tournament?.venues) ? tournament.venues : [])
+      .map(venue => String(venue || '').trim())
+      .filter(Boolean);
+    let playableIndex = 0;
+    return list.map((match, index) => {
+      if (!match || match.status === 'bye') return match;
+      const slotIndex = playableIndex++;
+      return {
+        ...match,
+        scheduledAt: match.scheduledAt || timeSlots[slotIndex] || '',
+        venue: String(match.venue || '').trim() || venues[venues.length ? slotIndex % venues.length : index] || '',
+      };
+    });
+  },
+
   _generateLeagueFixtures(teamIds, options = {}) {
     const ids = (Array.isArray(teamIds) ? teamIds : []).map(id => String(id || '').trim()).filter(Boolean);
     if (ids.length < 2) return [];
@@ -224,6 +296,31 @@ Object.assign(App, {
       options.doubleRound === true ? 2 : 1
     );
     return this._repeatTournamentFixtureSeries(fixtures, repeat, { leagueRoundsTotal: roundsTotal });
+  },
+
+  /** 友誼賽採 seeded shuffle + round-robin，維持可重現又避免固定排序。 */
+  _generateFriendlyFixtures(teamIds, options = {}) {
+    const ids = (Array.isArray(teamIds) ? teamIds : []).map(id => String(id || '').trim()).filter(Boolean);
+    if (ids.length < 2) return [];
+    const seed = options.seed || `${ids.length}|${ids.join('|')}`;
+    const randomizedIds = this._shuffleTournamentFixtureItems(ids, seed);
+    const repeat = this._normalizeTournamentMatchRepeatCount(
+      options.matchRepeatCount ?? options.pairRepeatCount,
+      options.doubleRound === true ? 2 : 1
+    );
+    const fixtures = this._generateLeagueFixtures(randomizedIds, { matchRepeatCount: repeat })
+      .map(match => {
+        const slotKey = String(match.slotKey || '').replace(/^lr/, 'fr');
+        const seriesKey = String(match.seriesKey || match.slotKey || '').replace(/^lr/, 'fr');
+        return {
+          ...match,
+          stage: 'friendly',
+          slotKey,
+          seriesKey,
+          status: match.status || 'scheduled',
+        };
+      });
+    return this._applyTournamentFixtureScheduleMeta(fixtures, options.tournament || {}, options);
   },
 
   /** 標準種子序（1-indexed），size 必須為 2 的次方。 */
@@ -285,6 +382,7 @@ Object.assign(App, {
 
   _getTournamentRoundLabel(match, bracketSize = 0) {
     if (!match) return '';
+    if (match.stage === 'friendly') return `第 ${match.round} 輪`;
     if (match.stage === 'third') return '季軍戰';
     if (match.stage === 'league') return `第 ${match.round} 輪`;
     const teamsInRound = bracketSize > 0 ? bracketSize / Math.pow(2, match.round - 1) : 0;

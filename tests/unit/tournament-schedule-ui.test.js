@@ -203,3 +203,46 @@ describe('tournament schedule manager bulk save', () => {
     }
   });
 });
+
+describe('friendly tournament schedule manager generation', () => {
+  test('generates friendly fixtures instead of cup brackets for friendly tournaments', async () => {
+    const ApiService = {
+      replaceTournamentMatchesAtomic: jest.fn().mockResolvedValue(),
+    };
+    const App = buildScheduleApp(ApiService);
+    const tournament = { id: 'tf_1', mode: 'friendly', matchDates: ['2026-06-24'], venues: ['Court A'] };
+    const entries = [
+      { teamId: 'tm_a', entryStatus: 'host' },
+      { teamId: 'tm_b', entryStatus: 'approved' },
+      { teamId: 'tm_c', entryStatus: 'approved' },
+    ];
+    App._getFriendlyTournamentState = jest.fn(() => ({ tournament, entries, matches: [] }));
+    App._getTournamentMode = jest.fn(record => record.mode || 'friendly');
+    App._getTournamentCompetitionConfig = jest.fn(() => ({}));
+    App._friendlyTournamentEntryCountsTowardLimit = jest.fn(() => true);
+    App._isTournamentGlobalAdmin = jest.fn(() => false);
+    App._canManageTournamentRecord = jest.fn(() => true);
+    App._readTournamentScheduleRepeatCount = jest.fn(() => 1);
+    App._buildTournamentMatchRecord = jest.fn(match => match);
+    App._generateLeagueFixtures = jest.fn(() => []);
+    App._generateCupBracket = jest.fn(() => []);
+    App._generateFriendlyFixtures = jest.fn(() => [
+      { id: 'm1', stage: 'friendly', homeTeamId: 'tm_a', awayTeamId: 'tm_b' },
+    ]);
+    App._refreshTournamentCompetitionMatches = jest.fn().mockResolvedValue();
+    App._renderTournamentScheduleManager = jest.fn();
+    App.showToast = jest.fn();
+
+    await App.generateTournamentSchedule('tf_1');
+
+    expect(App._generateFriendlyFixtures).toHaveBeenCalledWith(
+      ['tm_a', 'tm_b', 'tm_c'],
+      expect.objectContaining({ matchRepeatCount: 1, tournament })
+    );
+    expect(App._generateCupBracket).not.toHaveBeenCalled();
+    expect(ApiService.replaceTournamentMatchesAtomic).toHaveBeenCalledWith('tf_1', [
+      { id: 'm1', stage: 'friendly', homeTeamId: 'tm_a', awayTeamId: 'tm_b' },
+    ]);
+    expect(App._refreshTournamentCompetitionMatches).toHaveBeenCalledWith('tf_1');
+  });
+});

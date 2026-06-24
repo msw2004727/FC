@@ -95,6 +95,12 @@ Object.assign(App, {
       .map(item => this._buildFriendlyTournamentRosterMemberRecord(item));
   },
 
+  _mapTournamentMatchSnapshotDocs(snapshot) {
+    return (snapshot?.docs || [])
+      .map(doc => this._getFriendlyTournamentSnapshotRecord(doc))
+      .filter(Boolean)
+      .map(item => this._buildTournamentMatchRecord?.(item) || item);
+  },
   _sortFriendlyTournamentApplications(applications = []) {
     return (Array.isArray(applications) ? applications : [])
       .slice()
@@ -195,9 +201,7 @@ Object.assign(App, {
       ));
       return [...fallbackApplications, ...fetched.filter(Boolean)];
     })();
-    // 盃賽/聯賽：同步載入賽程比賽（友誼賽無賽程，跳過）
-    const isCompetitionMode = ['cup', 'league'].includes(this._getTournamentMode?.(base) || 'friendly');
-    const matchesPromise = isCompetitionMode && typeof ApiService.listTournamentMatches === 'function'
+    const matchesPromise = typeof ApiService.listTournamentMatches === 'function'
       ? ApiService.listTournamentMatches(tournamentId).catch(() => [])
       : Promise.resolve([]);
     const [rawApplications, rawEntries, rawMatches] = await Promise.all([
@@ -264,13 +268,16 @@ Object.assign(App, {
       : (current.entries || []);
     const rosterHydrated = realtime.expectedMemberTeamIds.size === 0
       || [...realtime.expectedMemberTeamIds].every(teamId => realtime.membersByTeam.has(teamId));
+    const rawMatches = realtime.matchesReady
+      ? [...realtime.matchesById.values()]
+      : (current.matches || []);
 
     const state = this._buildFriendlyTournamentDetailStateFromRecords(
       tournamentId,
       base,
       rawApplications,
       rawEntries,
-      current.matches || [],
+      rawMatches,
       { rosterHydrated }
     );
     this._friendlyTournamentDetailStateById[tournamentId] = state;
@@ -301,7 +308,8 @@ Object.assign(App, {
 
     this.renderRegisterButton?.(tournament);
     this.renderTournamentInfo?.(tournament);
-    if (this._getFriendlyTournamentActiveTab?.() === 'teams') this.renderTournamentTab?.('teams');
+    const activeTab = this._getFriendlyTournamentActiveTab?.() || 'teams';
+    if (['teams', 'schedule', 'standings', 'stats'].includes(activeTab)) this.renderTournamentTab?.(activeTab);
     if (this._friendlyTournamentRosterListState?.tournamentId === safeTournamentId && !this._friendlyTournamentRosterListState.editingUid) {
       this._renderFriendlyTournamentRosterListModal?.();
     }
@@ -374,12 +382,14 @@ Object.assign(App, {
       tournament: initialState?.tournament || null,
       applicationsById: new Map((initialState?.applications || []).map(item => [item.id || item.teamId, item])),
       entriesByTeam: new Map((initialState?.entries || []).map(item => [item.teamId, item]).filter(([teamId]) => teamId)),
+      matchesById: new Map((initialState?.matches || []).map(item => [item.id, item]).filter(([matchId]) => matchId)),
       membersByTeam: new Map((initialState?.entries || [])
         .filter(entry => Array.isArray(entry.memberRoster) && entry.memberRoster.length > 0)
         .map(entry => [entry.teamId, entry.memberRoster])),
       expectedMemberTeamIds: new Set(),
       applicationsReady: false,
       entriesReady: false,
+      matchesReady: false,
     };
     this._friendlyTournamentDetailRealtime = realtime;
 
@@ -429,6 +439,15 @@ Object.assign(App, {
       this._scheduleFriendlyTournamentRealtimeRender(safeTournamentId);
     }, err => {
       console.warn('[Tournament:Realtime] entries listener failed:', err);
+    }));
+
+    realtime.unsubs.push(tournamentRef.collection('matches').onSnapshot(snapshot => {
+      const matches = this._mapTournamentMatchSnapshotDocs(snapshot);
+      realtime.matchesById = new Map(matches.map(item => [item.id, item]).filter(([matchId]) => matchId));
+      realtime.matchesReady = true;
+      this._scheduleFriendlyTournamentRealtimeRender(safeTournamentId);
+    }, err => {
+      console.warn('[Tournament:Realtime] matches listener failed:', err);
     }));
 
     this._scheduleFriendlyTournamentRealtimeRender(safeTournamentId, { immediate: true });

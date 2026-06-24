@@ -371,3 +371,37 @@ describe('比賽記錄資料形狀', () => {
     expect(m.refereeUids).toEqual(['u1']);
   });
 });
+
+describe('friendly tournament fixture generation', () => {
+  const { App } = buildApp();
+
+  test('creates one randomized round-robin friendly match per pair', () => {
+    const fx = App._generateFriendlyFixtures(['a', 'b', 'c', 'd'], { seed: 'stable-seed' });
+    expect(fx).toHaveLength(6);
+    expect(fx.every(match => match.stage === 'friendly')).toBe(true);
+    expect(fx.every(match => String(match.slotKey || '').startsWith('fr'))).toBe(true);
+    const pairs = new Set(fx.map(match => [match.homeTeamId, match.awayTeamId].sort().join('-')));
+    expect(pairs.size).toBe(6);
+  });
+
+  test('uses the seed deterministically and can change ordering by seed', () => {
+    const first = App._generateFriendlyFixtures(['a', 'b', 'c', 'd'], { seed: 'alpha' }).map(match => `${match.homeTeamId}-${match.awayTeamId}`);
+    const second = App._generateFriendlyFixtures(['a', 'b', 'c', 'd'], { seed: 'alpha' }).map(match => `${match.homeTeamId}-${match.awayTeamId}`);
+    const third = App._generateFriendlyFixtures(['a', 'b', 'c', 'd'], { seed: 'beta' }).map(match => `${match.homeTeamId}-${match.awayTeamId}`);
+    expect(second).toEqual(first);
+    expect(third).not.toEqual(first);
+  });
+
+  test('applies tournament dates and venues to generated friendly matches', () => {
+    const fx = App._generateFriendlyFixtures(['a', 'b', 'c'], {
+      seed: 'schedule-meta',
+      tournament: {
+        matchDates: ['2026-06-24', '2026-06-25'],
+        venues: ['Court A', 'Court B'],
+      },
+    });
+    expect(fx).toHaveLength(3);
+    expect(fx.map(match => match.venue)).toEqual(['Court A', 'Court B', 'Court A']);
+    expect(fx.every(match => String(match.scheduledAt || '').startsWith('2026-06-'))).toBe(true);
+  });
+});

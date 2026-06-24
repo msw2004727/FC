@@ -2825,6 +2825,288 @@
 }
 .tc-manage-delete { color: var(--danger); border-color: var(--danger); }
 
+.tfg-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: .58rem;
+  padding: .5rem .36rem .9rem;
+}
+.tfg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  min-height: 40px;
+  padding: .18rem .1rem .28rem;
+}
+.tfg-head > div:first-child {
+  min-width: 0;
+}
+.tfg-head span,
+.tfg-head-actions span {
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.tfg-head strong {
+  display: block;
+  margin-top: .08rem;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: .98rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tfg-head-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: .45rem;
+}
+.tfg-manage-btn,
+.tfg-record-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.tfg-manage-btn {
+  padding: .36rem .74rem;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+.tfg-record-btn {
+  padding: .3rem .62rem;
+  border: 1px solid #0f766e;
+  background: #0f766e;
+  color: #fff;
+}
+.tfg-date-group {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.tfg-date-row {
+  display: flex;
+  align-items: baseline;
+  gap: .42rem;
+  padding: 0 .18rem;
+}
+.tfg-date-row strong {
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.tfg-date-row span {
+  color: var(--text-muted);
+  font-size: .67rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.tfg-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: .42rem;
+}
+.tfg-match-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: .36rem;
+  width: 100%;
+  min-height: 74px;
+  padding: .58rem .66rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
+  cursor: pointer;
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+.tfg-match-card:hover,
+.tfg-match-card:focus-visible {
+  border-color: rgba(37, 99, 235, .42);
+  box-shadow: 0 9px 22px rgba(15, 23, 42, .08);
+  outline: none;
+  transform: translateY(-1px);
+}
+.tfg-match-finished { background: color-mix(in srgb, var(--bg-card) 92%, #f8fafc); }
+.tfg-match-live { border-color: rgba(220, 38, 38, .34); }
+.tfg-match-walkover { border-style: dashed; }
+.tfg-match-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  align-items: center;
+  gap: .44rem;
+}
+.tfg-team {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: .48rem;
+}
+.tfg-team-away {
+  justify-content: flex-end;
+  text-align: right;
+}
+.tfg-team-away .tfg-team-logo { order: 2; }
+.tfg-team-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-card) 70%, #eef2ff);
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 900;
+}
+.tfg-team-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tfg-team-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: .82rem;
+  font-weight: 900;
+  line-height: 1.22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tfg-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-width: 0;
+  gap: .12rem;
+  text-align: center;
+}
+.tfg-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .25rem;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.tfg-time {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: .86rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.tfg-status {
+  color: var(--text-muted);
+  font-size: .58rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tfg-match-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  min-width: 0;
+  padding-top: .34rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 72%, transparent);
+}
+.tfg-match-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 750;
+  line-height: 1.22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tfg-empty {
+  display: flex;
+  flex-direction: column;
+  gap: .22rem;
+  padding: 1rem .85rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-card) 82%, var(--bg-muted));
+  color: var(--text-muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.tfg-empty strong {
+  color: var(--text-primary);
+  font-size: .9rem;
+  line-height: 1.25;
+}
+
+@media (max-width: 560px) {
+  .tfg-schedule {
+    padding: .42rem .18rem .8rem;
+  }
+  .tfg-head,
+  .tfg-head-actions,
+  .tfg-match-meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tfg-head-actions {
+    width: 100%;
+  }
+  .tfg-manage-btn,
+  .tfg-record-btn {
+    width: 100%;
+  }
+  .tfg-match-card {
+    padding: .54rem .52rem;
+  }
+  .tfg-match-main {
+    grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr);
+    gap: .32rem;
+  }
+  .tfg-team {
+    gap: .34rem;
+  }
+  .tfg-team-logo {
+    flex-basis: 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+  }
+  .tfg-team-name {
+    font-size: .76rem;
+  }
+  .tfg-time,
+  .tfg-score {
+    font-size: .78rem;
+  }
+  .tfg-match-meta > span {
+    white-space: normal;
+  }
+}
 @media (max-width: 680px) {
   .tc-schedule {
     padding: .6rem .34rem .9rem;
