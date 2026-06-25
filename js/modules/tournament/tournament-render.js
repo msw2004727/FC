@@ -143,6 +143,108 @@ Object.assign(App, {
   _tournamentsRenderSeq: 0,
   _tournamentListLastFp: '',
 
+  _getTournamentListTimestampMs(value) {
+    if (!value) return 0;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+    const parsed = Date.parse(String(value));
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+
+  _formatTournamentListAge(ageMs) {
+    const safeAge = Math.max(0, Number(ageMs) || 0);
+    if (safeAge < 60 * 1000) return '剛剛';
+    if (safeAge < 60 * 60 * 1000) return Math.floor(safeAge / (60 * 1000)) + ' 分鐘前';
+    if (safeAge < 24 * 60 * 60 * 1000) return Math.floor(safeAge / (60 * 60 * 1000)) + ' 小時前';
+    return Math.floor(safeAge / (24 * 60 * 60 * 1000)) + ' 天前';
+  },
+
+  _getTournamentListFreshnessState(sourceTournaments = []) {
+    const rows = Array.isArray(sourceTournaments) ? sourceTournaments : [];
+    const service = typeof FirebaseService !== 'undefined' ? FirebaseService : null;
+    if (!service) {
+      return { visible: false, fingerprint: 'no-service', hasRows: rows.length > 0 };
+    }
+
+    const freshAt = Number(service._tournamentFreshAt || 0);
+    const cacheAt = Number(service._collectionLoadedAt?.tournaments || 0);
+    const source = service._tournamentCacheSource || (freshAt ? 'server' : (service._cacheRestored ? 'local' : ''));
+    const hasServerSnapshot = !!service._tournamentSnapshotReady || !!freshAt || source === 'server';
+    const hasRows = rows.length > 0;
+    const failed = !!service._bootCollectionLoadFailed?.tournaments;
+    const isLocalCache = hasRows && source === 'local' && !hasServerSnapshot;
+    const isSyncing = !failed && (!hasServerSnapshot || isLocalCache);
+    const ageBase = freshAt || cacheAt || 0;
+    const ageMs = ageBase ? Math.max(0, Date.now() - ageBase) : 0;
+    const ageText = ageBase ? this._formatTournamentListAge(ageMs) : '';
+    const isServerFresh = hasServerSnapshot && !isLocalCache;
+
+    let label = '';
+    let ageLabel = '';
+    let state = 'syncing';
+    if (failed) {
+      state = 'warn';
+      label = hasRows ? '顯示快取資料，連線恢復後會自動更新' : '暫時無法同步賽事資料';
+      ageLabel = ageText ? '快取 ' + ageText : '';
+    } else if (isLocalCache) {
+      state = 'syncing';
+      label = '先顯示上次賽事，正在同步最新資料';
+      ageLabel = ageText ? '快取 ' + ageText : '';
+    } else if (isServerFresh) {
+      state = 'fresh';
+      label = '賽事資料已同步';
+      ageLabel = ageText ? ageText + '更新' : '剛剛更新';
+    } else {
+      state = 'syncing';
+      label = '正在同步最新賽事';
+      ageLabel = '';
+    }
+
+    return {
+      visible: hasRows || isSyncing || failed,
+      state,
+      label,
+      ageLabel,
+      ageMs,
+      hasRows,
+      isSyncing,
+      isServerFresh,
+      isLocalCache,
+      hasServerSnapshot,
+      failed,
+      fingerprint: [state, source || 'none', hasServerSnapshot ? 'server' : 'pending', Math.floor(ageMs / 60000), failed ? 'err' : 'ok'].join('|'),
+    };
+  },
+
+  _renderTournamentListFreshnessBadge(state) {
+    if (!state || !state.visible) return '';
+    const safeState = escapeHTML(state.state || 'syncing');
+    const label = escapeHTML(state.label || '');
+    const age = state.ageLabel ? `<span class="tc-freshness-age">${escapeHTML(state.ageLabel)}</span>` : '';
+    return `
+      <div class="tc-freshness-strip" data-state="${safeState}" role="status" aria-live="polite">
+        <span class="tc-freshness-dot" aria-hidden="true"></span>
+        <span class="tc-freshness-label">${label}</span>
+        ${age}
+      </div>`;
+  },
+
+  _shouldShowTournamentInitialLoading(state, sourceTournaments = []) {
+    if ((sourceTournaments || []).length > 0) return false;
+    if (!state) return false;
+    if (state.failed || state.hasServerSnapshot || state.isServerFresh) return false;
+    return true;
+  },
+
+  _renderTournamentListLoading() {
+    return `
+      <div class="tc-list-loading" aria-busy="true">
+        <div class="tc-list-loading-title">載入賽事資料中</div>
+        <div class="tc-list-loading-sub">正在同步最新賽事，若有快取會立即顯示。</div>
+        <div class="tc-list-skeleton"><span></span><span></span><span></span></div>
+      </div>`;
+  },
+
   renderTournamentTimeline() {
     const container = document.getElementById('tournament-timeline');
     if (!container) return;
@@ -153,7 +255,10 @@ Object.assign(App, {
     const query = (document.getElementById('tc-search')?.value || '').trim().toLowerCase();
     const regionFilter = document.getElementById('tc-region-filter')?.value || '';
 
-    let tournaments = (ApiService.getTournaments() || []).map(t => this.getFriendlyTournamentRecord?.(t) || t);
+    const sourceTournaments = ApiService.getTournaments() || [];
+    const freshnessState = this._getTournamentListFreshnessState(sourceTournaments);
+    const freshnessHtml = this._renderTournamentListFreshnessBadge(freshnessState);
+    let tournaments = sourceTournaments.map(t => this.getFriendlyTournamentRecord?.(t) || t);
 
     // Tab filter
     tournaments = tournaments.filter(t => {
@@ -193,20 +298,51 @@ Object.assign(App, {
     tournaments.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (tournaments.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? t('tournament.noEnded') : t('tournament.noActive')}</div>`;
-      // Phase 2B §8.2A：快取不完整且搜尋無結果 → 搜尋所有賽事
-      if (query && !FirebaseService._tournamentAllLoaded) {
+      if (this._shouldShowTournamentInitialLoading?.(freshnessState, sourceTournaments)) {
+        container.innerHTML = freshnessHtml + this._renderTournamentListLoading();
+        this._tournamentListLastFp = '';
+        return;
+      }
+      container.innerHTML = freshnessHtml + `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? t('tournament.noEnded') : t('tournament.noActive')}</div>`;
+      // Search deeper when the local tournament slice is not fully loaded.
+      if (query && typeof FirebaseService !== 'undefined' && !FirebaseService._tournamentAllLoaded) {
         container.insertAdjacentHTML('beforeend',
           '<div style="text-align:center;padding:1rem">' +
           '<button class="outline-btn" style="font-size:.8rem;padding:.4rem 1rem" ' +
-          'onclick="App.searchTournamentsFromServer()">找不到？搜尋所有賽事</button></div>');
+          'onclick="App.searchTournamentsFromServer()">搜尋更多賽事</button></div>');
       }
       this._tournamentListLastFp = '';
+      if (freshnessState?.hasServerSnapshot || freshnessState?.isServerFresh) this._markPageSnapshotReady?.('page-tournaments');
       return;
     }
 
     // Phase 2B §8.2B：指紋跳過重繪
-    var fp = tournaments.map(function(t) { return t.id + '|' + (t.name || '') + '|' + (t.status || '') + '|' + (t.sportTag || ''); }).join(',');
+    var fp = (freshnessState?.fingerprint || 'no-freshness') + '::' + tournaments.map(function(t) {
+      const registered = Array.isArray(t.registeredTeams) ? t.registeredTeams : [];
+      const registeredFp = registered.map(function(team) {
+        return String(team?.teamId || team?.id || team?.name || team || '').trim();
+      }).join('.');
+      return [
+        t.id || t._docId || '',
+        t.name || '',
+        t.status || '',
+        t.sportTag || '',
+        t.image || '',
+        t.type || '',
+        t.mode || '',
+        t.region || '',
+        t.organizer || '',
+        t.hostTeamId || '',
+        t.teams || '',
+        t.maxTeams || '',
+        registered.length + ':' + registeredFp,
+        this._getTournamentListTimestampMs(t.regStart),
+        this._getTournamentListTimestampMs(t.regEnd),
+        this._getTournamentListTimestampMs(t.createdAt),
+        this._getTournamentListTimestampMs(t.updatedAt),
+        this.isTournamentEnded(t) ? 'ended' : 'active',
+      ].join('|');
+    }, this).join(',');
     if (this._tournamentListLastFp === fp && container.children.length > 0) return;
     this._tournamentListLastFp = fp;
 
@@ -242,7 +378,7 @@ Object.assign(App, {
       [TOURNAMENT_STATUS.PREPARING]:       'linear-gradient(135deg,#60a5fa,#3b82f6)',
       [TOURNAMENT_STATUS.ENDED]:           'linear-gradient(135deg,#6b7280,#4b5563)',
     };
-    container.innerHTML = tournaments.map(t => {
+    container.innerHTML = freshnessHtml + tournaments.map(t => {
       const isEnded = this.isTournamentEnded(t);
       const status = isEnded ? TOURNAMENT_STATUS.ENDED : this.getTournamentStatus(t);
       const ribbonBg = ribbonColorMap[status] || ribbonColorMap[TOURNAMENT_STATUS.ENDED];
@@ -281,7 +417,7 @@ Object.assign(App, {
     this._scheduleVisibleDetailPrefetch?.('tournaments', tournaments.map(t => t.id || t._docId).filter(Boolean));
   },
 
-  /** Phase 2B §8.2A：server-side 全集合搜尋 */
+  /** Server-side search for the remaining tournament pages. */
   async searchTournamentsFromServer() {
     var query = (document.getElementById('tc-search')?.value || '').trim();
     if (!query) return;

@@ -59,9 +59,36 @@ describe('tournament loading performance contract', () => {
     expect(firebaseSource).toContain("setTimeout(() => {");
     expect(firebaseSource).toContain("App.currentPage === 'page-tournaments'");
     expect(firebaseSource).toContain('App.renderTournamentTimeline?.();');
+    expect(firebaseSource).not.toContain('App.renderTournamentList?.();');
     expect(navigationSource).toContain("_canActivateBeforeCloud(pageId)");
     expect(navigationSource).toContain("return pageId === 'page-tournaments'");
     expect(navigationSource).toContain("pageId === 'page-tournaments' ? { delayMs: 0 } : undefined");
+  });
+
+  test('tournament list shows cached cards while syncing freshness', () => {
+    const renderSource = readProjectFile('js/modules/tournament/tournament-render.js');
+    const styleSource = readProjectFile('css/tournament.css');
+
+    expect(renderSource).toContain('_getTournamentListFreshnessState');
+    expect(renderSource).toContain('_renderTournamentListFreshnessBadge');
+    expect(renderSource).toContain('_shouldShowTournamentInitialLoading');
+    expect(renderSource).toContain('const sourceTournaments = ApiService.getTournaments() || [];');
+    expect(renderSource).toContain('container.innerHTML = freshnessHtml + tournaments.map');
+    expect(renderSource).toContain('registered.length +');
+    expect(renderSource).toContain('this._getTournamentListTimestampMs(t.updatedAt)');
+    expect(styleSource).toContain('.tc-freshness-strip');
+    expect(styleSource).toContain('.tc-list-loading');
+    expect(styleSource).toContain('min-height: 1.75rem');
+  });
+
+  test('tournament realtime snapshots mark cached data fresh for the next instant entry', () => {
+    const firebaseSource = readProjectFile('js/firebase-service.js');
+
+    expect(firebaseSource).toContain("this._tournamentCacheSource = 'local'");
+    expect(firebaseSource).toContain("this._tournamentCacheSource = 'server'");
+    expect(firebaseSource).toContain('this._tournamentFreshAt = loadedAt;');
+    expect(firebaseSource).toContain('self._tournamentSnapshotReady = true;');
+    expect(firebaseSource).toContain('this._debouncedPersistCache();');
   });
 
   test('core page preload is network hints only', () => {

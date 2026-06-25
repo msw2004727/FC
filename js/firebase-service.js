@@ -803,7 +803,7 @@ const FirebaseService = {
           case 'tournaments':
           case 'standings':
           case 'matches':
-            if (App.currentPage === 'page-tournaments') App.renderTournamentList?.();
+            if (App.currentPage === 'page-tournaments') App.renderTournamentTimeline?.();
             break;
           case 'shopItems':
             if (App.currentPage === 'page-shop') App.renderShopItems?.();
@@ -916,6 +916,11 @@ const FirebaseService = {
           ? this._canonicalizeRecordList(name, data)
           : data;
         this._collectionLoadedAt[name] = ts;
+        if (name === 'tournaments') {
+          this._tournamentCacheSource = 'local';
+          this._tournamentCacheRestoredAt = Date.now();
+          this._tournamentFreshAt = 0;
+        }
         if (!this._isCanonicalCollection(name) || this._cache[name].length > 0) restored++;
       }
     });
@@ -1163,6 +1168,14 @@ const FirebaseService = {
       seen.add(doc.id);
       return true;
     });
+    if (name === 'tournaments') {
+      const loadedAt = Date.now();
+      this._tournamentCacheSource = 'server';
+      this._tournamentFreshAt = loadedAt;
+      this._collectionLoadedAt.tournaments = loadedAt;
+      this._lazyLoaded.tournaments = true;
+      delete this._bootCollectionLoadFailed.tournaments;
+    }
     // SWR：通知 UI 此集合已更新（僅在 init 完成後，避免啟動時連發）
     if (this._initialized) this._notifyCacheUpdated(name);
   },
@@ -1985,6 +1998,12 @@ const FirebaseService = {
       merged.push(doc);
     });
     this._cache.tournaments = merged;
+    const loadedAt = Date.now();
+    this._tournamentCacheSource = 'server';
+    this._tournamentFreshAt = loadedAt;
+    this._collectionLoadedAt.tournaments = loadedAt;
+    this._lazyLoaded.tournaments = true;
+    delete this._bootCollectionLoadFailed.tournaments;
     this._debouncedPersistCache();
     if (shouldRefreshUI) this._debouncedSnapshotRender('tournaments');
   },
@@ -4575,6 +4594,7 @@ const FirebaseService = {
     if (this._realtimeListenerStarted.tournaments) return;
     this._realtimeListenerStarted.tournaments = true;
     this._lazyLoaded.tournaments = true;
+    this._tournamentSnapshotReady = false;
     var self = this;
     var unsub = db.collection('tournaments')
       .orderBy('createdAt', 'desc')
@@ -4584,6 +4604,7 @@ const FirebaseService = {
           self._tournamentSlices.active = snapshot.docs.map(function(doc) {
             return Object.assign({}, doc.data(), { _docId: doc.id });
           });
+          self._tournamentSnapshotReady = true;
           self._mergeTournamentSlices(true);
           self._snapshotReconnectAttempts.tournaments = 0;
         },
@@ -4598,6 +4619,7 @@ const FirebaseService = {
       this._pageScopedRealtimeListeners.tournaments = null;
     }
     this._realtimeListenerStarted.tournaments = false;
+    this._tournamentSnapshotReady = false;
   },
 
   _reconnectTournamentsListener(err) {
@@ -4662,6 +4684,10 @@ const FirebaseService = {
     this._eventsTerminalMode = 'none';
     this._terminalLoadedMode = 'none';
     this._visibilityLastEventsRefreshAt = 0;
+    this._tournamentCacheSource = '';
+    this._tournamentFreshAt = 0;
+    this._tournamentCacheRestoredAt = 0;
+    this._tournamentSnapshotReady = false;
     // RC3：清除 visibilitychange listener + debounce timer
     clearTimeout(this._visibilityRefreshDebounce);
     if (this._visibilityRefreshHandler) {
