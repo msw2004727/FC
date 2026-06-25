@@ -89,6 +89,10 @@ describe('tournament detail info UI', () => {
     expect(style).toContain('.td-organizer-pill');
     expect(style).toContain('.td-referee-card-head');
     expect(style).toContain('.td-referee-card-list');
+    expect(style).toContain('flex-wrap: nowrap;');
+    expect(style).toContain('overflow-x: auto;');
+    expect(style).toContain('.td-referee-people::-webkit-scrollbar');
+    expect(style).not.toContain('@media (max-width: 430px) {\n  .td-referee-card');
     expect(style).toContain('[data-theme="dark"] .td-referee-card-head');
   });
 });

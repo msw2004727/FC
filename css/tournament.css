@@ -260,13 +260,20 @@
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+.td-info-row-referee {
+  align-items: center;
+}
+.td-info-row-referee .td-info-label {
+  padding-top: 0;
+}
 .td-referee-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: .58rem;
+  gap: .45rem;
   width: 100%;
-  padding: .52rem .6rem;
+  min-height: 2.15rem;
+  padding: .32rem .46rem;
   border: 1px solid rgba(99, 102, 241, .2);
   border-radius: 8px;
   background: rgba(99, 102, 241, .055);
@@ -277,27 +284,27 @@
 }
 .td-referee-card-head {
   border-color: rgba(245, 158, 11, .32);
-  background: linear-gradient(135deg, rgba(245, 158, 11, .13), rgba(99, 102, 241, .06));
+  background: linear-gradient(135deg, rgba(245, 158, 11, .12), rgba(99, 102, 241, .055));
 }
 .td-referee-card-meta {
   display: flex;
-  flex-direction: column;
-  gap: .2rem;
-  flex: 0 0 auto;
-  min-width: 4.4rem;
+  align-items: center;
+  gap: .34rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .td-referee-role-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: fit-content;
-  min-height: 1.35rem;
-  padding: 0 .48rem;
+  min-height: 1.16rem;
+  padding: 0 .42rem;
   border: 1px solid rgba(99, 102, 241, .22);
   border-radius: 999px;
   background: rgba(99, 102, 241, .12);
   color: #4338ca;
-  font-size: .68rem;
+  font-size: .64rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -308,16 +315,34 @@
   color: #92400e;
 }
 .td-referee-role-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted);
-  font-size: .68rem;
-  line-height: 1.25;
+  font-size: .64rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .td-referee-people {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: .3rem;
+  gap: .24rem;
+  max-width: 54%;
   min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-block: .02rem;
+  scrollbar-width: none;
+}
+.td-referee-people::-webkit-scrollbar {
+  display: none;
+}
+.td-referee-people > * {
+  flex: 0 0 auto;
 }
 [data-theme="dark"] .td-venue-link {
   border-color: rgba(248, 113, 113, .28);
@@ -345,18 +370,7 @@
 [data-theme="dark"] .td-referee-card-head .td-referee-role-chip {
   color: #fde68a;
 }
-@media (max-width: 430px) {
-  .td-referee-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .td-referee-card-meta {
-    min-width: 0;
-  }
-  .td-referee-people {
-    justify-content: flex-start;
-  }
-}
+
 #page-tournament-detail .page-header h2 {
   min-width: 0;
   overflow: hidden;
