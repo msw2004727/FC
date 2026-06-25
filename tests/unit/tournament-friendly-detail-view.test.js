@@ -1600,6 +1600,10 @@ describe('friendly tournament schedule tab rendering', () => {
           scoreAway: 1,
           scheduledAt: '2026-06-24T10:00:00.000Z',
           venue: 'Court A',
+          events: [
+            { type: 'goal', teamId: 'tm_a', name: 'Ace', minute: 12 },
+            { type: 'yellow', teamId: 'tm_b', name: 'Marker', minute: 44, note: 'late tackle' },
+          ],
         },
       ],
     };
@@ -1632,10 +1636,20 @@ describe('friendly tournament schedule tab rendering', () => {
 
     expect(container.innerHTML).toContain('tfg-schedule');
     expect(container.innerHTML).toContain('tfg-match-card tfg-match-finished');
+    expect(container.innerHTML).toContain('tfg-score-lines');
+    expect(container.innerHTML).toContain('tfg-match-state');
+    expect(container.innerHTML).toContain('>結束<');
     expect(container.innerHTML).toContain('Alpha Club');
     expect(container.innerHTML).toContain('Beta Club');
     expect(container.innerHTML).toContain('<b>2</b>');
     expect(container.innerHTML).toContain('Court A');
+    expect(container.innerHTML).toContain('tfg-match-location');
+    expect(container.innerHTML).toContain('tfg-match-time');
+    expect(container.innerHTML).toContain('2026/06/24');
+    expect(container.innerHTML).toContain('tfg-match-events');
+    expect(container.innerHTML).toContain('tfg-match-event-line');
+    expect(container.innerHTML).toContain('進球');
+    expect(container.innerHTML).toContain('Ace');
     expect(container.innerHTML).toContain('tfg-manage-btn');
     expect(container.innerHTML).toContain('tfg-live-slot is-empty');
     expect(container.innerHTML).toContain('data-live-state="empty"');

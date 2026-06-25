@@ -770,14 +770,68 @@ Object.assign(App, {
 
   _getFriendlyTournamentScheduleStatusMeta(match = {}) {
     const status = String(match.status || 'scheduled').trim();
-    if (status === 'finished') return { key: 'finished', label: '已完賽', center: 'FT' };
-    if (status === 'walkover') return { key: 'walkover', label: '判定勝', center: 'WO' };
-    if (status === 'bye') return { key: 'bye', label: '輪空', center: 'BYE' };
+    if (status === 'finished') return { key: 'finished', label: '結束', center: 'FT' };
+    if (status === 'walkover') return { key: 'walkover', label: '結束', center: 'WO' };
+    if (status === 'bye') return { key: 'bye', label: '未開賽', center: 'BYE' };
     const hasLiveData = (Array.isArray(match.events) && match.events.length > 0)
       || match.scoreHome !== null || match.scoreAway !== null;
     return hasLiveData
       ? { key: 'live', label: '進行中', center: 'LIVE' }
       : { key: 'scheduled', label: '未開賽', center: '' };
+  },
+
+  _getFriendlyTournamentScheduleRelativeDateLabel(parts = {}) {
+    if (!Number.isFinite(Number(parts.sortKey))) return '時間待定';
+    const pad = n => String(n).padStart(2, '0');
+    const matchDate = new Date(Number(parts.sortKey));
+    const today = new Date();
+    const dayKey = value => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+    const currentKey = dayKey(today);
+    const matchKey = dayKey(matchDate);
+    if (matchKey === currentKey) return '今天';
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    if (matchKey === dayKey(tomorrow)) return '明天';
+    if (matchKey === dayKey(yesterday)) return '昨天';
+    return parts.date || '時間待定';
+  },
+
+  _getFriendlyTournamentScheduleSideScore(match = {}, side = 'home') {
+    if (match.status === 'walkover' && match.walkoverWinnerTeamId) {
+      const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
+      return String(teamId || '') === String(match.walkoverWinnerTeamId || '') ? '勝' : '棄';
+    }
+    const value = side === 'home' ? match.scoreHome : match.scoreAway;
+    return value !== null && value !== undefined && value !== '' ? String(value) : '-';
+  },
+
+  _renderFriendlyTournamentScheduleEvents(match = {}, teams = {}) {
+    const events = Array.isArray(match.events) ? match.events : [];
+    if (!events.length) return '';
+    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
+    const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC', stoppage_time: 'ET', substitution: 'SUB' };
+    const lines = events.map(ev => {
+      const type = String(ev?.type || '').trim();
+      const label = this._getTournamentMatchEventLabel?.(type) || labelMap[type] || '事件';
+      const icon = this._getTournamentMatchEventIcon?.(type) || iconMap[type] || 'EV';
+      const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
+      const teamName = teams[String(ev?.teamId || '').trim()] || (type === 'stoppage_time' ? '全場' : '');
+      const note = String(ev?.note || '').trim();
+      let detail = String(ev?.name || ev?.uid || '').trim();
+      if (type === 'substitution') {
+        const playersIn = Array.isArray(ev?.playersIn) ? ev.playersIn.join('、') : '';
+        const playersOut = Array.isArray(ev?.playersOut) ? ev.playersOut.join('、') : '';
+        detail = [`上場 ${playersIn || '-'}`, `下場 ${playersOut || '-'}`].join(' / ');
+      } else if (type === 'stoppage_time') {
+        detail = note || '補時時間待補';
+      } else if ((type === 'yellow' || type === 'red') && note) {
+        detail = detail ? `${detail}（${note}）` : note;
+      }
+      const copy = [label, minute, detail, teamName].filter(Boolean).join(' · ');
+      const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
+      return `<div class="tfg-match-event-line tfg-event-${escapeHTML(safeType)}"><b>${escapeHTML(icon)}</b><span>${escapeHTML(copy)}</span></div>`;
+    }).join('');
+    return `<div class="tfg-match-events">${lines}</div>`;
   },
 
   _renderFriendlyTournamentScheduleTeam(team = {}, side = 'home', logoById = {}) {
@@ -814,10 +868,10 @@ Object.assign(App, {
     const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
     const dateParts = this._getFriendlyTournamentScheduleDateParts(match.scheduledAt);
     const statusMeta = this._getFriendlyTournamentScheduleStatusMeta(match);
-    const hasScore = match.scoreHome !== null && match.scoreAway !== null;
-    const scoreHtml = hasScore
-      ? `<span class="tfg-score"><b>${escapeHTML(String(match.scoreHome))}</b><span>-</span><b>${escapeHTML(String(match.scoreAway))}</b></span>`
-      : `<span class="tfg-time">${escapeHTML(dateParts.time)}</span>`;
+    const homeScore = this._getFriendlyTournamentScheduleSideScore(match, 'home');
+    const awayScore = this._getFriendlyTournamentScheduleSideScore(match, 'away');
+    const statusDateLabel = this._getFriendlyTournamentScheduleRelativeDateLabel(dateParts);
+    const timeLabel = match.scheduledAt ? `${dateParts.date} ${dateParts.time}` : '時間待定';
     const roundLabel = this._getTournamentRoundLabel?.(match) || (match.round ? `第 ${match.round} 輪` : modeLabel);
     const refereeNames = (match.referees || [])
       .map(ref => String(ref?.name || '').trim())
@@ -826,6 +880,11 @@ Object.assign(App, {
     const metaItems = [roundLabel, match.venue || '', refereeNames ? `裁判 ${refereeNames}` : '']
       .map(item => String(item || '').trim())
       .filter(Boolean);
+    const teamNames = {
+      [home.teamId]: home.label,
+      [away.teamId]: away.label,
+    };
+    const eventsHtml = this._renderFriendlyTournamentScheduleEvents(match, teamNames);
     const canRecord = !!(this._canRecordTournamentMatch?.(tournament, match, viewer) && match.status !== 'bye');
     const manageHtml = canRecord
       ? `<button type="button" class="tfg-record-btn" onclick="event.stopPropagation();return App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">更新賽況</button>`
@@ -833,17 +892,27 @@ Object.assign(App, {
     return `
       <article class="tfg-match-card tfg-match-${escapeHTML(statusMeta.key)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}');}">
         <div class="tfg-match-main">
-          ${this._renderFriendlyTournamentScheduleTeam(home, 'home', logoById)}
-          <div class="tfg-center">
-            ${scoreHtml}
-            <span class="tfg-status">${escapeHTML(statusMeta.label)}</span>
+          <div class="tfg-score-lines">
+            <div class="tfg-score-team-row">
+              ${this._renderFriendlyTournamentScheduleTeam(home, 'home', logoById)}
+              <span class="tfg-side-score"><b>${escapeHTML(homeScore)}</b></span>
+            </div>
+            <div class="tfg-score-team-row">
+              ${this._renderFriendlyTournamentScheduleTeam(away, 'away', logoById)}
+              <span class="tfg-side-score"><b>${escapeHTML(awayScore)}</b></span>
+            </div>
           </div>
-          ${this._renderFriendlyTournamentScheduleTeam(away, 'away', logoById)}
+          <div class="tfg-match-state">
+            <span>${escapeHTML(statusMeta.label)}</span>
+            <small>${escapeHTML(statusDateLabel)}</small>
+          </div>
         </div>
         <div class="tfg-match-meta">
-          <span>${escapeHTML(metaItems.join(' · ') || '場次資訊待補')}</span>
-          ${manageHtml}
+          <span class="tfg-match-location">${escapeHTML(metaItems.join(' · ') || '場次資訊待補')}</span>
+          <span class="tfg-match-time">${escapeHTML(timeLabel)}</span>
         </div>
+        ${eventsHtml}
+        ${manageHtml ? `<div class="tfg-match-actions">${manageHtml}</div>` : ''}
         ${this._renderFriendlyTournamentScheduleLiveSlot(match)}
       </article>`;
   },
