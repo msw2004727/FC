@@ -295,6 +295,43 @@ Object.assign(App, {
     this.showToast('已送出報名申請，等待主辦方審核！');
   },
 
+  _renderTournamentVenuePinIcon() {
+    return '<svg class="td-venue-pin" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 22s7-7.2 7-13A7 7 0 0 0 5 9c0 5.8 7 13 7 13z" fill="currentColor"/><circle cx="12" cy="9" r="2.65" fill="var(--bg-card)"/></svg>';
+  },
+
+  _renderTournamentVenueLinks(venues, region = '') {
+    const safeVenues = (Array.isArray(venues) ? venues : [])
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    if (safeVenues.length === 0) return '';
+    const searchRegion = String(region || '').trim();
+    const pinIcon = this._renderTournamentVenuePinIcon();
+    const items = safeVenues.map(v => {
+      const query = searchRegion ? `${searchRegion} ${v}` : v;
+      const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+      return `<a class="td-venue-link" href="${mapUrl}" target="sporthub_map" rel="noopener noreferrer" aria-label="在 Google 地圖開啟 ${escapeHTML(v)}"><span class="td-venue-name">${escapeHTML(v)}</span>${pinIcon}</a>`;
+    }).join('');
+    return `<div class="td-venue-list">${items}</div>`;
+  },
+
+  _renderTournamentOrganizerPill(organizerDisplay) {
+    const label = String(organizerDisplay || '').trim() || '主辦俱樂部';
+    return `<span class="td-organizer-pill">${escapeHTML(label)}</span>`;
+  },
+
+  _renderTournamentRefereeGroup(role, people) {
+    const list = (Array.isArray(people) ? people : [people])
+      .filter(person => person && (person.uid || person.name));
+    if (list.length === 0) return '';
+    const isHead = role === 'head';
+    const roleLabel = isHead ? '裁判長' : '裁判';
+    const roleNote = isHead ? '賽務判定與裁判協調' : '場上執法與紀錄協作';
+    const tags = list
+      .map(person => this._userTag(person.name, null, { uid: person.uid || '' }))
+      .join('');
+    return `<div class="td-referee-card ${isHead ? 'td-referee-card-head' : 'td-referee-card-list'}"><div class="td-referee-card-meta"><span class="td-referee-role-chip">${roleLabel}</span><span class="td-referee-role-note">${roleNote}</span></div><div class="td-referee-people">${tags}</div></div>`;
+  },
+
   renderTournamentInfo(t) {
     const container = document.getElementById('td-info-section');
     if (!container) return;
@@ -308,11 +345,8 @@ Object.assign(App, {
     const infoVenues = Array.isArray(infoTournament.venues) ? infoTournament.venues : [];
     if (infoVenues.length > 0) {
       const searchPrefix = infoTournament.region || '';
-      const venueLinks = infoVenues.map(v => {
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchPrefix + v)}`;
-        return `<a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:.82rem">${escapeHTML(v)} ↗</a>`;
-      }).join('<span style="color:var(--border);margin:0 .3rem">|</span>');
-      infoRows.push(`<div class="td-info-row"><span class="td-info-label">場地</span><div class="td-info-value">${venueLinks}</div></div>`);
+      const venueLinks = this._renderTournamentVenueLinks(infoVenues, searchPrefix);
+      infoRows.push(`<div class="td-info-row td-info-row-venues"><span class="td-info-label">場地</span><div class="td-info-value td-info-value-venues">${venueLinks}</div></div>`);
     }
 
     const infoDates = Array.isArray(infoTournament.matchDates) ? infoTournament.matchDates : [];
@@ -339,7 +373,7 @@ Object.assign(App, {
     }
 
     const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦俱樂部';
-    infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value">${escapeHTML(organizerDisplay)}</div></div>`);
+    infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value td-info-value-organizer">${this._renderTournamentOrganizerPill(organizerDisplay)}</div></div>`);
 
     // 賽制（盃賽 / 聯賽顯著標示；友誼賽維持原樣不顯示）
     const infoMode = this._getTournamentMode?.(infoTournament) || 'friendly';
@@ -361,13 +395,12 @@ Object.assign(App, {
 
     const infoRefereeHead = infoTournament.refereeHead && infoTournament.refereeHead.uid ? infoTournament.refereeHead : null;
     if (infoRefereeHead) {
-      infoRows.push(`<div class="td-info-row"><span class="td-info-label">裁判長</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${this._userTag(infoRefereeHead.name, null, { uid: infoRefereeHead.uid || '' })}</div></div>`);
+      infoRows.push(`<div class="td-info-row td-info-row-referee td-info-row-referee-head"><span class="td-info-label">裁判長</span><div class="td-info-value td-info-value-referee">${this._renderTournamentRefereeGroup('head', [infoRefereeHead])}</div></div>`);
     }
 
     const infoReferees = Array.isArray(infoTournament.referees) ? infoTournament.referees : [];
     if (infoReferees.length > 0) {
-      const refereeTags = infoReferees.map(r => this._userTag(r.name, null, { uid: r.uid || '' })).join(' ');
-      infoRows.push(`<div class="td-info-row"><span class="td-info-label">裁判</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${refereeTags}</div></div>`);
+      infoRows.push(`<div class="td-info-row td-info-row-referee"><span class="td-info-label">裁判</span><div class="td-info-value td-info-value-referee">${this._renderTournamentRefereeGroup('referee', infoReferees)}</div></div>`);
     }
 
     // Safety: infoRows contains escaped values; _renderTournamentDetailToolbar uses escapeHTML

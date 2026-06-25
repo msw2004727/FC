@@ -204,6 +204,159 @@
   color: var(--text-primary);
   min-width: 0;
 }
+.td-info-value-venues,
+.td-info-value-referee {
+  min-width: 0;
+}
+.td-venue-list {
+  display: flex;
+  flex-direction: column;
+  gap: .42rem;
+  width: 100%;
+}
+.td-venue-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: .42rem .58rem;
+  border: 1px solid rgba(239, 27, 45, .18);
+  border-radius: 8px;
+  background: rgba(239, 27, 45, .045);
+  color: var(--text-primary);
+  font-size: .82rem;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+.td-venue-link:hover {
+  border-color: rgba(239, 27, 45, .36);
+  background: rgba(239, 27, 45, .075);
+  transform: translateY(-1px);
+}
+.td-venue-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.td-venue-pin {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  color: #ef1b2d;
+}
+.td-organizer-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: .32rem .62rem;
+  border: 1px solid rgba(20, 184, 166, .24);
+  border-radius: 999px;
+  background: rgba(20, 184, 166, .08);
+  color: var(--text-primary);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.td-referee-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .58rem;
+  width: 100%;
+  padding: .52rem .6rem;
+  border: 1px solid rgba(99, 102, 241, .2);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, .055);
+}
+.td-referee-card-list {
+  border-color: rgba(99, 102, 241, .2);
+  background: rgba(99, 102, 241, .055);
+}
+.td-referee-card-head {
+  border-color: rgba(245, 158, 11, .32);
+  background: linear-gradient(135deg, rgba(245, 158, 11, .13), rgba(99, 102, 241, .06));
+}
+.td-referee-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  flex: 0 0 auto;
+  min-width: 4.4rem;
+}
+.td-referee-role-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 1.35rem;
+  padding: 0 .48rem;
+  border: 1px solid rgba(99, 102, 241, .22);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, .12);
+  color: #4338ca;
+  font-size: .68rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.td-referee-card-head .td-referee-role-chip {
+  border-color: rgba(245, 158, 11, .34);
+  background: rgba(245, 158, 11, .16);
+  color: #92400e;
+}
+.td-referee-role-note {
+  color: var(--text-muted);
+  font-size: .68rem;
+  line-height: 1.25;
+}
+.td-referee-people {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .3rem;
+  min-width: 0;
+}
+[data-theme="dark"] .td-venue-link {
+  border-color: rgba(248, 113, 113, .28);
+  background: rgba(248, 113, 113, .09);
+}
+[data-theme="dark"] .td-venue-link:hover {
+  border-color: rgba(248, 113, 113, .44);
+  background: rgba(248, 113, 113, .13);
+}
+[data-theme="dark"] .td-organizer-pill {
+  border-color: rgba(45, 212, 191, .34);
+  background: rgba(45, 212, 191, .12);
+}
+[data-theme="dark"] .td-referee-card {
+  border-color: rgba(129, 140, 248, .28);
+  background: rgba(129, 140, 248, .12);
+}
+[data-theme="dark"] .td-referee-card-head {
+  border-color: rgba(251, 191, 36, .38);
+  background: linear-gradient(135deg, rgba(251, 191, 36, .18), rgba(129, 140, 248, .12));
+}
+[data-theme="dark"] .td-referee-role-chip {
+  color: #c7d2fe;
+}
+[data-theme="dark"] .td-referee-card-head .td-referee-role-chip {
+  color: #fde68a;
+}
+@media (max-width: 430px) {
+  .td-referee-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .td-referee-card-meta {
+    min-width: 0;
+  }
+  .td-referee-people {
+    justify-content: flex-start;
+  }
+}
 #page-tournament-detail .page-header h2 {
   min-width: 0;
   overflow: hidden;
