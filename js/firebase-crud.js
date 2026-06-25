@@ -151,7 +151,7 @@ Object.assign(FirebaseService, {
     if (!safeUid) throw new Error('USER_PERMISSION_GRANT_UID_REQUIRED');
     const snap = await db.collection('userPermissionGrants').doc(safeUid).get();
     if (!snap.exists) {
-      return { uid: safeUid, permissions: [], enabled: true, _docId: safeUid, exists: false };
+      return { uid: safeUid, permissions: [], enabled: false, _docId: safeUid, exists: false };
     }
     const data = snap.data() || {};
     return {

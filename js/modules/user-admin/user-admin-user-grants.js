@@ -127,8 +127,8 @@ Object.assign(App, {
     return {
       uid,
       permissions,
-      enabled: grant?.enabled !== false,
       exists: !!grant?.exists,
+      enabled: grant?.exists ? grant.enabled !== false : grant?.enabled === true,
       updatedAt: grant?.updatedAt || null,
     };
   },

@@ -479,6 +479,15 @@ describe('individual user permission grants admin wiring', () => {
     expect(source).toContain('saveUserPermissionGrant');
   });
 
+  test('new user grant rows default to disabled until a grant is created', () => {
+    const source = readProjectFile('js/modules/user-admin/user-admin-user-grants.js');
+    const crud = readProjectFile('js/firebase-crud.js');
+
+    expect(source).toContain('enabled: grant?.exists ? grant.enabled !== false : grant?.enabled === true');
+    expect(source).toContain('enabled: true, permissions: Array.from(next), changedPermission: code');
+    expect(crud).toContain('return { uid: safeUid, permissions: [], enabled: false, _docId: safeUid, exists: false };');
+  });
+
   test('Firebase CRUD writes safe public grant shape and super-admin audit entries', () => {
     const crud = readProjectFile('js/firebase-crud.js');
     expect(crud).toContain("collection('userPermissionGrants').doc(safeUid)");
