@@ -1648,6 +1648,7 @@ describe('friendly tournament schedule tab rendering', () => {
     expect(container.innerHTML).toContain('2026/06/24');
     expect(container.innerHTML).toContain('tfg-match-events');
     expect(container.innerHTML).toContain('tfg-match-event-card');
+    expect(container.innerHTML).toContain('tm-event-svg');
     expect(container.innerHTML).toContain('tfg-match-event-copy');
     expect(container.innerHTML).toContain('進球');
     expect(container.innerHTML).toContain('Ace');

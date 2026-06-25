@@ -147,7 +147,7 @@ describe('tournament match result recording', () => {
     expect(suggestions.innerHTML).toBe('');
   });
 
-  test('record modal title stacks club names instead of one wrapping line', () => {
+  test('record modal body renders without a header title block', () => {
     const { App } = buildApp();
     global.escapeHTML = value => String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -158,7 +158,6 @@ describe('tournament match result recording', () => {
     const elements = {
       'tmr-body': { innerHTML: '' },
       'tmr-actions': { innerHTML: '' },
-      'tmr-title': { className: '', innerHTML: '', textContent: '' },
     };
     global.document = {
       getElementById: jest.fn(id => elements[id] || null),
@@ -183,15 +182,43 @@ describe('tournament match result recording', () => {
 
     App._renderTournamentMatchRecordBody({ id: 'ct_test' }, { status: 'scheduled', scoreHome: null, scoreAway: null });
 
-    expect(elements['tmr-title'].className).toContain('tmr-title');
-    expect(elements['tmr-title'].className).toContain('tmr-title-redesigned');
-    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-kicker');
-    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-matchup');
-    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-pill');
-    expect(elements['tmr-title'].innerHTML).toContain('Home Club');
-    expect(elements['tmr-title'].innerHTML).toContain('Away Club');
+    expect(global.document.getElementById).not.toHaveBeenCalledWith('tmr-title');
+    expect(elements['tmr-body'].innerHTML).toContain('tmr-result-switch');
+    expect(elements['tmr-body'].innerHTML).toContain('Home Club');
+    expect(elements['tmr-body'].innerHTML).toContain('Away Club');
+    expect(elements['tmr-actions'].innerHTML).toContain('tmr-save-btn');
   });
 
+  test('record events render as individual svg event cards', () => {
+    const { App } = buildApp();
+    global.escapeHTML = value => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const elements = {
+      'tmr-events-list': { innerHTML: '' },
+    };
+    global.document = {
+      getElementById: jest.fn(id => elements[id] || null),
+    };
+    App._tournamentMatchRecordState = {
+      homeTeamId: 'home',
+      awayTeamId: 'away',
+      homeName: 'Home Club',
+      awayName: 'Away Club',
+      events: [{ type: 'yellow', teamId: 'home', name: 'Player', minute: 44, note: 'late tackle' }],
+    };
+
+    App._renderTournamentMatchRecordEvents();
+
+    expect(elements['tmr-events-list'].innerHTML).toContain('tmr-event-card tmr-event-card-yellow');
+    expect(elements['tmr-events-list'].innerHTML).toContain('tm-event-svg');
+    expect(elements['tmr-events-list'].innerHTML).toContain('tmr-event-copy');
+    expect(elements['tmr-events-list'].innerHTML).toContain('late tackle');
+    expect(elements['tmr-events-list'].innerHTML).not.toContain('tc-event-row');
+  });
   test('match event briefing includes timeline roster staff and referees', () => {
     const { App } = buildApp();
     App._getFriendlyTournamentState = jest.fn(() => ({

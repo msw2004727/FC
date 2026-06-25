@@ -89,6 +89,7 @@ describe('tournament bracket UI', () => {
     expect(html).toContain('tc-match-live');
     expect(html).toContain('tc-match-events-summary');
     expect(html).toContain('tc-match-event-card');
+    expect(html).toContain('tm-event-svg');
     expect(html).not.toContain('tc-match-event-chip');
     expect(html).toContain('tc-match-status-live');
     expect(html).toContain('2 : 1');
@@ -121,6 +122,7 @@ describe('tournament bracket UI', () => {
 
     expect(html).toContain('tc-match-kickoff-grid');
     expect(html).toContain('tc-match-detail-event');
+    expect(html).toContain('tm-event-svg');
     expect(html).toContain('tc-match-live-frame');
     expect(html).not.toContain('tc-match-live-open');
     expect(html).not.toContain('target="_blank"');

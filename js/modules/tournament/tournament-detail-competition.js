@@ -208,16 +208,17 @@ Object.assign(App, {
   },
 
   _getTournamentMatchEventIcon(type = '') {
+    const iconAttrs = 'class="tm-event-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"';
     return {
-      goal: '⚽',
-      own_goal: 'OG',
-      yellow: 'YC',
-      red: 'RC',
-      stoppage_time: 'ET',
-      substitution: 'SUB',
-    }[String(type || '').trim()] || 'EV';
+      goal: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.25"/><path d="M12 4.75v14.5M4.75 12h14.5M7.4 7.4l9.2 9.2M16.6 7.4l-9.2 9.2"/></svg>`,
+      own_goal: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.25"/><path d="M8 8.5h5.5a3.5 3.5 0 0 1 0 7H9.5"/><path d="M10 6.5 7.5 8.5 10 10.5"/></svg>`,
+      yellow: `<svg ${iconAttrs}><path d="M8.25 4.75h7.5v14.5h-7.5z"/></svg>`,
+      red: `<svg ${iconAttrs}><path d="M8.25 4.75h7.5v14.5h-7.5z"/><path d="M9.75 6.25h4.5"/></svg>`,
+      stoppage_time: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.5"/><path d="M12 7.5v5l3.25 2"/></svg>`,
+      substitution: `<svg ${iconAttrs}><path d="M7 8h9.5l-2-2"/><path d="M16.5 16H7l2 2"/></svg>`,
+      event: `<svg ${iconAttrs}><circle cx="12" cy="12" r="3.25"/><circle cx="12" cy="12" r="7.5"/></svg>`,
+    }[String(type || '').trim()] || `<svg ${iconAttrs}><circle cx="12" cy="12" r="3.25"/><circle cx="12" cy="12" r="7.5"/></svg>`;
   },
-
   _getTournamentMatchEventMeta(ev, teams = {}) {
     const type = String(ev?.type || '').trim();
     const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
@@ -253,7 +254,7 @@ Object.assign(App, {
         const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
         const meta = this._getTournamentMatchEventMeta(ev, teamNames);
         return `<div class="tc-match-detail-event tc-match-detail-event-${escapeHTML(safeType)}">
-          <span class="tc-match-detail-event-icon">${escapeHTML(this._getTournamentMatchEventIcon(type))}</span>
+          <span class="tc-match-detail-event-icon" aria-hidden="true">${this._getTournamentMatchEventIcon(type)}</span>
           <span class="tc-match-detail-event-copy">
             <strong>${escapeHTML(meta.title)}</strong>
             <small>${escapeHTML(meta.body)}</small>
@@ -283,8 +284,8 @@ Object.assign(App, {
       const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
       const meta = this._getTournamentMatchEventMeta(ev, teamNames);
       return `<span class="tc-match-event-card tc-match-event-${escapeHTML(safeType)}" title="${escapeHTML([meta.title, meta.body].filter(Boolean).join(' · '))}">
-        <b>${escapeHTML(this._getTournamentMatchEventIcon(type))}</b>
-        <span>
+        <span class="tc-match-event-icon" aria-hidden="true">${this._getTournamentMatchEventIcon(type)}</span>
+        <span class="tc-match-event-copy">
           <strong>${escapeHTML(meta.title)}</strong>
           <small>${escapeHTML(meta.body)}</small>
         </span>
@@ -417,9 +418,8 @@ Object.assign(App, {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal tc-match-info-modal" id="tournament-match-detail-modal">
-        <div class="modal-header">
-          <h3 id="tournament-match-detail-title">賽事詳情</h3>
-          <button class="modal-close" type="button" data-action="close">×</button>
+        <div class="modal-header tc-match-modal-closebar">
+          <button class="modal-close" type="button" data-action="close" aria-label="Close">&times;</button>
         </div>
         <div class="modal-body" id="tournament-match-detail-body"></div>
       </div>`;
@@ -448,22 +448,11 @@ Object.assign(App, {
       return;
     }
     const overlay = this._ensureTournamentMatchDetailModal();
-    const title = document.getElementById('tournament-match-detail-title');
     const body = document.getElementById('tournament-match-detail-body');
     const matchesBySlot = this._buildTournamentMatchesBySlot(state.matches || []);
     const nameById = this._getTournamentTeamNameMap(state);
     const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
     const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
-    if (title) {
-      title.className = 'tc-match-title';
-      title.innerHTML = `
-        <span class="tc-match-title-label">賽事對陣</span>
-        <span class="tc-match-title-stack">
-          <span class="tc-match-title-pill">${escapeHTML(home.label)}</span>
-          <span class="tc-match-title-vs">VS</span>
-          <span class="tc-match-title-pill">${escapeHTML(away.label)}</span>
-        </span>`;
-    }
     if (body) body.innerHTML = this._renderTournamentMatchDetailModalBody(tournament, match, matchesBySlot, nameById);
     overlay.classList.add('open');
     document.getElementById('tournament-match-detail-modal')?.classList.add('open');

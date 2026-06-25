@@ -2036,7 +2036,7 @@
   font-size: .58rem;
   font-weight: 900;
 }
-.tc-match-event-card span {
+.tc-match-event-card .tc-match-event-copy {
   display: grid;
   gap: .04rem;
   min-width: 0;
@@ -2292,47 +2292,7 @@
   align-items: flex-start;
   gap: .72rem;
 }
-.tc-match-title {
-  display: grid;
-  gap: .34rem;
-  min-width: 0;
-  margin: 0;
-  line-height: 1.12;
-}
-.tc-match-title-label {
-  color: var(--text-muted);
-  font-size: .68rem;
-  font-weight: 850;
-}
-.tc-match-title-stack {
-  display: grid;
-  gap: .22rem;
-  min-width: 0;
-}
-.tc-match-title-pill {
-  display: block;
-  max-width: 100%;
-  padding: .32rem .6rem;
-  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 8%, var(--bg-card));
-  color: var(--text-primary);
-  font-size: .88rem;
-  font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tc-match-title-vs {
-  justify-self: start;
-  padding: .1rem .42rem;
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-  font-size: .6rem;
-  font-weight: 900;
-  line-height: 1;
-}
+
 .tc-match-detail-shell {
   display: grid;
   gap: .72rem;
@@ -3513,48 +3473,7 @@
   gap: .72rem;
   padding: .72rem .8rem;
 }
-.tmr-title {
-  display: grid;
-  gap: .34rem;
-  min-width: 0;
-  margin: 0;
-  line-height: 1.12;
-}
-.tmr-title-kicker {
-  color: var(--text-muted);
-  font-size: .68rem;
-  font-weight: 850;
-}
-.tmr-title-matchup {
-  display: grid;
-  gap: .22rem;
-  min-width: 0;
-}
-.tmr-title-team {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.tmr-title-pill {
-  max-width: 100%;
-  padding: .32rem .62rem;
-  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 8%, var(--bg-card));
-  color: var(--text-primary);
-  font-size: .92rem;
-  font-weight: 900;
-}
-.tmr-title-vs {
-  justify-self: start;
-  padding: .1rem .42rem;
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-  font-size: .6rem;
-  font-weight: 900;
-  line-height: 1;
-}
+
 .tc-record-modal .modal-body {
   display: flex;
   flex: 1 1 auto;
@@ -3769,13 +3688,7 @@
   min-height: 34px;
   padding-inline: .7rem;
 }
-.tc-event-row {
-  display: flex; align-items: center; gap: .4rem; font-size: .72rem;
-  padding: .38rem .44rem; border-bottom: 1px solid var(--border);
-}
-.tc-event-row:last-child { border-bottom: none; }
-.tc-event-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.tc-event-team { font-size: .62rem; color: var(--text-muted); max-width: 28%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .tc-event-remove {
   border: 1px solid rgba(239, 68, 68, .24);
   border-radius: 999px;
@@ -3811,13 +3724,7 @@
   font-size: .74rem;
   font-weight: 800;
 }
-.tc-event-row-briefing {
-  cursor: pointer;
-  border-radius: 8px;
-}
-.tc-event-row-briefing:hover {
-  background: var(--bg-elevated);
-}
+
 .tc-briefing-modal {
   width: min(760px, calc(100vw - 24px));
   max-height: min(86vh, 820px);
@@ -4051,6 +3958,145 @@
   justify-content: flex-end;
 }
 
+.tm-event-svg {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.tc-match-modal-closebar,
+.tmr-modal-closebar {
+  justify-content: flex-end;
+  min-height: 0;
+  padding: .52rem .72rem .18rem;
+  border-bottom: 0;
+}
+.tc-match-info-modal .modal-header.tc-match-modal-closebar,
+.tc-record-modal .modal-header.tmr-modal-closebar {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  min-height: 0;
+  padding: .52rem .72rem .18rem;
+  border-bottom: 0;
+}
+.tc-match-event-card,
+.tc-match-detail-event,
+.tfg-match-event-card,
+.tmr-event-card,
+.tmr-briefing-event-card {
+  background: color-mix(in srgb, var(--text-muted) 7%, transparent);
+}
+.tc-match-event-icon,
+.tc-match-detail-event-icon,
+.tfg-match-event-icon,
+.tmr-event-icon,
+.tmr-briefing-event-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  min-width: 0;
+  color: currentColor;
+  line-height: 0;
+}
+.tc-match-event-card .tc-match-event-copy,
+.tfg-match-event-copy,
+.tmr-event-copy {
+  display: grid;
+  gap: .04rem;
+  min-width: 0;
+}
+#tmr-events-list {
+  display: grid;
+  gap: .36rem;
+  margin-bottom: .5rem;
+}
+.tmr-event-card {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .44rem;
+  min-width: 0;
+  padding: .46rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.tmr-event-card:hover {
+  border-color: color-mix(in srgb, currentColor 28%, var(--border));
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.tmr-event-copy strong,
+.tmr-event-copy small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmr-event-copy strong {
+  color: var(--text-primary);
+  font-size: .7rem;
+  font-weight: 900;
+}
+.tmr-event-copy small {
+  color: var(--text-secondary);
+  font-size: .62rem;
+  font-weight: 760;
+}
+.tmr-event-card .tc-event-remove {
+  align-self: center;
+  justify-self: end;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 999px;
+}
+.tc-match-event-card .tc-match-event-icon,
+.tfg-match-event-icon,
+.tc-match-detail-event-icon {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  font-size: inherit;
+}
+:where(.tc-match-event-goal, .tc-match-detail-event-goal, .tfg-event-goal, .tmr-event-card-goal, .tmr-briefing-event-card-goal) {
+  border-color: color-mix(in srgb, rgb(16 185 129) 26%, var(--border));
+  background: color-mix(in srgb, rgb(16 185 129) 12%, transparent);
+  color: color-mix(in srgb, rgb(5 150 105) 82%, var(--text-primary));
+}
+:where(.tc-match-event-own_goal, .tc-match-detail-event-own_goal, .tfg-event-own_goal, .tmr-event-card-own_goal, .tmr-briefing-event-card-own_goal) {
+  border-color: color-mix(in srgb, rgb(245 158 11) 28%, var(--border));
+  background: color-mix(in srgb, rgb(245 158 11) 12%, transparent);
+  color: color-mix(in srgb, rgb(180 83 9) 82%, var(--text-primary));
+}
+:where(.tc-match-event-yellow, .tc-match-detail-event-yellow, .tfg-event-yellow, .tmr-event-card-yellow, .tmr-briefing-event-card-yellow) {
+  border-color: color-mix(in srgb, rgb(234 179 8) 30%, var(--border));
+  background: color-mix(in srgb, rgb(234 179 8) 13%, transparent);
+  color: color-mix(in srgb, rgb(161 98 7) 82%, var(--text-primary));
+}
+:where(.tc-match-event-red, .tc-match-detail-event-red, .tfg-event-red, .tmr-event-card-red, .tmr-briefing-event-card-red) {
+  border-color: color-mix(in srgb, rgb(239 68 68) 28%, var(--border));
+  background: color-mix(in srgb, rgb(239 68 68) 11%, transparent);
+  color: color-mix(in srgb, rgb(220 38 38) 82%, var(--text-primary));
+}
+:where(.tc-match-event-stoppage_time, .tc-match-detail-event-stoppage_time, .tfg-event-stoppage_time, .tmr-event-card-stoppage_time, .tmr-briefing-event-card-stoppage_time) {
+  border-color: color-mix(in srgb, rgb(59 130 246) 28%, var(--border));
+  background: color-mix(in srgb, rgb(59 130 246) 11%, transparent);
+  color: color-mix(in srgb, rgb(37 99 235) 82%, var(--text-primary));
+}
+:where(.tc-match-event-substitution, .tc-match-detail-event-substitution, .tfg-event-substitution, .tmr-event-card-substitution, .tmr-briefing-event-card-substitution) {
+  border-color: color-mix(in srgb, rgb(20 184 166) 28%, var(--border));
+  background: color-mix(in srgb, rgb(20 184 166) 11%, transparent);
+  color: color-mix(in srgb, rgb(15 118 110) 82%, var(--text-primary));
+}
 @media (max-width: 560px) {
   .tc-match-info-modal {
     top: max(.6rem, env(safe-area-inset-top));
@@ -4100,10 +4146,6 @@
   }
   .tc-match-detail-list dd {
     text-align: left;
-  }
-  .tc-match-title-pill,
-  .tmr-title-pill {
-    white-space: normal;
   }
   .tc-match-kickoff-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

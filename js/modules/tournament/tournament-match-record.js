@@ -17,9 +17,8 @@ Object.assign(App, {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal tc-record-modal" id="tournament-match-record-modal">
-        <div class="modal-header">
-          <h3 id="tmr-title">更新賽況</h3>
-          <button class="modal-close" type="button" data-action="close">✕</button>
+        <div class="modal-header tmr-modal-closebar">
+          <button class="modal-close" type="button" data-action="close" aria-label="Close">&times;</button>
         </div>
         <div class="modal-body" id="tmr-body"></div>
         <div class="modal-actions" id="tmr-actions"></div>
@@ -316,17 +315,38 @@ Object.assign(App, {
     }[type] || String(type || '事件');
   },
 
-  _getTournamentMatchEventIcon(type) {
+  _getTournamentMatchEventIcon(type = '') {
+    const iconAttrs = 'class="tm-event-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"';
     return {
-      goal: '⚽',
-      own_goal: '🥅',
-      yellow: '🟨',
-      red: '🟥',
-      stoppage_time: '⏱',
-      substitution: '↔',
-    }[type] || '•';
+      goal: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.25"/><path d="M12 4.75v14.5M4.75 12h14.5M7.4 7.4l9.2 9.2M16.6 7.4l-9.2 9.2"/></svg>`,
+      own_goal: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.25"/><path d="M8 8.5h5.5a3.5 3.5 0 0 1 0 7H9.5"/><path d="M10 6.5 7.5 8.5 10 10.5"/></svg>`,
+      yellow: `<svg ${iconAttrs}><path d="M8.25 4.75h7.5v14.5h-7.5z"/></svg>`,
+      red: `<svg ${iconAttrs}><path d="M8.25 4.75h7.5v14.5h-7.5z"/><path d="M9.75 6.25h4.5"/></svg>`,
+      stoppage_time: `<svg ${iconAttrs}><circle cx="12" cy="12" r="7.5"/><path d="M12 7.5v5l3.25 2"/></svg>`,
+      substitution: `<svg ${iconAttrs}><path d="M7 8h9.5l-2-2"/><path d="M16.5 16H7l2 2"/></svg>`,
+      event: `<svg ${iconAttrs}><circle cx="12" cy="12" r="3.25"/><circle cx="12" cy="12" r="7.5"/></svg>`,
+    }[String(type || '').trim()] || `<svg ${iconAttrs}><circle cx="12" cy="12" r="3.25"/><circle cx="12" cy="12" r="7.5"/></svg>`;
   },
 
+  _getTournamentMatchEventMeta(ev, teams = {}) {
+    const type = String(ev?.type || '').trim();
+    const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
+    const teamName = teams[String(ev?.teamId || '').trim()] || (type === 'stoppage_time' ? '全場' : '');
+    const note = String(ev?.note || '').trim();
+    if (type === 'substitution') {
+      const playersIn = Array.isArray(ev?.playersIn) ? ev.playersIn.join('、') : '';
+      const playersOut = Array.isArray(ev?.playersOut) ? ev.playersOut.join('、') : '';
+      return {
+        title: [this._getTournamentMatchEventLabel(type), minute, teamName].filter(Boolean).join(' · '),
+        body: [`上 ${playersIn || '-'}`, `下 ${playersOut || '-'}`, note].filter(Boolean).join(' / '),
+      };
+    }
+    const body = String(ev?.name || ev?.uid || note || this._getTournamentMatchEventLabel(type)).trim();
+    return {
+      title: [this._getTournamentMatchEventLabel(type), minute, teamName].filter(Boolean).join(' · '),
+      body: (type === 'yellow' || type === 'red') && note && body !== note ? `${body}（${note}）` : body,
+    };
+  },
   _getTournamentMatchEventBriefingDetail(ev, recordState = this._tournamentMatchRecordState) {
     const safe = value => this._escapeTournamentMatchBriefingText(value);
     const playerName = String(ev?.name || ev?.uid || '').trim();
@@ -373,6 +393,7 @@ Object.assign(App, {
       .map(({ event, index }) => {
         const label = this._getTournamentMatchEventLabel(event?.type);
         const icon = this._getTournamentMatchEventIcon(event?.type);
+        const safeType = String(event?.type || '').replace(/[^a-z0-9_-]/gi, '') || 'event';
         const teamName = event?.type === 'stoppage_time'
           ? '全場'
           : this._getTournamentMatchBriefingTeamName(event?.teamId, recordState);
@@ -382,9 +403,9 @@ Object.assign(App, {
         return `
           <article class="tmr-briefing-event">
             <div class="tmr-briefing-event-time">${safe(time)}</div>
-            <div class="tmr-briefing-event-card">
+            <div class="tmr-briefing-event-card tmr-briefing-event-card-${safeType}">
               <div class="tmr-briefing-event-title">
-                <span>${safe(icon)}</span>
+                <span class="tmr-briefing-event-icon" aria-hidden="true">${icon}</span>
                 <strong>${safe(label)}</strong>
                 <em>${safe(teamName)}</em>
                 <small>#${index + 1}</small>
@@ -456,22 +477,11 @@ Object.assign(App, {
     const recordState = this._tournamentMatchRecordState;
     const body = document.getElementById('tmr-body');
     const actions = document.getElementById('tmr-actions');
-    const title = document.getElementById('tmr-title');
     if (!recordState || !body || !actions) return;
     const config = this._getTournamentCompetitionConfig?.(tournament) || {};
     const isWalkover = match.status === 'walkover';
     const isFinished = match.status === 'finished';
     const walkoverScoreText = `${config.walkoverWinScore}:${config.walkoverLoseScore}`;
-    if (title) {
-      title.className = 'tmr-title tmr-title-redesigned';
-      title.innerHTML = `
-        <span class="tmr-title-kicker">更新賽況</span>
-        <span class="tmr-title-matchup">
-          <span class="tmr-title-team tmr-title-pill">${escapeHTML(recordState.homeName || '')}</span>
-          <span class="tmr-title-vs">VS</span>
-          <span class="tmr-title-team tmr-title-pill">${escapeHTML(recordState.awayName || '')}</span>
-        </span>`;
-    }
     body.innerHTML = `
       <div class="tmr-result-switch" role="radiogroup" aria-label="結果類型">
         <label class="tmr-result-card">
@@ -855,36 +865,29 @@ Object.assign(App, {
     const recordState = this._tournamentMatchRecordState;
     const list = document.getElementById('tmr-events-list');
     if (!recordState || !list) return;
-    const iconMap = { goal: '⚽', own_goal: '🥅', yellow: '🟨', red: '🟥', stoppage_time: '⏱', substitution: '↔' };
-    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
     if (recordState.events.length === 0) {
       list.innerHTML = '<div class="tc-events-empty">尚未新增事件</div>';
       return;
     }
+    const teamNames = {
+      [recordState.homeTeamId]: recordState.homeName,
+      [recordState.awayTeamId]: recordState.awayName,
+    };
     list.innerHTML = recordState.events.map((ev, index) => {
-      const teamName = ev.teamId === recordState.homeTeamId ? recordState.homeName : recordState.awayName;
-      const note = String(ev.note || '').trim();
-      const eventText = `${iconMap[ev.type] || ''} ${labelMap[ev.type] || ev.type}${ev.minute ? ` ${ev.minute}'` : ''}`;
-      let playerText = ev.name || ev.uid || '';
-      if (ev.type === 'stoppage_time') {
-        playerText = note || '補時時間待補';
-      } else if (ev.type === 'substitution') {
-        const playersIn = Array.isArray(ev.playersIn) ? ev.playersIn.join('、') : '';
-        const playersOut = Array.isArray(ev.playersOut) ? ev.playersOut.join('、') : '';
-        playerText = [`上場：${playersIn || '-'}`, `下場：${playersOut || '-'}`].join(' / ');
-      } else if ((ev.type === 'yellow' || ev.type === 'red') && note) {
-        playerText = `${playerText}（${note}）`;
-      }
+      const type = String(ev?.type || '').trim();
+      const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
+      const meta = this._getTournamentMatchEventMeta(ev, teamNames);
       return `
-      <div class="tc-event-row tc-event-row-briefing" role="button" tabindex="0" onclick="App.openTournamentMatchEventBriefing()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchEventBriefing();}">
-        <span>${escapeHTML(eventText)}</span>
-        <span class="tc-event-player">${escapeHTML(playerText)}</span>
-        <span class="tc-event-team">${escapeHTML(ev.type === 'stoppage_time' ? '全場' : teamName)}</span>
-        <button type="button" class="tc-event-remove" onclick="event.stopPropagation();App._removeTournamentMatchRecordEvent(${index})">✕</button>
-      </div>`;
+      <article class="tmr-event-card tmr-event-card-${escapeHTML(safeType)}" role="button" tabindex="0" onclick="App.openTournamentMatchEventBriefing()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchEventBriefing();}">
+        <span class="tmr-event-icon" aria-hidden="true">${this._getTournamentMatchEventIcon(type)}</span>
+        <span class="tmr-event-copy">
+          <strong>${escapeHTML(meta.title)}</strong>
+          <small>${escapeHTML(meta.body)}</small>
+        </span>
+        <button type="button" class="tc-event-remove" aria-label="移除事件" onclick="event.stopPropagation();App._removeTournamentMatchRecordEvent(${index})">&times;</button>
+      </article>`;
     }).join('');
   },
-
   async saveTournamentMatchResult(actionButton = null) {
     const recordState = this._tournamentMatchRecordState;
     if (!recordState) return;

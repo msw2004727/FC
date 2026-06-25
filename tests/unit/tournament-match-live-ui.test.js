@@ -13,7 +13,10 @@ describe('tournament live match schedule UI contract', () => {
     expect(detailSource).toContain('_renderTournamentLiveFrameHtml');
     expect(detailSource).toContain('tc-match-live-slot');
     expect(detailSource).toContain('openTournamentMatchDetailModal');
-    expect(detailSource).toContain('tc-match-title-pill');
+    expect(detailSource).toContain('tc-match-modal-closebar');
+    expect(detailSource).toContain('tm-event-svg');
+    expect(detailSource).not.toContain('tournament-match-detail-title');
+    expect(detailSource).not.toContain('tc-match-title-pill');
     expect(detailSource).toContain('role="button"');
   });
 
@@ -55,7 +58,8 @@ describe('tournament live match schedule UI contract', () => {
     expect(cssSource).toContain('aspect-ratio: 16 / 9');
     expect(cssSource).toContain('.tc-match-info-modal');
     expect(cssSource).toContain('.tc-match-info-modal .modal-body');
-    expect(cssSource).toContain('.tc-match-title-pill');
+    expect(cssSource).toContain('.tc-match-modal-closebar');
+    expect(cssSource).toContain('.tm-event-svg');
     expect(cssSource).toContain('.tc-match-kickoff-grid');
     expect(cssSource).toContain('.tc-match-event-card');
     expect(cssSource).toContain('env(safe-area-inset-top)');
@@ -67,8 +71,9 @@ describe('tournament live match schedule UI contract', () => {
     expect(cssSource).toContain('.tfg-live-slot .tc-match-live-frame');
     expect(cssSource).toContain('.tfg-match-event-card');
     expect(cssSource).toContain('#tournament-match-record-overlay');
-    expect(cssSource).toContain('.tmr-title-team');
-    expect(cssSource).toContain('.tmr-title-pill');
-    expect(cssSource).toContain('.tmr-title-matchup');
+    expect(cssSource).toContain('.tmr-modal-closebar');
+    expect(cssSource).toContain('.tmr-event-card');
+    expect(cssSource).toContain('.tc-match-detail-event-goal');
+    expect(recordSource).not.toContain('id="tmr-title"');
   });
 });
