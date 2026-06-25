@@ -87,9 +87,43 @@ describe('tournament bracket UI', () => {
 
     expect(App._getTournamentMatchWinnerTeamId(match)).toBe('');
     expect(html).toContain('tc-match-live');
+    expect(html).toContain('tc-match-events-summary');
+    expect(html).toContain('tc-match-event-card');
+    expect(html).not.toContain('tc-match-event-chip');
     expect(html).toContain('tc-match-status-live');
     expect(html).toContain('2 : 1');
     expect(html).not.toContain('tc-winner');
+  });
+
+
+  test('renders match detail kickoff grid with embedded live player only', () => {
+    const App = buildCompetitionApp();
+    const match = App._buildTournamentMatchRecord({
+      id: 'm_detail',
+      stage: 'league',
+      round: 2,
+      status: 'live',
+      homeTeamId: 'a',
+      awayTeamId: 'b',
+      scheduledAt: '2026-06-27T10:30:00.000Z',
+      venue: 'Court A',
+      liveUrl: 'https://www.youtube.com/watch?v=abc123',
+      events: [{ type: 'goal', minute: 12, teamId: 'a', name: 'Ace' }],
+    });
+    App._canRecordTournamentMatch = jest.fn(() => false);
+
+    const html = App._renderTournamentMatchDetailModalBody(
+      { id: 'ct_test' },
+      match,
+      {},
+      { a: 'Alpha', b: 'Beta' }
+    );
+
+    expect(html).toContain('tc-match-kickoff-grid');
+    expect(html).toContain('tc-match-detail-event');
+    expect(html).toContain('tc-match-live-frame');
+    expect(html).not.toContain('tc-match-live-open');
+    expect(html).not.toContain('target="_blank"');
   });
 
   test('renders scrollable schedule summary with teams, time, and score', () => {

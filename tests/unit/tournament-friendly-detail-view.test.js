@@ -1647,14 +1647,15 @@ describe('friendly tournament schedule tab rendering', () => {
     expect(container.innerHTML).toContain('tfg-match-time');
     expect(container.innerHTML).toContain('2026/06/24');
     expect(container.innerHTML).toContain('tfg-match-events');
-    expect(container.innerHTML).toContain('tfg-match-event-line');
+    expect(container.innerHTML).toContain('tfg-match-event-card');
+    expect(container.innerHTML).toContain('tfg-match-event-copy');
     expect(container.innerHTML).toContain('進球');
     expect(container.innerHTML).toContain('Ace');
     expect(container.innerHTML).toContain('tfg-manage-btn');
     expect(container.innerHTML).toContain('tfg-live-slot is-empty');
     expect(container.innerHTML).toContain('data-live-state="empty"');
     expect(container.innerHTML).toContain('tfg-live-label');
-    expect(container.innerHTML).not.toContain('<small>');
+    expect(container.innerHTML).not.toMatch(/<div class="tfg-match-state">\s*<span>[^<]+<\/span>\s*<small>/);
   });
 
   test('renders embedded live frame in friendly schedule cards when live url exists', () => {

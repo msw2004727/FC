@@ -808,30 +808,43 @@ Object.assign(App, {
   _renderFriendlyTournamentScheduleEvents(match = {}, teams = {}) {
     const events = Array.isArray(match.events) ? match.events : [];
     if (!events.length) return '';
-    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
+    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '傷停補時', substitution: '換人' };
     const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC', stoppage_time: 'ET', substitution: 'SUB' };
-    const lines = events.map(ev => {
+    const buildMeta = ev => {
+      if (typeof this._getTournamentMatchEventMeta === 'function') return this._getTournamentMatchEventMeta(ev, teams);
       const type = String(ev?.type || '').trim();
       const label = this._getTournamentMatchEventLabel?.(type) || labelMap[type] || '事件';
-      const icon = this._getTournamentMatchEventIcon?.(type) || iconMap[type] || 'EV';
       const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
-      const teamName = teams[String(ev?.teamId || '').trim()] || (type === 'stoppage_time' ? '全場' : '');
+      const teamName = teams[String(ev?.teamId || '').trim()] || (type === 'stoppage_time' ? '官方' : '');
       const note = String(ev?.note || '').trim();
-      let detail = String(ev?.name || ev?.uid || '').trim();
       if (type === 'substitution') {
         const playersIn = Array.isArray(ev?.playersIn) ? ev.playersIn.join('、') : '';
         const playersOut = Array.isArray(ev?.playersOut) ? ev.playersOut.join('、') : '';
-        detail = [`上場 ${playersIn || '-'}`, `下場 ${playersOut || '-'}`].join(' / ');
-      } else if (type === 'stoppage_time') {
-        detail = note || '補時時間待補';
-      } else if ((type === 'yellow' || type === 'red') && note) {
-        detail = detail ? `${detail}（${note}）` : note;
+        return {
+          title: [label, minute, teamName].filter(Boolean).join(' · '),
+          body: [`上 ${playersIn || '-'}`, `下 ${playersOut || '-'}`, note].filter(Boolean).join(' / '),
+        };
       }
-      const copy = [label, minute, detail, teamName].filter(Boolean).join(' · ');
+      const body = String(ev?.name || ev?.uid || note || label).trim();
+      return {
+        title: [label, minute, teamName].filter(Boolean).join(' · '),
+        body: (type === 'yellow' || type === 'red') && note && body !== note ? `${body}（${note}）` : body,
+      };
+    };
+    const lines = events.map(ev => {
+      const type = String(ev?.type || '').trim();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
-      return `<div class="tfg-match-event-line tfg-event-${escapeHTML(safeType)}"><b>${escapeHTML(icon)}</b><span>${escapeHTML(copy)}</span></div>`;
+      const icon = this._getTournamentMatchEventIcon?.(type) || iconMap[type] || 'EV';
+      const meta = buildMeta(ev);
+      return `<div class="tfg-match-event-card tfg-event-${escapeHTML(safeType)}">
+        <b class="tfg-match-event-icon">${escapeHTML(icon)}</b>
+        <span class="tfg-match-event-copy">
+          <strong>${escapeHTML(meta.title)}</strong>
+          <small>${escapeHTML(meta.body)}</small>
+        </span>
+      </div>`;
     }).join('');
-    return `<div class="tfg-match-events">${lines}</div>`;
+    return `<div class="tfg-match-events" aria-label="即時事件">${lines}</div>`;
   },
 
   _renderFriendlyTournamentScheduleTeam(team = {}, side = 'home', logoById = {}) {

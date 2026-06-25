@@ -13,6 +13,7 @@ describe('tournament live match schedule UI contract', () => {
     expect(detailSource).toContain('_renderTournamentLiveFrameHtml');
     expect(detailSource).toContain('tc-match-live-slot');
     expect(detailSource).toContain('openTournamentMatchDetailModal');
+    expect(detailSource).toContain('tc-match-title-pill');
     expect(detailSource).toContain('role="button"');
   });
 
@@ -27,6 +28,8 @@ describe('tournament live match schedule UI contract', () => {
   test('match detail modal exposes live, events and referee sections', () => {
     expect(detailSource).toContain('_renderTournamentMatchDetailModalBody');
     expect(detailSource).toContain('_renderTournamentMatchEventsTimeline');
+    expect(detailSource).toContain('tc-match-kickoff-grid');
+    expect(detailSource).toContain('tc-match-event-card');
     expect(detailSource).toContain('裁判資訊');
     expect(detailSource).toContain('直播');
   });
@@ -44,6 +47,7 @@ describe('tournament live match schedule UI contract', () => {
     expect(detailSource).toContain("autoplay=${autoplay ? 'true' : 'false'}");
     expect(detailSource).toContain("allow=\"accelerometer; clipboard-write;");
     expect(detailSource).not.toContain("allow=\"accelerometer; autoplay;");
+    expect(detailSource).not.toContain('tc-match-live-open');
   });
 
   test('css contains stable responsive hooks for live match UI', () => {
@@ -51,6 +55,9 @@ describe('tournament live match schedule UI contract', () => {
     expect(cssSource).toContain('aspect-ratio: 16 / 9');
     expect(cssSource).toContain('.tc-match-info-modal');
     expect(cssSource).toContain('.tc-match-info-modal .modal-body');
+    expect(cssSource).toContain('.tc-match-title-pill');
+    expect(cssSource).toContain('.tc-match-kickoff-grid');
+    expect(cssSource).toContain('.tc-match-event-card');
     expect(cssSource).toContain('env(safe-area-inset-top)');
     expect(cssSource).toContain('max-height: none');
     expect(detailSource).toContain("document.body?.classList?.add('modal-open')");
@@ -58,7 +65,10 @@ describe('tournament live match schedule UI contract', () => {
     expect(cssSource).toContain('.tc-match-staff-panel');
     expect(cssSource).toContain('.tmr-live-card');
     expect(cssSource).toContain('.tfg-live-slot .tc-match-live-frame');
+    expect(cssSource).toContain('.tfg-match-event-card');
     expect(cssSource).toContain('#tournament-match-record-overlay');
     expect(cssSource).toContain('.tmr-title-team');
+    expect(cssSource).toContain('.tmr-title-pill');
+    expect(cssSource).toContain('.tmr-title-matchup');
   });
 });

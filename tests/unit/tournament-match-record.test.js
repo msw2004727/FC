@@ -183,9 +183,11 @@ describe('tournament match result recording', () => {
 
     App._renderTournamentMatchRecordBody({ id: 'ct_test' }, { status: 'scheduled', scoreHome: null, scoreAway: null });
 
-    expect(elements['tmr-title'].className).toBe('tmr-title');
-    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-label');
-    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-team');
+    expect(elements['tmr-title'].className).toContain('tmr-title');
+    expect(elements['tmr-title'].className).toContain('tmr-title-redesigned');
+    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-kicker');
+    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-matchup');
+    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-pill');
     expect(elements['tmr-title'].innerHTML).toContain('Home Club');
     expect(elements['tmr-title'].innerHTML).toContain('Away Club');
   });

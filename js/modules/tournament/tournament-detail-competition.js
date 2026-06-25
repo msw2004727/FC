@@ -188,17 +188,11 @@ Object.assign(App, {
       </div>`;
     }
     const embedUrl = this._buildTournamentLiveEmbedUrl(liveUrl, options);
-    let openUrl = '';
-    try {
-      const parsed = new URL(liveUrl);
-      if (['http:', 'https:'].includes(parsed.protocol)) openUrl = parsed.href;
-    } catch (_) {}
     const iframe = embedUrl
       ? `<iframe class="tc-match-live-frame" src="${escapeHTML(embedUrl)}" title="賽事直播" loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
       : '';
     return `<div class="tc-match-live-box${compact ? ' compact' : ''}">
       ${iframe || `<div class="tc-match-live-placeholder"><span>LIVE</span><small>此網址不支援嵌入</small></div>`}
-      ${openUrl ? `<a class="tc-match-live-open" href="${escapeHTML(openUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">開啟直播</a>` : ''}
     </div>`;
   },
 
@@ -284,28 +278,16 @@ Object.assign(App, {
       [home.teamId]: home.label,
       [away.teamId]: away.label,
     };
-    const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC', stoppage_time: 'ET', substitution: 'SUB' };
-    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
     const shown = events.slice(0, 6).map(ev => {
       const type = String(ev?.type || '').trim();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
-      const label = labelMap[type] || type || '事件';
-      const icon = iconMap[type] || label;
-      const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
-      const note = String(ev?.note || '').trim();
-      const substitutionText = type === 'substitution'
-        ? [
-            Array.isArray(ev?.playersIn) && ev.playersIn.length ? `上 ${ev.playersIn.join('、')}` : '',
-            Array.isArray(ev?.playersOut) && ev.playersOut.length ? `下 ${ev.playersOut.join('、')}` : '',
-          ].filter(Boolean).join(' / ')
-        : '';
-      const player = String(substitutionText || ev?.name || ev?.uid || note || '').trim();
-      const team = teamNames[String(ev?.teamId || '').trim()] || '';
-      const title = [label, minute, player, team, (type === 'yellow' || type === 'red') ? note : ''].filter(Boolean).join(' · ');
-      return `<span class="tc-match-event-chip tc-match-event-${escapeHTML(safeType)}" title="${escapeHTML(title)}">
-        <b>${escapeHTML(icon)}</b>
-        ${minute ? `<em>${escapeHTML(minute)}</em>` : ''}
-        <span>${escapeHTML(player || label)}</span>
+      const meta = this._getTournamentMatchEventMeta(ev, teamNames);
+      return `<span class="tc-match-event-card tc-match-event-${escapeHTML(safeType)}" title="${escapeHTML([meta.title, meta.body].filter(Boolean).join(' · '))}">
+        <b>${escapeHTML(this._getTournamentMatchEventIcon(type))}</b>
+        <span>
+          <strong>${escapeHTML(meta.title)}</strong>
+          <small>${escapeHTML(meta.body)}</small>
+        </span>
       </span>`;
     }).join('');
     const more = events.length > 6 ? `<span class="tc-match-event-more">+${events.length - 6}</span>` : '';
@@ -472,7 +454,16 @@ Object.assign(App, {
     const nameById = this._getTournamentTeamNameMap(state);
     const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
     const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
-    if (title) title.textContent = `${home.label} vs ${away.label}`;
+    if (title) {
+      title.className = 'tc-match-title';
+      title.innerHTML = `
+        <span class="tc-match-title-label">賽事對陣</span>
+        <span class="tc-match-title-stack">
+          <span class="tc-match-title-pill">${escapeHTML(home.label)}</span>
+          <span class="tc-match-title-vs">VS</span>
+          <span class="tc-match-title-pill">${escapeHTML(away.label)}</span>
+        </span>`;
+    }
     if (body) body.innerHTML = this._renderTournamentMatchDetailModalBody(tournament, match, matchesBySlot, nameById);
     overlay.classList.add('open');
     document.getElementById('tournament-match-detail-modal')?.classList.add('open');
@@ -534,7 +525,7 @@ Object.assign(App, {
               <strong>開賽資訊</strong>
               <span>${escapeHTML(match.stage === 'league' ? '聯賽' : match.stage === 'third' ? '季軍戰' : '盃賽')}</span>
             </div>
-            <dl class="tc-match-detail-list">
+            <dl class="tc-match-detail-list tc-match-kickoff-grid">
               <div><dt>開賽日</dt><dd>${escapeHTML(dateParts.date)}</dd></div>
               <div><dt>開賽時間</dt><dd>${escapeHTML(dateParts.time)}</dd></div>
               <div><dt>場地</dt><dd>${escapeHTML(match.venue || '待公布')}</dd></div>
