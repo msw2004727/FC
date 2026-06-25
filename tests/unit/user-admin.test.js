@@ -479,6 +479,13 @@ describe('individual user permission grants admin wiring', () => {
     expect(source).toContain('saveUserPermissionGrant');
   });
 
+  test('user grant search waits for a real query before listing users', () => {
+    const source = readProjectFile('js/modules/user-admin/user-admin-user-grants.js');
+
+    expect(source).toContain('if (!q) return [];');
+    expect(source).not.toContain('if (!q) return true;');
+  });
+
   test('new user grant rows default to disabled until a grant is created', () => {
     const source = readProjectFile('js/modules/user-admin/user-admin-user-grants.js');
     const crud = readProjectFile('js/firebase-crud.js');

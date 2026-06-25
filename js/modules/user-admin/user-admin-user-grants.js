@@ -46,12 +46,12 @@ Object.assign(App, {
 
   _filterUserPermissionGrantUsers(query) {
     const q = String(query || '').trim().toLowerCase();
+    if (!q) return [];
     const users = ApiService.getAdminUsers?.() || [];
     return users
       .filter(user => {
         const uid = this._getUserPermissionGrantUid(user);
         if (!uid) return false;
-        if (!q) return true;
         const haystack = [user?.name, user?.displayName, uid, user?.lineUserId, user?._docId]
           .map(value => String(value || '').toLowerCase())
           .join(' ');
