@@ -850,12 +850,17 @@ Object.assign(App, {
     const liveUrl = String(match.liveUrl || match.streamUrl || '').trim();
     const hasLive = !!liveUrl;
     const liveLabel = hasLive ? '直播連結已設定' : '直播尚未提供';
-    return `
-      <div class="tfg-live-slot ${hasLive ? 'has-live' : 'is-empty'}" data-live-state="${hasLive ? 'ready' : 'empty'}" data-live-url="${escapeHTML(liveUrl)}" aria-label="${escapeHTML(liveLabel)}">
+    const frameHtml = hasLive && typeof this._renderTournamentLiveFrameHtml === 'function'
+      ? this._renderTournamentLiveFrameHtml({ ...match, liveUrl }, { compact: true, autoplay: false })
+      : '';
+    const placeholderHtml = `
         <div class="tfg-live-stage">
           <span class="tfg-live-pill">LIVE</span>
           <span class="tfg-live-label">${escapeHTML(liveLabel)}</span>
-        </div>
+        </div>`;
+    return `
+      <div class="tfg-live-slot ${hasLive ? 'has-live' : 'is-empty'}" data-live-state="${hasLive ? 'ready' : 'empty'}" data-live-url="${escapeHTML(liveUrl)}" aria-label="${escapeHTML(liveLabel)}">
+        ${frameHtml || placeholderHtml}
       </div>`;
   },
   _renderFriendlyTournamentScheduleMatchCard(tournament, match, context = {}) {
@@ -870,7 +875,6 @@ Object.assign(App, {
     const statusMeta = this._getFriendlyTournamentScheduleStatusMeta(match);
     const homeScore = this._getFriendlyTournamentScheduleSideScore(match, 'home');
     const awayScore = this._getFriendlyTournamentScheduleSideScore(match, 'away');
-    const statusDateLabel = this._getFriendlyTournamentScheduleRelativeDateLabel(dateParts);
     const timeLabel = match.scheduledAt ? `${dateParts.date} ${dateParts.time}` : '時間待定';
     const roundLabel = this._getTournamentRoundLabel?.(match) || (match.round ? `第 ${match.round} 輪` : modeLabel);
     const refereeNames = (match.referees || [])
@@ -904,7 +908,6 @@ Object.assign(App, {
           </div>
           <div class="tfg-match-state">
             <span>${escapeHTML(statusMeta.label)}</span>
-            <small>${escapeHTML(statusDateLabel)}</small>
           </div>
         </div>
         <div class="tfg-match-meta">

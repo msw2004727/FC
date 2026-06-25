@@ -462,7 +462,14 @@ Object.assign(App, {
     const isWalkover = match.status === 'walkover';
     const isFinished = match.status === 'finished';
     const walkoverScoreText = `${config.walkoverWinScore}:${config.walkoverLoseScore}`;
-    if (title) title.textContent = `更新賽況：${recordState.homeName} vs ${recordState.awayName}`;
+    if (title) {
+      title.className = 'tmr-title';
+      title.innerHTML = `
+        <span class="tmr-title-label">更新賽況</span>
+        <span class="tmr-title-team">${escapeHTML(recordState.homeName || '')}</span>
+        <span class="tmr-title-vs">vs</span>
+        <span class="tmr-title-team">${escapeHTML(recordState.awayName || '')}</span>`;
+    }
     body.innerHTML = `
       <div class="tmr-result-switch" role="radiogroup" aria-label="結果類型">
         <label class="tmr-result-card">

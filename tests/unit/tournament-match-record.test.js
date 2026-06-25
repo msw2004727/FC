@@ -43,6 +43,7 @@ function renderScoreForm({ completed = false } = {}) {
 describe('tournament match result recording', () => {
   afterEach(() => {
     delete global.document;
+    delete global.escapeHTML;
   });
 
   test('saving without completion switch stores a draft scheduled score', async () => {
@@ -144,6 +145,49 @@ describe('tournament match result recording', () => {
     expect(textarea.value).toBe('Manual Player\n11-AAA');
     expect(search.value).toBe('');
     expect(suggestions.innerHTML).toBe('');
+  });
+
+  test('record modal title stacks club names instead of one wrapping line', () => {
+    const { App } = buildApp();
+    global.escapeHTML = value => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const elements = {
+      'tmr-body': { innerHTML: '' },
+      'tmr-actions': { innerHTML: '' },
+      'tmr-title': { className: '', innerHTML: '', textContent: '' },
+    };
+    global.document = {
+      getElementById: jest.fn(id => elements[id] || null),
+      querySelector: jest.fn(() => null),
+      querySelectorAll: jest.fn(() => []),
+    };
+    App._getTournamentCompetitionConfig = jest.fn(() => ({ walkoverWinScore: 3, walkoverLoseScore: 0 }));
+    App._canManageTournamentRecord = jest.fn(() => false);
+    App._syncTournamentMatchRecordResultType = jest.fn();
+    App._syncTournamentMatchRecordPlayers = jest.fn();
+    App._syncTournamentMatchRecordEventFields = jest.fn();
+    App._renderTournamentMatchRecordEvents = jest.fn();
+    App._tournamentMatchRecordState = {
+      tournamentId: 'ct_test',
+      homeTeamId: 'home',
+      awayTeamId: 'away',
+      homeName: 'Home Club',
+      awayName: 'Away Club',
+      isCup: false,
+      events: [],
+    };
+
+    App._renderTournamentMatchRecordBody({ id: 'ct_test' }, { status: 'scheduled', scoreHome: null, scoreAway: null });
+
+    expect(elements['tmr-title'].className).toBe('tmr-title');
+    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-label');
+    expect(elements['tmr-title'].innerHTML).toContain('tmr-title-team');
+    expect(elements['tmr-title'].innerHTML).toContain('Home Club');
+    expect(elements['tmr-title'].innerHTML).toContain('Away Club');
   });
 
   test('match event briefing includes timeline roster staff and referees', () => {

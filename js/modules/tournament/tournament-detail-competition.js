@@ -130,31 +130,46 @@ Object.assign(App, {
     };
   },
 
-  _buildTournamentLiveEmbedUrl(rawUrl = '') {
+  _buildTournamentLiveEmbedUrl(rawUrl = '', options = {}) {
     const source = String(rawUrl || '').trim();
     if (!source) return '';
+    const autoplay = options.autoplay === true;
+    const youtubeParams = {
+      autoplay: autoplay ? '1' : '0',
+      playsinline: '1',
+      rel: '0',
+    };
+    const withParams = (base, params = {}) => {
+      try {
+        const embed = new URL(base);
+        Object.entries(params).forEach(([key, value]) => embed.searchParams.set(key, value));
+        return embed.href;
+      } catch (_) {
+        return base;
+      }
+    };
     try {
       const url = new URL(source);
       if (!['http:', 'https:'].includes(url.protocol)) return '';
       const host = url.hostname.replace(/^www\./, '').toLowerCase();
       if (host === 'youtu.be') {
         const id = url.pathname.split('/').filter(Boolean)[0] || '';
-        return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : '';
+        return id ? withParams(`https://www.youtube.com/embed/${encodeURIComponent(id)}`, youtubeParams) : '';
       }
       if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
         const videoId = url.searchParams.get('v')
           || url.pathname.match(/\/(?:embed|live|shorts)\/([^/?#]+)/)?.[1]
           || '';
-        return videoId ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` : source;
+        return videoId ? withParams(`https://www.youtube.com/embed/${encodeURIComponent(videoId)}`, youtubeParams) : source;
       }
       if (host === 'twitch.tv' || host.endsWith('.twitch.tv')) {
         const parts = url.pathname.split('/').filter(Boolean);
-        const parent = encodeURIComponent(window.location.hostname || 'localhost');
+        const parent = encodeURIComponent((typeof window !== 'undefined' && window.location?.hostname) || 'localhost');
         if (parts[0] === 'videos' && parts[1]) {
-          return `https://player.twitch.tv/?video=${encodeURIComponent(parts[1])}&parent=${parent}`;
+          return `https://player.twitch.tv/?video=${encodeURIComponent(parts[1])}&parent=${parent}&autoplay=${autoplay ? 'true' : 'false'}`;
         }
         if (parts[0]) {
-          return `https://player.twitch.tv/?channel=${encodeURIComponent(parts[0])}&parent=${parent}`;
+          return `https://player.twitch.tv/?channel=${encodeURIComponent(parts[0])}&parent=${parent}&autoplay=${autoplay ? 'true' : 'false'}`;
         }
       }
       return source;
@@ -172,14 +187,14 @@ Object.assign(App, {
         <small>直播尚未提供</small>
       </div>`;
     }
-    const embedUrl = this._buildTournamentLiveEmbedUrl(liveUrl);
+    const embedUrl = this._buildTournamentLiveEmbedUrl(liveUrl, options);
     let openUrl = '';
     try {
       const parsed = new URL(liveUrl);
       if (['http:', 'https:'].includes(parsed.protocol)) openUrl = parsed.href;
     } catch (_) {}
     const iframe = embedUrl
-      ? `<iframe class="tc-match-live-frame" src="${escapeHTML(embedUrl)}" title="賽事直播" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+      ? `<iframe class="tc-match-live-frame" src="${escapeHTML(embedUrl)}" title="賽事直播" loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
       : '';
     return `<div class="tc-match-live-box${compact ? ' compact' : ''}">
       ${iframe || `<div class="tc-match-live-placeholder"><span>LIVE</span><small>此網址不支援嵌入</small></div>`}

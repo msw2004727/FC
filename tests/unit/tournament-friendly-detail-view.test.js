@@ -1654,6 +1654,59 @@ describe('friendly tournament schedule tab rendering', () => {
     expect(container.innerHTML).toContain('tfg-live-slot is-empty');
     expect(container.innerHTML).toContain('data-live-state="empty"');
     expect(container.innerHTML).toContain('tfg-live-label');
+    expect(container.innerHTML).not.toContain('<small>');
+  });
+
+  test('renders embedded live frame in friendly schedule cards when live url exists', () => {
+    const tournament = { id: 'tf_live_schedule', mode: 'friendly' };
+    const state = {
+      tournament,
+      entries: [],
+      matches: [
+        {
+          id: 'm_live',
+          stage: 'friendly',
+          round: 1,
+          slot: 0,
+          status: 'scheduled',
+          homeTeamId: 'tm_a',
+          awayTeamId: 'tm_b',
+          scoreHome: 0,
+          scoreAway: 0,
+          liveUrl: 'https://www.youtube.com/watch?v=abc123',
+          scheduledAt: '2026-06-24T10:00:00.000Z',
+        },
+      ],
+    };
+    global.ApiService = { getCurrentUser: () => ({ uid: 'manager' }) };
+    global.App = {
+      renderTournamentTab: jest.fn(),
+      _getTournamentModeLabel: jest.fn(() => 'Friendly'),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _canManageTournamentRecord: jest.fn(() => false),
+      _canRecordTournamentMatch: jest.fn(() => false),
+      _buildTournamentMatchesBySlot: jest.fn(() => ({})),
+      _getTournamentTeamNameMap: jest.fn(() => ({ tm_a: 'Alpha Club', tm_b: 'Beta Club' })),
+      _getTournamentTeamLogoMap: jest.fn(() => ({})),
+      _renderTournamentMatchSideLabel(match, side, _matchesBySlot, nameById) {
+        const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
+        return { teamId, label: nameById[teamId] || teamId };
+      },
+      _getTournamentRoundLabel: jest.fn(match => `Round ${match.round}`),
+      _renderTournamentLiveFrameHtml: jest.fn(() => '<div class="tc-match-live-box compact"><iframe class="tc-match-live-frame" src="https://www.youtube.com/embed/abc123?autoplay=0"></iframe></div>'),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentScheduleHtml(state);
+
+    expect(global.App._renderTournamentLiveFrameHtml).toHaveBeenCalledWith(
+      expect.objectContaining({ liveUrl: 'https://www.youtube.com/watch?v=abc123' }),
+      expect.objectContaining({ compact: true, autoplay: false }),
+    );
+    expect(html).toContain('tfg-live-slot has-live');
+    expect(html).toContain('tc-match-live-frame');
+    expect(html).toContain('autoplay=0');
+    expect(html).not.toContain('tfg-live-label');
   });
 
   test('uses the single mode label in the schedule heading', () => {

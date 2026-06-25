@@ -38,6 +38,14 @@ describe('tournament live match schedule UI contract', () => {
     expect(recordSource).toContain('更新賽況');
   });
 
+  test('live embeds default to paused in schedule surfaces', () => {
+    expect(detailSource).toContain("_buildTournamentLiveEmbedUrl(rawUrl = '', options = {})");
+    expect(detailSource).toContain("autoplay: autoplay ? '1' : '0'");
+    expect(detailSource).toContain("autoplay=${autoplay ? 'true' : 'false'}");
+    expect(detailSource).toContain("allow=\"accelerometer; clipboard-write;");
+    expect(detailSource).not.toContain("allow=\"accelerometer; autoplay;");
+  });
+
   test('css contains stable responsive hooks for live match UI', () => {
     expect(cssSource).toContain('.tc-match-live-frame');
     expect(cssSource).toContain('aspect-ratio: 16 / 9');
@@ -49,5 +57,8 @@ describe('tournament live match schedule UI contract', () => {
     expect(detailSource).toContain("document.body?.classList?.remove('modal-open')");
     expect(cssSource).toContain('.tc-match-staff-panel');
     expect(cssSource).toContain('.tmr-live-card');
+    expect(cssSource).toContain('.tfg-live-slot .tc-match-live-frame');
+    expect(cssSource).toContain('#tournament-match-record-overlay');
+    expect(cssSource).toContain('.tmr-title-team');
   });
 });
