@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <!-- 最後更新：2026-05-18 -->
+  <!-- 最後更新：2026-06-27 -->
 
   <!-- ═══════════════════════════════════════════════ -->
   <!-- 首頁與核心入口（priority 1.0）-->
@@ -76,6 +76,17 @@
     <priority>0.75</priority>
     <image:image>
       <image:loc>https://toosterx.com/img/seo/chaoma-football-field-map-1200.webp</image:loc>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/taichung-football-community</loc>
+    <lastmod>2026-06-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <image:image>
+      <image:loc>https://toosterx.com/assets/og/sports/football.jpg?v=20260521</image:loc>
+      <image:title>台中足球 LINE 社群與新手友善揪團</image:title>
+      <image:caption>台中足球社群、女生足球、新手中低強度與成人足球揪團入口</image:caption>
     </image:image>
   </url>
   <url>

@@ -33,6 +33,7 @@ const URLS_TO_INSPECT = [
   'https://toosterx.com/seo/running',
   'https://toosterx.com/seo/hiking',
   'https://toosterx.com/seo/football-taichung',
+  'https://toosterx.com/seo/taichung-football-community',
   'https://toosterx.com/seo/nantun-football-park',
   'https://toosterx.com/seo/sports-changhua',
   'https://toosterx.com/seo/sports-nantou',
