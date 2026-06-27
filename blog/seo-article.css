@@ -103,6 +103,28 @@ h1 {
   font-size: 1.06rem;
 }
 
+.article-hero-image {
+  margin: 22px 0 28px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+}
+
+.article-hero-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.article-hero-image figcaption {
+  padding: 10px 14px;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
 .meta {
   color: #667085;
   font-size: 0.9rem;

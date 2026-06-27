@@ -61,8 +61,8 @@ const URLS_TO_INSPECT = [
   'https://toosterx.com/blog/running-rules',
   'https://toosterx.com/blog/hiking-rules',
   'https://toosterx.com/roles/',
-  'https://toosterx.com/privacy.html',
-  'https://toosterx.com/terms.html',
+  'https://toosterx.com/privacy',
+  'https://toosterx.com/terms',
 ];
 const SITEMAP_URL = 'https://toosterx.com/sitemap.xml';
 const URL_INSPECTION_LIMIT = 45;
@@ -286,34 +286,96 @@ function buildFirstTwoPageQueries(queries, limit = 30) {
 
 function normalizeToosterUrl(url) {
   if (!url || typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (!trimmed.startsWith('https://toosterx.com/')) return null;
-  return trimmed.replace(/\/index\.html$/, '/');
+  let parsed;
+  try {
+    parsed = new URL(url.trim());
+  } catch (err) {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'toosterx.com') return null;
+
+  let pathname = parsed.pathname || '/';
+  if (pathname === '/index.html') {
+    pathname = '/';
+  } else if (pathname.endsWith('/index.html')) {
+    pathname = pathname.replace(/\/index\.html$/, '/');
+  } else if (pathname.endsWith('.html')) {
+    pathname = pathname.slice(0, -5);
+  }
+  return `https://toosterx.com${pathname}`;
+}
+
+function isToosterSitemapUrl(url) {
+  const normalized = normalizeToosterUrl(url);
+  return !!normalized && /^https:\/\/toosterx\.com\/sitemap(?:[-\w]*)?\.xml$/i.test(normalized);
+}
+
+function extractLocsFromBlocks(xml, tagName) {
+  if (!xml || typeof xml !== 'string') return [];
+  const locs = [];
+  const blockRe = new RegExp(`<${tagName}\\b[\\s\\S]*?<\\/${tagName}>`, 'gi');
+  let blockMatch;
+  while ((blockMatch = blockRe.exec(xml)) !== null) {
+    const locMatch = blockMatch[0].match(/<loc>\s*([^<]+?)\s*<\/loc>/i);
+    if (locMatch) locs.push(locMatch[1].trim());
+  }
+  return locs;
 }
 
 function extractSitemapUrls(xml) {
-  if (!xml || typeof xml !== 'string') return [];
-  const urls = [];
-  const locRe = /<loc>\s*([^<]+?)\s*<\/loc>/gi;
-  let match;
-  while ((match = locRe.exec(xml)) !== null) {
-    const url = normalizeToosterUrl(match[1]);
-    if (url) urls.push(url);
-  }
-  return urls;
+  return extractLocsFromBlocks(xml, 'url')
+    .map(normalizeToosterUrl)
+    .filter(url => url && !isToosterSitemapUrl(url));
 }
 
-async function buildInspectionUrlList() {
+function extractSitemapIndexUrls(xml) {
+  return extractLocsFromBlocks(xml, 'sitemap')
+    .map(normalizeToosterUrl)
+    .filter(isToosterSitemapUrl);
+}
+
+async function collectSitemapPageUrls(sitemapUrl = SITEMAP_URL, fetchText = httpText, options = {}) {
+  const maxSitemaps = Number(options.maxSitemaps || 20);
+  const seen = new Set();
+  const pending = [sitemapUrl];
+  const pageUrls = [];
+
+  while (pending.length > 0 && seen.size < maxSitemaps) {
+    const current = normalizeToosterUrl(pending.shift());
+    if (!current || seen.has(current) || !isToosterSitemapUrl(current)) continue;
+    seen.add(current);
+
+    const xml = await fetchText(current);
+    pageUrls.push(...extractSitemapUrls(xml));
+
+    for (const child of extractSitemapIndexUrls(xml)) {
+      if (!seen.has(child) && seen.size + pending.length < maxSitemaps) {
+        pending.push(child);
+      }
+    }
+  }
+
+  return pageUrls;
+}
+
+async function buildInspectionUrlList(options = {}) {
+  const {
+    sitemapUrl = SITEMAP_URL,
+    fetchText = httpText,
+    seedUrls = URLS_TO_INSPECT,
+    inspectionLimit = URL_INSPECTION_LIMIT,
+    maxSitemaps,
+  } = options;
   let sitemapUrls = [];
   try {
-    sitemapUrls = extractSitemapUrls(await httpText(SITEMAP_URL));
+    sitemapUrls = await collectSitemapPageUrls(sitemapUrl, fetchText, { maxSitemaps });
   } catch (err) {
     console.warn('Sitemap URL list fallback:', err.message);
   }
-  return Array.from(new Set([...URLS_TO_INSPECT, ...sitemapUrls]
+  return Array.from(new Set([...seedUrls, ...sitemapUrls]
     .map(normalizeToosterUrl)
-    .filter(Boolean)))
-    .slice(0, URL_INSPECTION_LIMIT);
+    .filter(url => url && !isToosterSitemapUrl(url))))
+    .slice(0, inspectionLimit);
 }
 
 async function fetchSitemap(token) {
@@ -462,4 +524,18 @@ async function main() {
   console.log('URL indexed:', indexed + '/' + urlStatus.length);
 }
 
-main().catch(err => { console.error('✗ 錯誤:', err.message); console.error(err.stack); process.exit(1); });
+if (require.main === module) {
+  main().catch(err => { console.error('✗ 錯誤:', err.message); console.error(err.stack); process.exit(1); });
+}
+
+module.exports = {
+  URL_INSPECTION_LIMIT,
+  URLS_TO_INSPECT,
+  SITEMAP_URL,
+  buildInspectionUrlList,
+  collectSitemapPageUrls,
+  extractSitemapIndexUrls,
+  extractSitemapUrls,
+  isToosterSitemapUrl,
+  normalizeToosterUrl,
+};

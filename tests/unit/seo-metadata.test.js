@@ -57,6 +57,10 @@ describe('SEO metadata coverage', () => {
       || rel.startsWith('seo/');
   });
 
+  function readRel(rel) {
+    return fs.readFileSync(path.join(root, rel), 'utf8');
+  }
+
   test.each(htmlFiles)('%s has complete indexable metadata', (file) => {
     const rel = path.relative(root, file).replace(/\\/g, '/');
     const source = fs.readFileSync(file, 'utf8');
@@ -90,5 +94,49 @@ describe('SEO metadata coverage', () => {
 
     const jsonLdBlocks = source.match(/<script\s+type=["']application\/ld\+json["'][^>]*>/gi) || [];
     expect(jsonLdBlocks.length).toBeGreaterThan(0);
+  });
+
+  test('homepage exposes the Taichung football community SEO entrance to no-JS crawlers', () => {
+    expect(readRel('index.html')).toContain('href="/seo/taichung-football-community"');
+  });
+
+  test.each([
+    'seo/football.html',
+    'seo/football-taichung.html',
+    'blog/taichung-football-field-rental-guide.html',
+    'blog/adult-football-beginner-guide.html',
+    'blog/football-rules.html',
+  ])('%s links to the Taichung football community page', (rel) => {
+    expect(readRel(rel)).toContain('href="/seo/taichung-football-community"');
+  });
+
+  test('Taichung football community page links back to the field rental guide', () => {
+    expect(readRel('seo/taichung-football-community.html')).toContain('href="/blog/taichung-football-field-rental-guide"');
+  });
+
+  test.each([
+    'blog/community/index.html',
+    'blog/taichung-pickleball-pickup-guide.html',
+    'blog/adult-football-beginner-guide.html',
+    'blog/taichung-badminton-pickup-guide.html',
+    'blog/taichung-basketball-pickup-guide.html',
+  ])('%s has a visible optimized article image', (rel) => {
+    const source = readRel(rel);
+    const figure = source.match(/<figure\s+class=["']article-hero-image["'][\s\S]*?<\/figure>/i)?.[0];
+    expect(figure).toBeTruthy();
+
+    const imgTag = firstTag(figure, /<img\s+[^>]*>/i);
+    const src = attrFromTag(imgTag, 'src');
+    const alt = attrFromTag(imgTag, 'alt');
+    const width = Number(attrFromTag(imgTag, 'width'));
+    const height = Number(attrFromTag(imgTag, 'height'));
+
+    expect(src).toMatch(/^\/img\/seo\/[^"']+\.jpg$/);
+    expect(fs.existsSync(path.join(root, src.replace(/^\//, '')))).toBe(true);
+    expect(alt).toMatch(/\S{6,}/);
+    expect(width).toBeGreaterThanOrEqual(600);
+    expect(height).toBeGreaterThanOrEqual(300);
+    expect(attrFromTag(imgTag, 'loading')).toBe('lazy');
+    expect(attrFromTag(imgTag, 'decoding')).toBe('async');
   });
 });

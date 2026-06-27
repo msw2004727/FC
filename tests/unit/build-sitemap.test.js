@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+const { JSDOM } = require('jsdom');
 const {
   buildEventEntries,
   buildTeamEntries,
@@ -11,10 +14,37 @@ const {
   parseDateMs,
 } = require('../../scripts/build-sitemap');
 
+const ROOT = path.resolve(__dirname, '..', '..');
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FIXED_NOW = new Date('2026-05-11T00:00:00Z').getTime();
 
-describe('scripts/build-sitemap.js — indexability filters', () => {
+function readRepoFile(rel) {
+  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+}
+
+function parseXmlDocument(xml, label) {
+  const dom = new JSDOM(xml, { contentType: 'text/xml' });
+  const parserError = dom.window.document.querySelector('parsererror');
+  if (parserError) {
+    throw new Error(`${label} is not parseable XML: ${parserError.textContent}`);
+  }
+  return dom.window.document;
+}
+
+function childText(parent, tagName) {
+  return parent.getElementsByTagName(tagName)[0]?.textContent.trim() || null;
+}
+
+function parseUrlEntries(document) {
+  return Array.from(document.getElementsByTagName('url')).map((node) => ({
+    loc: childText(node, 'loc'),
+    lastmod: childText(node, 'lastmod'),
+    priority: childText(node, 'priority'),
+    images: Array.from(node.getElementsByTagName('image:loc')).map((imageNode) => imageNode.textContent.trim()),
+  }));
+}
+
+describe('scripts/build-sitemap.js indexability filters', () => {
   test('isIndexableEvent skips ended / private / hidden / draft', () => {
     expect(isIndexableEvent({ id: 'ce_1', status: 'ended', date: '2026/05/01' }, FIXED_NOW)).toBe(false);
     expect(isIndexableEvent({ id: 'ce_1', status: 'cancelled', date: '2026/05/01' }, FIXED_NOW)).toBe(false);
@@ -58,13 +88,13 @@ describe('scripts/build-sitemap.js — indexability filters', () => {
   });
 });
 
-describe('scripts/build-sitemap.js — entry builders', () => {
+describe('scripts/build-sitemap.js entry builders', () => {
   test('buildEventEntries emits absolute /events/{id} URLs with lastmod and de-dups', () => {
     const events = [
       { id: 'ce_1777808740886_aaaaaa', date: '2026/06/01', updatedAt: '2026-05-10T12:00:00Z' },
-      { id: 'ce_1777808740886_aaaaaa', date: '2026/06/01' }, // duplicate
-      { id: 'ce_old', status: 'ended', date: '2026/04/01' }, // filtered
-      { id: 'a/b', date: '2026/06/01' },                     // unsafe id
+      { id: 'ce_1777808740886_aaaaaa', date: '2026/06/01' },
+      { id: 'ce_old', status: 'ended', date: '2026/04/01' },
+      { id: 'a/b', date: '2026/06/01' },
     ];
     const out = buildEventEntries(events, FIXED_NOW);
     expect(out).toHaveLength(1);
@@ -91,17 +121,14 @@ describe('scripts/build-sitemap.js — entry builders', () => {
     const xml = buildSitemapXml([
       { loc: 'https://toosterx.com/events/ce_x', lastmod: '2026-05-11', changefreq: 'daily', priority: '0.7' },
     ]);
-    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
-    expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+    const document = parseXmlDocument(xml, 'generated sitemap');
+    expect(document.documentElement.localName).toBe('urlset');
     expect(xml).toContain('<loc>https://toosterx.com/events/ce_x</loc>');
     expect(xml).toContain('<lastmod>2026-05-11</lastmod>');
-    expect(xml.trim().endsWith('</urlset>')).toBe(true);
   });
 
   test('pickLastMod prefers updatedAt then falls back to date', () => {
     expect(pickLastMod({ updatedAt: '2026-05-10T12:00:00Z' })).toBe('2026-05-10');
-    // 2026/06/01 parses as local midnight; the date string is timezone-sensitive,
-    // so just assert pickLastMod yields a YYYY-MM-DD string in the right ballpark.
     expect(pickLastMod({ date: '2026/06/01' })).toMatch(/^2026-0[56]-(0[1-9]|[12]\d|3[01])$/);
   });
 
@@ -109,5 +136,63 @@ describe('scripts/build-sitemap.js — entry builders', () => {
     expect(parseDateMs('2026-05-11T00:00:00Z')).toBe(new Date('2026-05-11T00:00:00Z').getTime());
     expect(parseDateMs('2026/06/01 12:00')).toBeGreaterThan(0);
     expect(parseDateMs(undefined)).toBe(0);
+  });
+});
+
+describe('static sitemap SEO coverage', () => {
+  const sitemapIndexDoc = parseXmlDocument(readRepoFile('sitemap.xml'), 'sitemap.xml');
+  const staticSitemapDoc = parseXmlDocument(readRepoFile('sitemap-static.xml'), 'sitemap-static.xml');
+  const staticEntries = parseUrlEntries(staticSitemapDoc);
+
+  test('sitemap index and static sitemap parse as the expected XML documents', () => {
+    expect(sitemapIndexDoc.documentElement.localName).toBe('sitemapindex');
+    expect(staticSitemapDoc.documentElement.localName).toBe('urlset');
+  });
+
+  test('sitemap index points to the expected child sitemap files', () => {
+    const locs = Array.from(sitemapIndexDoc.getElementsByTagName('sitemap'))
+      .map((node) => childText(node, 'loc'));
+    expect(locs).toEqual([
+      'https://toosterx.com/sitemap-static.xml',
+      'https://toosterx.com/sitemap-events.xml',
+      'https://toosterx.com/sitemap-teams.xml',
+      'https://toosterx.com/sitemap-tournaments.xml',
+    ]);
+  });
+
+  test('static sitemap exposes unique clean canonical URLs', () => {
+    const locs = staticEntries.map((entry) => entry.loc);
+    expect(locs.length).toBeGreaterThan(20);
+    expect(new Set(locs).size).toBe(locs.length);
+    for (const loc of locs) {
+      expect(loc).toMatch(/^https:\/\/toosterx\.com\//);
+      expect(loc).not.toMatch(/\.html$/);
+      expect(loc).not.toMatch(/\s/);
+    }
+  });
+
+  test.each([
+    ['https://toosterx.com/', '2026-06-27'],
+    ['https://toosterx.com/seo/taichung-football-community', '2026-06-27'],
+    ['https://toosterx.com/blog/community/', '2026-06-27'],
+    ['https://toosterx.com/blog/football-rules', '2026-06-27'],
+    ['https://toosterx.com/blog/taichung-football-field-rental-guide', '2026-06-27'],
+    ['https://toosterx.com/blog/adult-football-beginner-guide', '2026-06-27'],
+    ['https://toosterx.com/blog/taichung-basketball-pickup-guide', '2026-06-27'],
+    ['https://toosterx.com/blog/taichung-badminton-pickup-guide', '2026-06-27'],
+    ['https://toosterx.com/blog/taichung-pickleball-pickup-guide', '2026-06-27'],
+  ])('%s has the expected static sitemap lastmod', (loc, expectedLastmod) => {
+    expect(staticEntries.find((entry) => entry.loc === loc)?.lastmod).toBe(expectedLastmod);
+  });
+
+  test('same-origin image sitemap references point to existing files', () => {
+    const imageLocs = staticEntries.flatMap((entry) => entry.images)
+      .filter((loc) => loc.startsWith('https://toosterx.com/'));
+    expect(imageLocs.length).toBeGreaterThan(0);
+
+    for (const loc of imageLocs) {
+      const pathname = new URL(loc).pathname.replace(/^\//, '');
+      expect(fs.existsSync(path.join(ROOT, pathname))).toBe(true);
+    }
   });
 });
