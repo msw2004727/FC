@@ -349,11 +349,12 @@ Object.assign(App, {
 
     const curUser = ApiService.getCurrentUser();
     const reviewerName = curUser?.displayName || '審核人';
+    const applicantUid = msg.meta.applicantUid;
 
     if (action === 'approve') {
-      await this.approveEduStudent(teamId, studentId);
+      const approved = await this.approveEduStudent(teamId, studentId, { applicantUid, teamName });
+      if (!approved) return;
       // 通知申請者
-      const applicantUid = msg.meta.applicantUid;
       if (applicantUid) {
         this._deliverMessageWithLinePush(
           '學員審核結果',
@@ -363,8 +364,8 @@ Object.assign(App, {
         );
       }
     } else if (action === 'reject') {
-      await this.rejectEduStudent(teamId, studentId);
-      const applicantUid = msg.meta.applicantUid;
+      const rejected = await this.rejectEduStudent(teamId, studentId);
+      if (!rejected) return;
       if (applicantUid) {
         this._deliverMessageWithLinePush(
           '學員審核結果',

@@ -219,11 +219,144 @@ Object.assign(App, {
     }
   },
 
+  async _getEduStudentForApproval(teamId, studentId) {
+    const safeStudentId = String(studentId || '').trim();
+    if (!teamId || !safeStudentId) return null;
+
+    const matches = (student) => String(student?.id || student?._docId || student?.studentId || '').trim() === safeStudentId;
+    const cached = this._eduStudentsCache?.[teamId];
+    const cachedStudent = Array.isArray(cached) ? cached.find(matches) : null;
+    if (cachedStudent) return cachedStudent;
+
+    if (typeof this._loadEduStudents === 'function') {
+      const loaded = await this._loadEduStudents(teamId);
+      return (loaded || []).find(matches) || null;
+    }
+    return null;
+  },
+
+  _normalizeEduStudentTeamMembership(user) {
+    const ids = [];
+    const names = [];
+    const seen = new Set();
+    const pushMember = (id, name) => {
+      const tid = String(id || '').trim();
+      if (!tid || seen.has(tid)) return;
+      seen.add(tid);
+      ids.push(tid);
+      names.push(String(name || '').trim());
+    };
+
+    if (Array.isArray(user?.teamIds)) {
+      user.teamIds.forEach((id, index) => {
+        const name = Array.isArray(user?.teamNames) ? user.teamNames[index] : '';
+        pushMember(id, name);
+      });
+    }
+    pushMember(user?.teamId, user?.teamName);
+    return { ids, names };
+  },
+
+  _findEduStudentMembershipUser(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+
+    const viaApi = ApiService.getUserByUid?.(safeUid);
+    if (viaApi) return viaApi;
+
+    const current = ApiService.getCurrentUser?.();
+    const currentIds = [current?.uid, current?.lineUserId, current?._docId, current?.id]
+      .map(value => String(value || '').trim());
+    if (current && currentIds.includes(safeUid)) return current;
+
+    const users = ApiService.getAdminUsers?.() || [];
+    return users.find(user => [user?.uid, user?.lineUserId, user?._docId, user?.id]
+      .map(value => String(value || '').trim())
+      .includes(safeUid)) || null;
+  },
+
+  async _syncApprovedEduStudentTeamMembership(teamId, student, options = {}) {
+    const selfUid = String(student?.selfUid || '').trim();
+    const parentUid = String(student?.parentUid || '').trim();
+    const fallbackApplicantUid = parentUid ? '' : String(options.applicantUid || '').trim();
+    const targetUid = selfUid || fallbackApplicantUid;
+    if (!targetUid) return { updated: false, reason: 'no-user-uid' };
+
+    const user = this._findEduStudentMembershipUser(targetUid);
+    if (!user) throw new Error('USER_NOT_FOUND_FOR_STUDENT_MEMBERSHIP');
+
+    const docId = String(user._docId || user.docId || user.id || user.uid || targetUid || '').trim();
+    if (!docId) throw new Error('USER_DOC_NOT_FOUND_FOR_STUDENT_MEMBERSHIP');
+
+    const team = ApiService.getTeam?.(teamId) || (ApiService.getTeamAsync ? await ApiService.getTeamAsync(teamId) : null);
+    const targetTeamId = String(teamId || '').trim();
+    const targetTeamName = String(team?.name || options.teamName || targetTeamId).trim();
+    let sourceUser = user;
+
+    const authed = typeof FirebaseService._ensureAuth === 'function'
+      ? await FirebaseService._ensureAuth()
+      : await FirebaseService.ensureAuthReadyForWrite?.();
+    if (!authed) throw new Error('AUTH_NOT_READY');
+
+    if (typeof db !== 'undefined' && db?.collection) {
+      try {
+        const liveSnap = await db.collection('users').doc(docId).get({ source: 'server' });
+        if (liveSnap.exists) sourceUser = { ...sourceUser, ...(liveSnap.data() || {}) };
+      } catch (readErr) {
+        console.warn('[approveEduStudent] live user read failed, fallback to cache:', readErr?.code || readErr?.message || readErr);
+      }
+    }
+
+    const membership = this._normalizeEduStudentTeamMembership(sourceUser);
+    const applyLocalMembership = (updates) => {
+      Object.assign(user, updates);
+      const currentUser = ApiService.getCurrentUser?.();
+      const currentIds = [currentUser?.uid, currentUser?.lineUserId, currentUser?._docId, currentUser?.id]
+        .map(value => String(value || '').trim());
+      if (currentUser && currentIds.includes(targetUid)) Object.assign(currentUser, updates);
+    };
+
+    if (membership.ids.includes(targetTeamId)) {
+      const updates = {
+        teamId: membership.ids[0] || null,
+        teamName: membership.names[0] || '',
+        teamIds: membership.ids,
+        teamNames: membership.names,
+      };
+      applyLocalMembership(updates);
+      return { updated: false, reason: 'already-member', uid: targetUid };
+    }
+
+    membership.ids.push(targetTeamId);
+    membership.names.push(targetTeamName || targetTeamId);
+    const updates = {
+      teamId: membership.ids[0] || null,
+      teamName: membership.names[0] || '',
+      teamIds: membership.ids,
+      teamNames: membership.names,
+    };
+
+    await FirebaseService.updateUser(docId, updates);
+    applyLocalMembership(updates);
+    return { updated: true, uid: targetUid, updates };
+  },
+
+  _syncEduApprovedStudentTeamCount(teamId) {
+    if (typeof this._calcTeamMemberCount !== 'function' || !ApiService.updateTeam) return;
+    const memberCount = this._calcTeamMemberCount(teamId);
+    if (Number.isFinite(memberCount) && memberCount >= 0) {
+      ApiService.updateTeam(teamId, { members: memberCount });
+    }
+  },
+
   /**
    * 教練審核學員（從站內信觸發）
    */
-  async approveEduStudent(teamId, studentId) {
+  async approveEduStudent(teamId, studentId, options = {}) {
     try {
+      const targetStudent = await this._getEduStudentForApproval(teamId, studentId);
+      if (!targetStudent) throw new Error('EDU_STUDENT_NOT_FOUND_FOR_APPROVAL');
+      await this._syncApprovedEduStudentTeamMembership(teamId, targetStudent, options);
       await FirebaseService.updateEduStudent(teamId, studentId, {
         enrollStatus: 'active',
         enrolledAt: new Date().toISOString(),
@@ -236,6 +369,7 @@ Object.assign(App, {
           s.enrolledAt = new Date().toISOString();
         }
       }
+      this._syncEduApprovedStudentTeamCount(teamId);
       this._updateGroupMemberCounts(teamId);
       this._refreshEduDetailStudentState?.(teamId);
 
@@ -245,9 +379,11 @@ Object.assign(App, {
       }
 
       this.showToast('學員已通過審核');
+      return true;
     } catch (err) {
       console.error('[approveEduStudent]', err);
       this.showToast('審核失敗：' + (err.message || '請稍後再試'));
+      return false;
     }
   },
 
@@ -264,9 +400,11 @@ Object.assign(App, {
       this._updateGroupMemberCounts?.(teamId);
       this._refreshEduDetailStudentState?.(teamId);
       this.showToast('已拒絕此學員申請');
+      return true;
     } catch (err) {
       console.error('[rejectEduStudent]', err);
       this.showToast('操作失敗');
+      return false;
     }
   },
 
