@@ -893,14 +893,15 @@ Object.assign(App, {
     const cachedPlan = this._findEduCoursePlan(teamId, planId);
     const cachedSessions = this._getCourseLessonsCachedSessions(teamId, planId);
     if (cachedPlan && cachedSessions) {
+      const sortedCachedSessions = this._sortCourseLessonListSessions(cachedSessions);
       const cachedCount = Number(cachedPlan._effectiveCount);
-      container.innerHTML = this._renderCourseLessonList(cachedPlan, cachedSessions, {
+      container.innerHTML = this._renderCourseLessonList(cachedPlan, sortedCachedSessions, {
         teamId,
         planId,
         isStaff: this.isEduClubStaff?.(teamId) === true,
         planType: cachedPlan.planType,
         currentStudentCount: Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null,
-        confirmedCountBySessionId: cachedPlan.planType === 'weekly' ? this._buildCourseLessonConfirmedCountBySessionId(cachedSessions, []) : null,
+        confirmedCountBySessionId: cachedPlan.planType === 'weekly' ? this._buildCourseLessonConfirmedCountBySessionId(sortedCachedSessions, []) : null,
       });
     }
 
@@ -923,6 +924,7 @@ Object.assign(App, {
       }
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     }
+    sessions = this._sortCourseLessonListSessions(sessions);
     const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     let confirmedCountBySessionId = null;
@@ -945,6 +947,42 @@ Object.assign(App, {
 
   _getCourseLessonRosterStudentId(student) {
     return String(student?.studentId || student?.id || student?._docId || '').trim();
+  },
+
+  _sortCourseLessonListSessions(sessions) {
+    const nowMs = Date.now();
+    return [...(Array.isArray(sessions) ? sessions : [])].sort((a, b) => {
+      const getMeta = (session) => this._getCourseLessonStatusMeta?.(session)
+        || this._getCourseSessionStatusMeta?.(session)
+        || {};
+      const getRank = (session) => {
+        const status = String(session?.status || '').trim().toLowerCase();
+        const cls = String(getMeta(session)?.cls || '').trim().toLowerCase();
+        return (status === 'done' || status === 'cancelled' || status === 'canceled' || cls === 'done' || cls === 'cancelled')
+          ? 1
+          : 0;
+      };
+      const getMs = (session) => {
+        const value = Number(this._getCourseSessionSortValue?.(session));
+        return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+      };
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+      if (rankA !== rankB) return rankA - rankB;
+      const msA = getMs(a);
+      const msB = getMs(b);
+      if (rankA === 1) {
+        const distanceA = Number.isFinite(msA) ? Math.abs(msA - nowMs) : Number.POSITIVE_INFINITY;
+        const distanceB = Number.isFinite(msB) ? Math.abs(msB - nowMs) : Number.POSITIVE_INFINITY;
+        if (distanceA !== distanceB) return distanceA - distanceB;
+      } else if (msA !== msB) {
+        return msA - msB;
+      }
+      const lessonA = Number(a?.sessionNumber || a?.lessonNumber || 0);
+      const lessonB = Number(b?.sessionNumber || b?.lessonNumber || 0);
+      if (Number.isFinite(lessonA) && Number.isFinite(lessonB) && lessonA !== lessonB) return lessonA - lessonB;
+      return String(a?.id || a?._docId || '').localeCompare(String(b?.id || b?._docId || ''), 'zh-Hant');
+    });
   },
 
   _getCourseLessonAttendanceMap(students, options = {}) {

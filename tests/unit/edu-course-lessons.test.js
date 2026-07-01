@@ -174,6 +174,36 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
   });
 
+  test('lesson list keeps scheduled lessons first then done and cancelled by nearest time', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2099-06-10T12:00:00').getTime());
+    try {
+      const { app, container } = loadCourseLessonsContext({
+        sessions: [
+          { id: 'done-old', title: 'Done Older', status: 'done', date: '2099-06-01', startTime: '10:00', endTime: '11:30', location: 'A', studentIds: [], capacity: 6 },
+          { id: 'cancel-recent', title: 'Cancelled Recent', status: 'cancelled', date: '2099-06-08', startTime: '10:00', endTime: '11:30', location: 'A', studentIds: [], capacity: 6 },
+          { id: 'scheduled-far', title: 'Scheduled Far', status: 'scheduled', date: '2099-06-20', startTime: '10:00', endTime: '11:30', location: 'A', studentIds: [], capacity: 6 },
+          { id: 'done-recent', title: 'Done Recent', status: 'done', date: '2099-06-09', startTime: '10:00', endTime: '11:30', location: 'A', studentIds: [], capacity: 6 },
+          { id: 'scheduled-near', title: 'Scheduled Near', status: 'scheduled', date: '2099-06-11', startTime: '10:00', endTime: '11:30', location: 'A', studentIds: [], capacity: 6 },
+        ],
+        getCourseSessionStatusMeta: (session) => {
+          if (session.status === 'cancelled') return { label: 'Cancelled', cls: 'cancelled' };
+          if (session.status === 'done') return { label: 'Done', cls: 'done' };
+          return { label: 'Scheduled', cls: 'scheduled' };
+        },
+      });
+
+      await app.showCourseLessons('teamA', 'planA');
+
+      const html = container.innerHTML;
+      const positions = ['Scheduled Near', 'Scheduled Far', 'Done Recent', 'Cancelled Recent', 'Done Older']
+        .map(title => html.indexOf(title));
+      positions.forEach(position => expect(position).toBeGreaterThanOrEqual(0));
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   test('lesson quick adjust edit button is visible only to club staff', async () => {
     const staff = loadCourseLessonsContext({ isStaff: true });
     await staff.app.showCourseLessons('teamA', 'planA');
