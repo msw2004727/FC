@@ -588,6 +588,34 @@ describe('renderEduClubDetail info card', () => {
     expect(staffHtml).toContain('id="edu-pending-badge" class="edu-tab-badge" style="display:inline-block">2</span>');
   });
 
+  test('adds live class to education course tab when current courses exist', () => {
+    const app = {
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => []),
+      _getTeamCourseLiveTabClass: jest.fn(() => ' td-course-tab-live'),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'viewer' })),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+
+    const html = context.App._buildEduDetailTabControlsHtml('teamA');
+
+    expect(html).toContain('class="tab active td-course-tab-live" data-edutab="course"');
+  });
+
   test('flattens v2 course tab content without duplicate course containers', () => {
     const contentEl = {
       innerHTML: '',

@@ -56,6 +56,11 @@
 .td-v2-tab-list button{border:0;flex:1 0 auto;min-width:64px;padding:9px 10px;border-radius:10px;background:transparent;color:#64748b;font-size:13px;font-weight:800;white-space:nowrap}
 .td-v2-tab-list button.active{background:#111827;color:#fff}
 .td-v2-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;margin-left:4px;padding:0 4px;border-radius:999px;background:#f97316;color:#fff;font-size:10px}
+.td-v2-tab-list button.td-course-tab-live{position:relative;overflow:hidden;isolation:isolate;background:linear-gradient(135deg,#facc15 0%,#fef3c7 42%,#f59e0b 100%);color:#713f12;box-shadow:0 8px 18px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.78)}
+.td-v2-tab-list button.td-course-tab-live.active{background:linear-gradient(135deg,#fde047 0%,#fff7cc 44%,#d97706 100%);color:#422006;box-shadow:0 9px 20px rgba(245,158,11,.32),inset 0 1px 0 rgba(255,255,255,.86)}
+.td-v2-tab-list button.td-course-tab-live::after{content:"";position:absolute;z-index:0;top:-45%;bottom:-45%;left:-70%;width:46%;transform:skewX(-24deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.82),transparent);animation:td-course-tab-shine 2.8s ease-in-out infinite;pointer-events:none}
+.td-v2-tab-list button.td-course-tab-live .td-v2-tab-badge{position:relative;z-index:1;background:#92400e;color:#fff}
+@keyframes td-course-tab-shine{0%{left:-70%;opacity:0}18%{opacity:.85}48%{left:125%;opacity:0}100%{left:125%;opacity:0}}
 .td-v2-content{display:flex;flex-direction:column;padding:14px 14px calc(96px + env(safe-area-inset-bottom));gap:14px}
 .td-v2-panel{display:none;flex-direction:column;gap:14px}
 .td-v2-panel.active{display:flex}
@@ -236,6 +241,7 @@
 [data-theme="dark"] .td-v2-tab-rail{background:#0b1120}
 [data-theme="dark"] .td-v2-tab-list button{color:#94a3b8}
 [data-theme="dark"] .td-v2-tab-list button.active,[data-theme="dark"] .td-v2-day.active{background:#e5e7eb;color:#0f172a}
+[data-theme="dark"] .td-v2-tab-list button.td-course-tab-live,[data-theme="dark"] .td-v2-tab-list button.td-course-tab-live.active{background:linear-gradient(135deg,#f59e0b 0%,#fde68a 45%,#b45309 100%);color:#1c1917;box-shadow:0 8px 18px rgba(251,191,36,.22),inset 0 1px 0 rgba(255,255,255,.62)}
 [data-theme="dark"] .td-v2-quick,[data-theme="dark"] .td-v2-empty,[data-theme="dark"] .td-v2-empty-card,[data-theme="dark"] .td-v2-day,[data-theme="dark"] .td-v2-modal-grid div{background:#1e293b;color:#cbd5e1}
 [data-theme="dark"] .td-v2-day strong{color:#e5e7eb}
 [data-theme="dark"] .td-v2-day.weekend-sat{background:rgba(16,185,129,.16);color:#4ade80}

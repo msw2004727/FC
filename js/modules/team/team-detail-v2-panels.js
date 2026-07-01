@@ -29,7 +29,11 @@ Object.assign(App, {
     };
     const buttons = this._getTeamDetailV2Tabs(t).map(tab => {
       const badge = countByKey[tab.key] ? '<span class="td-v2-tab-badge">' + countByKey[tab.key] + '</span>' : '';
-      return '<button class="' + (active === tab.key ? 'active' : '') + '" type="button" data-td-v2-action="tab" data-tab="' + escapeHTML(tab.key) + '">'
+      const liveClass = tab.key === 'courses' && typeof this._getTeamCourseLiveTabClass === 'function'
+        ? this._getTeamCourseLiveTabClass(t)
+        : '';
+      const className = [(active === tab.key ? 'active' : ''), liveClass.trim()].filter(Boolean).join(' ');
+      return '<button class="' + escapeHTML(className) + '" type="button" data-td-v2-action="tab" data-tab="' + escapeHTML(tab.key) + '">'
         + escapeHTML(tab.label) + badge + '</button>';
     }).join('');
     return '<div class="td-v2-tab-rail"><div class="td-v2-tab-list" role="tablist">' + buttons + '</div></div>';

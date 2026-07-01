@@ -899,6 +899,41 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('成員<span class="td-v2-tab-badge">4</span>');
   });
 
+  test('team detail v2 course tab shows live shine only for current visible courses', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
+      isEduClubStaff: () => false,
+      getEduCoursePlans: () => [
+        { id: 'ended', active: true, endDate: '2000-01-01', name: 'Ended Course' },
+        { id: 'hidden', active: true, endDate: '2099-01-01', visibleOnTeamPage: false, name: 'Hidden Course' },
+        { id: 'current', active: true, endDate: '2099-01-01', visibleOnTeamPage: true, name: 'Current Course' },
+      ],
+    });
+
+    const html = app._buildTeamDetailV2Tabs({ id: 'teamA' });
+
+    expect(html).toContain('class="td-course-tab-live" type="button" data-td-v2-action="tab" data-tab="courses"');
+    expect(html).toContain('<span class="td-v2-tab-badge">1</span>');
+
+    app.getEduCoursePlans = () => [
+      { id: 'ended', active: true, endDate: '2000-01-01', name: 'Ended Course' },
+      { id: 'hidden', active: true, endDate: '2099-01-01', visibleOnTeamPage: false, name: 'Hidden Course' },
+      { id: 'inactive', active: false, endDate: '2099-01-01', name: 'Inactive Course' },
+    ];
+
+    const noLiveHtml = app._buildTeamDetailV2Tabs({ id: 'teamA' });
+
+    expect(noLiveHtml).not.toContain('td-course-tab-live');
+    expect(noLiveHtml).not.toContain('td-v2-tab-badge');
+  });
+
   test('team detail v2 overview hides empty activity and featured course sections', () => {
     const app = makeApp([]);
     const eventRows = jest.fn(() => '<button class="td-v2-event-card">Event</button>');
@@ -1043,7 +1078,9 @@ describe('team detail club activity section', () => {
     const app = makeApp([]);
     const featuredEl = { outerHTML: '<div class="td-v2-featured-courses-card"></div>' };
     const quickNum = { textContent: '0' };
+    const innerCourseTab = { classList: { toggle: jest.fn() } };
     const tabBtn = {
+      classList: { toggle: jest.fn() },
       querySelector: jest.fn(() => null),
       insertAdjacentHTML: jest.fn(),
     };
@@ -1055,6 +1092,9 @@ describe('team detail club activity section', () => {
         if (selector === '.td-v2-tab-list button[data-tab="courses"]') return tabBtn;
         return null;
       }),
+      querySelectorAll: jest.fn((selector) => (
+        selector === '#edu-detail-tabs .tab[data-edutab="course"]' ? [innerCourseTab] : []
+      )),
     };
     loadTeamDetailRender(app, [], {
       teams: { teamA: { id: 'teamA', feed: [] } },
@@ -1084,6 +1124,8 @@ describe('team detail club activity section', () => {
     expect(featuredEl.outerHTML).not.toContain('Plain Course');
     expect(quickNum.textContent).toBe('2');
     expect(tabBtn.insertAdjacentHTML).toHaveBeenCalledWith('beforeend', '<span class="td-v2-tab-badge">2</span>');
+    expect(tabBtn.classList.toggle).toHaveBeenCalledWith('td-course-tab-live', true);
+    expect(innerCourseTab.classList.toggle).toHaveBeenCalledWith('td-course-tab-live', true);
   });
 
   test('team detail v2 course summary refresh inserts featured courses when hidden before async load', () => {

@@ -892,8 +892,11 @@ Object.assign(App, {
     const pendingBadge = '<span id="edu-pending-badge" class="edu-tab-badge"'
       + (pendingCount > 0 ? ' style="display:inline-block"' : '')
       + '>' + (pendingCount > 0 ? pendingCount : '') + '</span>';
+    const courseLiveClass = typeof this._getTeamCourseLiveTabClass === 'function'
+      ? this._getTeamCourseLiveTabClass(teamId)
+      : '';
     return '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">' +
-      '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
+      '<button class="tab active' + courseLiveClass + '" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
       '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u5206\u7d44</button>' +
       '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">\u5b78\u54e1</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
       '<span id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"' + (pendingVisible ? '' : ' style="display:none"') + '><button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">\u5f85\u5be9\u6838</button>' + pendingBadge + '</span>' +

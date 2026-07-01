@@ -2137,6 +2137,30 @@
 .td-edu-tab-row {
   margin-bottom: .55rem;
 }
+.td-edu-tab-row .tab.td-course-tab-live {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(135deg, #facc15 0%, #fef3c7 44%, #f59e0b 100%);
+  color: #713f12;
+  box-shadow: 0 6px 14px rgba(245,158,11,.22), inset 0 1px 0 rgba(255,255,255,.72);
+}
+.td-edu-tab-row .tab.td-course-tab-live.active {
+  color: #422006;
+}
+.td-edu-tab-row .tab.td-course-tab-live::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -45%;
+  bottom: -45%;
+  left: -70%;
+  width: 46%;
+  transform: skewX(-24deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.78), transparent);
+  animation: td-course-tab-shine 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
 .td-edu-tab-content {
   min-height: 96px;
 }
@@ -2164,6 +2188,21 @@
   line-height: 1.5;
   padding: .85rem;
   text-align: center;
+}
+
+[data-theme="dark"] .td-edu-tab-row .tab.td-course-tab-live {
+  background: linear-gradient(135deg, #f59e0b 0%, #fde68a 45%, #b45309 100%);
+  color: #1c1917;
+  box-shadow: 0 6px 14px rgba(251,191,36,.18), inset 0 1px 0 rgba(255,255,255,.56);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-v2-tab-list button.td-course-tab-live::after,
+  .td-edu-tab-row .tab.td-course-tab-live::after {
+    animation: none;
+    left: 74%;
+    opacity: .45;
+  }
 }
 
 /* ─── Team Detail Club Events ─── */

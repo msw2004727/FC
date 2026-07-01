@@ -220,6 +220,7 @@ Object.assign(App, {
 
     const tabBtn = shell.querySelector?.('.td-v2-tab-list button[data-tab="courses"]');
     if (tabBtn) {
+      tabBtn.classList?.toggle?.('td-course-tab-live', count > 0);
       const badge = tabBtn.querySelector?.('.td-v2-tab-badge');
       if (count > 0) {
         if (badge) badge.textContent = String(count);
@@ -228,6 +229,9 @@ Object.assign(App, {
         badge.remove?.();
       }
     }
+    shell.querySelectorAll?.('#edu-detail-tabs .tab[data-edutab="course"]')?.forEach(btn => {
+      btn.classList?.toggle?.('td-course-tab-live', count > 0);
+    });
     return true;
   },
 

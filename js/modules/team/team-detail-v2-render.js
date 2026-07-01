@@ -54,6 +54,21 @@ Object.assign(App, {
     );
   },
 
+  _hasTeamDetailV2CurrentCoursePlans(teamOrId) {
+    const team = teamOrId && typeof teamOrId === 'object'
+      ? teamOrId
+      : (typeof ApiService !== 'undefined' && typeof ApiService.getTeam === 'function'
+        ? ApiService.getTeam(teamOrId)
+        : null);
+    if (!team) return false;
+    if (this._isTeamDetailSectionVisible?.(team, 'courses') === false) return false;
+    return this._getTeamDetailV2CurrentCoursePlans(team).length > 0;
+  },
+
+  _getTeamCourseLiveTabClass(teamOrId) {
+    return this._hasTeamDetailV2CurrentCoursePlans?.(teamOrId) ? ' td-course-tab-live' : '';
+  },
+
   _getTeamDetailV2RecruitText(t) {
     if (!this._isTeamDetailTeachingEnabled?.(t)) return '一般俱樂部 · 歡迎查看活動與成員';
     const accepting = t?.eduSettings?.acceptingStudents !== false;
