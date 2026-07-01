@@ -83,6 +83,7 @@ function loadCourseLessonsContext(overrides = {}) {
     _formatCourseSessionDate: (session) => session.date,
     _formatCourseSessionTime: (session) => [session.startTime, session.endTime].filter(Boolean).join(' - '),
     _getCourseSessionStatusMeta: overrides.getCourseSessionStatusMeta || (() => ({ label: '已排課', cls: 'scheduled' })),
+    _getCourseSessionDisplayStudentCount: overrides.getCourseSessionDisplayStudentCount,
     _renderCourseSessionStudentAvatar: (_student, name) => '<span class="avatar">' + escapeHTML(name) + '</span>',
     _bindCourseSessionStudentAvatarFallbacks: jest.fn(),
     _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
@@ -109,6 +110,7 @@ function loadCourseLessonsContext(overrides = {}) {
       }),
       saveEduSessionAttendanceChanges: jest.fn(async () => ({ changed: 1 })),
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
+      saveEduCourseSelfAttendance: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
       queryEduAttendance: jest.fn(async () => overrides.attendanceRecords || []),
       ...(overrides.FirebaseService || {}),
@@ -120,6 +122,7 @@ function loadCourseLessonsContext(overrides = {}) {
         if (id === 'edu-course-lessons-title') return title;
         if (id === 'edu-course-roster-notes-input') return overrides.notesInput || null;
         if (id === '_eduSelfLeaveConfirmBtn') return overrides.selfLeaveConfirmBtn || null;
+        if (id === '_eduSelfRegisterConfirmBtn') return overrides.selfRegisterConfirmBtn || null;
         return null;
       }),
       querySelector: jest.fn((selector) => (
@@ -462,6 +465,45 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('第 1 堂課');
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','weeklyPlan','weeklyA')");
     expect(container.innerHTML).not.toContain('固定週期課程維持方案層級顯示');
+  });
+
+
+  test('weekly lesson cards count only registered and signed-in students', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        weekdays: [1, 3],
+        timeSlot: '09:00-10:30',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: [{
+        id: 'weeklyA',
+        title: '\u7b2c 1 \u5802\u8ab2',
+        date: '2099-06-01',
+        startTime: '09:00',
+        endTime: '10:30',
+        location: '\u7403\u5834 B',
+        studentIds: ['stu1', 'stu2', 'stu3'],
+        capacity: 6,
+      }],
+      attendanceRecords: [
+        { studentId: 'stu1', sessionId: 'weeklyA', kind: 'registered', status: 'active' },
+        { studentId: 'stu2', sessionId: 'weeklyA', kind: 'signin', status: 'active' },
+        { studentId: 'stu3', sessionId: 'weeklyA', kind: 'leave', status: 'active' },
+        { studentId: 'stu4', sessionId: 'weeklyA', kind: 'registered', status: 'removed' },
+      ],
+      getCourseSessionDisplayStudentCount: jest.fn(() => 3),
+    });
+
+    await app.showCourseLessons('teamA', 'weeklyPlan');
+
+    expect(firebase.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'weeklyPlan' });
+    expect(app._getCourseSessionDisplayStudentCount).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('2/6 \u4eba');
+    expect(container.innerHTML).not.toContain('3/6 \u4eba');
   });
 
   test('staff lesson list uses auto session sync result', async () => {
@@ -1635,6 +1677,145 @@ describe('edu course lessons', () => {
 
     expect(refreshed).toBe(true);
     expect(app.showCourseLessonRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { forceRefresh: true });
+  });
+
+
+  test('weekly roster defaults owned students to leave and lets them register', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'weeklyA',
+          title: '\u7b2c 1 \u5802',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu2', displayName: '\u5c0f\u83ef', level: null, attendanceKind: null, canSelfLeave: true, selfUid: 'uidA', parentUid: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'weeklyPlan', 'weeklyA');
+
+    expect(container.innerHTML).toContain('\u8acb\u5047');
+    expect(container.innerHTML).toContain('edu-course-roster-status-leave');
+    expect(container.innerHTML).toContain('App.showCourseLessonSelfRegisterDialog');
+    expect(container.innerHTML).toContain('\u5831\u540d');
+    expect(container.innerHTML).not.toContain('App.showCourseLessonSelfLeaveDialog');
+
+    app.showCourseLessonRoster = jest.fn(async () => ({ ok: true }));
+    await app.saveCourseLessonSelfRegistration('stu2', 'registered', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduCourseSelfAttendance).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'weeklyPlan',
+      sessionId: 'weeklyA',
+      date: '2099-06-02',
+      studentId: 'stu2',
+      studentName: '\u5c0f\u83ef',
+      selfUid: 'uidA',
+      parentUid: null,
+      kind: 'registered',
+    });
+    expect(app.showToast).toHaveBeenCalledWith('\u5df2\u5b8c\u6210\u5831\u540d');
+    expect(app.showCourseLessonRoster).toHaveBeenCalledWith('teamA', 'weeklyPlan', 'weeklyA', { forceRefresh: true });
+  });
+
+  test('weekly registered roster lets owned students cancel registration back to leave', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'weeklyA',
+          title: '\u7b2c 1 \u5802',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu2', displayName: '\u5c0f\u83ef', attendanceKind: 'registered', canSelfLeave: true, selfUid: 'uidA', parentUid: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'weeklyPlan', 'weeklyA');
+
+    expect(container.innerHTML).toContain('\u5df2\u5831\u540d');
+    expect(container.innerHTML).toContain('\u53d6\u6d88\u5831\u540d');
+
+    app.showCourseLessonRoster = jest.fn(async () => ({ ok: true }));
+    await app.saveCourseLessonSelfRegistration('stu2', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduCourseSelfAttendance).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'teamA',
+      planId: 'weeklyPlan',
+      sessionId: 'weeklyA',
+      studentId: 'stu2',
+      kind: 'leave',
+    }));
+    expect(app.showToast).toHaveBeenCalledWith('\u5df2\u53d6\u6d88\u5831\u540d');
+  });
+
+  test('weekly self registration preserves server signin responses', async () => {
+    const { app, firebase } = loadCourseLessonsContext({
+      FirebaseService: {
+        saveEduCourseSelfAttendance: jest.fn(async () => ({ changed: 0, kind: 'signin', signedIn: true })),
+      },
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'weeklyA',
+          title: '\u7b2c 1 \u5802',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu2', displayName: '\u5c0f\u83ef', attendanceKind: 'registered', canSelfLeave: true, selfUid: 'uidA', parentUid: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'weeklyPlan', 'weeklyA');
+
+    app.showCourseLessonRoster = jest.fn(async () => ({ ok: true }));
+    await app.saveCourseLessonSelfRegistration('stu2', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduCourseSelfAttendance).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'teamA',
+      planId: 'weeklyPlan',
+      sessionId: 'weeklyA',
+      studentId: 'stu2',
+      kind: 'leave',
+    }));
+    expect(app._eduCourseLessonsContext.rosterPayload.students[0].attendanceKind).toBe('signin');
+    expect(app.showToast).toHaveBeenCalledWith('\u5df2\u7c3d\u5230\uff0c\u4fdd\u7559\u7c3d\u5230\u72c0\u614b');
   });
 
   test('owned student can submit self leave from roster', async () => {

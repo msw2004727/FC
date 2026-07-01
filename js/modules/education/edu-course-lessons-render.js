@@ -62,6 +62,14 @@ Object.assign(App, {
   },
 
   _getCourseLessonStudentCount(session, context = {}, statusMeta) {
+    if (context.planType === 'weekly' && context.confirmedCountBySessionId) {
+      const sessionId = String(session?.id || session?._docId || '').trim();
+      if (sessionId && Object.prototype.hasOwnProperty.call(context.confirmedCountBySessionId, sessionId)) {
+        const confirmedCount = Number(context.confirmedCountBySessionId[sessionId]);
+        return Number.isFinite(confirmedCount) && confirmedCount >= 0 ? confirmedCount : 0;
+      }
+      return 0;
+    }
     if (typeof this._getCourseSessionDisplayStudentCount === 'function') {
       return this._getCourseSessionDisplayStudentCount(session, {
         currentStudentCount: context.currentStudentCount,
@@ -80,8 +88,14 @@ Object.assign(App, {
   _getCourseLessonAttendanceMeta(kind) {
     if (kind === 'pending') return { label: '更新中', cls: 'pending' };
     if (kind === 'leave') return { label: '請假', cls: 'leave' };
+    if (kind === 'registered') return { label: '\u5df2\u5831\u540d', cls: 'registered' };
     if (kind === 'signin') return { label: '已簽到', cls: 'signin' };
     return { label: '未簽到', cls: 'none' };
+  },
+  _getCourseLessonRosterDisplayKind(student, context = {}) {
+    const kind = String(student?.attendanceKind || '').trim();
+    if (kind === 'leave' || kind === 'registered' || kind === 'signin' || kind === 'pending') return kind;
+    return context.planType === 'weekly' ? 'leave' : null;
   },
 
   _renderCourseLessonList(plan, sessions, context = {}) {
@@ -171,17 +185,28 @@ Object.assign(App, {
       const index = rosterRowIndex++;
       const name = student.displayName || '學員';
       const studentId = getRosterStudentId(student);
-      const draftKind = isRosterPreview
+      const rawDraftKind = isRosterPreview
         ? 'pending'
         : (manageMode
           ? (context.draftByStudentId?.[studentId] || null)
-          : student.attendanceKind);
+          : this._getCourseLessonRosterDisplayKind(student, context));
+      const draftKind = context.planType === 'weekly' && !rawDraftKind ? 'leave' : rawDraftKind;
       const attendance = this._getCourseLessonAttendanceMeta(draftKind);
       const note = notesByStudentId[studentId] || '';
       const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
+      const selfRegisterActionHtml = (!isRosterPreview && !staleCached && !context.isStaff && context.planType === 'weekly' && student.canSelfLeave === true)
+        ? '<div class="edu-course-roster-self-actions">'
+          + statusHtml
+          + (draftKind === 'signin'
+            ? ''
+            : '<button type="button" class="outline-btn small edu-roster-self-register-btn" onclick="return App.showCourseLessonSelfRegisterDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'registered' ? 'leave' : 'registered') + '\',this)">'
+              + (draftKind === 'registered' ? '\u53d6\u6d88\u5831\u540d' : '\u5831\u540d')
+              + '</button>')
+        + '</div>'
+        : '';
       const selfLeaveActionHtml = (!isRosterPreview && !staleCached && !context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
@@ -201,7 +226,7 @@ Object.assign(App, {
             + '<label class="edu-roster-choice-label" for="' + leaveId + '"><span class="edu-roster-choice-box"></span><span>請假</span></label>'
           + '</span>'
         + '</div>'
-        : (selfLeaveActionHtml || statusHtml);
+        : (selfRegisterActionHtml || selfLeaveActionHtml || statusHtml);
       const studentPill = typeof this._renderCourseSessionMemberPill === 'function'
         ? this._renderCourseSessionMemberPill({
             id: studentId,

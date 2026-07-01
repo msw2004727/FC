@@ -4188,14 +4188,24 @@ function sanitizeEduWeekdays(value) {
 }
 
 function getEduAttendanceRecordKind(record) {
-  return sanitizeStr(record?.kind, 20) === "leave" ? "leave" : "signin";
+  const kind = sanitizeStr(record?.kind, 20);
+  if (kind === "leave") return "leave";
+  if (kind === "registered") return "registered";
+  return "signin";
+}
+
+function getEduAttendanceKindPriority(kind) {
+  if (kind === "signin") return 3;
+  if (kind === "leave") return 2;
+  if (kind === "registered") return 1;
+  return 0;
 }
 
 function setEduAttendanceMapValue(target, key, record) {
   if (!key || !record) return;
   const nextKind = getEduAttendanceRecordKind(record);
   const existing = target.get(key);
-  if (!existing || nextKind === "leave") {
+  if (!existing || getEduAttendanceKindPriority(nextKind) >= getEduAttendanceKindPriority(existing.kind)) {
     target.set(key, { kind: nextKind, record });
   }
 }
@@ -4819,10 +4829,23 @@ function assignEduRosterAttendanceRecord(target, record, sessionId) {
   if (status === "removed" || status === "cancelled" || status === "canceled") return;
   const studentId = sanitizeStr(record.studentId, 100);
   if (!studentId) return;
-  const kind = sanitizeStr(record.kind, 20) === "leave" ? "leave" : "signin";
-  if (kind === "leave" || !target[studentId]) {
+  const kind = getEduAttendanceRecordKind(record);
+  if (!target[studentId] || getEduAttendanceKindPriority(kind) >= getEduAttendanceKindPriority(target[studentId])) {
     target[studentId] = kind;
   }
+}
+
+function mergeEduRosterAttendanceByStudentId(...sources) {
+  const merged = {};
+  sources.forEach((source) => {
+    Object.entries(source || {}).forEach(([studentId, kind]) => {
+      if (!studentId) return;
+      if (!merged[studentId] || getEduAttendanceKindPriority(kind) >= getEduAttendanceKindPriority(merged[studentId])) {
+        merged[studentId] = kind;
+      }
+    });
+  });
+  return merged;
 }
 
 async function fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date }) {
@@ -4878,7 +4901,7 @@ async function fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, 
     });
   }
 
-  return Object.assign({}, legacyAttendanceByStudentId, sessionAttendanceByStudentId);
+  return mergeEduRosterAttendanceByStudentId(legacyAttendanceByStudentId, sessionAttendanceByStudentId);
 }
 
 async function fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) {
@@ -5325,6 +5348,154 @@ exports.saveEduCourseSelfLeave = onCall(
       success: true,
       changed: writeCount,
       leave,
+      teamId,
+      planId,
+      sessionId,
+      studentId: targetStudentId,
+    };
+  }
+);
+
+exports.saveEduCourseSelfAttendance = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = sanitizeStr(request.auth.uid, 128);
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const targetStudentId = sanitizeStr(request.data?.studentId, 100);
+    const targetKind = sanitizeStr(request.data?.kind, 20) === "registered" ? "registered" : "leave";
+    if (!targetStudentId) throw new HttpsError("invalid-argument", "studentId is required");
+
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const sessionRef = planRef.collection("sessions").doc(sessionId);
+    const [planSnap, sessionSnap, studentsSnap] = await Promise.all([
+      planRef.get(),
+      sessionRef.get(),
+      teamRef.collection("students").get(),
+    ]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+
+    const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+    if (plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
+    if (plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
+    if (sanitizeStr(plan.planType, 32) !== "weekly") {
+      throw new HttpsError("failed-precondition", "ONLY_WEEKLY_COURSE_SELF_ATTENDANCE", { code: "ONLY_WEEKLY_COURSE_SELF_ATTENDANCE" });
+    }
+
+    const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const rosterIds = Array.isArray(session.studentIds)
+      ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+      : [];
+    if (!rosterIds.includes(targetStudentId)) {
+      throw new HttpsError("permission-denied", "STUDENT_NOT_IN_ROSTER", { code: "STUDENT_NOT_IN_ROSTER" });
+    }
+
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const student = students.find((item) => {
+      const id = sanitizeStr(item.id, 100);
+      const docId = sanitizeStr(item._docId, 100);
+      return id === targetStudentId || docId === targetStudentId;
+    });
+    if (!student || !isStudentOwnedByUid(student, callerUid)) {
+      throw new HttpsError("permission-denied", "STUDENT_FORBIDDEN", { code: "STUDENT_FORBIDDEN" });
+    }
+
+    const date = sanitizeStr(request.data?.date || session.date, 20);
+    if (!date) throw new HttpsError("invalid-argument", "date is required");
+    const [dateAttendanceSnap, sessionAttendanceSnap] = await Promise.all([
+      db.collection("eduAttendance")
+        .where("teamId", "==", teamId)
+        .where("coursePlanId", "==", planId)
+        .where("date", "==", date)
+        .get(),
+      db.collection("eduAttendance")
+        .where("teamId", "==", teamId)
+        .where("coursePlanId", "==", planId)
+        .where("sessionId", "==", sessionId)
+        .get(),
+    ]);
+    const existingDocsById = new Map();
+    dateAttendanceSnap.forEach((docSnap) => existingDocsById.set(docSnap.id, docSnap));
+    sessionAttendanceSnap.forEach((docSnap) => existingDocsById.set(docSnap.id, docSnap));
+    const batch = db.batch();
+    const now = FieldValue.serverTimestamp();
+    let writeCount = 0;
+    let hasActiveTargetKind = false;
+    let hasActiveSignin = false;
+
+    existingDocsById.forEach((docSnap) => {
+      const record = docSnap.data() || {};
+      if (sanitizeStr(record.studentId, 100) !== targetStudentId) return;
+      const recordSessionId = sanitizeStr(record.sessionId, 100);
+      if (recordSessionId && recordSessionId !== sessionId) return;
+      const recordDate = sanitizeStr(record.date, 20);
+      if (recordDate && recordDate !== date) return;
+      const status = sanitizeStr(record.status, 32).toLowerCase();
+      if (status === "removed" || status === "cancelled" || status === "canceled") return;
+      const recordKind = getEduAttendanceRecordKind(record);
+      if (recordKind === "signin") {
+        hasActiveSignin = true;
+        return;
+      }
+      if (recordKind !== "leave" && recordKind !== "registered") return;
+      if (recordKind === targetKind) {
+        hasActiveTargetKind = true;
+        return;
+      }
+      batch.update(docSnap.ref, { status: "removed", updatedAt: now });
+      writeCount += 1;
+    });
+
+    if (hasActiveSignin) {
+      return {
+        success: true,
+        changed: 0,
+        kind: "signin",
+        signedIn: true,
+        teamId,
+        planId,
+        sessionId,
+        studentId: targetStudentId,
+      };
+    }
+
+    if (!hasActiveTargetKind) {
+      const docRef = db.collection("eduAttendance").doc();
+      batch.set(docRef, {
+        id: docRef.id,
+        teamId,
+        groupId: "",
+        coursePlanId: planId,
+        sessionId,
+        studentId: targetStudentId,
+        studentName: sanitizeStr(request.data?.studentName || student.displayName || student.name, 80),
+        parentUid: sanitizeStr(student.parentUid, 128) || null,
+        selfUid: sanitizeStr(student.selfUid, 128) || null,
+        kind: targetKind,
+        date,
+        time: new Date().toISOString().slice(11, 16),
+        sessionNumber: Number.isFinite(Number(session.sessionNumber)) ? Number(session.sessionNumber) : null,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      writeCount += 1;
+    }
+
+    if (writeCount > 0) await batch.commit();
+    return {
+      success: true,
+      changed: writeCount,
+      kind: targetKind,
       teamId,
       planId,
       sessionId,

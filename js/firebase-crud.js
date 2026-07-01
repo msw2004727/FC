@@ -4014,6 +4014,29 @@ Object.assign(FirebaseService, {
     return result && result.data ? result.data : result;
   },
 
+  async saveEduCourseSelfAttendance({ teamId, planId, sessionId, date, studentId, studentName, selfUid, parentUid, kind }) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth is not ready');
+    const targetStudentId = String(studentId || '').trim();
+    const targetKind = kind === 'registered' ? 'registered' : 'leave';
+    if (!teamId || !planId || !sessionId || !targetStudentId) {
+      return { changed: 0 };
+    }
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('saveEduCourseSelfAttendance');
+    const result = await callable({
+      teamId,
+      planId,
+      sessionId,
+      date,
+      studentId: targetStudentId,
+      studentName: String(studentName || '').trim(),
+      selfUid: selfUid || null,
+      parentUid: parentUid || null,
+      kind: targetKind,
+    });
+    return result && result.data ? result.data : result;
+  },
+
   async getEduStudentAttendanceOverview({ teamId, studentId }) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase auth is not ready');

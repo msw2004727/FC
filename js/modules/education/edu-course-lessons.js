@@ -898,7 +898,9 @@ Object.assign(App, {
         teamId,
         planId,
         isStaff: this.isEduClubStaff?.(teamId) === true,
+        planType: cachedPlan.planType,
         currentStudentCount: Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null,
+        confirmedCountBySessionId: cachedPlan.planType === 'weekly' ? this._buildCourseLessonConfirmedCountBySessionId(cachedSessions, []) : null,
       });
     }
 
@@ -923,8 +925,21 @@ Object.assign(App, {
     }
     const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
-    container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff, currentStudentCount });
-    this._eduCourseLessonsContext = { teamId, planId, mode: 'list', plan, sessions, currentStudentCount };
+    let confirmedCountBySessionId = null;
+    if (plan.planType === 'weekly') {
+      confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, []);
+      if (typeof FirebaseService?.queryEduAttendance === 'function') {
+        try {
+          const attendanceRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+          confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, attendanceRecords);
+        } catch (err) {
+          console.warn('[edu-course-lessons] weekly attendance count load failed:', err);
+        }
+        if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+      }
+    }
+    container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff, currentStudentCount, planType: plan.planType, confirmedCountBySessionId });
+    this._eduCourseLessonsContext = { teamId, planId, mode: 'list', plan, sessions, currentStudentCount, confirmedCountBySessionId };
     return { ok: true };
   },
 
@@ -932,16 +947,62 @@ Object.assign(App, {
     return String(student?.studentId || student?.id || student?._docId || '').trim();
   },
 
-  _getCourseLessonAttendanceMap(students) {
+  _getCourseLessonAttendanceMap(students, options = {}) {
     const map = {};
     (students || []).forEach((student) => {
       const studentId = this._getCourseLessonRosterStudentId(student);
       if (!studentId) return;
-      map[studentId] = student.attendanceKind === 'leave'
+      const kind = String(student?.attendanceKind || '').trim();
+      map[studentId] = kind === 'leave'
         ? 'leave'
-        : student.attendanceKind === 'signin' ? 'signin' : null;
+        : kind === 'registered'
+          ? 'registered'
+          : kind === 'signin'
+            ? 'signin'
+            : options.planType === 'weekly' ? 'leave' : null;
     });
     return map;
+  },
+
+  _buildCourseLessonConfirmedCountBySessionId(sessions, attendanceRecords) {
+    const sessionIds = new Set();
+    const sessionsByDate = {};
+    (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+      const sessionId = this._getCourseLessonSessionId(session);
+      if (!sessionId) return;
+      sessionIds.add(sessionId);
+      const date = String(session?.date || '').trim();
+      if (date) {
+        sessionsByDate[date] = sessionsByDate[date] || [];
+        sessionsByDate[date].push(sessionId);
+      }
+    });
+    const setsBySessionId = {};
+    const addStudent = (sessionId, studentId) => {
+      if (!sessionId || !studentId) return;
+      setsBySessionId[sessionId] = setsBySessionId[sessionId] || new Set();
+      setsBySessionId[sessionId].add(studentId);
+    };
+    (Array.isArray(attendanceRecords) ? attendanceRecords : []).forEach((record) => {
+      const status = String(record?.status || '').trim().toLowerCase();
+      if (status === 'removed' || status === 'cancelled' || status === 'canceled') return;
+      const kind = String(record?.kind || 'signin').trim().toLowerCase();
+      if (kind !== 'registered' && kind !== 'signin') return;
+      const studentId = String(record?.studentId || '').trim();
+      if (!studentId) return;
+      const recordSessionId = String(record?.sessionId || '').trim();
+      if (recordSessionId && sessionIds.has(recordSessionId)) {
+        addStudent(recordSessionId, studentId);
+        return;
+      }
+      const date = String(record?.date || '').trim();
+      (sessionsByDate[date] || []).forEach(sessionId => addStudent(sessionId, studentId));
+    });
+    const counts = {};
+    sessionIds.forEach((sessionId) => {
+      counts[sessionId] = setsBySessionId[sessionId]?.size || 0;
+    });
+    return counts;
   },
 
   _getCourseLessonDateStartValue(value) {
@@ -1184,6 +1245,140 @@ Object.assign(App, {
     return run();
   },
 
+  showCourseLessonSelfRegisterDialog(studentId, kind, button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff || ctx.planType !== 'weekly') return false;
+    const key = String(studentId || '').trim();
+    const targetKind = kind === 'registered' ? 'registered' : 'leave';
+    const registering = targetKind === 'registered';
+    const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
+    const getDisplayKind = (student) => (
+      typeof this._getCourseLessonRosterDisplayKind === 'function'
+        ? this._getCourseLessonRosterDisplayKind(student, ctx)
+        : (String(student?.attendanceKind || '').trim() || 'leave')
+    );
+    const candidates = students.filter(item => item?.canSelfLeave === true);
+    const selectable = candidates.filter((item) => {
+      const displayKind = getDisplayKind(item);
+      return registering
+        ? displayKind !== 'registered' && displayKind !== 'signin'
+        : displayKind === 'registered';
+    });
+    if (!selectable.length) {
+      this.showToast?.(registering ? '目前沒有可報名的學員' : '目前沒有可取消報名的學員');
+      return false;
+    }
+    const existing = document.querySelector?.('.edu-course-self-register-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-self-register-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    const renderItem = (student) => {
+      const id = this._getCourseLessonRosterStudentId(student);
+      const checked = id === key ? ' checked' : '';
+      const displayKind = getDisplayKind(student);
+      const statusText = displayKind === 'registered'
+        ? '已報名'
+        : displayKind === 'signin' ? '已簽到' : '請假';
+      return '<label class="edu-ce-pick-item edu-course-self-register-pick">'
+        + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(student.displayName || '學員') + '</span>'
+        + '<span class="edu-ce-pick-info">' + escapeHTML(statusText) + '</span></div>'
+        + '<input type="checkbox" value="' + escapeHTML(id) + '"' + checked + '></label>';
+    };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">' + (registering ? '課堂報名' : '取消報名') + '</div>'
+      + '<div style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.6rem">'
+      + (registering ? '選擇這堂課要報名上課的學員。' : '選擇要取消本堂報名的學員。')
+      + '</div>'
+      + '<div class="edu-ce-pick-list">' + selectable.map(renderItem).join('') + '</div>'
+      + '<div style="display:flex;gap:.5rem;margin-top:.8rem">'
+      + '<button class="outline-btn" style="flex:1" onclick="this.closest(&quot;.edu-info-overlay&quot;).remove()">\u53d6\u6d88</button>'
+      + '<button class="primary-btn" style="flex:1" id="_eduSelfRegisterConfirmBtn">' + (registering ? '確認報名' : '確認取消') + '</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('_eduSelfRegisterConfirmBtn').onclick = async () => {
+      const ids = Array.from(overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked'))
+        .map(input => input.value)
+        .filter(Boolean);
+      if (!ids.length) {
+        this.showToast?.('請選擇至少一位學員');
+        return;
+      }
+      overlay.remove();
+      return this._saveCourseLessonSelfRegistrationSelection(ids, targetKind, button);
+    };
+    return false;
+  },
+
+  async _saveCourseLessonSelfRegistrationSelection(studentIds, kind, button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff || ctx.planType !== 'weekly') return;
+    const targetKind = kind === 'registered' ? 'registered' : 'leave';
+    const ids = Array.from(new Set((Array.isArray(studentIds) ? studentIds : [studentIds])
+      .map(value => String(value || '').trim())
+      .filter(Boolean)));
+    const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
+    const selected = ids
+      .map(id => students.find(item => this._getCourseLessonRosterStudentId(item) === id))
+      .filter(student => student && student.canSelfLeave === true);
+    if (!selected.length) {
+      this.showToast?.('目前沒有可處理的報名學員');
+      return;
+    }
+    const run = async () => {
+      const resultByStudentId = new Map();
+      try {
+        for (const student of selected) {
+          const studentId = this._getCourseLessonRosterStudentId(student);
+          const result = await FirebaseService.saveEduCourseSelfAttendance({
+            teamId: ctx.teamId,
+            planId: ctx.planId,
+            sessionId: ctx.sessionId,
+            date: ctx.rosterPayload?.session?.date,
+            studentId,
+            studentName: student.displayName || '',
+            selfUid: student.selfUid || null,
+            parentUid: student.parentUid || null,
+            kind: targetKind,
+          });
+          resultByStudentId.set(studentId, result || {});
+        }
+      } catch (err) {
+        console.error('[saveCourseLessonSelfRegistration]', err);
+        this.showToast?.('報名處理失敗，請重新開啟課堂名單後再試');
+        return;
+      }
+      let signedInPreservedCount = 0;
+      selected.forEach((student) => {
+        const studentId = this._getCourseLessonRosterStudentId(student);
+        const result = resultByStudentId.get(studentId) || {};
+        if (result.signedIn === true || result.kind === 'signin') {
+          student.attendanceKind = 'signin';
+          signedInPreservedCount += 1;
+          return;
+        }
+        student.attendanceKind = targetKind;
+      });
+      if (signedInPreservedCount === selected.length) {
+        this.showToast?.('已簽到，保留簽到狀態');
+      } else if (signedInPreservedCount > 0) {
+        this.showToast?.('已完成處理，已簽到學員保留簽到狀態');
+      } else {
+        this.showToast?.(targetKind === 'registered' ? '已完成報名' : '已取消報名');
+      }
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId, { forceRefresh: true });
+    };
+
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(button, targetKind === 'registered' ? '報名中...' : '取消中...', run);
+    }
+    return run();
+  },
+
+  async saveCourseLessonSelfRegistration(studentId, kind, button) {
+    return this._saveCourseLessonSelfRegistrationSelection([studentId], kind === 'registered' ? 'registered' : 'leave', button);
+  },
+
   showCourseLessonSelfLeaveDialog(studentId, kind, button) {
     const ctx = this._eduCourseLessonsContext;
     if (!ctx || ctx.mode !== 'roster' || ctx.isStaff) return false;
@@ -1344,7 +1539,8 @@ Object.assign(App, {
       return { ok: true, closed: true };
     }
 
-    const attendanceByStudentId = this._getCourseLessonAttendanceMap(rosterPayload?.students || []);
+    const planType = plan?.planType === 'weekly' ? 'weekly' : 'session';
+    const attendanceByStudentId = this._getCourseLessonAttendanceMap(rosterPayload?.students || [], { planType });
     this._eduCourseLessonsContext = {
       teamId,
       planId,
@@ -1352,6 +1548,7 @@ Object.assign(App, {
       mode: 'roster',
       isStaff: canManageRoster,
       canManageRoster,
+      planType,
       rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,

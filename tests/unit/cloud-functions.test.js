@@ -737,7 +737,7 @@ describe('education course enrollment callable source contracts', () => {
     expect(attendanceHelper).toContain('.where("date", "==", date)');
     expect(attendanceHelper).toContain('.where("sessionId", "==", sessionId)');
     expect(attendanceHelper).toContain('catch (sessionErr)');
-    expect(attendanceHelper).toContain('Object.assign({}, legacyAttendanceByStudentId, sessionAttendanceByStudentId)');
+    expect(attendanceHelper).toContain('return mergeEduRosterAttendanceByStudentId(legacyAttendanceByStudentId, sessionAttendanceByStudentId);');
 
     const enrollmentHelper = readSourceBetween(
       'async function fetchEduRosterStaffEnrollmentByStudentId',
@@ -749,6 +749,19 @@ describe('education course enrollment callable source contracts', () => {
     expect(enrollmentHelper).toContain('paidAt: sanitizeStr(enrollment.paidAt, 40) || null');
     expect(enrollmentHelper).not.toContain('serializeCourseEnrollment');
     expect(enrollmentHelper).not.toContain('planRef.collection("enrollments").get()');
+  });
+
+
+  test('course attendance helpers preserve registered below signin and leave', () => {
+    const source = readSourceBetween(
+      'function getEduAttendanceRecordKind',
+      'function getEduStudentIdAliases'
+    );
+    expect(source).toContain('if (kind === "registered") return "registered";');
+    expect(source).toContain('function getEduAttendanceKindPriority');
+    expect(source).toContain('if (kind === "signin") return 3;');
+    expect(source).toContain('if (kind === "leave") return 2;');
+    expect(source).toContain('if (kind === "registered") return 1;');
   });
 
   test('course roster agent helper accepts singular and list fields', () => {
@@ -774,6 +787,40 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('db.collection("eduAttendance")');
     expect(source).toContain('kind: "leave"');
     expect(source).toContain('status: "active"');
+  });
+
+
+  test('self weekly course attendance callable validates owner and writes registered without touching signin', () => {
+    const source = readCloudFunctionSource('saveEduCourseSelfAttendance');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('normalizeEduCourseSessionRequestIds(request.data || {})');
+    expect(source).toContain('const targetKind = sanitizeStr(request.data?.kind, 20) === "registered" ? "registered" : "leave"');
+    expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
+    expect(source).toContain('sanitizeStr(plan.planType, 32) !== "weekly"');
+    expect(source).toContain('rosterIds.includes(targetStudentId)');
+    expect(source).toContain('isStudentOwnedByUid(student, callerUid)');
+    expect(source).toContain('db.collection("eduAttendance")');
+    expect(source).toContain('const [dateAttendanceSnap, sessionAttendanceSnap] = await Promise.all');
+    expect(source).toContain('existingDocsById');
+    expect(source).toContain('if (recordSessionId && recordSessionId !== sessionId) return;');
+    expect(source).toContain('if (recordDate && recordDate !== date) return;');
+    expect(source).toContain('if (recordKind === "signin")');
+    expect(source).toContain('hasActiveSignin');
+    expect(source).toContain('signedIn: true');
+    expect(source).toContain('kind: targetKind');
+    expect(source).toContain('status: "active"');
+  });
+
+  test('course roster attendance merges legacy and session records by priority', () => {
+    const source = readSourceBetween(
+      'function mergeEduRosterAttendanceByStudentId',
+      'async function fetchEduRosterStaffEnrollmentByStudentId'
+    );
+    expect(source).toContain('function mergeEduRosterAttendanceByStudentId');
+    expect(source).toContain('getEduAttendanceKindPriority(kind) >= getEduAttendanceKindPriority(merged[studentId])');
+    expect(source).toContain('const legacyAttendanceByStudentId = {};');
+    expect(source).toContain('const sessionAttendanceByStudentId = {};');
+    expect(source).toContain('return mergeEduRosterAttendanceByStudentId(legacyAttendanceByStudentId, sessionAttendanceByStudentId);');
   });
 
   test('student attendance overview callable merges roster, leave, signin, and missing states behind ownership guard', () => {
