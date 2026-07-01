@@ -38,6 +38,7 @@ settings.local.json
 # Local generated outputs
 .gcloud/
 debug.log
+output/
 test-results/
 
 # Node
