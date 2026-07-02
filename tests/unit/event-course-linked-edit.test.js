@@ -45,7 +45,13 @@ function loadEventCreateModule(options = {}) {
     _getEventRegOpenTimeValue: jest.fn(() => ''),
     _getEventMinAgeFormValue: jest.fn(() => 0),
     _getAllowedGenderValue: jest.fn(() => ''),
+    _delegates: options.delegates || [],
     _isCourseLinkedEvent: eventRecord => !!eventRecord?.courseLinked,
+    _canOperatePrivateEvent: jest.fn(() => true),
+    _isEventOwner: jest.fn(() => true),
+    _canManageEventDelegates: jest.fn(() => false),
+    _canManageScopedActivity: jest.fn(() => true),
+    _canManageAllActivities: jest.fn(() => false),
     closeModal: jest.fn(),
     showToast: jest.fn(),
     renderActivityList: jest.fn(),
@@ -76,17 +82,21 @@ function makeSubmitElement() {
 }
 
 describe('course-linked activity edit guard', () => {
-  test('writes only visibility fields when saving a converted course activity', async () => {
-    const { App, ApiService, courseEvent } = loadEventCreateModule();
+  test('writes only visibility and delegate fields when saving a converted course activity', async () => {
+    const { App, ApiService, courseEvent } = loadEventCreateModule({
+      delegates: [{ uid: 'uidDelegate', name: 'Delegate User' }],
+    });
 
     await App._submitCourseLinkedEventVisibilityEdit(courseEvent, false);
 
     expect(ApiService.updateEventAwait).toHaveBeenCalledWith(courseEvent.id, {
       privateEvent: false,
       isPublic: true,
+      delegates: [{ uid: 'uidDelegate', name: 'Delegate User' }],
+      delegateUids: ['uidDelegate'],
     });
     const updates = ApiService.updateEventAwait.mock.calls[0][1];
-    expect(Object.keys(updates).sort()).toEqual(['isPublic', 'privateEvent']);
+    expect(Object.keys(updates).sort()).toEqual(['delegateUids', 'delegates', 'isPublic', 'privateEvent']);
     expect(updates).not.toHaveProperty('title');
     expect(updates).not.toHaveProperty('date');
     expect(updates).not.toHaveProperty('max');
@@ -129,6 +139,8 @@ describe('course-linked activity edit guard', () => {
     const cssSource = fs.readFileSync(path.join(ROOT, 'css/activity.css'), 'utf8');
 
     expect(createSource).toContain("_courseLinkedEditUnlockedIds: ['ce-private-event', 'ce-submit-btn']");
+    expect(createSource).toContain('_canManageCourseLinkedEventDelegates');
+    expect(createSource).toContain("['ce-delegate-search', 'ce-delegate-tags']");
     expect(createSource).toContain("'ce-title'");
     expect(createSource).toContain("'ce-location'");
     expect(createSource).toContain("'ce-max'");

@@ -899,6 +899,19 @@ Object.assign(App, {
     if (code.includes('INTERNAL')) return '轉化活動失敗：後端資料同步發生錯誤，請稍後再試。';
     return '轉化活動失敗，請稍後再試';
   },
+  _isCourseLessonConvertEventButtonConverted(button) {
+    return !!(button && (
+      String(button.dataset?.convertedEventId || '').trim()
+      || button.classList?.contains?.('is-converted')
+      || button.getAttribute?.('aria-disabled') === 'true'
+    ));
+  },
+
+  _showCourseLessonAlreadyConvertedToast() {
+    this.showToast?.('\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
+    return false;
+  },
+
   async convertCourseLessonToEvent(teamId, planId, sessionId, button) {
     const safeTeamId = String(teamId || '').trim();
     const safePlanId = String(planId || '').trim();
@@ -910,6 +923,9 @@ Object.assign(App, {
     if (this.isEduClubStaff?.(safeTeamId) !== true) {
       this.showToast?.('\u50c5\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u8f49\u5316\u6d3b\u52d5');
       return null;
+    }
+    if (this._isCourseLessonConvertEventButtonConverted?.(button)) {
+      return this._showCourseLessonAlreadyConvertedToast?.() ?? false;
     }
     const plan = this._findEduCoursePlan?.(safeTeamId, safePlanId) || null;
     const confirmMessage = typeof this._getCourseLessonConvertEventConfirmText === 'function'
@@ -924,8 +940,9 @@ Object.assign(App, {
       if (!data?.success || !button) return data;
       try {
         if (button.dataset) button.dataset.convertedEventId = data.eventId || '';
-        button.disabled = true;
+        button.disabled = false;
         button.setAttribute?.('aria-disabled', 'true');
+        button.setAttribute?.('title', '\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
         if (button.classList?.add) button.classList.add('is-converted');
         button.textContent = '\u5df2\u8f49\u5316';
       } catch (_) {}

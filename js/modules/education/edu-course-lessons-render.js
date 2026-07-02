@@ -98,6 +98,19 @@ Object.assign(App, {
     return context.planType === 'weekly' ? 'leave' : null;
   },
 
+  _getCourseLessonConvertedEventId(session) {
+    return String(session?.convertedEventId || session?.linkedEventId || session?.eventId || '').trim();
+  },
+
+  _isCourseLessonConvertedToEvent(session) {
+    if (!session) return false;
+    if (this._getCourseLessonConvertedEventId(session)) return true;
+    return session.courseLinked === true
+      || String(session.courseLinkId || '').trim()
+      || String(session.courseLinkKey || '').trim()
+      || String(session.courseLinkSource || '').trim() === 'eduCourseLesson';
+  },
+
   _renderCourseLessonList(plan, sessions, context = {}) {
     const teamId = context.teamId || '';
     const planId = plan?.id || context.planId || '';
@@ -114,8 +127,13 @@ Object.assign(App, {
         && context.planType === 'weekly'
         && !['cancelled', 'canceled', 'removed'].includes(statusKey)
         && !['cancelled', 'canceled', 'removed'].includes(String(status.cls || '').trim().toLowerCase());
+      const convertedToEvent = this._isCourseLessonConvertedToEvent(session);
+      const convertedEventId = this._getCourseLessonConvertedEventId(session);
+      const convertedAttrs = convertedToEvent
+        ? ' aria-disabled="true" data-converted-event-id="' + escapeHTML(convertedEventId) + '" title="\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5"'
+        : '';
       const convertEventBtn = canConvertToEvent
-        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn" onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">\u8f49\u5316\u6210\u6d3b\u52d5</button>'
+        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn' + (convertedToEvent ? ' is-converted' : '') + '"' + convertedAttrs + ' onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">' + (convertedToEvent ? '\u5df2\u8f49\u5316' : '\u8f49\u5316\u6210\u6d3b\u52d5') + '</button>'
         : '';
       const quickAdjustBtn = context.isStaff
         ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">'

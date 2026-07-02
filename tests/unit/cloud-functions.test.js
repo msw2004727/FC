@@ -1096,6 +1096,16 @@ describe('registration callable source contracts', () => {
     expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
     expect(convertSource).toContain('console.error("[createEventFromCourseLesson rosterSync]"');
     expect(convertSource).toContain('message: err?.message || "Course event roster sync failed"');
+    expect(convertSource).toContain('buildCourseLessonSessionEventLinkPatch({');
+    expect(convertSource).toContain('tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch');
+
+    const sessionLinkPatchSource = readSourceBetween(
+      'function buildCourseLessonSessionEventLinkPatch',
+      'function hasEduCourseStaffAccess'
+    );
+    expect(sessionLinkPatchSource).toContain('convertedEventId: safeEventId');
+    expect(sessionLinkPatchSource).toContain('linkedEventId: safeEventId');
+    expect(sessionLinkPatchSource).toContain('courseLinkKey: sanitizeStr');
 
     const convertedEventSource = readSourceBetween(
       'function buildCourseLessonConvertedEventData',

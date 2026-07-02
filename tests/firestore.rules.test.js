@@ -2651,6 +2651,35 @@ describe("course-linked event direct write guards", () => {
       updatedAt: serverTimestamp(),
     };
 
+    const delegatePayload = {
+      delegates: [{ uid: "uidDelegate", name: "Delegate" }],
+      delegateUids: ["uidDelegate"],
+      updatedAt: serverTimestamp(),
+    };
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_course_visibility"), delegatePayload)
+    );
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "event_course_visibility"), {
+        delegates: [{ uid: "uidA", name: "Member A" }],
+        delegateUids: ["uidA"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user("uidDelegate"), "events", "event_course_visibility"), {
+        delegates: [{ uid: "uidDelegate", name: "Delegate" }, { uid: "uidRandom", name: "Random" }],
+        delegateUids: ["uidDelegate", "uidRandom"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(coach(), "events", "event_course_visibility"), {
+        ...delegatePayload,
+        courseLinkId: "tampered_link",
+      })
+    );
+
     await assertFails(
       updateDoc(doc(memberA(), "events", "event_course_visibility"), editModalVisibilityPayload)
     );

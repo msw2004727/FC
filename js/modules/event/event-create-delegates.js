@@ -8,7 +8,8 @@ Object.assign(App, {
 
   _canCurrentEditManageDelegates() {
     const eventRecord = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
-    return !!this._canManageEventDelegates?.(eventRecord || null);
+    return !!(this._canManageEventDelegates?.(eventRecord || null)
+      || this._canManageCourseLinkedEventDelegates?.(eventRecord || null));
   },
 
   _initDelegateSearch() {

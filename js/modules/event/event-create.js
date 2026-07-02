@@ -110,6 +110,27 @@ Object.assign(App, {
     return !!(source && this._isCourseLinkedEvent?.(source));
   },
 
+  _canManageCourseLinkedEventDelegates(eventRecord = null) {
+    const source = eventRecord || (this._editEventId ? ApiService.getEvent?.(this._editEventId) : null);
+    return !!(source
+      && this._isCourseLinkedEvent?.(source)
+      && this._canOperatePrivateEvent?.(source)
+      && this._isEventOwner?.(source));
+  },
+
+  _canSubmitCourseLinkedEventLimitedEdit(eventRecord = null) {
+    const source = eventRecord || (this._editEventId ? ApiService.getEvent?.(this._editEventId) : null);
+    return !!(source
+      && this._isCourseLinkedEvent?.(source)
+      && this._canOperatePrivateEvent?.(source)
+      && (
+        this._canManageEventDelegates?.(source)
+        || this._canManageCourseLinkedEventDelegates?.(source)
+        || this._canManageScopedActivity?.(source)
+        || this._canManageAllActivities?.()
+      ));
+  },
+
   _setCourseLinkedEditControlLocked(control, locked) {
     if (!control) return;
     if (locked) {
@@ -145,7 +166,7 @@ Object.assign(App, {
     notice = document.createElement('div');
     notice.id = 'ce-course-linked-edit-notice';
     notice.className = 'ce-course-linked-edit-notice';
-    notice.textContent = '\u9019\u662f\u8ab2\u7a0b\u8f49\u5316\u6d3b\u52d5\uff0c\u6642\u9593\u3001\u5730\u9ede\u3001\u540d\u984d\u3001\u6a19\u984c\u8207\u5831\u540d\u898f\u5247\u7531\u8ab2\u5802\u8cc7\u6599\u7ba1\u7406\uff1b\u672c\u8996\u7a97\u53ea\u5141\u8a31\u8abf\u6574\u79c1\u5bc6/\u516c\u958b\u72c0\u614b\u3002';
+    notice.textContent = '\u9019\u662f\u8ab2\u7a0b\u8f49\u5316\u6d3b\u52d5\uff0c\u6642\u9593\u3001\u5730\u9ede\u3001\u540d\u984d\u3001\u6a19\u984c\u8207\u5831\u540d\u898f\u5247\u7531\u8ab2\u5802\u8cc7\u6599\u7ba1\u7406\uff1b\u672c\u8996\u7a97\u53ea\u5141\u8a31\u8abf\u6574\u79c1\u5bc6/\u516c\u958b\u72c0\u614b\u8207\u59d4\u8a17\u4eba\u3002';
     body.insertBefore(notice, body.firstChild || null);
   },
 
@@ -189,11 +210,27 @@ Object.assign(App, {
       privateRow.dataset.courseLinkedEditableRow = '1';
     }
 
+    const canManageCourseLinkedDelegates = !!(this._canManageEventDelegates?.(eventRecord)
+      || this._canManageCourseLinkedEventDelegates?.(eventRecord));
+    const delegateEditableIds = new Set(canManageCourseLinkedDelegates ? ['ce-delegate-search', 'ce-delegate-tags'] : []);
+    delegateEditableIds.forEach(id => {
+      const row = this._getCourseLinkedEditRowForElement(document.getElementById(id));
+      if (!row) return;
+      row.classList.add('ce-course-linked-editable-row');
+      row.dataset.courseLinkedEditableRow = '1';
+    });
     const unlockedIds = new Set(this._courseLinkedEditUnlockedIds || []);
     (this._courseLinkedEditLockedIds || []).forEach(id => {
       const element = document.getElementById(id);
       if (!element) return;
       const row = this._getCourseLinkedEditRowForElement(element);
+      if (delegateEditableIds.has(id)) {
+        if (row) {
+          row.classList.add('ce-course-linked-editable-row');
+          row.dataset.courseLinkedEditableRow = '1';
+        }
+        return;
+      }
       if (row) {
         row.classList.add('ce-course-linked-locked-row');
         row.dataset.courseLinkedLockRow = '1';
@@ -202,7 +239,7 @@ Object.assign(App, {
         ? [element]
         : Array.from(element.querySelectorAll?.(this._courseLinkedEditLockedControlSelector) || []);
       controls.forEach(control => {
-        if (!control || unlockedIds.has(control.id || '')) return;
+        if (!control || unlockedIds.has(control.id || '') || delegateEditableIds.has(control.id || '')) return;
         this._setCourseLinkedEditControlLocked(control, true);
         control.dataset.courseLinkedLockControl = '1';
       });
@@ -213,10 +250,29 @@ Object.assign(App, {
     const eventId = this._editEventId;
     if (!eventId || !this._isCourseLinkedEvent?.(existingEvent)) return false;
     const privateEvent = !!nextPrivateEvent;
+    const canManageDelegates = !!(this._canManageEventDelegates?.(existingEvent)
+      || this._canManageCourseLinkedEventDelegates?.(existingEvent));
+    const normalizedDelegates = (Array.isArray(this._delegates) ? this._delegates : [])
+      .map(delegate => ({
+        uid: String(delegate?.uid || '').trim(),
+        name: String(delegate?.name || '').trim(),
+      }))
+      .filter(delegate => delegate.uid)
+      .slice(0, 3);
+    const nextDelegateUids = normalizedDelegates.map(delegate => delegate.uid);
+    const previousDelegateUids = Array.isArray(existingEvent?.delegateUids)
+      ? existingEvent.delegateUids.map(uid => String(uid || '').trim()).filter(Boolean)
+      : [];
+    const didChangeDelegates = canManageDelegates
+      && previousDelegateUids.join('\u0001') !== nextDelegateUids.join('\u0001');
     const updates = {
       privateEvent,
       isPublic: !privateEvent,
     };
+    if (canManageDelegates) {
+      updates.delegates = normalizedDelegates;
+      updates.delegateUids = nextDelegateUids;
+    }
     this._eventSubmitInFlight = true;
     this._setCreateEventSubmitting?.(true);
     try {
@@ -224,7 +280,9 @@ Object.assign(App, {
       const updatedEvent = ApiService.getEvent?.(eventId);
       if (updatedEvent) Object.assign(updatedEvent, updates);
       this.closeModal?.();
-      this.showToast?.(privateEvent ? '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u4e0d\u516c\u958b' : '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u516c\u958b');
+      this.showToast?.(didChangeDelegates
+        ? '\u8ab2\u7a0b\u6d3b\u52d5\u59d4\u8a17\u4eba\u5df2\u66f4\u65b0'
+        : (privateEvent ? '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u4e0d\u516c\u958b' : '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u516c\u958b'));
       try { this.renderActivityList?.(); } catch (_) {}
       try { this.renderHotEvents?.(); } catch (_) {}
       try { this.renderMyActivities?.(); } catch (_) {}
@@ -239,7 +297,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[courseLinkedEventVisibilityEdit]', err);
       if (!err?._toasted) {
-        this.showToast?.('\u8ab2\u7a0b\u6d3b\u52d5\u53ea\u80fd\u8abf\u6574\u516c\u958b\u72c0\u614b\uff1b\u82e5\u4ecd\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u662f\u5426\u5177\u5099\u4e3b\u8fa6\u4eba\u3001\u4ee3\u7406\u4eba\u6216\u7e3d\u7ba1\u6b0a\u9650');
+        this.showToast?.('\u8ab2\u7a0b\u6d3b\u52d5\u53ea\u80fd\u8abf\u6574\u516c\u958b\u72c0\u614b\u8207\u59d4\u8a17\u4eba\uff1b\u82e5\u4ecd\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u662f\u5426\u5177\u5099\u4e3b\u8fa6\u4eba\u3001\u4ee3\u7406\u4eba\u6216\u7e3d\u7ba1\u6b0a\u9650');
       }
       return false;
     } finally {
@@ -706,9 +764,11 @@ Object.assign(App, {
     await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
     const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
     const isCourseLinkedEdit = !!(this._editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
-    const canSubmitActivity = this._editEventId
-      ? this._canEditOwnActivityBasic?.(eventBeingEdited)
-      : this._canCreateBasicActivity?.();
+    const canSubmitActivity = isCourseLinkedEdit
+      ? this._canSubmitCourseLinkedEventLimitedEdit?.(eventBeingEdited)
+      : (this._editEventId
+        ? this._canEditOwnActivityBasic?.(eventBeingEdited)
+        : this._canCreateBasicActivity?.());
     if (!canSubmitActivity) {
       this.showToast('權限不足：需要建立活動權限'); return;
     }

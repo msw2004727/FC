@@ -365,6 +365,7 @@ Object.assign(App, {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
     if (this._canManageAllActivities()) return true;
+    if (this._isCourseLinkedEvent?.(e) && this._isEventOwner?.(e)) return true;
     if (!this._canManageScopedActivity(e)) return false;
     if (this._hasActivityManageEntry() || this.hasPermission('event.edit_self')) return true;
     return this._getCurrentActivityRoleKey() === 'user'

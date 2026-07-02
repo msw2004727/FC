@@ -1037,6 +1037,21 @@ service cloud.firestore {
           && (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data));
       }
 
+      function isCourseLinkedDelegateUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.resource.data.get('courseLinked', false) == true
+          && changed.hasAny(['delegates', 'delegateUids'])
+          && changed.hasOnly(['delegates', 'delegateUids', 'isPublic', 'privateEvent', 'updatedAt'])
+          && request.resource.data.delegates is list
+          && request.resource.data.delegateUids is list
+          && request.resource.data.delegates.size() <= 3
+          && request.resource.data.delegateUids.size() <= 3
+          && (!changed.hasAny(['isPublic']) || request.resource.data.isPublic is bool)
+          && (!changed.hasAny(['privateEvent']) || request.resource.data.privateEvent is bool)
+          && (!changed.hasAny(['isPublic', 'privateEvent']) || (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data)))
+          && (isEventOwner() || canBroadManageEventData(resource.data));
+      }
+
       function isCourseLinkedManagerCancelUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return request.resource.data.get('courseLinked', false) == true
@@ -1114,6 +1129,10 @@ service cloud.firestore {
           || (
             resource.data.get('courseLinked', false) == true
             && isCourseLinkedVisibilityUpdate()
+          )
+          || (
+            resource.data.get('courseLinked', false) == true
+            && isCourseLinkedDelegateUpdate()
           )
           || (
             resource.data.get('courseLinked', false) == true

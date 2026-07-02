@@ -260,6 +260,7 @@ describe('edu course lessons', () => {
     };
     const weeklySessions = [
       { id: 'weeklyA', title: '\u7b2c 1 \u5802\u8ab2', status: 'scheduled', date: '2099-06-01', startTime: '09:00', endTime: '10:30', location: 'Court A', studentIds: [], capacity: 6 },
+      { id: 'weeklyLinked', title: '\u5df2\u8f49\u5316\u8ab2', status: 'scheduled', date: '2099-06-03', startTime: '09:00', endTime: '10:30', location: 'Court A', studentIds: [], capacity: 6, convertedEventId: 'eventLinked', courseLinked: true, courseLinkId: 'linkLinked' },
       { id: 'weeklyCancelled', title: '\u53d6\u6d88\u8ab2', status: 'cancelled', date: '2099-06-08', startTime: '09:00', endTime: '10:30', location: 'Court A', studentIds: [], capacity: 6 },
     ];
     const getCourseSessionStatusMeta = (session) => session.status === 'cancelled'
@@ -279,6 +280,11 @@ describe('edu course lessons', () => {
     expect(staff.container.innerHTML).toContain('\u8f49\u5316\u6210\u6d3b\u52d5');
     expect(staff.container.innerHTML).toContain('onkeydown="event.stopPropagation()"');
     expect(staff.container.innerHTML).toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyA',this)");
+    expect(staff.container.innerHTML).toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyLinked',this)");
+    expect(staff.container.innerHTML).toContain('data-converted-event-id="eventLinked"');
+    expect(staff.container.innerHTML).toContain('edu-course-lesson-convert-event-btn is-converted');
+    expect(staff.container.innerHTML).toContain('\u5df2\u8f49\u5316');
+    expect(staff.container.innerHTML).toContain('title="\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5"');
 
     expect(staff.container.innerHTML).not.toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyCancelled',this)");
 
@@ -335,10 +341,31 @@ describe('edu course lessons', () => {
     expect(app.appConfirm).toHaveBeenCalledWith(expect.stringContaining('\u9ede\u64ca\u8f49\u5316\u7684\u8077\u54e1\u6703\u7d81\u5b9a\u70ba\u6d3b\u52d5\u4e3b\u8fa6\u4eba'));
     expect(app.showToast).toHaveBeenCalledWith('\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\u5b8c\u6210');
     expect(button.dataset.convertedEventId).toBe('eventA');
-    expect(button.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
     expect(button.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+    expect(button.setAttribute).toHaveBeenCalledWith('title', '\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
     expect(button.classList.add).toHaveBeenCalledWith('is-converted');
     expect(button.textContent).toBe('\u5df2\u8f49\u5316');
+  });
+
+  test('convertCourseLessonToEvent shows toast and skips callable for already converted action', async () => {
+    const { app, functions } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [{ id: 'weeklyPlan', name: 'Weekly Plan' }],
+    });
+    const button = {
+      dataset: { convertedEventId: 'eventA' },
+      getAttribute: jest.fn(() => 'true'),
+      classList: { contains: jest.fn(() => true) },
+    };
+
+    const result = await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyA', button);
+
+    expect(result).toBe(false);
+    expect(app.showToast).toHaveBeenCalledWith('\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
+    expect(app.appConfirm).not.toHaveBeenCalled();
+    expect(functions.ensureFirebaseFunctionsSdk).not.toHaveBeenCalled();
+    expect(functions.createEventFromCourseLessonCallable).not.toHaveBeenCalled();
   });
 
   test('convertCourseLessonToEvent stops before callable when staff cancels explanation dialog', async () => {

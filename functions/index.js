@@ -4248,6 +4248,23 @@ function buildCourseLessonLinkMapping({ eventId, courseLinkId, teamId, planId, s
   };
 }
 
+function buildCourseLessonSessionEventLinkPatch({ eventId, courseLinkId, teamId, planId, sessionId }) {
+  const safeEventId = sanitizeStr(eventId, 100);
+  const safeCourseLinkId = sanitizeStr(courseLinkId, 128);
+  return {
+    convertedEventId: safeEventId,
+    linkedEventId: safeEventId,
+    courseLinkId: safeCourseLinkId,
+    courseLinkKey: sanitizeStr([teamId, planId, sessionId].map(value => sanitizeStr(value, 100)).join(":"), 360),
+    courseLinked: true,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseTeamId: sanitizeStr(teamId, 100),
+    coursePlanId: sanitizeStr(planId, 100),
+    courseSessionId: sanitizeStr(sessionId, 100),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
 function hasEduCourseStaffAccess(teamData, callerUid, access) {
   return isTeamStaffForData(teamData, callerUid)
     || access.isSuperAdmin
@@ -7081,6 +7098,15 @@ exports.createEventFromCourseLesson = onCall(
             existingEvent,
           }));
         }
+        if (existingEventId || existingCourseLinkId) {
+          tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch({
+            eventId: existingEventId,
+            courseLinkId: existingCourseLinkId,
+            teamId,
+            planId,
+            sessionId,
+          }));
+        }
         return {
           success: true,
           alreadyExists: true,
@@ -7122,6 +7148,7 @@ exports.createEventFromCourseLesson = onCall(
       tx.create(eventRef, eventData);
       tx.create(eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID), mapping);
       tx.create(linkRef, mapping);
+      tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch({ eventId, courseLinkId, teamId, planId, sessionId }));
 
       return {
         success: true,
