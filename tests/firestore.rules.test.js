@@ -2667,7 +2667,7 @@ describe("course-linked event direct write guards", () => {
       })
     );
   });
-  test("clients cannot cancel, edit, or delete course-linked events directly, but public signup projections are allowed", async () => {
+  test("clients cannot edit or delete course-linked events directly; managers can cancel only", async () => {
     await seedDoc("events", "event_course_lifecycle", {
       id: "event_course_lifecycle",
       title: "Course Lifecycle",
@@ -2739,14 +2739,30 @@ describe("course-linked event direct write guards", () => {
         title: "Course Lifecycle Edited",
       })
     );
-    await assertFails(
+    await assertSucceeds(
       updateDoc(doc(superAdmin(), "events", "event_course_lifecycle"), {
         status: "cancelled",
       })
     );
     await assertFails(
+      updateDoc(doc(superAdmin(), "events", "event_course_lifecycle"), {
+        status: "cancelled",
+        courseLinkId: "tampered_link",
+      })
+    );
+    await assertFails(
       updateDoc(doc(coach(), "events", "event_course_scoped"), {
         title: "Course Scoped Edited",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_course_scoped"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(coach(), "events", "event_course_scoped"), {
+        status: "ended",
       })
     );
     await assertFails(

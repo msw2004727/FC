@@ -1037,6 +1037,14 @@ service cloud.firestore {
           && (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data));
       }
 
+      function isCourseLinkedManagerCancelUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.resource.data.get('courseLinked', false) == true
+          && changed.hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status == 'cancelled'
+          && (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data));
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -1106,6 +1114,10 @@ service cloud.firestore {
           || (
             resource.data.get('courseLinked', false) == true
             && isCourseLinkedVisibilityUpdate()
+          )
+          || (
+            resource.data.get('courseLinked', false) == true
+            && isCourseLinkedManagerCancelUpdate()
           )
         );
       allow delete: if !isCourseLinkedEventData(resource.data)
