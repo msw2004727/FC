@@ -3976,6 +3976,66 @@ function generateCourseConvertedEventId() {
   return "ce_" + Date.now() + "_" + crypto.randomBytes(3).toString("hex");
 }
 
+const COURSE_CONVERTED_EVENT_IMAGE_MAX_LENGTH = 900000;
+
+function firstCourseConvertedEventImage(values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const safe = value.trim();
+    if (!safe || safe.length > COURSE_CONVERTED_EVENT_IMAGE_MAX_LENGTH) continue;
+    return safe;
+  }
+  return "";
+}
+
+function getCourseConvertedEventImage(plan = {}, session = {}) {
+  return firstCourseConvertedEventImage([
+    session.coverImage,
+    session.coverUrl,
+    session.imageUrl,
+    session.image,
+    session.imageVariants?.card,
+    session.imageVariants?.cover,
+    session.imageVariants?.homeNext,
+    plan.coverImage,
+    plan.coverUrl,
+    plan.imageUrl,
+    plan.image,
+    plan.imageVariants?.card,
+    plan.imageVariants?.cover,
+    plan.imageVariants?.homeNext,
+  ]);
+}
+
+function resolveCourseConvertedEventCreatorName(callerUserData = {}, authToken = {}, callerUid = "") {
+  return firstSanitizedString([
+    callerUserData.displayName,
+    callerUserData.name,
+    callerUserData.lineDisplayName,
+    authToken.name,
+    authToken.email,
+    callerUid,
+  ], 80) || callerUid;
+}
+
+function buildCourseConvertedEventCreatorSnapshot(callerUserData = {}, callerUid = "", callerName = "") {
+  const safeName = firstSanitizedString([callerName, callerUserData.displayName, callerUserData.name, callerUid], 80) || callerUid;
+  const avatarUrl = firstCourseConvertedEventImage([
+    callerUserData.pictureUrl,
+    callerUserData.photoURL,
+    callerUserData.avatarUrl,
+    callerUserData.avatar,
+  ]);
+  return {
+    uid: callerUid,
+    name: safeName,
+    displayName: safeName,
+    pictureUrl: avatarUrl,
+    photoURL: avatarUrl,
+    avatarUrl,
+  };
+}
+
 function courseConvertedEventCapacity(plan, session) {
   const candidates = [
     session.maxCapacity, session.capacity, session.max,
@@ -3998,12 +4058,13 @@ function buildCourseLessonEventTitle(plan, session) {
   return sanitizeStr((planName || "Course Event") + suffix, 120);
 }
 
-function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid, callerName, courseLinkId, eventDate, startDate, endDate, max }) {
-  const eventType = firstSanitizedString([plan.eventType, plan.activityType, "friendly"], 40) || "friendly";
+function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid, callerName, creatorSnapshot, courseLinkId, eventDate, startDate, endDate, max }) {
+  const safeCallerName = firstSanitizedString([callerName, callerUid], 80) || callerUid;
+  const courseImage = getCourseConvertedEventImage(plan, session) || null;
   return {
     id: eventId,
     title: buildCourseLessonEventTitle(plan, session),
-    type: eventType,
+    type: "course",
     status: "open",
     location: firstSanitizedString([session.location, plan.location], 160),
     date: eventDate,
@@ -4017,11 +4078,14 @@ function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid
     waitlist: 0,
     minAge: 0,
     notes: firstSanitizedString([session.notes, plan.notes], 500),
-    image: null,
+    image: courseImage,
     sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
     regOpenTime: null,
-    creator: callerName || callerUid,
+    creator: safeCallerName,
+    creatorName: safeCallerName,
+    organizer: safeCallerName,
     creatorUid: callerUid,
+    creatorSnapshot: creatorSnapshot || null,
     contact: "",
     gradient: "linear-gradient(135deg,#0d9488,#065f46)",
     icon: "",
@@ -6860,7 +6924,10 @@ exports.createEventFromCourseLesson = onCall(
     const callerUid = request.auth.uid;
     const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
     const access = await getCallerAccessContext(request);
-    const callerName = firstSanitizedString([request.auth.token?.name, request.auth.token?.email, callerUid], 80) || callerUid;
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerUserData = callerUserDoc?.data || {};
+    const callerName = resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid);
+    const creatorSnapshot = buildCourseConvertedEventCreatorSnapshot(callerUserData, callerUid, callerName);
     const eventId = generateCourseConvertedEventId();
     const eventRef = db.collection("events").doc(eventId);
 
@@ -6921,6 +6988,7 @@ exports.createEventFromCourseLesson = onCall(
         session,
         callerUid,
         callerName,
+        creatorSnapshot,
         courseLinkId,
         eventDate,
         startDate,

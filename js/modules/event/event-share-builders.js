@@ -97,12 +97,14 @@ Object.assign(App, {
       friendly: '#0d9488',
       camp: '#ec4899',
       watch: '#f59e0b',
+      course: '#0284c7',
     };
     const typeLabels = {
       play: 'PLAY',
       friendly: '\u53CB\u8ABC',
       camp: '\u6559\u5B78',
       watch: '\u89C0\u8CFD',
+      course: '\u8AB2\u7A0B',
     };
     const sportEmoji = (SPORT_ICON_EMOJI && SPORT_ICON_EMOJI[event.sportTag]) || '\u26BD';
     const typeColor = typeColors[event.type] || '#7c3aed';

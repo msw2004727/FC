@@ -57,6 +57,8 @@ describe('event share OG assets', () => {
     expect(source).toContain("return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim()) + suffix");
     expect(source).toContain('const shareImageUrl = this._getEventShareImageUrl(event)');
     expect(source).toContain('var externalShareImageUrl = this._getEventShareImageUrl(event)');
+    expect(source).toContain("course: '#0284c7'");
+    expect(source).toContain("course: '\\u8AB2\\u7A0B'");
   });
 
   test('legacy root og.png is served from the organized asset path', () => {

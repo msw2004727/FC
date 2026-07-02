@@ -65,7 +65,12 @@ describe('registration ops guard', () => {
     expect(source).toContain('eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID)');
     expect(source).toContain('const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);');
     expect(source).toContain('minAge: 0');
-    expect(source).toContain('image: null');
+    expect(source).toContain('type: "course"');
+    expect(source).toContain('image: courseImage');
+    expect(source).toContain('getCourseConvertedEventImage(plan, session)');
+    expect(source).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid)');
+    expect(source).toContain('creatorName: safeCallerName');
+    expect(source).toContain('organizer: safeCallerName');
     expect(source).toContain('genderRestrictionEnabled: false');
     expect(source).toContain('gpsEnabled: false');
     expect(source).toContain('privateEvent: true');

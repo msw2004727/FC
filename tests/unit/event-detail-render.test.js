@@ -1117,6 +1117,18 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('.activity-list-loading-bar');
   });
 
+  test('converted course activities expose course type ribbons', () => {
+    const configSource = readProjectFile('js/config.js');
+    const homeCss = readProjectFile('css/home.css');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(configSource).toContain("course:   { icon: '', label: '\\u8ab2\\u7a0b', color: 'course' }");
+    expect(homeCss).toContain('.h-card-type-ribbon-course');
+    expect(activityCss).toContain('.tl-type-course');
+    expect(activityCss).toContain('.tl-type-icon.course');
+    expect(activityCss).toContain('.detail-cover-ribbon-course');
+  });
+
   test('activity detail keeps a below-button loading state until detail sections hydrate', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const activityCss = readProjectFile('css/activity.css');

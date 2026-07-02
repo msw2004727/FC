@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260701f';
+const CACHE_VERSION = '0.20260702';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -665,6 +665,7 @@ const TYPE_CONFIG = {
   camp:     { icon: '', label: '教學', color: 'camp' },
   play:     { icon: '', label: 'PLAY', color: 'play' },
   watch:    { icon: '', label: '觀賽', color: 'watch' },
+  course:   { icon: '', label: '\u8ab2\u7a0b', color: 'course' },
   external: { icon: '', label: '外部', color: 'external' },
 };
 

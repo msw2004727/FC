@@ -1088,8 +1088,32 @@ describe('registration callable source contracts', () => {
     expect(eventDetailsSource).toContain('reason: linkValidationFailure');
 
     const convertSource = readCloudFunctionSource('createEventFromCourseLesson');
+    expect(convertSource).toContain('findUserDocByUidOrLineUserId(callerUid)');
+    expect(convertSource).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid)');
+    expect(convertSource).toContain('creatorSnapshot,');
     expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
     expect(convertSource).not.toContain('[createEventFromCourseLesson rosterSync]');
+
+    const convertedEventSource = readSourceBetween(
+      'function buildCourseLessonConvertedEventData',
+      'function buildCourseLessonLinkMapping'
+    );
+    expect(convertedEventSource).toContain('type: "course"');
+    expect(convertedEventSource).toContain('image: courseImage');
+    expect(convertedEventSource).toContain('creator: safeCallerName');
+    expect(convertedEventSource).toContain('creatorName: safeCallerName');
+    expect(convertedEventSource).toContain('organizer: safeCallerName');
+    expect(convertedEventSource).toContain('creatorSnapshot: creatorSnapshot || null');
+
+    const courseImageSource = readSourceBetween(
+      'function getCourseConvertedEventImage',
+      'function resolveCourseConvertedEventCreatorName'
+    );
+    expect(courseImageSource).toContain('session.coverImage');
+    expect(courseImageSource).toContain('plan.coverImage');
+    expect(courseImageSource).toContain('plan.imageVariants?.card');
+    expect(courseImageSource).toContain('plan.imageVariants?.cover');
+    expect(courseImageSource).toContain('plan.imageVariants?.homeNext');
 
     const rosterSource = readSourceBetween(
       'async function syncCourseLessonRosterToEventInternal',

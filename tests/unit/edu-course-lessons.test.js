@@ -415,6 +415,12 @@ describe('edu course lessons', () => {
     expect(cssSource).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
     expect(cssSource).toContain('.edu-course-lesson-head-actions');
     expect(cssSource).toContain('.edu-course-lesson-convert-event-btn');
+    expect(cssSource).toContain('data-btn-loading="1"');
+    expect(cssSource).toContain('@keyframes edu-course-convert-glow');
+    expect(cssSource).toContain('@keyframes edu-course-convert-shine');
+    expect(cssSource).toContain('@keyframes edu-course-convert-spin');
+    expect(cssSource).toContain('linear-gradient(180deg, #34d399');
+    expect(cssSource).toContain('letter-spacing: 0;');
     expect(cssSource).toContain('.edu-course-lesson-meta-time');
 
     expect(cssSource).toContain('grid-column: 1 / -1;');
