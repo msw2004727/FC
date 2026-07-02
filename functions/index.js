@@ -3977,6 +3977,7 @@ function generateCourseConvertedEventId() {
 }
 
 const COURSE_CONVERTED_EVENT_IMAGE_MAX_LENGTH = 900000;
+const COURSE_CONVERTED_EVENT_IMAGE_VARIANT_DUPLICATE_MAX_LENGTH = 120000;
 
 function firstCourseConvertedEventImage(values) {
   for (const value of values) {
@@ -4019,6 +4020,15 @@ function buildCourseConvertedEventImageFields(courseImage, existingVariants = {}
   const safeImage = firstCourseConvertedEventImage([courseImage]);
   if (!safeImage) {
     return options.includeEmpty ? { image: null, coverImage: "", imageVariants: {} } : {};
+  }
+  const shouldDuplicateImage = !/^data:image\//i.test(safeImage)
+    || safeImage.length <= COURSE_CONVERTED_EVENT_IMAGE_VARIANT_DUPLICATE_MAX_LENGTH;
+  if (!shouldDuplicateImage) {
+    return {
+      image: safeImage,
+      coverImage: "",
+      imageVariants: {},
+    };
   }
   const imageVariants = existingVariants && typeof existingVariants === "object" && !Array.isArray(existingVariants)
     ? { ...existingVariants }
@@ -7122,12 +7132,22 @@ exports.createEventFromCourseLesson = onCall(
       };
     });
 
-    const rosterSync = await syncCourseLessonRosterToEventInternal({
-      teamId,
-      planId,
-      sessionId,
-      source: "createEventFromCourseLesson",
-    });
+    let rosterSync;
+    try {
+      rosterSync = await syncCourseLessonRosterToEventInternal({
+        teamId,
+        planId,
+        sessionId,
+        source: "createEventFromCourseLesson",
+      });
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      console.error("[createEventFromCourseLesson rosterSync]", err);
+      throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED", {
+        code: "COURSE_EVENT_ROSTER_SYNC_FAILED",
+        message: err?.message || "Course event roster sync failed",
+      });
+    }
     if (rosterSync?.success === false || rosterSync?.orphanCleanup?.success === false) {
       throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED", rosterSync);
     }

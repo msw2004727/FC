@@ -1094,7 +1094,8 @@ describe('registration callable source contracts', () => {
     expect(convertSource).toContain('repaired: !!existingEventDoc');
     expect(convertSource).toContain('creatorSnapshot,');
     expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
-    expect(convertSource).not.toContain('[createEventFromCourseLesson rosterSync]');
+    expect(convertSource).toContain('console.error("[createEventFromCourseLesson rosterSync]"');
+    expect(convertSource).toContain('message: err?.message || "Course event roster sync failed"');
 
     const convertedEventSource = readSourceBetween(
       'function buildCourseLessonConvertedEventData',
@@ -1112,6 +1113,10 @@ describe('registration callable source contracts', () => {
       'function buildCourseConvertedEventImageFields',
       'function isLikelyUidDisplayValue'
     );
+    expect(imageFieldsSource).toContain('COURSE_CONVERTED_EVENT_IMAGE_VARIANT_DUPLICATE_MAX_LENGTH');
+    expect(imageFieldsSource).toContain('!/^data:image\\//i.test(safeImage)');
+    expect(imageFieldsSource).toContain('safeImage.length <= COURSE_CONVERTED_EVENT_IMAGE_VARIANT_DUPLICATE_MAX_LENGTH');
+    expect(imageFieldsSource).toContain('coverImage: ""');
     expect(imageFieldsSource).toContain('coverImage: safeImage');
     expect(imageFieldsSource).toContain('imageVariants.cover = safeImage');
     expect(imageFieldsSource).toContain('imageVariants.homeNext = safeImage');

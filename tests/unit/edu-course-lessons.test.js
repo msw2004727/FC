@@ -102,6 +102,7 @@ function loadCourseLessonsContext(overrides = {}) {
     _renderCourseSessionStudentAvatar: (_student, name) => '<span class="avatar">' + escapeHTML(name) + '</span>',
     _bindCourseSessionStudentAvatarFallbacks: jest.fn(),
     _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
+    appConfirm: overrides.appConfirm || jest.fn(async () => overrides.appConfirmResult !== false),
     showToast: jest.fn(),
   };
   const context = {
@@ -330,7 +331,9 @@ describe('edu course lessons', () => {
       name: 'Coach Ada',
     });
     expect(result).toMatchObject({ success: true, eventId: 'eventA', privateEvent: true });
-    expect(app.showToast).toHaveBeenCalledWith('\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\uff0c\u9810\u8a2d\u70ba\u79c1\u5bc6\u6d3b\u52d5');
+    expect(app.appConfirm).toHaveBeenCalledWith(expect.stringContaining('\u6d3b\u52d5\u9810\u8a2d\u70ba\u4e0d\u516c\u958b'));
+    expect(app.appConfirm).toHaveBeenCalledWith(expect.stringContaining('\u9ede\u64ca\u8f49\u5316\u7684\u8077\u54e1\u6703\u7d81\u5b9a\u70ba\u6d3b\u52d5\u4e3b\u8fa6\u4eba'));
+    expect(app.showToast).toHaveBeenCalledWith('\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\u5b8c\u6210');
     expect(button.dataset.convertedEventId).toBe('eventA');
     expect(button.disabled).toBe(true);
     expect(button.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
@@ -338,6 +341,21 @@ describe('edu course lessons', () => {
     expect(button.textContent).toBe('\u5df2\u8f49\u5316');
   });
 
+  test('convertCourseLessonToEvent stops before callable when staff cancels explanation dialog', async () => {
+    const appConfirm = jest.fn(async () => false);
+    const { app, functions } = loadCourseLessonsContext({
+      isStaff: true,
+      appConfirm,
+      plans: [{ id: 'weeklyPlan', name: 'Weekly Plan' }],
+    });
+
+    const result = await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyA', { dataset: {}, style: {} });
+
+    expect(result).toBeNull();
+    expect(appConfirm).toHaveBeenCalledWith(expect.stringContaining('Weekly Plan'));
+    expect(functions.ensureFirebaseFunctionsSdk).not.toHaveBeenCalled();
+    expect(app._withButtonLoading).not.toHaveBeenCalled();
+  });
   test('convertCourseLessonToEvent blocks non-staff before calling functions', async () => {
     const { app, functions } = loadCourseLessonsContext({ isStaff: false });
 

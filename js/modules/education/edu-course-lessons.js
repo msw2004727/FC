@@ -873,6 +873,32 @@ Object.assign(App, {
     return run();
   },
 
+  _getCourseLessonConvertEventConfirmText(plan) {
+    const planName = String(plan?.name || plan?.title || '此課程').trim();
+    return [
+      `確定要將「${planName}」的這堂課轉化成活動嗎？`,
+      '',
+      '轉化後系統會套用以下規則：',
+      '1. 活動預設為不公開，需要職員到活動管理內手動開啟公開。',
+      '2. 點擊轉化的職員會綁定為活動主辦人。',
+      '3. 已確認參與此課堂的學員會直接列入活動報名列表。',
+      '4. 課程學員保有優先報名權；若名額已滿，系統會把較晚報名的一般活動參與者下放候補。',
+      '5. 活動會與課程保持關聯，後續學員在課程點報名或請假時會同步更新活動名單。',
+      '',
+      '確認後會立即建立或修復對應活動。',
+    ].join('\n');
+  },
+
+  _getCourseLessonConvertEventErrorMessage(err) {
+    const code = String(err?.details?.code || err?.code || err?.message || '').toUpperCase();
+    if (code.includes('COURSE_LESSON_TIME_REQUIRED')) return '轉化失敗：課堂時間不完整，請先補上日期與開始時間。';
+    if (code.includes('ONLY_WEEKLY_COURSE_CAN_CONVERT')) return '轉化失敗：目前只有固定週期課程可以轉化成活動。';
+    if (code.includes('SESSION_NOT_CONVERTIBLE')) return '轉化失敗：已取消或已移除的課堂不能轉化。';
+    if (code.includes('PERMISSION_DENIED') || code.includes('PERMISSION-DENIED')) return '轉化失敗：僅俱樂部職員可以轉化活動。';
+    if (code.includes('COURSE_EVENT_ROSTER_SYNC_FAILED') || code.includes('COURSE_EVENT_ATTENDANCE_SYNC_FAILED')) return '活動已建立但名單同步失敗，請重新整理後再按一次「轉化成活動」修復。';
+    if (code.includes('INTERNAL')) return '轉化活動失敗：後端資料同步發生錯誤，請稍後再試。';
+    return '轉化活動失敗，請稍後再試';
+  },
   async convertCourseLessonToEvent(teamId, planId, sessionId, button) {
     const safeTeamId = String(teamId || '').trim();
     const safePlanId = String(planId || '').trim();
@@ -885,6 +911,15 @@ Object.assign(App, {
       this.showToast?.('\u50c5\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u8f49\u5316\u6d3b\u52d5');
       return null;
     }
+    const plan = this._findEduCoursePlan?.(safeTeamId, safePlanId) || null;
+    const confirmMessage = typeof this._getCourseLessonConvertEventConfirmText === 'function'
+      ? this._getCourseLessonConvertEventConfirmText(plan)
+      : '轉化後活動預設為不公開，點擊者會成為活動主辦人，且課堂名單會同步到活動報名列表。確認轉化成活動？';
+    let confirmed = true;
+    if (typeof this.appConfirm === 'function') confirmed = await this.appConfirm(confirmMessage);
+    else if (typeof window !== 'undefined' && typeof window.confirm === 'function') confirmed = window.confirm(confirmMessage);
+    if (!confirmed) return null;
+
     const markConverted = (data) => {
       if (!data?.success || !button) return data;
       try {
@@ -900,7 +935,6 @@ Object.assign(App, {
       try {
         if (typeof ensureFirebaseFunctionsSdk !== 'function') throw new Error('FUNCTIONS_SDK_MISSING');
         const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('createEventFromCourseLesson');
-        const plan = this._findEduCoursePlan?.(safeTeamId, safePlanId) || null;
         const currentUser = typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
           ? ApiService.getCurrentUser()
           : null;
@@ -925,13 +959,14 @@ Object.assign(App, {
           name: creatorName,
         });
         const data = result?.data || {};
-        this.showToast?.(data.alreadyExists
-          ? '\u6b64\u8ab2\u5802\u5df2\u8f49\u5316\u6210\u6d3b\u52d5'
-          : '\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\uff0c\u9810\u8a2d\u70ba\u79c1\u5bc6\u6d3b\u52d5');
+        this.showToast?.('課程已轉化成活動完成');
         return data;
       } catch (err) {
         console.error('[convertCourseLessonToEvent]', err);
-        this.showToast?.('\u8f49\u5316\u6d3b\u52d5\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        const message = typeof this._getCourseLessonConvertEventErrorMessage === 'function'
+          ? this._getCourseLessonConvertEventErrorMessage(err)
+          : '\u8f49\u5316\u6d3b\u52d5\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66';
+        this.showToast?.(message);
         return null;
       }
     };
