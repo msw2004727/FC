@@ -2344,6 +2344,42 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
     });
     await assertSucceeds(deleteDoc(doc(admin(), "events", "eventA", "registrationLocks", "self_uidA_admin_delete")));
   });
+
+  test("private course-linked events block client-owned registration locks", async () => {
+    await seedDoc("events", "event_course_private", {
+      id: "event_course_private",
+      title: "Course Private",
+      creatorUid: "uidA",
+      privateEvent: true,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_1",
+      status: "open",
+    });
+
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA"), {
+        key: "self_uidA",
+        eventId: "event_course_private",
+        userId: "uidA",
+        participantType: "self",
+        companionId: null,
+        registrationDocId: "regA",
+        status: "active",
+      })
+    );
+
+    await seedPath(["events", "event_course_private", "registrationLocks", "self_uidA"], {
+      key: "self_uidA",
+      eventId: "event_course_private",
+      userId: "uidA",
+      participantType: "self",
+      companionId: null,
+      registrationDocId: "regA",
+      status: "active",
+    });
+    await assertFails(deleteDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA")));
+  });
 });
 
 describe("/registrations/{regId}", () => {
@@ -2404,6 +2440,423 @@ describe("/registrations/{regId}", () => {
     await assertSucceeds(deleteDoc(doc(admin(), "registrations", "regA")));
     await seedDoc("registrations", "regA", { eventId: "eventA", userId: "uidA", status: "confirmed" });
     await assertSucceeds(deleteDoc(doc(superAdmin(), "registrations", "regA")));
+  });
+
+  test("root course-linked registrations cannot be client-created, cancelled, or deleted", async () => {
+    await seedDoc("events", "event_course_public", {
+      id: "event_course_public",
+      title: "Course Public",
+      creatorUid: "uidA",
+      privateEvent: false,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_2",
+      status: "open",
+    });
+
+    await assertFails(
+      setDoc(doc(memberA(), "registrations", "reg_course_create"), {
+        eventId: "event_course_public",
+        userId: "uidA",
+        status: "confirmed",
+        source: "eduCourseLesson",
+        courseLinkState: "created_by_course",
+      })
+    );
+
+    await seedDoc("registrations", "reg_course_existing", {
+      eventId: "event_course_public",
+      userId: "uidA",
+      status: "confirmed",
+      courseLinkState: "created_by_course",
+      coursePriority: true,
+    });
+    await assertFails(
+      updateDoc(doc(memberA(), "registrations", "reg_course_existing"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_existing")));
+  });
+
+  test("private course-linked events block direct root registration writes even without provenance fields", async () => {
+    await seedDoc("events", "event_course_private", {
+      id: "event_course_private",
+      title: "Course Private",
+      creatorUid: "uidA",
+      privateEvent: true,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_3",
+      status: "open",
+    });
+
+    await assertFails(
+      setDoc(doc(memberA(), "registrations", "reg_course_private_create"), {
+        eventId: "event_course_private",
+        userId: "uidA",
+        status: "confirmed",
+      })
+    );
+
+    await seedDoc("registrations", "reg_course_private_existing", {
+      eventId: "event_course_private",
+      userId: "uidA",
+      status: "confirmed",
+    });
+    await assertFails(
+      updateDoc(doc(memberA(), "registrations", "reg_course_private_existing"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_private_existing")));
+  });
+});
+
+describe("course-linked event direct write guards", () => {
+  test("clients cannot create course-linked event roots directly", async () => {
+    await assertFails(
+      setDoc(doc(user(), "events", "event_course_fake_user"), {
+        title: "Fake Course Event",
+        creatorUid: "uidUser",
+        status: "open",
+        courseLinked: true,
+        courseLinkSource: "eduCourseLesson",
+        courseLinkId: "fake_link_user",
+      })
+    );
+    await assertFails(
+      setDoc(doc(admin(), "events", "event_course_fake_admin"), {
+        title: "Fake Course Event Admin",
+        creatorUid: "uidAdmin",
+        status: "open",
+        courseLinked: true,
+        courseLinkId: "fake_link_admin",
+      })
+    );
+    await assertFails(
+      setDoc(doc(superAdmin(), "events", "event_course_fake_super"), {
+        title: "Fake Course Event Super",
+        creatorUid: "uidSA",
+        status: "open",
+        courseLinked: true,
+      })
+    );
+    await assertFails(
+      setDoc(doc(superAdmin(), "events", "event_course_fake_link_only"), {
+        title: "Fake Course Event Link Only",
+        creatorUid: "uidSA",
+        status: "open",
+        courseLinkSource: "eduCourseLesson",
+        courseLinkId: "fake_link_only",
+      })
+    );
+  });
+
+  test("course-linked event owner staff can toggle visibility fields only", async () => {
+    await seedDoc("events", "event_course_visibility", {
+      id: "event_course_visibility",
+      title: "Course Visibility",
+      type: "friendly",
+      location: "Course Court",
+      date: "2099/01/02 10:00~12:00",
+      startTimestamp: new Date("2099-01-02T02:00:00.000Z"),
+      endTimestamp: new Date("2099-01-02T04:00:00.000Z"),
+      fee: 0,
+      feeEnabled: false,
+      max: 10,
+      minAge: 0,
+      notes: "",
+      image: null,
+      sportTag: "football",
+      regOpenTime: null,
+      gradient: "linear-gradient(135deg,#0d9488,#065f46)",
+      teamOnly: false,
+      genderRestrictionEnabled: false,
+      allowedGender: "",
+      privateEvent: true,
+      isPublic: false,
+      socialLinksEnabled: false,
+      socialLinks: [],
+      earlyBirdEnabled: false,
+      earlyBirdCost: 0,
+      earlyBirdPolicyVersion: null,
+      regionEnabled: false,
+      region: "",
+      cities: [],
+      creatorTeamId: null,
+      creatorTeamName: null,
+      creatorTeamIds: [],
+      creatorTeamNames: [],
+      delegates: [],
+      delegateUids: [],
+      gpsEnabled: false,
+      lat: null,
+      lng: null,
+      mapAddress: null,
+      mapPlaceId: null,
+      mapProvider: null,
+      mapLocationConfirmed: false,
+      mapLocationUpdatedAt: null,
+      creatorUid: "uidCoach",
+      ownerUid: "uidCoach",
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_visibility",
+      status: "open",
+    });
+    const editModalVisibilityPayload = {
+      title: "Course Visibility",
+      type: "friendly",
+      location: "Course Court",
+      date: "2099/01/02 10:00~12:00",
+      startTimestamp: new Date("2099-01-02T02:00:00.000Z"),
+      endTimestamp: new Date("2099-01-02T04:00:00.000Z"),
+      fee: 0,
+      feeEnabled: false,
+      max: 10,
+      minAge: 0,
+      notes: "",
+      image: null,
+      sportTag: "football",
+      regOpenTime: null,
+      gradient: "linear-gradient(135deg,#0d9488,#065f46)",
+      teamOnly: false,
+      genderRestrictionEnabled: false,
+      allowedGender: "",
+      privateEvent: false,
+      isPublic: true,
+      socialLinksEnabled: false,
+      socialLinks: [],
+      earlyBirdEnabled: false,
+      earlyBirdCost: 0,
+      earlyBirdPolicyVersion: null,
+      regionEnabled: false,
+      region: "",
+      cities: [],
+      creatorTeamId: null,
+      creatorTeamName: null,
+      creatorTeamIds: [],
+      creatorTeamNames: [],
+      delegates: [],
+      delegateUids: [],
+      gpsEnabled: false,
+      lat: null,
+      lng: null,
+      mapAddress: null,
+      mapPlaceId: null,
+      mapProvider: null,
+      mapLocationConfirmed: false,
+      mapLocationUpdatedAt: null,
+      updatedAt: serverTimestamp(),
+    };
+
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "event_course_visibility"), editModalVisibilityPayload)
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_course_visibility"), editModalVisibilityPayload)
+    );
+    await assertFails(
+      updateDoc(doc(coach(), "events", "event_course_visibility"), {
+        isPublic: false,
+        courseLinkId: "tampered_link",
+      })
+    );
+  });
+  test("clients cannot cancel, edit, or delete course-linked events directly, but public signup projections are allowed", async () => {
+    await seedDoc("events", "event_course_lifecycle", {
+      id: "event_course_lifecycle",
+      title: "Course Lifecycle",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
+      privateEvent: false,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_5",
+      status: "open",
+      current: 0,
+      realCurrent: 0,
+      waitlist: 0,
+      max: 10,
+      participants: [],
+      waitlistNames: [],
+      participantsWithUid: [],
+      waitlistWithUid: [],
+    });
+    await seedDoc("events", "event_course_scoped", {
+      id: "event_course_scoped",
+      title: "Course Scoped",
+      creatorUid: "uidCoach",
+      ownerUid: "uidCoach",
+      privateEvent: false,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_5_scoped",
+      status: "open",
+    });
+    await seedDoc("events", "event_plain_self_to_course", {
+      id: "event_plain_self_to_course",
+      title: "Plain Self",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
+      status: "open",
+    });
+    await seedDoc("events", "event_plain_broad_to_course", {
+      id: "event_plain_broad_to_course",
+      title: "Plain Broad",
+      creatorUid: "uidA",
+      ownerUid: "uidA",
+      status: "open",
+    });
+
+    await seedRoleActivityCapabilities();
+    await seedRolePermissions("coach", ["activity.manage.entry"]);
+    await seedUserPermissionGrant("uidUser", ["event.edit_self"]);
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_course_lifecycle"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_course_lifecycle"), {
+        title: "Course Lifecycle User Edited",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(memberA(), "events", "event_course_lifecycle"), {
+        current: 10,
+        realCurrent: 10,
+        participants: ["Member A"],
+        status: "full",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(superAdmin(), "events", "event_course_lifecycle"), {
+        title: "Course Lifecycle Edited",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(superAdmin(), "events", "event_course_lifecycle"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(coach(), "events", "event_course_scoped"), {
+        title: "Course Scoped Edited",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_plain_self_to_course"), {
+        courseLinked: true,
+        courseLinkSource: "eduCourseLesson",
+        courseLinkId: "fake_self_upgrade",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(superAdmin(), "events", "event_plain_broad_to_course"), {
+        courseLinked: true,
+        courseLinkSource: "eduCourseLesson",
+        courseLinkId: "fake_broad_upgrade",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(superAdmin(), "events", "event_plain_broad_to_course"), {
+        courseLinkId: "fake_broad_link_only",
+      })
+    );
+
+    await assertFails(deleteDoc(doc(superAdmin(), "events", "event_course_lifecycle")));
+  });
+
+  test("subcollection course-linked registration provenance is immutable to clients", async () => {
+    await seedDoc("events", "event_course_public_sub", {
+      id: "event_course_public_sub",
+      title: "Course Public Sub",
+      creatorUid: "uidA",
+      privateEvent: false,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_6",
+      status: "open",
+    });
+    await seedPath(["events", "event_course_public_sub", "registrations", "reg_course_sub"], {
+      eventId: "event_course_public_sub",
+      userId: "uidA",
+      status: "confirmed",
+      source: "eduCourseLesson",
+      courseLinkState: "created_by_course",
+    });
+
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_course_sub"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(deleteDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_course_sub")));
+  });
+
+  test("private course-linked events block direct subcollection registrations and activity side effects", async () => {
+    await seedDoc("events", "event_course_private_sub", {
+      id: "event_course_private_sub",
+      title: "Course Private Sub",
+      creatorUid: "uidA",
+      privateEvent: true,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_7",
+      status: "open",
+    });
+
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "event_course_private_sub"), {
+        current: 1,
+        realCurrent: 1,
+        participants: ["Member A"],
+        status: "open",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_private_sub", "registrations", "reg_private_sub"), {
+        eventId: "event_course_private_sub",
+        userId: "uidA",
+        status: "confirmed",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_private_sub", "activityRecords", "act_private_sub"), {
+        eventId: "event_course_private_sub",
+        uid: "uidA",
+        status: "registered",
+      })
+    );
+  });
+
+  test("course-linked activity records cannot be client-mutated after event is public", async () => {
+    await seedDoc("events", "event_course_activity_public", {
+      id: "event_course_activity_public",
+      title: "Course Activity Public",
+      creatorUid: "uidA",
+      privateEvent: false,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_8",
+      status: "open",
+    });
+    await seedPath(["events", "event_course_activity_public", "activityRecords", "act_course"], {
+      eventId: "event_course_activity_public",
+      uid: "uidA",
+      status: "registered",
+      source: "eduCourseLesson",
+      courseLinkState: "created_by_course",
+    });
+
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "event_course_activity_public", "activityRecords", "act_course"), {
+        status: "removed",
+      })
+    );
+    await assertFails(deleteDoc(doc(admin(), "events", "event_course_activity_public", "activityRecords", "act_course")));
   });
 });
 

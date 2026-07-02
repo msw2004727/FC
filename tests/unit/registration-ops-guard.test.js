@@ -53,6 +53,56 @@ describe('registration ops guard', () => {
     expect(deployWorkflow).toContain('GCP_SERVICE_ACCOUNT_JSON');
   });
 
+  test('course lesson conversion phase 1 guards are wired', () => {
+    const source = read('functions/index.js');
+
+    expect(source).toContain('const COURSE_LINK_SOURCE_EDU_LESSON = "eduCourseLesson";');
+    expect(source).toContain('COURSE_LINK_STATE_CREATED_BY_COURSE');
+    expect(source).toContain('COURSE_LINK_STATE_PRIORITY_OVERLAY');
+    expect(source).toContain('exports.createEventFromCourseLesson');
+    expect(source).toContain('exports.syncCourseLessonRosterToEvent');
+    expect(source).toContain('async function syncCourseAttendanceToLinkedEvent');
+    expect(source).toContain('eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID)');
+    expect(source).toContain('const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);');
+    expect(source).toContain('minAge: 0');
+    expect(source).toContain('image: null');
+    expect(source).toContain('genderRestrictionEnabled: false');
+    expect(source).toContain('gpsEnabled: false');
+    expect(source).toContain('privateEvent: true');
+    expect(source).toContain('assertOrdinaryEventRegistrationAllowed(ed);');
+    expect(source).toContain('assertCourseLinkedRegistrationNotManagedByCourse(permissionCheckRegs);');
+    expect(source).toContain('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
+    expect(source).toContain('COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE');
+    expect(source).toContain('source: "saveEduCourseSelfAttendance"');
+    expect(source).toContain('source: "saveEduCourseSelfLeave"');
+    expect(source).toContain('phase: "phase2_roster_sync"');
+    expect(source).toContain('findLatestDisplaceableConfirmedRegistration');
+    expect(source).toContain('courseLinkedRegistrationDocId');
+    expect(source).toContain('getCourseLinkedRegistrationKey(reg)');
+    expect(source).not.toContain('reason: "phase1_skeleton"');
+
+    const crudSource = read('js/firebase-crud.js');
+    expect(crudSource).toContain('_isCourseLinkedRegistrationData');
+    expect(crudSource).toContain('return `course_student_${courseStudentId}`');
+    expect(crudSource).toContain('return `course_${encode(courseStudentId)}`');
+    expect(crudSource).toContain('excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event)');
+    expect(crudSource).toContain('!excludeCourseLinkedCandidates || !this._isCourseLinkedRegistrationData(r)');
+    expect(crudSource).toContain('_hasCourseLinkedActivityRecordData');
+    expect(crudSource).toContain('_findActivityRecordsForRegistration');
+    expect(crudSource).toContain("this._findActivityRecordsForRegistration(eventActivityRecords, candidate, 'waitlisted')");
+    expect(crudSource).toContain("this._findActivityRecordsForRegistration(ars, candidate, 'waitlisted')");
+    expect(crudSource).toContain("this._findActivityRecordsForRegistration(eventActivityRecords, item, 'waitlisted')[0]");
+    expect(crudSource).toContain('const selfRegistrationKey = this._getRegistrationUniqueKey({');
+    expect(crudSource).toContain('selfEntryKeys.has(this._getRegistrationUniqueKey(r))');
+    expect(crudSource).not.toContain('r => r.eventId === eventId && r.userId === userId');
+    expect(crudSource).not.toContain('r.userId === mainUserId');
+    expect(crudSource).not.toContain("a.uid === candidate.userId && a.status === 'waitlisted'");
+    expect(crudSource).not.toContain("a.eventId === eventId && a.uid === item.userId && a.status === 'waitlisted'");
+
+    const rulesSource = read('firestore.rules');
+    expect(rulesSource).toContain('!isPrivateCourseLinkedEventData(resource.data)');
+    expect(rulesSource).toContain('&& isSignupFieldsOnly()');
+  });
   test('registration ops guard script passes', () => {
     const output = execFileSync(process.execPath, ['scripts/check-registration-ops-guard.js'], {
       cwd: ROOT,

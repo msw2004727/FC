@@ -321,6 +321,54 @@ service cloud.firestore {
         && eventData.privateEvent == true;
     }
 
+    function isCourseLinkedEventData(eventData) {
+      return eventData != null
+        && eventData.get('courseLinked', false) == true;
+    }
+
+    function hasCourseLinkedEventRootFields(data) {
+      return data != null
+        && (data.get('courseLinked', false) == true || data.get('courseLinkId', '') != '');
+    }
+
+    function isPrivateCourseLinkedEventData(eventData) {
+      return isPrivateEventData(eventData)
+        && isCourseLinkedEventData(eventData);
+    }
+
+
+
+    function courseLinkedRegistrationFieldKeys() {
+      return [
+        'courseLinkState', 'coursePriority', 'courseLinkSource', 'courseLinkId',
+        'courseTeamId', 'coursePlanId', 'courseSessionId', 'courseStudentId',
+        'courseAttendanceId', 'coursePriorityAppliedAt', 'manualRegistrationPreserved',
+        'manualStatusBeforeCoursePriority', 'coursePriorityDisplacedBy',
+        'displacedByCoursePriority', 'linkedAttendanceKey'
+      ];
+    }
+
+    function hasCourseLinkedRegistrationData(data) {
+      return data != null
+        && (
+          data.get('source', '') == 'eduCourseLesson'
+          || data.get('courseLinkSource', '') == 'eduCourseLesson'
+          || data.keys().hasAny(courseLinkedRegistrationFieldKeys())
+        );
+    }
+
+    function hasCourseLinkedSideEffectData(data) {
+      return hasCourseLinkedRegistrationData(data);
+    }
+
+    function eventDataForDataEventId(data) {
+      let eventIdValue = data.get('eventId', '');
+      let eventPath = /databases/$(database)/documents/events/$(eventIdValue);
+      return eventIdValue is string && eventIdValue.size() > 0 && exists(eventPath)
+        ? get(eventPath).data
+        : null;
+    }
+
     function canOperatePrivateEventData(eventData) {
       return !isPrivateEventData(eventData)
         || isAdmin()
@@ -341,7 +389,8 @@ service cloud.firestore {
 
     function canBroadManageEventUpdate() {
       return canBroadManageEventData(resource.data)
-        && canOperatePrivateEventData(request.resource.data);
+        && canOperatePrivateEventData(request.resource.data)
+        && !('courseLinkId' in request.resource.data);
     }
 
     function isEventOperatorForData(eventData) {
@@ -975,6 +1024,19 @@ service cloud.firestore {
         );
       }
 
+      function eventCourseLinkRootFieldsUnchanged() {
+        return !('courseLinkId' in request.resource.data);
+      }
+
+      function isCourseLinkedVisibilityUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.resource.data.get('courseLinked', false) == true
+          && changed.hasOnly(['isPublic', 'privateEvent', 'updatedAt'])
+          && (!changed.hasAny(['isPublic']) || request.resource.data.isPublic is bool)
+          && (!changed.hasAny(['privateEvent']) || request.resource.data.privateEvent is bool)
+          && canScopedManageEventData(resource.data);
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -1012,8 +1074,10 @@ service cloud.firestore {
       }
 
       allow read: if true;
-      allow create: if isAuth()
-        && hasString('title')
+      allow create: if request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.get('courseLinked', false) != true
+        && !('courseLinkId' in request.resource.data)
         && canCreateEventRoot()
         && eventEarlyBirdFieldsValid(request.resource.data)
         && isValidEventMapFields(request.resource.data);
@@ -1021,17 +1085,35 @@ service cloud.firestore {
         && isValidEventMapFields(request.resource.data)
         && eventEarlyBirdFieldsValid(request.resource.data)
         && (
-          isUserOwnerBasicUpdate()
-          || isScopedRoleBasicUpdate()
-          || canBroadManageEventUpdate()
-          || (isEventOwner() && hasEffectivePerm('event.edit_self'))
-          || isSignupFieldsOnly()
-          || (isBlocklistFieldsOnly() && canManageEventBlocklist())
-          || isViewCountIncrementOnly()
+          (
+            resource.data.get('courseLinked', false) != true
+            && request.resource.data.get('courseLinked', false) != true
+            && (
+              isUserOwnerBasicUpdate()
+              || isScopedRoleBasicUpdate()
+              || canBroadManageEventUpdate()
+              || (isEventOwner() && hasEffectivePerm('event.edit_self') && eventCourseLinkRootFieldsUnchanged())
+              || isSignupFieldsOnly()
+              || (isBlocklistFieldsOnly() && canManageEventBlocklist())
+              || isViewCountIncrementOnly()
+            )
+          )
+          || (
+            resource.data.get('courseLinked', false) == true
+            && !isPrivateCourseLinkedEventData(resource.data)
+            && isSignupFieldsOnly()
+          )
+          || (
+            resource.data.get('courseLinked', false) == true
+            && isCourseLinkedVisibilityUpdate()
+          )
         );
-      allow delete: if isAdmin()
-        || hasEffectivePerm('event.delete')
-        || (isEventOwner() && hasEffectivePerm('event.delete_self'));
+      allow delete: if !isCourseLinkedEventData(resource.data)
+        && (
+          isAdmin()
+          || hasEffectivePerm('event.delete')
+          || (isEventOwner() && hasEffectivePerm('event.delete_self'))
+        );
     }
 
     match /eventTemplates/{templateId} {
@@ -1619,9 +1701,11 @@ service cloud.firestore {
 
       // 讀取關聯 event（供 team-split 判斷）
       function getRegEventData() {
-        return resource.data.eventId is string
-          ? get(/databases/$(database)/documents/events/$(resource.data.eventId)).data
-          : null;
+        return eventDataForDataEventId(resource.data);
+      }
+
+      function getRequestRegEventData() {
+        return eventDataForDataEventId(request.resource.data);
       }
 
       // 主辦/委託人改 teamKey
@@ -1654,16 +1738,25 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAdmin() || isRegistrationOwnerRequest();
-      allow update: if isAdmin()
-        || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
-        || (isWaitlistPromotion() && isEventSiteOperatorForData(getRegEventData()))
-        || (isWaitlistDemotion() && isEventOperatorForData(getRegEventData()))
-        || (isManagerRegistrationRemoval() && isEventOperatorForData(getRegEventData()))
-        || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
-        || (isActiveRegistration() && isSelfSelectTeamKeyUpdate())
-        || (isActiveRegistration() && isEventManagerTeamKeyUpdate());
-      allow delete: if isAdmin() || isRegistrationOwnerResource();
+      allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(getRequestRegEventData())
+        && (isAdmin() || isRegistrationOwnerRequest());
+      allow update: if !hasCourseLinkedRegistrationData(resource.data)
+        && !hasCourseLinkedRegistrationData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(getRegEventData())
+        && (
+          isAdmin()
+          || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
+          || (isWaitlistPromotion() && isEventSiteOperatorForData(getRegEventData()))
+          || (isWaitlistDemotion() && isEventOperatorForData(getRegEventData()))
+          || (isManagerRegistrationRemoval() && isEventOperatorForData(getRegEventData()))
+          || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
+          || (isActiveRegistration() && isSelfSelectTeamKeyUpdate())
+          || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
+        );
+      allow delete: if !hasCourseLinkedRegistrationData(resource.data)
+        && !isPrivateCourseLinkedEventData(getRegEventData())
+        && (isAdmin() || isRegistrationOwnerResource());
     }
 
     // ═══════════════════════════════════════════
@@ -1733,13 +1826,41 @@ service cloud.firestore {
         allow create, update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
 
         // ── 堂數制課堂卡片（每一堂課）──
+        function forbiddenCourseSessionLinkFields() {
+          return [
+            'convertedEventId', 'linkedEventId', 'courseLinkId', 'courseLinkKey',
+            'courseLinked', 'courseLinkSource',
+            'courseTeamId', 'coursePlanId', 'courseSessionId'
+          ];
+        }
+
+        function hasNoCourseSessionLinkFields(data) {
+          return data != null
+            && !data.keys().hasAny(forbiddenCourseSessionLinkFields());
+        }
+
+        function courseSessionHasLinkedEvent(sessionId) {
+          return exists(/databases/$(database)/documents/teams/$(teamId)/coursePlans/$(planId)/sessionEventLinks/$(sessionId));
+        }
+
         match /sessions/{sessionId} {
           allow read: if true;
-          allow create, update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
+          allow create: if (isCurrentUserTeamStaff(teamId) || canManageAnyTeam())
+            && hasNoCourseSessionLinkFields(request.resource.data);
+          allow update: if (isCurrentUserTeamStaff(teamId) || canManageAnyTeam())
+            && hasNoCourseSessionLinkFields(request.resource.data)
+            && !courseSessionHasLinkedEvent(sessionId);
+          allow delete: if (isCurrentUserTeamStaff(teamId) || canManageAnyTeam())
+            && !courseSessionHasLinkedEvent(sessionId);
 
           match /rosterSnapshots/{snapshotId} {
             allow read, write: if false;
           }
+        }
+
+        match /sessionEventLinks/{sessionId} {
+          allow read: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
+          allow create, update, delete: if false;
         }
 
         function isCourseEnrollmentNullableString(data, field) {
@@ -2075,10 +2196,17 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isAuth()
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(request.resource.data));
       allow update: if isAuth()
+        && !hasCourseLinkedSideEffectData(resource.data)
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(resource.data))
         && (isUserFieldOwnerResource() || isAdmin() || isActivityStatusOnly());
-      allow delete: if isAdmin();
+      allow delete: if !hasCourseLinkedSideEffectData(resource.data)
+        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(resource.data))
+        && isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -2094,8 +2222,13 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isAuth()
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(request.resource.data));
       allow update: if isAuth()
+        && !hasCourseLinkedSideEffectData(resource.data)
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(resource.data))
         && (isAdmin() || isAttendanceStatusUpdate());
       allow delete: if false;
     }
@@ -2679,6 +2812,11 @@ service cloud.firestore {
     //  Phase 0 部署，Phase 1 雙寫使用
     //  完整移植自根集合 registrations/attendanceRecords/activityRecords
     // ═══════════════════════════════════════════════════════════════
+    match /events/{eventId}/management/{managementDocId} {
+      allow read: if isEventOperatorForPath(eventId) || isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /events/{eventId}/registrations/{regId} {
 
       // ── 所有權檢查 ──
@@ -2784,16 +2922,25 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAdmin() || isSubRegOwnerRequest();
-      allow update: if isAdmin()
-        || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
-        || (isSubWaitlistPromotion() && isEventSiteOperatorForData(getSubRegEventData()))
-        || (isSubWaitlistDemotion() && isEventOperatorForData(getSubRegEventData()))
-        || (isSubManagerRegistrationRemoval() && isEventOperatorForData(getSubRegEventData()))
-        || (isSubRegOwner() && isSubBadgeOnlyUpdate())
-        || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate())
-        || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate());
-      allow delete: if isAdmin() || isSubRegOwner();
+      allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(getSubRegEventData())
+        && (isAdmin() || isSubRegOwnerRequest());
+      allow update: if !hasCourseLinkedRegistrationData(resource.data)
+        && !hasCourseLinkedRegistrationData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(getSubRegEventData())
+        && (
+          isAdmin()
+          || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
+          || (isSubWaitlistPromotion() && isEventSiteOperatorForData(getSubRegEventData()))
+          || (isSubWaitlistDemotion() && isEventOperatorForData(getSubRegEventData()))
+          || (isSubManagerRegistrationRemoval() && isEventOperatorForData(getSubRegEventData()))
+          || (isSubRegOwner() && isSubBadgeOnlyUpdate())
+          || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate())
+          || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
+        );
+      allow delete: if !hasCourseLinkedRegistrationData(resource.data)
+        && !isPrivateCourseLinkedEventData(getSubRegEventData())
+        && (isAdmin() || isSubRegOwner());
     }
 
     match /events/{eventId}/teamReservations/{reservationId} {
@@ -2815,9 +2962,11 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAdmin() || isLockOwnerRequest();
+      allow create: if !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && (isAdmin() || isLockOwnerRequest());
       allow update: if false;
-      allow delete: if isAdmin() || isLockOwnerResource();
+      allow delete: if !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && (isAdmin() || isLockOwnerResource());
     }
 
     match /events/{eventId}/attendanceRecords/{recId} {
@@ -2827,9 +2976,14 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isEventSiteOperatorForPath(eventId)
+      allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && isEventSiteOperatorForPath(eventId)
         && requestEventIdMatchesPath(eventId);
-      allow update: if isEventSiteOperatorForPath(eventId)
+      allow update: if !hasCourseLinkedSideEffectData(resource.data)
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && isEventSiteOperatorForPath(eventId)
         && isSubAttendanceStatusUpdate();
       allow delete: if false;
     }
@@ -2841,11 +2995,18 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if requestEventIdMatchesPath(eventId)
+      allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && requestEventIdMatchesPath(eventId)
         && (isUserFieldOwnerRequest() || isEventSiteOperatorForPath(eventId));
       allow update: if isAuth()
+        && !hasCourseLinkedSideEffectData(resource.data)
+        && !hasCourseLinkedSideEffectData(request.resource.data)
+        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventSiteOperatorForPath(eventId)));
-      allow delete: if isAdmin();
+      allow delete: if !hasCourseLinkedSideEffectData(resource.data)
+        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
+        && isAdmin();
     }
 
     match /events/{eventId}/comments/{commentId} {

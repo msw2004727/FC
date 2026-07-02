@@ -642,6 +642,41 @@
   font-weight: 900;
   overflow-wrap: anywhere;
 }
+.edu-course-lesson-head-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .38rem;
+  flex-wrap: wrap;
+  max-width: min(100%, 16rem);
+}
+.edu-course-lesson-convert-event-btn {
+  min-height: 24px;
+  padding: .12rem .52rem;
+  border-color: rgba(13, 148, 136, .28);
+  background: rgba(13, 148, 136, .07);
+  color: #0f766e;
+  font-size: .7rem;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.edu-course-lesson-convert-event-btn:hover,
+.edu-course-lesson-convert-event-btn:focus-visible {
+  border-color: rgba(13, 148, 136, .52);
+  background: rgba(13, 148, 136, .14);
+  color: #0f766e;
+}
+.edu-course-lesson-convert-event-btn.is-converted,
+.edu-course-lesson-convert-event-btn:disabled {
+  border-color: rgba(100, 116, 139, .25);
+  background: rgba(100, 116, 139, .08);
+  color: #64748b;
+  opacity: 1;
+  cursor: default;
+}
+
 .edu-course-lesson-status,
 .edu-course-roster-status {
   flex: 0 0 auto;
@@ -1277,6 +1312,24 @@
   background: rgba(45, 212, 191, .2);
   color: #99f6e4;
 }
+[data-theme="dark"] .edu-course-lesson-convert-event-btn {
+  border-color: rgba(45, 212, 191, .3);
+  background: rgba(45, 212, 191, .12);
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-course-lesson-convert-event-btn:hover,
+[data-theme="dark"] .edu-course-lesson-convert-event-btn:focus-visible {
+  border-color: rgba(45, 212, 191, .5);
+  background: rgba(45, 212, 191, .2);
+  color: #99f6e4;
+}
+[data-theme="dark"] .edu-course-lesson-convert-event-btn.is-converted,
+[data-theme="dark"] .edu-course-lesson-convert-event-btn:disabled {
+  border-color: rgba(148, 163, 184, .25);
+  background: rgba(148, 163, 184, .12);
+  color: #cbd5e1;
+}
+
 [data-theme="dark"] .edu-course-lesson-cancel-toggle {
   border-color: rgba(248, 113, 113, .24);
   background: rgba(248, 113, 113, .1);
@@ -1365,6 +1418,15 @@
     grid-template-columns: 3.55rem minmax(0, 1fr);
     gap: .48rem;
   }
+  .edu-course-lesson-head {
+    flex-wrap: wrap;
+  }
+  .edu-course-lesson-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+    max-width: none;
+  }
+
   .edu-course-lesson-meta {
     grid-template-columns: minmax(0, 1fr) max-content;
   }

@@ -873,6 +873,52 @@ Object.assign(App, {
     return run();
   },
 
+  async convertCourseLessonToEvent(teamId, planId, sessionId, button) {
+    const safeTeamId = String(teamId || '').trim();
+    const safePlanId = String(planId || '').trim();
+    const safeSessionId = String(sessionId || '').trim();
+    if (!safeTeamId || !safePlanId || !safeSessionId) {
+      this.showToast?.('\u7f3a\u5c11\u8ab2\u5802\u8cc7\u6599\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u8ab2\u5802\u5217\u8868');
+      return null;
+    }
+    if (this.isEduClubStaff?.(safeTeamId) !== true) {
+      this.showToast?.('\u50c5\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u8f49\u5316\u6d3b\u52d5');
+      return null;
+    }
+    const markConverted = (data) => {
+      if (!data?.success || !button) return data;
+      try {
+        if (button.dataset) button.dataset.convertedEventId = data.eventId || '';
+        button.disabled = true;
+        button.setAttribute?.('aria-disabled', 'true');
+        if (button.classList?.add) button.classList.add('is-converted');
+        button.textContent = '\u5df2\u8f49\u5316';
+      } catch (_) {}
+      return data;
+    };
+    const run = async () => {
+      try {
+        if (typeof ensureFirebaseFunctionsSdk !== 'function') throw new Error('FUNCTIONS_SDK_MISSING');
+        const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('createEventFromCourseLesson');
+        const result = await callable({ teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId });
+        const data = result?.data || {};
+        this.showToast?.(data.alreadyExists
+          ? '\u6b64\u8ab2\u5802\u5df2\u8f49\u5316\u6210\u6d3b\u52d5'
+          : '\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\uff0c\u9810\u8a2d\u70ba\u79c1\u5bc6\u6d3b\u52d5');
+        return data;
+      } catch (err) {
+        console.error('[convertCourseLessonToEvent]', err);
+        this.showToast?.('\u8f49\u5316\u6d3b\u52d5\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        return null;
+      }
+    };
+    if (typeof this._withButtonLoading === 'function') {
+      const result = this._withButtonLoading(button, '\u8f49\u5316\u4e2d...', run);
+      return result && typeof result.then === 'function' ? result.then(markConverted) : result;
+    }
+    return run().then(markConverted);
+  },
+
   async showCourseLessons(teamId, planId) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;

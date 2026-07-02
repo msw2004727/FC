@@ -437,20 +437,34 @@ function cfBuildCompanionAttendanceRepairPatch(attData = {}, regData = {}) {
 }
 
 /** registerForEvent CF: duplicate detection logic */
-function cfDuplicateCheck(existingRegs, userId) {
-  return existingRegs.some(r =>
-    r.userId === userId
-    && (r.status === 'confirmed' || r.status === 'waitlisted')
-    && r.participantType !== 'companion'
-  );
+function cfIsCourseLinkedRegistration(reg = {}) {
+  return String(reg.source || '') === 'eduCourseLesson'
+    || String(reg.courseLinkSource || '') === 'eduCourseLesson'
+    || !!String(reg.courseLinkId || '').trim()
+    || !!String(reg.courseStudentId || '').trim();
 }
 
 function cfRegistrationUniqueKey(reg = {}) {
+  const courseStudentId = String(reg.courseStudentId || '').trim();
+  if (courseStudentId && cfIsCourseLinkedRegistration(reg)) return `course_student_${courseStudentId}`;
   const userId = String(reg.userId || '').trim();
   if (reg.participantType === 'companion') {
     return `${userId}_companion_${String(reg.companionId || '').trim()}`;
   }
   return `${userId}_self`;
+}
+
+function cfDuplicateCheck(existingRegs, participantOrUserId) {
+  const participant = typeof participantOrUserId === 'string'
+    ? { userId: participantOrUserId, participantType: 'self' }
+    : { ...(participantOrUserId || {}), participantType: participantOrUserId?.participantType || 'self' };
+  const participantKey = cfRegistrationUniqueKey(participant);
+  return existingRegs.some(r =>
+    (r.status === 'confirmed' || r.status === 'waitlisted')
+    && (r.participantType || 'self') !== 'companion'
+    && !r.companionId
+    && cfRegistrationUniqueKey(r) === participantKey
+  );
 }
 
 function cfCountUniqueConfirmed(regs = []) {
@@ -787,6 +801,12 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('db.collection("eduAttendance")');
     expect(source).toContain('kind: "leave"');
     expect(source).toContain('status: "active"');
+    expect(source).toContain('validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap })');
+    expect(source).toContain('const linkedSync = await syncCourseAttendanceToLinkedEvent({');
+    expect(source).toContain('kind: leave ? "leave" : "registered"');
+    expect(source).toContain('source: "saveEduCourseSelfLeave"');
+    expect(source).toContain('COURSE_EVENT_ATTENDANCE_SYNC_FAILED');
+    expect(source).not.toContain('.catch((err) => console.error("[syncCourseAttendanceToLinkedEvent:saveEduCourseSelfLeave]"');
   });
 
 
@@ -809,6 +829,11 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('signedIn: true');
     expect(source).toContain('kind: targetKind');
     expect(source).toContain('status: "active"');
+    expect(source).toContain('validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap })');
+    expect(source).toContain('const linkedSync = await syncCourseAttendanceToLinkedEvent({');
+    expect(source).toContain('source: "saveEduCourseSelfAttendance"');
+    expect(source).toContain('COURSE_EVENT_ATTENDANCE_SYNC_FAILED');
+    expect(source).not.toContain('.catch((err) => console.error("[syncCourseAttendanceToLinkedEvent]"');
   });
 
   test('course roster attendance merges legacy and session records by priority', () => {
@@ -949,6 +974,9 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('db.collection("_regDedupe").doc(safeRequestId)');
     expect(source).toContain('const result = await db.runTransaction');
     expect(source).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
+    expect(source).toContain('const selfParticipantKeys = new Set(');
+    expect(source).toContain('return selfParticipantKeys.has(registrationUniqueKey(r));');
+    expect(source).not.toContain('r.userId === callerUid &&');
     expect(source).toContain('eventDoc.ref.collection("registrationLocks").doc(lockId)');
     expect(source).toContain('transaction.set(regLockRefs[idx]');
     expect(source).toContain('eventDoc.ref.collection("activityRecords").doc()');
@@ -970,12 +998,159 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('const result = await db.runTransaction');
     expect(source).toContain('eventDoc.ref.collection("registrations")');
     expect(source).toContain('eventDoc.ref.collection("activityRecords")');
+    expect(source).toContain('findActivityRecordForRegistration(allArs, reg)');
+    expect(source).toContain('findActivityRecordForRegistration(allArs, candidate, "waitlisted")');
+    expect(source).not.toContain('allArs.find((a) => a.uid === reg.userId');
+    expect(source).not.toContain('allArs.find((a) => a.uid === candidate.userId');
+    const wholeSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'functions', 'index.js'),
+      'utf8'
+    );
+    expect(wholeSource).not.toContain('allArs.find((item) => item.uid === candidate.userId');
     expect(source).toContain('eventDoc.ref.collection("registrationLocks").doc(registrationLockId(reg))');
-    expect(source).toContain('promoteWaitlistForAvailableSeats(ed, simRegs)');
+    expect(source).toContain('promoteWaitlistForAvailableSeats(ed, simRegs, {');
+    expect(source).toContain('excludeCourseLinkedCandidates: isCourseLinkedEventData(ed)');
     expect(source).toContain('{ status: newStatus }');
     expect(source).toContain('{ status: "registered" }');
   });
 
+  test('non-course promotion paths do not promote course-owned waitlist candidates', () => {
+    const cancelSource = readCloudFunctionSource('cancelRegistration');
+    expect(cancelSource).toContain('excludeCourseLinkedCandidates: isCourseLinkedEventData(ed)');
+
+    const helperSource = readSourceBetween(
+      'function promoteWaitlistForAvailableSeats',
+      'exports.registerForEvent'
+    );
+    expect(helperSource).toContain('excludeCourseLinkedCandidates = options.excludeCourseLinkedCandidates === true');
+    expect(helperSource).toContain('!excludeCourseLinkedCandidates || !isCourseLinkedRegistrationData(r)');
+
+    const reservationSyncSource = readSourceBetween(
+      'function shouldSyncTeamReservationEvent',
+      'function chooseReservationSummaryForUser'
+    );
+    expect(reservationSyncSource).toContain('if (isCourseLinkedEventData(eventData)) return false;');
+  });
+  test('course-linked attendance sync uses course-owned registrations and priority displacement', () => {
+    const source = readSourceBetween(
+      'async function syncCourseAttendanceToLinkedEvent',
+      'function courseEnrollmentDocId'
+    );
+    expect(source).toContain('courseLinkedRegistrationDocId');
+    expect(source).toContain('findManualRegistrationToAdoptForCourse');
+    expect(source).toContain('findLatestDisplaceableConfirmedRegistration');
+    expect(source).toContain('const targetAlreadyConfirmed = sanitizeStr(targetExistingReg?.status, 32) === "confirmed"');
+    expect(source).toContain('while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount)');
+    expect(source).not.toContain('if (maxCount > 0)');
+    expect(source).toContain('courseRegistrationStatus = "waitlisted"');
+    expect(source).toContain('transaction.set(targetRegRef, regData, { merge: true })');
+    expect(source).toContain('status: "waitlisted"');
+    expect(source).toContain('buildCourseLinkedActivityRecordData');
+    expect(source).toContain('rebuildCourseLinkedEventOccupancyUpdate');
+    expect(source).toContain('syncCourseLessonRosterToEventInternal');
+    expect(source).toContain('const rosterStudentIds = Array.isArray(session.studentIds)');
+    expect(source).toContain('attendanceByStudentId[studentId] || "leave"');
+    expect(source).toContain('const syncKind = normalizeCourseLinkAttendanceKind(kind)');
+    expect(source).toContain('reason: "default_leave"');
+    expect(source).toContain('return { success: false, synced: false, reason: "invalid_course_event_link"');
+    expect(source).toContain('return { success: false, synced: false, reason: "event_not_found" }');
+    expect(source).toContain('getCourseLinkedEventValidationFailure(eventData, courseLinkId)');
+    expect(source).toContain('reason: linkValidationFailure');
+  });
+
+  test('course session update callable syncs linked event details and roster cleanup', () => {
+    const updateSource = readCloudFunctionSource('updateEduCourseSession');
+    expect(updateSource).toContain('sanitizeEduCourseSessionUpdates');
+    expect(updateSource).toContain('hasEduCourseStaffAccess(teamDoc.data, callerUid, access)');
+    expect(updateSource).toContain('sessionRef.update({');
+    expect(updateSource).toContain('validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap, linkSnap })');
+    expect(updateSource).toContain('syncCourseLessonEventDetailsFromSessionInternal');
+    expect(updateSource).toContain('syncCourseLessonRosterToEventInternal');
+    expect(updateSource).toContain('Object.prototype.hasOwnProperty.call(updates, "studentIds")');
+    expect(updateSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_DETAILS_SYNC_FAILED"');
+    expect(updateSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
+    expect(updateSource).not.toContain('event_details_sync_failed');
+    expect(updateSource).not.toContain('roster_sync_failed');
+
+    const eventDetailsSource = readSourceBetween(
+      'async function syncCourseLessonEventDetailsFromSessionInternal',
+      'function courseEnrollmentDocId'
+    );
+    const preflightSource = readSourceBetween(
+      'async function validateCourseLessonLinkedEventReady',
+      'async function syncCourseLessonRosterToEventInternal'
+    );
+    expect(preflightSource).toContain('return { success: false, checked: true, reason: "invalid_course_event_link"');
+    expect(eventDetailsSource).toContain('return { success: false, synced: false, reason: "invalid_course_event_link" };');
+    expect(eventDetailsSource).toContain('const courseLinkId = sanitizeStr(link.courseLinkId, 128)');
+    expect(eventDetailsSource).toContain('return { success: false, synced: false, reason: "event_not_found" }');
+    expect(eventDetailsSource).toContain('getCourseLinkedEventValidationFailure(eventData, courseLinkId)');
+    expect(eventDetailsSource).toContain('reason: linkValidationFailure');
+
+    const convertSource = readCloudFunctionSource('createEventFromCourseLesson');
+    expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
+    expect(convertSource).not.toContain('[createEventFromCourseLesson rosterSync]');
+
+    const rosterSource = readSourceBetween(
+      'async function syncCourseLessonRosterToEventInternal',
+      'function courseEnrollmentDocId'
+    );
+    expect(rosterSource).toContain('cancelCourseLinkedRegistrationsOutsideRoster');
+    expect(rosterSource).toContain('orphanCancelledCount');
+    expect(rosterSource).toContain('!rosterSet.has(studentId)');
+    expect(rosterSource).toContain('status: "cancelled"');
+    expect(rosterSource).toContain('rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs)');
+    expect(rosterSource).toContain('demoteConfirmedRegistrationsToCapacity');
+    expect(rosterSource).toContain('promoteWaitlistForAvailableSeats({ ...eventData, max }, simRegs, { prioritizeCourseLinkedCandidates: true })');
+    expect(rosterSource).toContain('promotedCount: promoted.length');
+    expect(rosterSource).toContain('if (result?.success === false)');
+    expect(rosterSource).toContain('COURSE_EVENT_ATTENDANCE_SYNC_FAILED');
+    expect(rosterSource).toContain('const orphanCleanupFailed = orphanCleanup?.success === false');
+    expect(rosterSource).toContain('success: !orphanCleanupFailed');
+    expect(rosterSource).toContain('reason: orphanCleanupFailed ? (orphanCleanup.reason || "orphan_cleanup_failed") : null');
+    expect(rosterSource).toContain('return { success: false, cancelledCount: 0, promotedCount: 0, reason: "missing_link" }');
+    expect(rosterSource).toContain('return { success: false, cancelledCount: 0, promotedCount: 0, reason: "event_not_found" }');
+    expect(rosterSource).toContain('getCourseLinkedEventValidationFailure(eventData, safeCourseLinkId)');
+    expect(rosterSource).toContain('reason: linkValidationFailure');
+
+    const helperSource = readSourceBetween(
+      'function promoteWaitlistForAvailableSeats',
+      'exports.registerForEvent'
+    );
+    expect(helperSource).toContain('prioritizeCourseLinkedCandidates = options.prioritizeCourseLinkedCandidates === true');
+    expect(helperSource).toContain('Number(isCourseLinkedRegistrationData(b)) - Number(isCourseLinkedRegistrationData(a))');
+  });
+  test('staff roster attendance callable writes attendance and syncs linked activity', () => {
+    const source = readCloudFunctionSource('saveEduSessionAttendanceChanges');
+    expect(source).toContain('hasEduCourseStaffAccess(teamDoc.data, callerUid, access)');
+    expect(source).toContain('if (!rosterIds.includes(change.studentId))');
+    expect(source).toContain('const syncKind = change.kind ? normalizeCourseLinkAttendanceKind(change.kind) : "leave"');
+    expect(source).toContain('validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap })');
+    expect(source).toContain('source: "saveEduSessionAttendanceChanges"');
+    expect(source).toContain('kind: syncKind');
+    expect(source).toContain('COURSE_EVENT_ATTENDANCE_SYNC_FAILED');
+    expect(source).not.toContain('return { success: false, synced: false, reason: "sync_failed" };');
+  });
+
+  test('course-linked registration keys are student-scoped for parent-owned students', () => {
+    const source = readSourceBetween(
+      'function registrationUniqueKey',
+      'function dedupeRegistrations'
+    );
+    expect(source).toContain('getCourseLinkedRegistrationKey(reg)');
+    expect(source).toContain('courseStudentId');
+    expect(source).toContain('return `${userId}_self`;');
+
+    const activityRecordSource = readSourceBetween(
+      'function findActivityRecordForRegistration',
+      'async function syncCourseAttendanceToLinkedEvent'
+    );
+    expect(activityRecordSource).toContain('const isCourseLinkedReg = isCourseLinkedRegistrationData(reg)');
+    expect(activityRecordSource).toContain('const courseStudentId = sanitizeStr(reg.courseStudentId, 100)');
+    expect(activityRecordSource).toContain('if (!hasCourseLinkedActivityRecordData(record)) return false');
+    expect(activityRecordSource).toContain('sanitizeStr(record.courseStudentId, 100) !== courseStudentId');
+    expect(activityRecordSource).toContain('if (hasCourseLinkedActivityRecordData(record)) return false');
+  });
   test('refreshMyActivityRecords resolves UID bridge, applies cooldown, and repairs activity records by auth UID', () => {
     const source = readCloudFunctionSource('refreshMyActivityRecords');
     expect(source).toContain('if (!request.auth?.uid)');
@@ -1533,6 +1708,19 @@ describe('registerForEvent CF logic', () => {
     expect(cfDuplicateCheck(regs, 'u1')).toBe(false);
   });
 
+  test('ordinary signup ignores same-uid course-linked student seats', () => {
+    const regs = [{
+      userId: 'parent1',
+      status: 'confirmed',
+      participantType: 'self',
+      source: 'eduCourseLesson',
+      courseLinkId: 'course-link-1',
+      courseStudentId: 'student-a',
+    }];
+    expect(cfDuplicateCheck(regs, 'parent1')).toBe(false);
+    expect(cfDuplicateCheck(regs, { userId: 'parent1', participantType: 'self' })).toBe(false);
+  });
+
   test('confirmed when under capacity', () => {
     expect(cfAssignStatus(2, 5)).toBe('confirmed');
   });
@@ -1773,6 +1961,14 @@ describe('adjustTeamReservation CF member stamping', () => {
       teamReservationTeamName: 'Team A',
       teamSeatSource: 'reserved',
     });
+  });
+
+  test('blocks reservation changes for course-linked events after publication', () => {
+    const source = readCloudFunctionSource('adjustTeamReservation');
+
+    expect(source).toContain('if (isCourseLinkedEventData(ed))');
+    expect(source).not.toContain('if (isPrivateCourseLinkedEventData(ed))');
+    expect(source).toContain('throw courseLinkedEventManagedByCourseError();');
   });
 
   test('uses shared waitlist promotion after reservation changes', () => {
@@ -2604,6 +2800,19 @@ describe('ApiService tournament delete source', () => {
     expect(source).not.toContain('docRef.delete');
   });
 
+  test('FirebaseService updateCourseSession uses linked-session callable', () => {
+    const crudSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'js', 'firebase-crud.js'),
+      'utf8'
+    );
+    const start = crudSource.indexOf('async updateCourseSession');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = crudSource.indexOf('\n  },', start);
+    const source = crudSource.slice(start, end);
+    expect(source).toContain("ensureFirebaseFunctionsSdk('asia-east1')");
+    expect(source).toContain("httpsCallable('updateEduCourseSession')");
+    expect(source).not.toContain("collection('sessions').doc(sessionId).update");
+  });
   test('FirebaseService exposes deleteTournamentAtomic wrapper in asia-east1', () => {
     const crudSource = fs.readFileSync(
       path.join(__dirname, '..', '..', 'js', 'firebase-crud.js'),

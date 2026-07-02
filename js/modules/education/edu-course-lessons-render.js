@@ -109,6 +109,14 @@ Object.assign(App, {
       const capacity = session.capacity ? '/' + session.capacity : '';
       const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
       const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
+      const statusKey = String(session.status || status.cls || '').trim().toLowerCase();
+      const canConvertToEvent = context.isStaff === true
+        && context.planType === 'weekly'
+        && !['cancelled', 'canceled', 'removed'].includes(statusKey)
+        && !['cancelled', 'canceled', 'removed'].includes(String(status.cls || '').trim().toLowerCase());
+      const convertEventBtn = canConvertToEvent
+        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn" onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">\u8f49\u5316\u6210\u6d3b\u52d5</button>'
+        : '';
       const quickAdjustBtn = context.isStaff
         ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">'
           + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>'
@@ -119,7 +127,10 @@ Object.assign(App, {
         + '<div class="edu-course-lesson-main">'
           + '<div class="edu-course-lesson-head">'
             + '<h3>' + escapeHTML(session.title || session.topic || session.focus || '未命名課堂') + '</h3>'
-            + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
+            + '<div class="edu-course-lesson-head-actions">'
+              + convertEventBtn
+              + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
+            + '</div>'
           + '</div>'
           + '<div class="edu-course-lesson-meta">'
             + '<span class="edu-course-lesson-meta-time' + (quickAdjustBtn ? ' has-adjust' : '') + '"><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em>' + quickAdjustBtn + '</span>'

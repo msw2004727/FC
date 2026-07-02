@@ -52,7 +52,7 @@ const KNOWN_REFERENCES = {
 
 // Cloud Functions — uses double quotes
 const KNOWN_CF_REFERENCES = {
-  'functions/index.js': { registrations: 16, attendanceRecords: 0, activityRecords: 14 }, // Phase 4b + 2026-04-30 activityRecords repair + companion attendance UID repair + 2026-05-01 team reservation membership sync + 2026-05-18 early-bird cancellation refund reads subcollection registrations + 2026-05-26 read-only registration synthetic smoke samples registrations.
+  'functions/index.js': { registrations: 26, attendanceRecords: 0, activityRecords: 24 }, // Phase 4b + 2026-04-30 activityRecords repair + companion attendance UID repair + 2026-05-01 team reservation membership sync + 2026-05-18 early-bird cancellation refund reads subcollection registrations + 2026-05-26 read-only registration synthetic smoke samples registrations + 2026-07-01 course lesson conversion sync + linked roster cleanup + capacity reconciliation registrations/activityRecords.
 };
 
 // CF triggers — document path references (not db.collection)

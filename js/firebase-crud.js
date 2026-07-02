@@ -831,6 +831,8 @@ Object.assign(FirebaseService, {
    * @returns {Object} { participants, waitlistNames, current, waitlist, status }
    */
   _getRegistrationUniqueKey(reg = {}) {
+    const courseStudentId = String(reg.courseStudentId || '').trim();
+    if (courseStudentId && this._isCourseLinkedRegistrationData(reg)) return `course_student_${courseStudentId}`;
     const userId = String(reg.userId || '').trim();
     if (reg.participantType === 'companion') {
       return `${userId}_companion_${String(reg.companionId || '').trim()}`;
@@ -840,6 +842,8 @@ Object.assign(FirebaseService, {
 
   _getRegistrationLockId(reg = {}) {
     const encode = (value) => encodeURIComponent(String(value || '').trim() || '_');
+    const courseStudentId = String(reg.courseStudentId || '').trim();
+    if (courseStudentId && this._isCourseLinkedRegistrationData(reg)) return `course_${encode(courseStudentId)}`;
     if (reg.participantType === 'companion') {
       return `companion_${encode(reg.userId)}_${encode(reg.companionId)}`;
     }
@@ -1035,15 +1039,73 @@ Object.assign(FirebaseService, {
     });
   },
 
-  _promoteWaitlistForAvailableSeats(eventData, simRegs = []) {
+  _isCourseLinkedEventData(eventData = {}) {
+    return !!eventData && eventData.courseLinked === true;
+  },
+
+  _isCourseLinkedRegistrationData(reg = {}) {
+    if (!reg || typeof reg !== 'object') return false;
+    if (String(reg.source || '') === 'eduCourseLesson') return true;
+    if (String(reg.courseLinkSource || '') === 'eduCourseLesson') return true;
+    const courseLinkKeys = [
+      'courseLinkState', 'coursePriority', 'courseLinkId',
+      'courseTeamId', 'coursePlanId', 'courseSessionId', 'courseStudentId',
+      'courseAttendanceId', 'coursePriorityAppliedAt', 'manualRegistrationPreserved',
+      'manualStatusBeforeCoursePriority', 'coursePriorityDisplacedBy',
+      'displacedByCoursePriority', 'linkedAttendanceKey',
+    ];
+    return courseLinkKeys.some(key => Object.prototype.hasOwnProperty.call(reg, key));
+  },
+
+  _hasCourseLinkedActivityRecordData(record = {}) {
+    if (!record || typeof record !== 'object') return false;
+    if (String(record.source || '') === 'eduCourseLesson') return true;
+    if (String(record.courseLinkSource || '') === 'eduCourseLesson') return true;
+    const courseLinkKeys = [
+      'courseLinkState', 'courseLinkId', 'courseStudentId',
+      'courseTeamId', 'coursePlanId', 'courseSessionId', 'courseAttendanceId',
+    ];
+    return courseLinkKeys.some(key => Object.prototype.hasOwnProperty.call(record, key));
+  },
+
+  _findActivityRecordsForRegistration(records = [], reg = {}, requiredStatus = '') {
+    if (!reg || reg.participantType === 'companion') return [];
+    const sourceRecords = Array.isArray(records) ? records : [];
+    const uid = String(reg.userId || reg.uid || '').trim();
+    const isCourseLinkedReg = this._isCourseLinkedRegistrationData(reg);
+    const courseLinkId = String(reg.courseLinkId || '').trim();
+    const courseStudentId = String(reg.courseStudentId || '').trim();
+    return sourceRecords.filter(record => {
+      if (!record || typeof record !== 'object') return false;
+      if (requiredStatus && String(record.status || '') !== requiredStatus) return false;
+      const status = String(record.status || '');
+      if (status === 'cancelled' || status === 'removed') return false;
+      if (isCourseLinkedReg) {
+        if (!this._hasCourseLinkedActivityRecordData(record)) return false;
+        if (courseLinkId && String(record.courseLinkId || '').trim() !== courseLinkId) return false;
+        if (courseStudentId && String(record.courseStudentId || '').trim() !== courseStudentId) return false;
+        return !!courseLinkId || !!courseStudentId ? true : (!!uid && String(record.uid || '').trim() === uid);
+      }
+      if (this._hasCourseLinkedActivityRecordData(record)) return false;
+      if (!uid) return false;
+      return String(record.uid || '').trim() === uid;
+    });
+  },
+
+  _promoteWaitlistForAvailableSeats(eventData, simRegs = [], options = {}) {
     const promoted = [];
+    const excludeCourseLinkedCandidates = options.excludeCourseLinkedCandidates === true;
     const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
 
     while (true) {
       const activeRegs = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
       const occupancy = this._rebuildOccupancy(eventData, activeRegs);
       const summaries = occupancy.teamReservationSummaries || [];
-      const waitlisted = this._sortWaitlistCandidates(activeRegs.filter(r => r.status === 'waitlisted'));
+      const waitlisted = this._sortWaitlistCandidates(
+        activeRegs
+          .filter(r => r.status === 'waitlisted')
+          .filter(r => !excludeCourseLinkedCandidates || !this._isCourseLinkedRegistrationData(r))
+      );
       let candidateToPromote = null;
       let source = null;
 
@@ -1360,9 +1422,12 @@ Object.assign(FirebaseService, {
     await this._assertEventSignupOpen(event);
 
     // 快取層重複檢查（含 participantType == 'self'）
-    const existing = this._cache.registrations.find(
-      r => r.eventId === eventId && r.userId === userId
-        && r.participantType !== 'companion'
+    const selfRegistrationKey = this._getRegistrationUniqueKey({ eventId, userId, participantType: 'self' });
+    const existing = this._cache.registrations.find(r =>
+      r.eventId === eventId
+        && this._getRegistrationUniqueKey(r) === selfRegistrationKey
+        && (r.participantType || 'self') !== 'companion'
+        && !r.companionId
         && r.status !== 'cancelled' && r.status !== 'removed'
     );
     if (existing) throw new Error('已報名此活動');
@@ -1399,9 +1464,10 @@ Object.assign(FirebaseService, {
 
       // 防幽靈：在 transaction 內再次檢查重複報名
       const hasActive = allEventRegs.some(r =>
-        r.userId === userId
+        this._getRegistrationUniqueKey(r) === selfRegistrationKey
         && (r.status === 'confirmed' || r.status === 'waitlisted')
-        && r.participantType !== 'companion'
+        && (r.participantType || 'self') !== 'companion'
+        && !r.companionId
       );
       if (hasActive) throw new Error('已報名此活動');
 
@@ -1584,7 +1650,9 @@ Object.assign(FirebaseService, {
     if (event) {
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
       if (wasPreviouslyConfirmed) {
-        promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegs));
+        promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegs, {
+          excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event),
+        }));
       }
 
       // 用模擬結果重建投影（不寫入快取）
@@ -1657,9 +1725,7 @@ Object.assign(FirebaseService, {
     const arDocIdsToSync = [];
     for (const candidate of promotedCandidates) {
       if (candidate.participantType === 'companion') continue;
-      const matchedArs = eventActivityRecords.filter(a =>
-        a.uid === candidate.userId && a.status === 'waitlisted'
-      );
+      const matchedArs = this._findActivityRecordsForRegistration(eventActivityRecords, candidate, 'waitlisted');
       if (matchedArs.length === 0) {
         console.warn('[cancelRegistration] no waitlisted activityRecord found for candidate uid=' + candidate.userId + ' eventId=' + reg.eventId);
         continue;
@@ -2912,9 +2978,8 @@ Object.assign(FirebaseService, {
           if (item.teamSeatSource) reg.teamSeatSource = item.teamSeatSource;
         }
         if (Array.isArray(this._cache.activityRecords)) {
-          const ar = this._cache.activityRecords.find(a =>
-            a.eventId === eventId && a.uid === item.userId && a.status === 'waitlisted'
-          );
+          const eventActivityRecords = this._cache.activityRecords.filter(a => a.eventId === eventId);
+          const ar = this._findActivityRecordsForRegistration(eventActivityRecords, item, 'waitlisted')[0];
           if (ar) ar.status = 'registered';
         }
       });
@@ -2975,12 +3040,25 @@ Object.assign(FirebaseService, {
     const allEventRegs = allRegsSnap.docs.map(d => this._mapSubcollectionDoc(d, 'registrations'));
 
     // 防幽靈：用 Firestore 真實資料檢查重複報名
-    const entriesIncludeSelf = entries.some(entry => (entry.participantType || 'self') !== 'companion');
+    const selfEntryKeys = new Set(
+      entries
+        .filter(entry => (entry.participantType || 'self') !== 'companion')
+        .map(entry => this._getRegistrationUniqueKey({
+          userId: entry.userId,
+          participantType: entry.participantType || 'self',
+          companionId: entry.companionId || null,
+          courseLinkId: entry.courseLinkId || '',
+          courseStudentId: entry.courseStudentId || '',
+          source: entry.source || '',
+          courseLinkSource: entry.courseLinkSource || '',
+        }))
+    );
+    const entriesIncludeSelf = selfEntryKeys.size > 0;
     const hasActive = entriesIncludeSelf && allEventRegs.some(r =>
-      r.userId === mainUserId
-      && (r.status === 'confirmed' || r.status === 'waitlisted')
+      (r.status === 'confirmed' || r.status === 'waitlisted')
       && (r.participantType || 'self') !== 'companion'
       && !r.companionId
+      && selfEntryKeys.has(this._getRegistrationUniqueKey(r))
     );
     if (hasActive) throw new Error('已報名此活動');
 
@@ -3224,7 +3302,9 @@ Object.assign(FirebaseService, {
       const event = this._cache.events.find(e => e.id === eventId);
       if (!event) continue;
 
-      promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegsByEvent[eventId]));
+      promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegsByEvent[eventId], {
+        excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event),
+      }));
     }
 
     // 用模擬結果重建投影
@@ -3312,9 +3392,7 @@ Object.assign(FirebaseService, {
     for (const candidate of promotedCandidates) {
       if (candidate.participantType === 'companion') continue;
       const ars = arsByEvent[candidate.eventId] || [];
-      const matchedArs = ars.filter(a =>
-        a.uid === candidate.userId && a.status === 'waitlisted'
-      );
+      const matchedArs = this._findActivityRecordsForRegistration(ars, candidate, 'waitlisted');
       if (matchedArs.length === 0) {
         console.warn('[cancelCompanionRegistrations] no waitlisted activityRecord found for candidate uid=' + candidate.userId + ' eventId=' + candidate.eventId);
         continue;
@@ -3758,13 +3836,17 @@ Object.assign(FirebaseService, {
   async updateCourseSession(teamId, planId, sessionId, updates) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase 登入失敗');
-    const teamRef = await this._getTeamDocRefById(teamId);
-    await teamRef.collection('coursePlans').doc(planId)
-      .collection('sessions').doc(sessionId).update({
-        ..._stripDocId(updates),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-    return { id: sessionId, ...updates, _docId: sessionId };
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('updateEduCourseSession');
+    const result = await callable({
+      teamId,
+      planId,
+      sessionId,
+      updates: _stripDocId(updates),
+    });
+    const data = result && result.data ? result.data : result;
+    return data && typeof data === 'object'
+      ? data
+      : { id: sessionId, ...updates, _docId: sessionId };
   },
 
   async deleteCourseSession(teamId, planId, sessionId) {
@@ -3941,57 +4023,16 @@ Object.assign(FirebaseService, {
     if (!teamId || !planId || !sessionId || !date || !normalized.length) {
       return { changed: 0 };
     }
-
-    const byStudentId = new Map(normalized.map(change => [change.studentId, change]));
-    const existingSnap = await db.collection('eduAttendance')
-      .where('teamId', '==', teamId)
-      .where('coursePlanId', '==', planId)
-      .where('date', '==', date)
-      .get();
-    const batch = db.batch();
-    const now = firebase.firestore.FieldValue.serverTimestamp();
-    let writeCount = 0;
-
-    existingSnap.forEach(docSnap => {
-      const record = docSnap.data() || {};
-      const recordSessionId = String(record.sessionId || '').trim();
-      if (recordSessionId && recordSessionId !== String(sessionId)) return;
-      const studentId = String(record.studentId || '').trim();
-      if (!byStudentId.has(studentId)) return;
-      if (record.status === 'removed') return;
-      batch.update(docSnap.ref, { status: 'removed', updatedAt: now });
-      writeCount += 1;
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('saveEduSessionAttendanceChanges');
+    const result = await callable({
+      teamId,
+      planId,
+      sessionId,
+      date,
+      changes: normalized,
     });
-
-    normalized.forEach(change => {
-      if (!change.kind) return;
-      const docRef = db.collection('eduAttendance').doc();
-      batch.set(docRef, {
-        id: docRef.id,
-        teamId,
-        groupId: '',
-        coursePlanId: planId,
-        sessionId,
-        studentId: change.studentId,
-        studentName: change.studentName,
-        parentUid: change.parentUid,
-        selfUid: change.selfUid,
-        kind: change.kind,
-        date,
-        time: new Date().toTimeString().slice(0, 5),
-        sessionNumber: null,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
-      writeCount += 1;
-    });
-
-    if (writeCount === 0) return { changed: 0 };
-    await batch.commit();
-    return { changed: normalized.length };
+    return result && result.data ? result.data : result;
   },
-
   async saveEduCourseSelfLeave({ teamId, planId, sessionId, date, studentId, studentName, selfUid, parentUid, leave }) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase auth is not ready');

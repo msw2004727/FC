@@ -61,7 +61,22 @@ function loadCourseLessonsContext(overrides = {}) {
       Object.keys(localStorageStore).forEach(key => { delete localStorageStore[key]; });
     }),
   };
+  const createEventFromCourseLessonCallable = overrides.createEventFromCourseLessonCallable || jest.fn(async () => ({
+    data: overrides.createEventFromCourseLessonData || {
+      success: true,
+      alreadyExists: false,
+      eventId: 'eventFromLessonA',
+      courseLinkId: 'courseLinkA',
+      privateEvent: true,
+    },
+  }));
+  const httpsCallable = overrides.httpsCallable || jest.fn((name) => {
+    if (name === 'createEventFromCourseLesson') return createEventFromCourseLessonCallable;
+    return jest.fn(async () => ({ data: {} }));
+  });
+  const ensureFirebaseFunctionsSdk = overrides.ensureFirebaseFunctionsSdk || jest.fn(async () => ({ httpsCallable }));
   const app = {
+
     currentPage: 'page-team-detail',
     _eduCourseLessonsRequestSeq: 0,
     _courseSessionCache: overrides.courseSessionCache || {},
@@ -115,7 +130,9 @@ function loadCourseLessonsContext(overrides = {}) {
       queryEduAttendance: jest.fn(async () => overrides.attendanceRecords || []),
       ...(overrides.FirebaseService || {}),
     },
+    ensureFirebaseFunctionsSdk,
     document: {
+
       getElementById: jest.fn((id) => {
         if (overrides.elements && overrides.elements[id]) return overrides.elements[id];
         if (id === 'edu-course-lessons-page') return container;
@@ -152,7 +169,17 @@ function loadCourseLessonsContext(overrides = {}) {
   };
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
   vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
-  return { app: context.App, firebase: context.FirebaseService, container, title, authState, localStorage: localStorageMock, localStorageStore };
+  return {
+    app: context.App,
+    firebase: context.FirebaseService,
+    container,
+    title,
+    authState,
+    localStorage: localStorageMock,
+    localStorageStore,
+    functions: { ensureFirebaseFunctionsSdk, httpsCallable, createEventFromCourseLessonCallable },
+  };
+
 }
 
 describe('edu course lessons', () => {
@@ -218,6 +245,99 @@ describe('edu course lessons', () => {
     expect(viewer.container.innerHTML).not.toContain('edu-course-lesson-adjust-btn');
     expect(viewer.container.innerHTML).not.toContain('App.openCourseLessonQuickAdjust');
   });
+
+  test('weekly staff lesson cards show conversion action and hide it for unsupported rows', async () => {
+    const weeklyPlan = {
+      id: 'weeklyPlan',
+      name: 'Weekly Plan',
+      planType: 'weekly',
+      startDate: '2099-06-01',
+      endDate: '2099-06-30',
+    };
+    const weeklySessions = [
+      { id: 'weeklyA', title: '\u7b2c 1 \u5802\u8ab2', status: 'scheduled', date: '2099-06-01', startTime: '09:00', endTime: '10:30', location: 'Court A', studentIds: [], capacity: 6 },
+      { id: 'weeklyCancelled', title: '\u53d6\u6d88\u8ab2', status: 'cancelled', date: '2099-06-08', startTime: '09:00', endTime: '10:30', location: 'Court A', studentIds: [], capacity: 6 },
+    ];
+    const getCourseSessionStatusMeta = (session) => session.status === 'cancelled'
+      ? { label: 'Cancelled', cls: 'cancelled' }
+      : { label: 'Scheduled', cls: 'scheduled' };
+    const staff = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [weeklyPlan],
+      sessions: weeklySessions,
+      getCourseSessionStatusMeta,
+    });
+
+    await staff.app.showCourseLessons('teamA', 'weeklyPlan');
+
+    expect(staff.container.innerHTML).toContain('edu-course-lesson-head-actions');
+    expect(staff.container.innerHTML).toContain('edu-course-lesson-convert-event-btn');
+    expect(staff.container.innerHTML).toContain('\u8f49\u5316\u6210\u6d3b\u52d5');
+    expect(staff.container.innerHTML).toContain('onkeydown="event.stopPropagation()"');
+    expect(staff.container.innerHTML).toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyA',this)");
+
+    expect(staff.container.innerHTML).not.toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyCancelled',this)");
+
+    const sessionStaff = loadCourseLessonsContext({ isStaff: true });
+    await sessionStaff.app.showCourseLessons('teamA', 'planA');
+    expect(sessionStaff.container.innerHTML).not.toContain('edu-course-lesson-convert-event-btn');
+
+    const viewer = loadCourseLessonsContext({ plans: [weeklyPlan], sessions: weeklySessions });
+    await viewer.app.showCourseLessons('teamA', 'weeklyPlan');
+    expect(viewer.container.innerHTML).not.toContain('edu-course-lesson-convert-event-btn');
+  });
+
+  test('convertCourseLessonToEvent uses callable and marks action as converted', async () => {
+    const { app, functions } = loadCourseLessonsContext({
+      isStaff: true,
+      createEventFromCourseLessonData: {
+        success: true,
+        alreadyExists: false,
+        eventId: 'eventA',
+        courseLinkId: 'courseLinkA',
+        privateEvent: true,
+      },
+    });
+    const button = {
+      dataset: {},
+      disabled: false,
+      textContent: '\u8f49\u5316\u6210\u6d3b\u52d5',
+      style: { opacity: '' },
+      isConnected: true,
+      getAttribute: jest.fn(() => null),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+      classList: { add: jest.fn() },
+    };
+
+    const result = await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyA', button);
+
+    expect(app._withButtonLoading).toHaveBeenCalledWith(button, '\u8f49\u5316\u4e2d...', expect.any(Function));
+    expect(functions.ensureFirebaseFunctionsSdk).toHaveBeenCalledWith('asia-east1');
+    expect(functions.httpsCallable).toHaveBeenCalledWith('createEventFromCourseLesson');
+    expect(functions.createEventFromCourseLessonCallable).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'weeklyPlan',
+      sessionId: 'weeklyA',
+    });
+    expect(result).toMatchObject({ success: true, eventId: 'eventA', privateEvent: true });
+    expect(app.showToast).toHaveBeenCalledWith('\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\uff0c\u9810\u8a2d\u70ba\u79c1\u5bc6\u6d3b\u52d5');
+    expect(button.dataset.convertedEventId).toBe('eventA');
+    expect(button.disabled).toBe(true);
+    expect(button.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+    expect(button.classList.add).toHaveBeenCalledWith('is-converted');
+    expect(button.textContent).toBe('\u5df2\u8f49\u5316');
+  });
+
+  test('convertCourseLessonToEvent blocks non-staff before calling functions', async () => {
+    const { app, functions } = loadCourseLessonsContext({ isStaff: false });
+
+    await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyA', { dataset: {}, style: {} });
+
+    expect(functions.ensureFirebaseFunctionsSdk).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith('\u50c5\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u8f49\u5316\u6d3b\u52d5');
+  });
+
 
   test('quick adjust shows shared loading animation before lesson data resolves', async () => {
     let resolveSessions;
@@ -293,7 +413,10 @@ describe('edu course lessons', () => {
 
   test('lesson card meta keeps location and count on one compact row with ellipsis support', () => {
     expect(cssSource).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
+    expect(cssSource).toContain('.edu-course-lesson-head-actions');
+    expect(cssSource).toContain('.edu-course-lesson-convert-event-btn');
     expect(cssSource).toContain('.edu-course-lesson-meta-time');
+
     expect(cssSource).toContain('grid-column: 1 / -1;');
     expect(cssSource).toContain('.edu-course-lesson-meta-time.has-adjust');
     expect(cssSource).toContain('.edu-course-lesson-adjust-btn svg');

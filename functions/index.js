@@ -275,6 +275,10 @@ const REGISTRATION_SMOKE_DEFAULTS = Object.freeze({
   eventId: "",
   smokeUid: "",
 });
+const COURSE_LINK_SOURCE_EDU_LESSON = "eduCourseLesson";
+const COURSE_LINK_STATE_CREATED_BY_COURSE = "created_by_course";
+const COURSE_LINK_STATE_PRIORITY_OVERLAY = "priority_overlay";
+const COURSE_LINK_MANAGEMENT_DOC_ID = "courseLink";
 
 // ── 翻譯配額設定（調整上限只需改這裡，重新 deploy 即可）──
 const TRANSLATE_QUOTA = Object.freeze({
@@ -3873,6 +3877,1114 @@ function normalizeEduCourseSessionRequestIds(data = {}) {
   return { teamId, planId, sessionId };
 }
 
+function isCourseLinkedEventData(eventData) {
+  return !!eventData
+    && eventData.courseLinked === true
+    && sanitizeStr(eventData.courseLinkSource, 80) === COURSE_LINK_SOURCE_EDU_LESSON;
+}
+
+function getCourseLinkedEventValidationFailure(eventData, courseLinkId) {
+  if (!isCourseLinkedEventData(eventData)) return "event_not_course_linked";
+  const safeCourseLinkId = sanitizeStr(courseLinkId, 128);
+  if (!safeCourseLinkId || sanitizeStr(eventData.courseLinkId, 128) !== safeCourseLinkId) {
+    return "invalid_course_event_link";
+  }
+  return null;
+}
+
+function isPrivateCourseLinkedEventData(eventData) {
+  return isCourseLinkedEventData(eventData) && eventData.privateEvent === true;
+}
+
+function isCourseLinkedRegistrationData(regData) {
+  if (!regData) return false;
+  const source = sanitizeStr(regData.source, 80) || sanitizeStr(regData.courseLinkSource, 80);
+  const state = sanitizeStr(regData.courseLinkState, 80);
+  return source === COURSE_LINK_SOURCE_EDU_LESSON
+    || state === COURSE_LINK_STATE_CREATED_BY_COURSE
+    || state === COURSE_LINK_STATE_PRIORITY_OVERLAY
+    || regData.coursePriority === true
+    || !!sanitizeStr(regData.courseLinkId, 128)
+    || !!sanitizeStr(regData.courseStudentId, 100);
+}
+
+function courseLinkedEventManagedByCourseError() {
+  return new HttpsError("failed-precondition", "COURSE_LINKED_EVENT_MANAGED_BY_COURSE", {
+    code: "COURSE_LINKED_EVENT_MANAGED_BY_COURSE",
+  });
+}
+
+function assertOrdinaryEventRegistrationAllowed(eventData) {
+  if (!isPrivateCourseLinkedEventData(eventData)) return;
+  throw new HttpsError("failed-precondition", "COURSE_LINKED_EVENT_PRIVATE_REGISTRATION", {
+    code: "COURSE_LINKED_EVENT_PRIVATE_REGISTRATION",
+  });
+}
+
+function assertCourseLinkedRegistrationNotManagedByCourse(regs = []) {
+  const protectedReg = regs.find((reg) => isCourseLinkedRegistrationData(reg));
+  if (!protectedReg) return;
+  throw new HttpsError("failed-precondition", "COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE", {
+    code: "COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE",
+    registrationId: sanitizeStr(protectedReg.id || protectedReg._docId, 100),
+  });
+}
+
+function normalizeCourseDatePart(value) {
+  const raw = sanitizeStr(value, 20).replace(/-/g, "/");
+  const match = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return raw;
+  const year = match[1];
+  const month = String(Number(match[2])).padStart(2, "0");
+  const day = String(Number(match[3])).padStart(2, "0");
+  return year + "/" + month + "/" + day;
+}
+
+function normalizeCourseTimePart(value) {
+  const raw = sanitizeStr(value, 20);
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return raw;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return "";
+  return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+}
+
+function normalizeCourseLessonEventDateText(dateValue, startTimeValue, endTimeValue) {
+  const date = normalizeCourseDatePart(dateValue);
+  const start = normalizeCourseTimePart(startTimeValue);
+  const end = normalizeCourseTimePart(endTimeValue);
+  if (!date || !start) return "";
+  return end ? date + " " + start + "~" + end : date + " " + start;
+}
+
+function normalizeNonNegativeInteger(value, fallback = 0) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < 0) return fallback;
+  return Math.floor(numberValue);
+}
+
+function firstSanitizedString(values, maxLen) {
+  for (const value of values) {
+    const safe = sanitizeStr(value, maxLen);
+    if (safe) return safe;
+  }
+  return "";
+}
+
+function generateCourseConvertedEventId() {
+  return "ce_" + Date.now() + "_" + crypto.randomBytes(3).toString("hex");
+}
+
+function courseConvertedEventCapacity(plan, session) {
+  const candidates = [
+    session.maxCapacity, session.capacity, session.max,
+    plan.sessionCapacity, plan.maxCapacity, plan.capacity, plan.max,
+  ];
+  for (const value of candidates) {
+    const normalized = normalizeNonNegativeInteger(value, null);
+    if (normalized !== null) return normalized;
+  }
+  return 0;
+}
+
+function buildCourseLessonEventTitle(plan, session) {
+  const planName = firstSanitizedString([plan.name, plan.title, plan.planName], 100);
+  const sessionTitle = firstSanitizedString([session.title, session.topic, session.focus], 100);
+  const sessionNumber = normalizeNonNegativeInteger(session.sessionNumber || session.number || session.lessonNumber, 0);
+  const suffix = sessionTitle && sessionTitle !== planName
+    ? " - " + sessionTitle
+    : (sessionNumber > 0 ? " #" + sessionNumber : "");
+  return sanitizeStr((planName || "Course Event") + suffix, 120);
+}
+
+function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid, callerName, courseLinkId, eventDate, startDate, endDate, max }) {
+  const eventType = firstSanitizedString([plan.eventType, plan.activityType, "friendly"], 40) || "friendly";
+  return {
+    id: eventId,
+    title: buildCourseLessonEventTitle(plan, session),
+    type: eventType,
+    status: "open",
+    location: firstSanitizedString([session.location, plan.location], 160),
+    date: eventDate,
+    startTimestamp: Timestamp.fromDate(startDate),
+    endTimestamp: endDate ? Timestamp.fromDate(endDate) : null,
+    fee: 0,
+    feeEnabled: false,
+    max,
+    current: 0,
+    realCurrent: 0,
+    waitlist: 0,
+    minAge: 0,
+    notes: firstSanitizedString([session.notes, plan.notes], 500),
+    image: null,
+    sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
+    regOpenTime: null,
+    creator: callerName || callerUid,
+    creatorUid: callerUid,
+    contact: "",
+    gradient: "linear-gradient(135deg,#0d9488,#065f46)",
+    icon: "",
+    countdown: "",
+    participants: [],
+    waitlistNames: [],
+    participantsWithUid: [],
+    waitlistWithUid: [],
+    teamOnly: false,
+    isPublic: false,
+    genderRestrictionEnabled: false,
+    allowedGender: "",
+    privateEvent: true,
+    socialLinksEnabled: false,
+    socialLinks: [],
+    earlyBirdEnabled: false,
+    earlyBirdCost: 0,
+    earlyBirdPolicyVersion: null,
+    regionEnabled: false,
+    region: "",
+    cities: [],
+    creatorTeamId: null,
+    creatorTeamName: null,
+    creatorTeamIds: [],
+    creatorTeamNames: [],
+    delegates: [],
+    delegateUids: [],
+    gpsEnabled: false,
+    lat: null,
+    lng: null,
+    mapAddress: null,
+    mapPlaceId: null,
+    mapProvider: null,
+    mapLocationConfirmed: false,
+    mapLocationUpdatedAt: null,
+    courseLinked: true,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkId,
+    courseLinkStatus: "active",
+    schemaVersion: 2,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+function buildCourseLessonLinkMapping({ eventId, courseLinkId, teamId, planId, sessionId, callerUid }) {
+  return {
+    eventId,
+    courseLinkId,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    teamId,
+    planId,
+    sessionId,
+    planType: "weekly",
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdByUid: callerUid,
+  };
+}
+
+function hasEduCourseStaffAccess(teamData, callerUid, access) {
+  return isTeamStaffForData(teamData, callerUid)
+    || access.isSuperAdmin
+    || access.hasPermission("team.manage_all");
+}
+
+function normalizeCourseLinkAttendanceKind(kind) {
+  const safeKind = sanitizeStr(kind, 20);
+  return safeKind === "leave" ? "leave" : "registered";
+}
+
+function isActiveRegistration(reg = {}) {
+  return reg.status === "confirmed" || reg.status === "waitlisted";
+}
+
+function courseLinkedDocIdPart(value, fallback = "item") {
+  const safe = safeDedupeIdPart(value).slice(0, 80);
+  return safe || fallback;
+}
+
+function courseLinkedRegistrationDocId(courseLinkId, studentId) {
+  return `course_${courseLinkedDocIdPart(courseLinkId, "link").slice(0, 32)}_${courseLinkedDocIdPart(studentId, "student")}`;
+}
+
+function courseLinkedActivityRecordDocId(courseLinkId, studentId) {
+  return `course_ar_${courseLinkedDocIdPart(courseLinkId, "link").slice(0, 32)}_${courseLinkedDocIdPart(studentId, "student")}`;
+}
+
+function getCourseLinkedStudentName(student, fallbackStudentId) {
+  return firstSanitizedString([
+    student?.displayName,
+    student?.name,
+    student?.studentName,
+    fallbackStudentId,
+  ], 80) || "Course Student";
+}
+
+function getCourseLinkedRegistrationUserId(student, fallbackStudentId) {
+  return firstSanitizedString([
+    student?.selfUid,
+    student?.parentUid,
+    student?.uid,
+    student?.lineUserId,
+  ], 128) || `course_student_${courseLinkedDocIdPart(fallbackStudentId, "student")}`;
+}
+
+function getCourseLinkedStudentIds(student, fallbackStudentId) {
+  return Array.from(new Set([
+    sanitizeStr(fallbackStudentId, 100),
+    sanitizeStr(student?.id, 100),
+    sanitizeStr(student?._docId, 100),
+  ].filter(Boolean)));
+}
+
+function getCourseLinkedCanonicalStudentId(student, fallbackStudentId) {
+  return sanitizeStr(student?.id, 100)
+    || sanitizeStr(student?._docId, 100)
+    || sanitizeStr(fallbackStudentId, 100);
+}
+
+function getCourseLinkedRegistrationKey(reg = {}) {
+  const studentId = sanitizeStr(reg.courseStudentId, 100);
+  if (!studentId || !isCourseLinkedRegistrationData(reg)) return "";
+  return `course_student_${studentId}`;
+}
+
+function findCourseLinkedRegistrationForStudent(regs = [], courseLinkId, studentIds = []) {
+  const safeLinkId = sanitizeStr(courseLinkId, 128);
+  const ids = new Set((Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean));
+  return (Array.isArray(regs) ? regs : []).find((reg) => {
+    if (!isCourseLinkedRegistrationData(reg)) return false;
+    if (safeLinkId && sanitizeStr(reg.courseLinkId, 128) && sanitizeStr(reg.courseLinkId, 128) !== safeLinkId) return false;
+    return ids.has(sanitizeStr(reg.courseStudentId, 100));
+  }) || null;
+}
+
+function findManualRegistrationToAdoptForCourse(regs = [], userId) {
+  const safeUserId = sanitizeStr(userId, 128);
+  if (!safeUserId) return null;
+  return (Array.isArray(regs) ? regs : []).find((reg) => {
+    if (!isActiveRegistration(reg)) return false;
+    if (isCourseLinkedRegistrationData(reg)) return false;
+    if (reg.participantType === "companion") return false;
+    return sanitizeStr(reg.userId, 128) === safeUserId;
+  }) || null;
+}
+
+function findCourseLinkedActivityRecordForStudent(records = [], courseLinkId, studentIds = []) {
+  const safeLinkId = sanitizeStr(courseLinkId, 128);
+  const ids = new Set((Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean));
+  return (Array.isArray(records) ? records : []).find((record) => {
+    if (!hasCourseLinkedActivityRecordData(record)) return false;
+    if (safeLinkId && sanitizeStr(record.courseLinkId, 128) && sanitizeStr(record.courseLinkId, 128) !== safeLinkId) return false;
+    return ids.has(sanitizeStr(record.courseStudentId, 100));
+  }) || null;
+}
+
+function hasCourseLinkedActivityRecordData(record = {}) {
+  return sanitizeStr(record.source, 80) === COURSE_LINK_SOURCE_EDU_LESSON
+    || sanitizeStr(record.courseLinkSource, 80) === COURSE_LINK_SOURCE_EDU_LESSON
+    || sanitizeStr(record.courseLinkState, 80) === COURSE_LINK_STATE_CREATED_BY_COURSE
+    || !!sanitizeStr(record.courseLinkId, 128)
+    || !!sanitizeStr(record.courseStudentId, 100);
+}
+
+function findManualActivityRecordForCourseAdoption(records = [], userId) {
+  const safeUserId = sanitizeStr(userId, 128);
+  if (!safeUserId) return null;
+  return (Array.isArray(records) ? records : []).find((record) => {
+    if (hasCourseLinkedActivityRecordData(record)) return false;
+    if (sanitizeStr(record.uid, 128) !== safeUserId) return false;
+    const status = sanitizeStr(record.status, 32);
+    return status !== "cancelled" && status !== "removed";
+  }) || null;
+}
+
+function getRegistrationRegisteredAtMillis(reg = {}, fallback = Number.NEGATIVE_INFINITY) {
+  const ms = getTimestampMillis(reg.registeredAt);
+  return Number.isFinite(ms) ? ms : fallback;
+}
+
+function compareLatestRegistrationForDemotion(a = {}, b = {}) {
+  const timeDiff = getRegistrationRegisteredAtMillis(b) - getRegistrationRegisteredAtMillis(a);
+  if (timeDiff) return timeDiff;
+  const promotionDiff = Number(b.promotionOrder || 0) - Number(a.promotionOrder || 0);
+  if (promotionDiff) return promotionDiff;
+  return String(b._docId || b.id || "").localeCompare(String(a._docId || a.id || ""));
+}
+
+function findLatestDisplaceableConfirmedRegistration(simRegs = [], protectedDocIds = new Set()) {
+  return (Array.isArray(simRegs) ? simRegs : [])
+    .filter((reg) => reg.status === "confirmed")
+    .filter((reg) => !isCourseLinkedRegistrationData(reg))
+    .filter((reg) => !protectedDocIds.has(sanitizeStr(reg._docId, 100)))
+    .slice()
+    .sort(compareLatestRegistrationForDemotion)[0] || null;
+}
+
+function findLatestCourseLinkedConfirmedRegistration(simRegs = [], protectedDocIds = new Set()) {
+  return (Array.isArray(simRegs) ? simRegs : [])
+    .filter((reg) => reg.status === "confirmed")
+    .filter((reg) => isCourseLinkedRegistrationData(reg))
+    .filter((reg) => !protectedDocIds.has(sanitizeStr(reg._docId, 100)))
+    .slice()
+    .sort(compareLatestRegistrationForDemotion)[0] || null;
+}
+
+function demoteConfirmedRegistrationsToCapacity(eventData = {}, simRegs = [], protectedDocIds = new Set()) {
+  const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
+  const demoted = [];
+  while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount) {
+    const candidate = findLatestDisplaceableConfirmedRegistration(simRegs, protectedDocIds)
+      || findLatestCourseLinkedConfirmedRegistration(simRegs, protectedDocIds);
+    if (!candidate) break;
+    candidate.status = "waitlisted";
+    demoted.push(candidate);
+  }
+  return demoted;
+}
+
+function buildCourseLinkedRegistrationData({
+  eventId,
+  courseLinkId,
+  teamId,
+  planId,
+  sessionId,
+  student,
+  studentId,
+  userId,
+  userName,
+  status,
+  existingReg,
+  nowTimestamp,
+  source,
+}) {
+  const reg = {
+    id: sanitizeStr(existingReg?.id, 120) || sanitizeStr(existingReg?._docId, 120) || courseLinkedRegistrationDocId(courseLinkId, studentId),
+    eventId,
+    userId,
+    userName,
+    participantType: "self",
+    companionId: null,
+    companionName: null,
+    status,
+    promotionOrder: Number.isFinite(Number(existingReg?.promotionOrder)) ? Number(existingReg.promotionOrder) : 0,
+    registeredAt: existingReg?.registeredAt || nowTimestamp,
+    source: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkState: COURSE_LINK_STATE_CREATED_BY_COURSE,
+    coursePriority: true,
+    courseLinkId,
+    courseTeamId: teamId,
+    coursePlanId: planId,
+    courseSessionId: sessionId,
+    courseStudentId: studentId,
+    courseStudentDocId: sanitizeStr(student?._docId, 100) || null,
+    linkedAttendanceKey: `${teamId}|${planId}|${sessionId}|${studentId}`,
+    courseAttendanceKind: normalizeCourseLinkAttendanceKind(status === "cancelled" ? "leave" : "registered"),
+    coursePriorityAppliedAt: FieldValue.serverTimestamp(),
+    courseSyncSource: sanitizeStr(source, 80) || "course_sync",
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (existingReg?.identitySnapshot) reg.identitySnapshot = existingReg.identitySnapshot;
+  if (!existingReg) reg.createdAt = FieldValue.serverTimestamp();
+  if (existingReg && !isCourseLinkedRegistrationData(existingReg)) {
+    reg.adoptedFromManualRegistration = true;
+    reg.adoptedAt = FieldValue.serverTimestamp();
+  }
+  return reg;
+}
+
+function buildCourseLinkedActivityRecordData({
+  eventId,
+  eventData,
+  courseLinkId,
+  teamId,
+  planId,
+  sessionId,
+  studentId,
+  userId,
+  status,
+  existingRecord,
+}) {
+  const dateParts = sanitizeStr(eventData?.date, 80).split(" ")[0].split("/");
+  const dateText = dateParts.length >= 3 ? `${dateParts[1]}/${dateParts[2]}` : "";
+  const record = {
+    eventId,
+    name: sanitizeStr(eventData?.title, 120),
+    date: dateText,
+    status: status === "waitlisted" ? "waitlisted" : (status === "cancelled" ? "cancelled" : "registered"),
+    uid: userId,
+    eventType: sanitizeStr(eventData?.type, 40),
+    source: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkState: COURSE_LINK_STATE_CREATED_BY_COURSE,
+    coursePriority: true,
+    courseLinkId,
+    courseTeamId: teamId,
+    coursePlanId: planId,
+    courseSessionId: sessionId,
+    courseStudentId: studentId,
+    linkedAttendanceKey: `${teamId}|${planId}|${sessionId}|${studentId}`,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (!existingRecord) record.createdAt = FieldValue.serverTimestamp();
+  if (existingRecord && !hasCourseLinkedActivityRecordData(existingRecord)) {
+    record.adoptedFromManualRegistration = true;
+    record.adoptedAt = FieldValue.serverTimestamp();
+  }
+  return record;
+}
+
+function rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs = []) {
+  const activeRegs = simRegs.filter((reg) => reg.status === "confirmed" || reg.status === "waitlisted");
+  const occupancy = rebuildOccupancy({ ...eventData, max: eventData.max || 0, status: eventData.status }, activeRegs);
+  return {
+    current: occupancy.current,
+    realCurrent: occupancy.realCurrent,
+    waitlist: occupancy.waitlist,
+    participants: occupancy.participants,
+    waitlistNames: occupancy.waitlistNames,
+    participantsWithUid: occupancy.participantsWithUid,
+    waitlistWithUid: occupancy.waitlistWithUid,
+    teamReservationSummaries: occupancy.teamReservationSummaries,
+    schemaVersion: 2,
+    status: occupancy.status,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+function findActivityRecordForRegistration(records = [], reg = {}, requiredStatus = "") {
+  if (!reg || reg.participantType === "companion") return null;
+  const uid = sanitizeStr(reg.userId, 128);
+  const isCourseLinkedReg = isCourseLinkedRegistrationData(reg);
+  const courseLinkId = sanitizeStr(reg.courseLinkId, 128);
+  const courseStudentId = sanitizeStr(reg.courseStudentId, 100);
+  return (Array.isArray(records) ? records : []).find((record) => {
+    if (requiredStatus && sanitizeStr(record.status, 32) !== requiredStatus) return false;
+    const status = sanitizeStr(record.status, 32);
+    if (status === "cancelled" || status === "removed") return false;
+    if (isCourseLinkedReg) {
+      if (!hasCourseLinkedActivityRecordData(record)) return false;
+      if (courseLinkId && sanitizeStr(record.courseLinkId, 128) !== courseLinkId) return false;
+      if (courseStudentId && sanitizeStr(record.courseStudentId, 100) !== courseStudentId) return false;
+      return !!courseLinkId || !!courseStudentId ? true : (!!uid && sanitizeStr(record.uid, 128) === uid);
+    }
+    if (hasCourseLinkedActivityRecordData(record)) return false;
+    if (!uid) return false;
+    return sanitizeStr(record.uid, 128) === uid;
+  }) || null;
+}
+
+async function syncCourseAttendanceToLinkedEvent(context = {}) {
+  const teamId = sanitizeStr(context.teamId, 100);
+  const planId = sanitizeStr(context.planId, 100);
+  const sessionId = sanitizeStr(context.sessionId, 100);
+  const requestedStudentId = sanitizeStr(context.studentId, 100);
+  const syncKind = normalizeCourseLinkAttendanceKind(context.kind);
+  const source = sanitizeStr(context.source, 80) || "course_sync";
+  if (!teamId || !planId || !sessionId || !requestedStudentId) {
+    return { success: true, synced: false, reason: "missing_context", teamId, planId, sessionId, studentId: requestedStudentId };
+  }
+
+  const teamDoc = await getTeamDocByTeamId(teamId);
+  if (!teamDoc) return { success: false, synced: false, reason: "team_not_found", teamId, planId, sessionId, studentId: requestedStudentId };
+  const teamRef = teamDoc.ref;
+  const planRef = teamRef.collection("coursePlans").doc(planId);
+  const sessionRef = planRef.collection("sessions").doc(sessionId);
+  const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);
+  const [planSnap, sessionSnap, linkSnap, studentsById] = await Promise.all([
+    planRef.get(),
+    sessionRef.get(),
+    linkRef.get(),
+    fetchEduRosterStudentsByIds(teamRef, [requestedStudentId]),
+  ]);
+  if (!linkSnap.exists) return { success: true, synced: false, reason: "course_event_link_not_found", teamId, planId, sessionId, studentId: requestedStudentId };
+  if (!planSnap.exists) return { success: false, synced: false, reason: "plan_not_found", teamId, planId, sessionId, studentId: requestedStudentId };
+  if (!sessionSnap.exists) return { success: false, synced: false, reason: "session_not_found", teamId, planId, sessionId, studentId: requestedStudentId };
+
+  const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+  if (sanitizeStr(plan.planType, 32) !== "weekly") {
+    return { success: false, synced: false, reason: "non_weekly_plan", teamId, planId, sessionId, studentId: requestedStudentId };
+  }
+  const link = linkSnap.data() || {};
+  const courseLinkId = sanitizeStr(link.courseLinkId, 128);
+  const eventId = sanitizeStr(link.eventId, 100);
+  if (!courseLinkId || !eventId) return { success: false, synced: false, reason: "invalid_course_event_link", teamId, planId, sessionId, studentId: requestedStudentId };
+
+  const student = studentsById.get(requestedStudentId) || Array.from(studentsById.values())[0] || null;
+  if (!student) return { success: false, synced: false, reason: "student_not_found", teamId, planId, sessionId, studentId: requestedStudentId };
+  const canonicalStudentId = getCourseLinkedCanonicalStudentId(student, requestedStudentId);
+  const studentAliases = getCourseLinkedStudentIds(student, requestedStudentId);
+  const userId = getCourseLinkedRegistrationUserId(student, canonicalStudentId);
+  const userName = getCourseLinkedStudentName(student, canonicalStudentId);
+  const eventRef = db.collection("events").doc(eventId);
+
+  const result = await db.runTransaction(async (transaction) => {
+    const eventSnap = await transaction.get(eventRef);
+    if (!eventSnap.exists) return { success: false, synced: false, reason: "event_not_found" };
+    const eventData = { id: eventSnap.id, ...(eventSnap.data() || {}) };
+    const linkValidationFailure = getCourseLinkedEventValidationFailure(eventData, courseLinkId);
+    if (linkValidationFailure) return { success: false, synced: false, reason: linkValidationFailure };
+
+    const regsSnap = await transaction.get(eventRef.collection("registrations"));
+    const arsSnap = await transaction.get(eventRef.collection("activityRecords"));
+    const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const eventPublicId = sanitizeStr(eventData.id || eventSnap.id, 100);
+    const existingCourseReg = findCourseLinkedRegistrationForStudent(allRegs, courseLinkId, studentAliases);
+    const manualRegToAdopt = !existingCourseReg && syncKind === "registered"
+      ? findManualRegistrationToAdoptForCourse(allRegs, userId)
+      : null;
+    const targetExistingReg = existingCourseReg || manualRegToAdopt || null;
+    const targetRegDocId = sanitizeStr(targetExistingReg?._docId, 100) || courseLinkedRegistrationDocId(courseLinkId, canonicalStudentId);
+    const targetRegRef = eventRef.collection("registrations").doc(targetRegDocId);
+    const existingCourseAr = findCourseLinkedActivityRecordForStudent(allArs, courseLinkId, studentAliases);
+    const manualArToAdopt = !existingCourseAr && manualRegToAdopt
+      ? findManualActivityRecordForCourseAdoption(allArs, userId)
+      : null;
+    const targetArRecord = existingCourseAr || manualArToAdopt || null;
+    const targetArDocId = sanitizeStr(targetArRecord?._docId, 100) || courseLinkedActivityRecordDocId(courseLinkId, canonicalStudentId);
+    const targetArRef = eventRef.collection("activityRecords").doc(targetArDocId);
+    const nowTimestamp = Timestamp.now();
+    const nowISOString = nowTimestamp.toDate().toISOString();
+    const simRegs = allRegs.map((reg) => ({ ...reg }));
+    const targetIndex = simRegs.findIndex((reg) => sanitizeStr(reg._docId, 100) === targetRegDocId);
+    const targetAlreadyConfirmed = sanitizeStr(targetExistingReg?.status, 32) === "confirmed";
+    const protectedDocIds = new Set([targetRegDocId]);
+    const promoted = [];
+    const displaced = [];
+    let courseRegistrationStatus = "confirmed";
+    let changed = false;
+
+    if (syncKind === "leave") {
+      if (!existingCourseReg || targetIndex < 0) {
+        return { success: true, synced: false, reason: "course_registration_not_found" };
+      }
+      const wasConfirmed = simRegs[targetIndex].status === "confirmed";
+      if (isActiveRegistration(simRegs[targetIndex])) {
+        simRegs[targetIndex].status = "cancelled";
+        changed = true;
+        transaction.update(targetRegRef, {
+          status: "cancelled",
+          courseAttendanceKind: "leave",
+          cancelledAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      transaction.set(targetArRef, buildCourseLinkedActivityRecordData({
+        eventId: eventPublicId,
+        eventData,
+        courseLinkId,
+        teamId,
+        planId,
+        sessionId,
+        studentId: canonicalStudentId,
+        userId,
+        status: "cancelled",
+        existingRecord: targetArRecord,
+      }), { merge: true });
+      if (wasConfirmed) {
+        promoted.push(...promoteWaitlistForAvailableSeats(eventData, simRegs, { prioritizeCourseLinkedCandidates: true }));
+        for (const candidate of promoted) {
+          const update = {
+            status: "confirmed",
+            promotedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+          transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
+          const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
+          if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered", updatedAt: FieldValue.serverTimestamp() });
+        }
+      }
+      transaction.update(eventRef, rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs));
+      return {
+        success: true,
+        synced: changed,
+        action: "leave",
+        eventId: eventPublicId,
+        courseLinkId,
+        studentId: canonicalStudentId,
+        registrationId: targetRegDocId,
+        promotedCount: promoted.length,
+        displacedCount: 0,
+      };
+    }
+
+    const regData = buildCourseLinkedRegistrationData({
+      eventId: eventPublicId,
+      courseLinkId,
+      teamId,
+      planId,
+      sessionId,
+      student,
+      studentId: canonicalStudentId,
+      userId,
+      userName,
+      status: courseRegistrationStatus,
+      existingReg: targetExistingReg,
+      nowTimestamp,
+      source,
+    });
+    const simCourseReg = {
+      ...(targetExistingReg || {}),
+      ...regData,
+      _docId: targetRegDocId,
+      registeredAt: targetExistingReg?.registeredAt || nowISOString,
+      status: courseRegistrationStatus,
+    };
+    if (targetIndex >= 0) simRegs[targetIndex] = simCourseReg;
+    else simRegs.push(simCourseReg);
+
+    const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
+    while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount) {
+      const candidate = findLatestDisplaceableConfirmedRegistration(simRegs, protectedDocIds);
+      if (!candidate) {
+        const targetReg = simRegs.find((reg) => sanitizeStr(reg._docId, 100) === targetRegDocId);
+        if (!targetAlreadyConfirmed && targetReg && targetReg.status === "confirmed") {
+          targetReg.status = "waitlisted";
+          courseRegistrationStatus = "waitlisted";
+        }
+        break;
+      }
+      candidate.status = "waitlisted";
+      displaced.push(candidate);
+    }
+    regData.status = courseRegistrationStatus;
+    transaction.set(targetRegRef, regData, { merge: true });
+    for (const candidate of displaced) {
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), {
+        status: "waitlisted",
+        demotedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const ar = findActivityRecordForRegistration(allArs, candidate, "registered");
+      if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "waitlisted", updatedAt: FieldValue.serverTimestamp() });
+    }
+    transaction.set(targetArRef, buildCourseLinkedActivityRecordData({
+      eventId: eventPublicId,
+      eventData,
+      courseLinkId,
+      teamId,
+      planId,
+      sessionId,
+      studentId: canonicalStudentId,
+      userId,
+      status: courseRegistrationStatus,
+      existingRecord: targetArRecord,
+    }), { merge: true });
+    transaction.update(eventRef, rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs));
+
+    return {
+      success: true,
+      synced: true,
+      action: "registered",
+      eventId: eventPublicId,
+      courseLinkId,
+      studentId: canonicalStudentId,
+      registrationId: targetRegDocId,
+      adoptedManualRegistration: !!manualRegToAdopt,
+      promotedCount: 0,
+      displacedCount: displaced.length,
+      displaced: displaced.map((reg) => ({ id: reg.id, docId: reg._docId, userId: reg.userId, userName: reg.userName })),
+    };
+  });
+
+  return {
+    ...result,
+    teamId,
+    planId,
+    sessionId,
+    studentId: result.studentId || canonicalStudentId,
+  };
+}
+
+async function validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap = null, linkSnap = null } = {}) {
+  const safeTeamId = sanitizeStr(teamId, 100);
+  const safePlanId = sanitizeStr(planId, 100);
+  const safeSessionId = sanitizeStr(sessionId, 100);
+  const resolvedTeamDoc = teamDoc || await getTeamDocByTeamId(safeTeamId);
+  if (!resolvedTeamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+  const planRef = resolvedTeamDoc.ref.collection("coursePlans").doc(safePlanId);
+  const linkRef = planRef.collection("sessionEventLinks").doc(safeSessionId);
+  const resolvedPlanSnap = planSnap || await planRef.get();
+  const resolvedLinkSnap = linkSnap || await linkRef.get();
+  if (!resolvedLinkSnap.exists) {
+    return { success: true, checked: false, reason: "course_event_link_not_found", teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId };
+  }
+  if (!resolvedPlanSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+  const plan = { id: resolvedPlanSnap.id, _docId: resolvedPlanSnap.id, ...(resolvedPlanSnap.data() || {}) };
+  if (sanitizeStr(plan.planType, 32) !== "weekly") {
+    return { success: true, checked: false, reason: "non_weekly_plan", teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId };
+  }
+  const link = resolvedLinkSnap.data() || {};
+  const eventId = sanitizeStr(link.eventId, 100);
+  const courseLinkId = sanitizeStr(link.courseLinkId, 128);
+  if (!eventId || !courseLinkId) {
+    return { success: false, checked: true, reason: "invalid_course_event_link", teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId, eventId, courseLinkId };
+  }
+  const eventSnap = await db.collection("events").doc(eventId).get();
+  if (!eventSnap.exists) {
+    return { success: false, checked: true, reason: "event_not_found", teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId, eventId, courseLinkId };
+  }
+  const eventData = { id: eventSnap.id, ...(eventSnap.data() || {}) };
+  const linkValidationFailure = getCourseLinkedEventValidationFailure(eventData, courseLinkId);
+  if (linkValidationFailure) {
+    return { success: false, checked: true, reason: linkValidationFailure, teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId, eventId, courseLinkId };
+  }
+  return { success: true, checked: true, teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId, eventId, courseLinkId };
+}
+
+async function syncCourseLessonRosterToEventInternal({ teamId, planId, sessionId, source = "roster_sync" } = {}) {
+  const safeTeamId = sanitizeStr(teamId, 100);
+  const safePlanId = sanitizeStr(planId, 100);
+  const safeSessionId = sanitizeStr(sessionId, 100);
+  const teamDoc = await getTeamDocByTeamId(safeTeamId);
+  if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+  const planRef = teamDoc.ref.collection("coursePlans").doc(safePlanId);
+  const sessionRef = planRef.collection("sessions").doc(safeSessionId);
+  const linkRef = planRef.collection("sessionEventLinks").doc(safeSessionId);
+  const [planSnap, sessionSnap, linkSnap] = await Promise.all([planRef.get(), sessionRef.get(), linkRef.get()]);
+  if (!linkSnap.exists) throw new HttpsError("not-found", "COURSE_EVENT_LINK_NOT_FOUND", { code: "COURSE_EVENT_LINK_NOT_FOUND" });
+  if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+  if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+  const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+  const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+  if (sanitizeStr(plan.planType, 32) !== "weekly") {
+    throw new HttpsError("failed-precondition", "ONLY_WEEKLY_COURSE_CAN_SYNC", { code: "ONLY_WEEKLY_COURSE_CAN_SYNC" });
+  }
+  const attendanceByStudentId = await fetchEduRosterAttendanceByStudentId({
+    teamId: safeTeamId,
+    planId: safePlanId,
+    sessionId: safeSessionId,
+    date: sanitizeStr(session.date, 20),
+  });
+  const rosterStudentIds = Array.isArray(session.studentIds)
+    ? Array.from(new Set(session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)))
+    : [];
+  const entries = rosterStudentIds.slice(0, 200)
+    .map((studentId) => [studentId, attendanceByStudentId[studentId] || "leave"]);
+  const synced = [];
+  const skipped = [];
+  for (const [studentId, kind] of entries) {
+    const hasAttendanceOverlay = Object.prototype.hasOwnProperty.call(attendanceByStudentId, studentId);
+    const syncKind = normalizeCourseLinkAttendanceKind(kind);
+    if (!hasAttendanceOverlay && syncKind === "leave") {
+      skipped.push({ studentId, kind: syncKind, reason: "default_leave" });
+      continue;
+    }
+    const result = await syncCourseAttendanceToLinkedEvent({
+      teamId: safeTeamId,
+      planId: safePlanId,
+      sessionId: safeSessionId,
+      studentId,
+      kind: syncKind,
+      source,
+    });
+    if (result?.success === false) {
+      throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", result);
+    }
+    if (result.synced) synced.push(result);
+    else skipped.push({ studentId, kind: syncKind, reason: result.reason || "not_changed" });
+  }
+  const link = linkSnap.data() || {};
+  const orphanCleanup = await cancelCourseLinkedRegistrationsOutsideRoster({
+    eventId: sanitizeStr(link.eventId, 100),
+    courseLinkId: sanitizeStr(link.courseLinkId, 128),
+    teamId: safeTeamId,
+    planId: safePlanId,
+    sessionId: safeSessionId,
+    rosterStudentIds,
+    source,
+  });
+  const orphanCleanupFailed = orphanCleanup?.success === false;
+  return {
+    success: !orphanCleanupFailed,
+    eventId: sanitizeStr(link.eventId, 100),
+    courseLinkId: sanitizeStr(link.courseLinkId, 128),
+    syncedCount: synced.length,
+    orphanCancelledCount: orphanCleanup.cancelledCount || 0,
+    promotedCount: orphanCleanup.promotedCount || 0,
+    pendingCount: Math.max(0, rosterStudentIds.length - entries.length),
+    skipped,
+    synced,
+    orphanCleanup,
+    reason: orphanCleanupFailed ? (orphanCleanup.reason || "orphan_cleanup_failed") : null,
+    syncCursor: entries.length >= 200 ? entries.length : null,
+    phase: "phase2_roster_sync",
+  };
+}
+
+async function cancelCourseLinkedRegistrationsOutsideRoster({
+  eventId,
+  courseLinkId,
+  teamId,
+  planId,
+  sessionId,
+  rosterStudentIds,
+  source = "roster_sync",
+} = {}) {
+  const safeEventId = sanitizeStr(eventId, 100);
+  const safeCourseLinkId = sanitizeStr(courseLinkId, 128);
+  if (!safeEventId || !safeCourseLinkId) {
+    return { success: false, cancelledCount: 0, promotedCount: 0, reason: "missing_link" };
+  }
+  const safeTeamId = sanitizeStr(teamId, 100);
+  const safePlanId = sanitizeStr(planId, 100);
+  const safeSessionId = sanitizeStr(sessionId, 100);
+  const rosterSet = new Set((Array.isArray(rosterStudentIds) ? rosterStudentIds : [])
+    .map((value) => sanitizeStr(value, 100))
+    .filter(Boolean));
+  const eventRef = db.collection("events").doc(safeEventId);
+  return db.runTransaction(async (transaction) => {
+    const eventSnap = await transaction.get(eventRef);
+    if (!eventSnap.exists) return { success: false, cancelledCount: 0, promotedCount: 0, reason: "event_not_found" };
+    const eventData = { id: eventSnap.id, ...(eventSnap.data() || {}) };
+    const linkValidationFailure = getCourseLinkedEventValidationFailure(eventData, safeCourseLinkId);
+    if (linkValidationFailure) {
+      return { success: false, cancelledCount: 0, promotedCount: 0, reason: linkValidationFailure };
+    }
+
+    const regsSnap = await transaction.get(eventRef.collection("registrations"));
+    const arsSnap = await transaction.get(eventRef.collection("activityRecords"));
+    const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const orphanRegs = allRegs.filter((reg) => {
+      if (!isCourseLinkedRegistrationData(reg)) return false;
+      if (!isActiveRegistration(reg)) return false;
+      if (sanitizeStr(reg.courseLinkId, 128) !== safeCourseLinkId) return false;
+      const regTeamId = sanitizeStr(reg.courseTeamId, 100);
+      const regPlanId = sanitizeStr(reg.coursePlanId, 100);
+      const regSessionId = sanitizeStr(reg.courseSessionId, 100);
+      if (regTeamId && regTeamId !== safeTeamId) return false;
+      if (regPlanId && regPlanId !== safePlanId) return false;
+      if (regSessionId && regSessionId !== safeSessionId) return false;
+      const studentId = sanitizeStr(reg.courseStudentId, 100);
+      return studentId && !rosterSet.has(studentId);
+    });
+    if (!orphanRegs.length) {
+      return { success: true, cancelledCount: 0, promotedCount: 0, reason: "no_orphans" };
+    }
+
+    const simRegs = allRegs.map((reg) => ({ ...reg }));
+    let hadConfirmed = false;
+    for (const orphan of orphanRegs) {
+      const docId = sanitizeStr(orphan._docId, 100);
+      const studentId = sanitizeStr(orphan.courseStudentId, 100);
+      const simReg = simRegs.find((reg) => sanitizeStr(reg._docId, 100) === docId);
+      if (simReg?.status === "confirmed") hadConfirmed = true;
+      if (simReg) simReg.status = "cancelled";
+      transaction.update(eventRef.collection("registrations").doc(docId), {
+        status: "cancelled",
+        courseAttendanceKind: "leave",
+        courseSyncSource: sanitizeStr(source, 80) || "roster_sync",
+        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const courseAr = findCourseLinkedActivityRecordForStudent(allArs, safeCourseLinkId, [studentId]);
+      if (courseAr?._docId) {
+        transaction.update(eventRef.collection("activityRecords").doc(courseAr._docId), {
+          status: "cancelled",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    const promoted = hadConfirmed ? promoteWaitlistForAvailableSeats(eventData, simRegs, { prioritizeCourseLinkedCandidates: true }) : [];
+    for (const candidate of promoted) {
+      const update = {
+        status: "confirmed",
+        promotedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
+      const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
+      if (ar) {
+        transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+          status: "registered",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    transaction.update(eventRef, rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs));
+    return {
+      success: true,
+      cancelledCount: orphanRegs.length,
+      promotedCount: promoted.length,
+      cancelledStudentIds: orphanRegs.map((reg) => sanitizeStr(reg.courseStudentId, 100)).filter(Boolean),
+    };
+  });
+}
+
+function sanitizeEduCourseSessionUpdates(rawUpdates = {}) {
+  const raw = rawUpdates && typeof rawUpdates === "object" ? rawUpdates : {};
+  const out = {};
+  const setString = (key, maxLen) => {
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) return;
+    out[key] = sanitizeStr(raw[key], maxLen);
+  };
+  [
+    ["title", 120],
+    ["status", 32],
+    ["date", 20],
+    ["startTime", 20],
+    ["endTime", 20],
+    ["location", 160],
+    ["managerName", 80],
+    ["managerContact", 160],
+    ["coachName", 80],
+    ["coachContact", 160],
+    ["focus", 300],
+    ["notes", 1000],
+    ["autoSource", 80],
+  ].forEach(([key, maxLen]) => setString(key, maxLen));
+  if (Object.prototype.hasOwnProperty.call(raw, "capacity")) {
+    out.capacity = raw.capacity === null || raw.capacity === ""
+      ? null
+      : normalizeNonNegativeInteger(raw.capacity, null);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "studentIds")) {
+    out.studentIds = Array.from(new Set((Array.isArray(raw.studentIds) ? raw.studentIds : [])
+      .map((value) => sanitizeStr(value, 100))
+      .filter(Boolean))).slice(0, 500);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "assistantCoachNames")) {
+    out.assistantCoachNames = (Array.isArray(raw.assistantCoachNames) ? raw.assistantCoachNames : [])
+      .map((value) => sanitizeStr(value, 80))
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "assistantCoaches")) {
+    out.assistantCoaches = (Array.isArray(raw.assistantCoaches) ? raw.assistantCoaches : [])
+      .map((item) => ({
+        name: sanitizeStr(item?.name, 80),
+        contact: sanitizeStr(item?.contact, 160),
+        role: sanitizeStr(item?.role, 80),
+      }))
+      .filter((item) => item.name || item.contact || item.role)
+      .slice(0, 20);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "sessionNumber")) {
+    const normalized = normalizeNonNegativeInteger(raw.sessionNumber, null);
+    if (normalized !== null) out.sessionNumber = normalized;
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "autoGenerated")) {
+    out.autoGenerated = raw.autoGenerated === true;
+  }
+  return out;
+}
+
+async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId, sessionId, source = "session_update" } = {}) {
+  const safeTeamId = sanitizeStr(teamId, 100);
+  const safePlanId = sanitizeStr(planId, 100);
+  const safeSessionId = sanitizeStr(sessionId, 100);
+  const teamDoc = await getTeamDocByTeamId(safeTeamId);
+  if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+  const planRef = teamDoc.ref.collection("coursePlans").doc(safePlanId);
+  const sessionRef = planRef.collection("sessions").doc(safeSessionId);
+  const linkRef = planRef.collection("sessionEventLinks").doc(safeSessionId);
+  const [planSnap, sessionSnap, linkSnap] = await Promise.all([planRef.get(), sessionRef.get(), linkRef.get()]);
+  if (!linkSnap.exists) return { success: true, synced: false, reason: "course_event_link_not_found" };
+  if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+  if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+  const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+  const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+  if (sanitizeStr(plan.planType, 32) !== "weekly") {
+    return { success: true, synced: false, reason: "non_weekly_plan" };
+  }
+  const link = linkSnap.data() || {};
+  const eventId = sanitizeStr(link.eventId, 100);
+  const courseLinkId = sanitizeStr(link.courseLinkId, 128);
+  const eventRef = eventId ? db.collection("events").doc(eventId) : null;
+  if (!eventRef || !courseLinkId) return { success: false, synced: false, reason: "invalid_course_event_link" };
+
+  const date = firstSanitizedString([session.date], 20);
+  const startTime = firstSanitizedString([session.startTime, plan.startTime, plan.timeStart], 20);
+  const endTime = firstSanitizedString([session.endTime, plan.endTime, plan.timeEnd], 20);
+  const eventDate = normalizeCourseLessonEventDateText(date, startTime, endTime);
+  const startDate = parseEventStartDateInTaipei(eventDate);
+  const endDate = parseEventEndDateInTaipei(eventDate);
+  const max = courseConvertedEventCapacity(plan, session);
+  const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
+  const statusUpdate = ["cancelled", "canceled"].includes(sessionStatus)
+    ? "cancelled"
+    : (sessionStatus === "done" ? "ended" : null);
+
+  return db.runTransaction(async (transaction) => {
+    const eventSnap = await transaction.get(eventRef);
+    if (!eventSnap.exists) return { success: false, synced: false, reason: "event_not_found" };
+    const eventData = { id: eventSnap.id, ...(eventSnap.data() || {}) };
+    const linkValidationFailure = getCourseLinkedEventValidationFailure(eventData, courseLinkId);
+    if (linkValidationFailure) return { success: false, synced: false, reason: linkValidationFailure };
+    const regsSnap = await transaction.get(eventRef.collection("registrations"));
+    const arsSnap = await transaction.get(eventRef.collection("activityRecords"));
+    const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const simRegs = allRegs.map((reg) => ({ ...reg }));
+    const demoted = demoteConfirmedRegistrationsToCapacity({ ...eventData, max }, simRegs);
+    const promoted = statusUpdate
+      ? []
+      : promoteWaitlistForAvailableSeats({ ...eventData, max }, simRegs, { prioritizeCourseLinkedCandidates: true });
+    const update = {
+      title: buildCourseLessonEventTitle(plan, session),
+      location: firstSanitizedString([session.location, plan.location], 160),
+      max,
+      notes: firstSanitizedString([session.notes, plan.notes], 500),
+      sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
+      courseSyncSource: sanitizeStr(source, 80) || "session_update",
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (eventDate && startDate) {
+      update.date = eventDate;
+      update.startTimestamp = Timestamp.fromDate(startDate);
+      update.endTimestamp = endDate ? Timestamp.fromDate(endDate) : null;
+    }
+    for (const candidate of demoted) {
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), {
+        status: "waitlisted",
+        demotedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const ar = findActivityRecordForRegistration(allArs, candidate, "registered");
+      if (ar) {
+        transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+          status: "waitlisted",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    for (const candidate of promoted) {
+      const regUpdate = {
+        status: "confirmed",
+        promotedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (candidate.teamSeatSource) regUpdate.teamSeatSource = candidate.teamSeatSource;
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), regUpdate);
+      const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
+      if (ar) {
+        transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+          status: "registered",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    const occupancyStatus = statusUpdate || "open";
+    Object.assign(update, rebuildCourseLinkedEventOccupancyUpdate({ ...eventData, status: occupancyStatus, ...update }, simRegs));
+    if (statusUpdate) update.status = statusUpdate;
+    transaction.update(eventRef, update);
+    return {
+      success: true,
+      synced: true,
+      eventId,
+      courseLinkId,
+      max,
+      demotedCount: demoted.length,
+      promotedCount: promoted.length,
+    };
+  });
+}
 function courseEnrollmentDocId(studentId) {
   return `enr_${Date.now()}_${sanitizeStr(studentId, 40).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -5343,7 +6455,24 @@ exports.saveEduCourseSelfLeave = onCall(
       writeCount += 1;
     }
 
-    if (writeCount > 0) await batch.commit();
+    if (writeCount > 0) {
+      const linkedPreflight = await validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap });
+      if (linkedPreflight?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", linkedPreflight);
+      }
+      await batch.commit();
+      const linkedSync = await syncCourseAttendanceToLinkedEvent({
+        teamId,
+        planId,
+        sessionId,
+        studentId: targetStudentId,
+        kind: leave ? "leave" : "registered",
+        source: "saveEduCourseSelfLeave",
+      });
+      if (linkedSync?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", linkedSync);
+      }
+    }
     return {
       success: true,
       changed: writeCount,
@@ -5491,7 +6620,24 @@ exports.saveEduCourseSelfAttendance = onCall(
       writeCount += 1;
     }
 
-    if (writeCount > 0) await batch.commit();
+    if (writeCount > 0) {
+      const linkedPreflight = await validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap });
+      if (linkedPreflight?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", linkedPreflight);
+      }
+      await batch.commit();
+      const linkedSync = await syncCourseAttendanceToLinkedEvent({
+        teamId,
+        planId,
+        sessionId,
+        studentId: targetStudentId,
+        kind: targetKind,
+        source: "saveEduCourseSelfAttendance",
+      });
+      if (linkedSync?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", linkedSync);
+      }
+    }
     return {
       success: true,
       changed: writeCount,
@@ -5501,6 +6647,334 @@ exports.saveEduCourseSelfAttendance = onCall(
       sessionId,
       studentId: targetStudentId,
     };
+  }
+);
+
+exports.updateEduCourseSession = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const updates = sanitizeEduCourseSessionUpdates(request.data?.updates || request.data?.payload || {});
+    if (!Object.keys(updates).length) {
+      throw new HttpsError("invalid-argument", "updates is required", { code: "UPDATES_REQUIRED" });
+    }
+
+    const access = await getCallerAccessContext(request);
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    if (!hasEduCourseStaffAccess(teamDoc.data, callerUid, access)) {
+      throw createEduCourseHttpsError("PERMISSION_DENIED");
+    }
+
+    const teamRef = teamDoc.ref;
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const sessionRef = planRef.collection("sessions").doc(sessionId);
+    const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);
+    const [planSnap, sessionSnap, linkSnap] = await Promise.all([planRef.get(), sessionRef.get(), linkRef.get()]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+    if (linkSnap.exists) {
+      const linkedPreflight = await validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap, linkSnap });
+      if (linkedPreflight?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_DETAILS_SYNC_FAILED", linkedPreflight);
+      }
+    }
+
+    await sessionRef.update({
+      ...updates,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    let eventDetailsSync = null;
+    let rosterSync = null;
+    if (linkSnap.exists) {
+      eventDetailsSync = await syncCourseLessonEventDetailsFromSessionInternal({
+        teamId,
+        planId,
+        sessionId,
+        source: "updateEduCourseSession",
+      });
+      if (eventDetailsSync?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_DETAILS_SYNC_FAILED", eventDetailsSync);
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, "studentIds")) {
+        rosterSync = await syncCourseLessonRosterToEventInternal({
+          teamId,
+          planId,
+          sessionId,
+          source: "updateEduCourseSession",
+        });
+        if (rosterSync?.success === false || rosterSync?.orphanCleanup?.success === false) {
+          throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED", rosterSync);
+        }
+      }
+    }
+
+    const updatedSnap = await sessionRef.get();
+    return {
+      success: true,
+      id: sessionId,
+      _docId: sessionId,
+      ...(updatedSnap.exists ? updatedSnap.data() : updates),
+      eventDetailsSync,
+      rosterSync,
+    };
+  }
+);
+exports.saveEduSessionAttendanceChanges = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = sanitizeStr(request.auth.uid, 128);
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const rawChanges = Array.isArray(request.data?.changes) ? request.data.changes : [];
+    const normalized = rawChanges.slice(0, 200)
+      .map((change) => ({
+        studentId: sanitizeStr(change?.studentId, 100),
+        studentName: sanitizeStr(change?.studentName || change?.displayName, 80),
+        kind: sanitizeStr(change?.kind, 20) === "leave" ? "leave" : (sanitizeStr(change?.kind, 20) === "signin" ? "signin" : null),
+        parentUid: sanitizeStr(change?.parentUid, 128) || null,
+        selfUid: sanitizeStr(change?.selfUid, 128) || null,
+      }))
+      .filter((change) => change.studentId);
+    if (!normalized.length) return { success: true, changed: 0, writeCount: 0, syncedCount: 0 };
+
+    const access = await getCallerAccessContext(request);
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    if (!hasEduCourseStaffAccess(teamDoc.data, callerUid, access)) {
+      throw createEduCourseHttpsError("PERMISSION_DENIED");
+    }
+    const teamRef = teamDoc.ref;
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const sessionRef = planRef.collection("sessions").doc(sessionId);
+    const [planSnap, sessionSnap] = await Promise.all([planRef.get(), sessionRef.get()]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+
+    const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const rosterIds = Array.isArray(session.studentIds)
+      ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+      : [];
+    for (const change of normalized) {
+      if (!rosterIds.includes(change.studentId)) {
+        throw new HttpsError("permission-denied", "STUDENT_NOT_IN_ROSTER", { code: "STUDENT_NOT_IN_ROSTER", studentId: change.studentId });
+      }
+    }
+
+    const date = sanitizeStr(request.data?.date || session.date, 20);
+    if (!date) throw new HttpsError("invalid-argument", "date is required");
+    const byStudentId = new Map(normalized.map((change) => [change.studentId, change]));
+    const existingSnap = await db.collection("eduAttendance")
+      .where("teamId", "==", teamId)
+      .where("coursePlanId", "==", planId)
+      .where("date", "==", date)
+      .get();
+    const batch = db.batch();
+    const now = FieldValue.serverTimestamp();
+    let writeCount = 0;
+
+    existingSnap.forEach((docSnap) => {
+      const record = docSnap.data() || {};
+      const recordSessionId = sanitizeStr(record.sessionId, 100);
+      if (recordSessionId && recordSessionId !== sessionId) return;
+      const studentId = sanitizeStr(record.studentId, 100);
+      if (!byStudentId.has(studentId)) return;
+      const status = sanitizeStr(record.status, 32).toLowerCase();
+      if (status === "removed" || status === "cancelled" || status === "canceled") return;
+      batch.update(docSnap.ref, { status: "removed", updatedAt: now });
+      writeCount += 1;
+    });
+
+    normalized.forEach((change) => {
+      if (!change.kind) return;
+      const docRef = db.collection("eduAttendance").doc();
+      batch.set(docRef, {
+        id: docRef.id,
+        teamId,
+        groupId: "",
+        coursePlanId: planId,
+        sessionId,
+        studentId: change.studentId,
+        studentName: change.studentName,
+        parentUid: change.parentUid,
+        selfUid: change.selfUid,
+        kind: change.kind,
+        date,
+        time: new Date().toISOString().slice(11, 16),
+        sessionNumber: Number.isFinite(Number(session.sessionNumber)) ? Number(session.sessionNumber) : null,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      writeCount += 1;
+    });
+
+    if (writeCount === 0) return { success: true, changed: 0, writeCount: 0, syncedCount: 0 };
+    const linkedPreflight = await validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap });
+    if (linkedPreflight?.success === false) {
+      throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", linkedPreflight);
+    }
+    await batch.commit();
+
+    const synced = [];
+    const skipped = [];
+    for (const change of normalized) {
+      const syncKind = change.kind ? normalizeCourseLinkAttendanceKind(change.kind) : "leave";
+      const result = await syncCourseAttendanceToLinkedEvent({
+        teamId,
+        planId,
+        sessionId,
+        studentId: change.studentId,
+        kind: syncKind,
+        source: "saveEduSessionAttendanceChanges",
+      });
+      if (result?.success === false) {
+        throw new HttpsError("failed-precondition", "COURSE_EVENT_ATTENDANCE_SYNC_FAILED", result);
+      }
+      if (result?.synced) synced.push(result);
+      else skipped.push({ studentId: change.studentId, kind: syncKind, reason: result?.reason || "not_changed" });
+    }
+    return {
+      success: true,
+      changed: normalized.length,
+      writeCount,
+      syncedCount: synced.length,
+      skipped,
+      synced,
+    };
+  }
+);
+exports.createEventFromCourseLesson = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const access = await getCallerAccessContext(request);
+    const callerName = firstSanitizedString([request.auth.token?.name, request.auth.token?.email, callerUid], 80) || callerUid;
+    const eventId = generateCourseConvertedEventId();
+    const eventRef = db.collection("events").doc(eventId);
+
+    const result = await db.runTransaction(async (tx) => {
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+      if (!hasEduCourseStaffAccess(teamDoc.data, callerUid, access)) {
+        throw createEduCourseHttpsError("PERMISSION_DENIED");
+      }
+
+      const planRef = teamDoc.ref.collection("coursePlans").doc(planId);
+      const sessionRef = planRef.collection("sessions").doc(sessionId);
+      const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);
+      const [planSnap, sessionSnap, linkSnap] = await Promise.all([
+        tx.get(planRef),
+        tx.get(sessionRef),
+        tx.get(linkRef),
+      ]);
+      if (linkSnap.exists) {
+        const existing = linkSnap.data() || {};
+        return {
+          success: true,
+          alreadyExists: true,
+          eventId: sanitizeStr(existing.eventId, 100),
+          courseLinkId: sanitizeStr(existing.courseLinkId, 128),
+        };
+      }
+      if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+      if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+
+      const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+      const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+      if (sanitizeStr(plan.planType, 32) !== "weekly") {
+        throw new HttpsError("failed-precondition", "ONLY_WEEKLY_COURSE_CAN_CONVERT", { code: "ONLY_WEEKLY_COURSE_CAN_CONVERT" });
+      }
+      if (plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
+      if (plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
+      const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
+      if (["cancelled", "canceled", "removed"].includes(sessionStatus)) {
+        throw new HttpsError("failed-precondition", "SESSION_NOT_CONVERTIBLE", { code: "SESSION_NOT_CONVERTIBLE" });
+      }
+
+      const date = firstSanitizedString([session.date, request.data?.date], 20);
+      const startTime = firstSanitizedString([session.startTime, plan.startTime, plan.timeStart], 20);
+      const endTime = firstSanitizedString([session.endTime, plan.endTime, plan.timeEnd], 20);
+      const eventDate = normalizeCourseLessonEventDateText(date, startTime, endTime);
+      const startDate = parseEventStartDateInTaipei(eventDate);
+      const endDate = parseEventEndDateInTaipei(eventDate);
+      if (!eventDate || !startDate) {
+        throw new HttpsError("failed-precondition", "COURSE_LESSON_TIME_REQUIRED", { code: "COURSE_LESSON_TIME_REQUIRED" });
+      }
+
+      const courseLinkId = crypto.randomBytes(16).toString("hex");
+      const max = courseConvertedEventCapacity(plan, session);
+      const eventData = buildCourseLessonConvertedEventData({
+        eventId,
+        plan,
+        session,
+        callerUid,
+        callerName,
+        courseLinkId,
+        eventDate,
+        startDate,
+        endDate,
+        max,
+      });
+      const mapping = buildCourseLessonLinkMapping({ eventId, courseLinkId, teamId, planId, sessionId, callerUid });
+
+      tx.create(eventRef, eventData);
+      tx.create(eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID), mapping);
+      tx.create(linkRef, mapping);
+
+      return {
+        success: true,
+        alreadyExists: false,
+        eventId,
+        courseLinkId,
+        privateEvent: true,
+      };
+    });
+
+    const rosterSync = await syncCourseLessonRosterToEventInternal({
+      teamId,
+      planId,
+      sessionId,
+      source: "createEventFromCourseLesson",
+    });
+    if (rosterSync?.success === false || rosterSync?.orphanCleanup?.success === false) {
+      throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED", rosterSync);
+    }
+    return { ...result, rosterSync };
+  }
+);
+
+exports.syncCourseLessonRosterToEvent = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const access = await getCallerAccessContext(request);
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    if (!hasEduCourseStaffAccess(teamDoc.data, callerUid, access)) {
+      throw createEduCourseHttpsError("PERMISSION_DENIED");
+    }
+    return syncCourseLessonRosterToEventInternal({
+      teamId,
+      planId,
+      sessionId,
+      source: "syncCourseLessonRosterToEvent",
+    });
   }
 );
 
@@ -9054,6 +10528,8 @@ exports.backfillAutoExp = onCall(
 // ═══════════════════════════════════════════════════════════════════════
 
 function registrationUniqueKey(reg = {}) {
+  const courseKey = getCourseLinkedRegistrationKey(reg);
+  if (courseKey) return courseKey;
   const userId = String(reg.userId || "").trim();
   if (reg.participantType === "companion") {
     return `${userId}_companion_${String(reg.companionId || "").trim()}`;
@@ -9063,6 +10539,8 @@ function registrationUniqueKey(reg = {}) {
 
 function registrationLockId(reg = {}) {
   const encode = (value) => encodeURIComponent(String(value || "").trim() || "_");
+  const courseKey = getCourseLinkedRegistrationKey(reg);
+  if (courseKey) return `course_${encode(reg.courseStudentId)}`;
   if (reg.participantType === "companion") {
     return `companion_${encode(reg.userId)}_${encode(reg.companionId)}`;
   }
@@ -9223,15 +10701,27 @@ function sortWaitlistCandidates(regs = []) {
   });
 }
 
-function promoteWaitlistForAvailableSeats(eventData, simRegs = []) {
+function promoteWaitlistForAvailableSeats(eventData, simRegs = [], options = {}) {
   const promoted = [];
+  const excludeCourseLinkedCandidates = options.excludeCourseLinkedCandidates === true;
+  const prioritizeCourseLinkedCandidates = options.prioritizeCourseLinkedCandidates === true;
   const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
 
   while (true) {
     const activeRegs = simRegs.filter((r) => r.status === "confirmed" || r.status === "waitlisted");
     const occupancy = rebuildOccupancy(eventData, activeRegs);
     const summaries = occupancy.teamReservationSummaries || [];
-    const waitlisted = sortWaitlistCandidates(activeRegs.filter((r) => r.status === "waitlisted"));
+    let waitlisted = sortWaitlistCandidates(
+      activeRegs
+        .filter((r) => r.status === "waitlisted")
+        .filter((r) => !excludeCourseLinkedCandidates || !isCourseLinkedRegistrationData(r))
+    );
+    if (prioritizeCourseLinkedCandidates) {
+      waitlisted = waitlisted.slice().sort((a, b) => {
+        const courseDiff = Number(isCourseLinkedRegistrationData(b)) - Number(isCourseLinkedRegistrationData(a));
+        return courseDiff || sortWaitlistCandidates([a, b]).indexOf(a) - sortWaitlistCandidates([a, b]).indexOf(b);
+      });
+    }
     let candidateToPromote = null;
     let source = null;
 
@@ -9315,6 +10805,7 @@ function hasAffectedTeamReservation(eventData = {}, affectedTeamIds = new Set())
 }
 
 function shouldSyncTeamReservationEvent(eventData = {}, affectedTeamIds = new Set(), now = new Date()) {
+  if (isCourseLinkedEventData(eventData)) return false;
   const status = String(eventData?.status || "").trim().toLowerCase();
   if (!["open", "full", "upcoming"].includes(status)) return false;
   if (!hasAffectedTeamReservation(eventData, affectedTeamIds)) return false;
@@ -9437,7 +10928,7 @@ async function syncTeamReservationSeatsForUserEvent(eventRef, uidCandidates, aft
       if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
       transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
       if (candidate.participantType !== "companion") {
-        const ar = allArs.find((item) => item.uid === candidate.userId && item.status === "waitlisted");
+        const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
         if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered" });
       }
     }
@@ -10408,6 +11899,7 @@ exports.registerForEvent = onCall(
       const regLockIds = sanitizedParticipants.map((p) => registrationLockId(p));
       const regLockRefs = regLockIds.map((lockId) => eventDoc.ref.collection("registrationLocks").doc(lockId));
       const ed = eventDoc.data();
+      assertOrdinaryEventRegistrationAllowed(ed);
       const maxCount = ed.max || 0;
       const callerReservationUserData = {
         ...(callerUserDoc?.data || {}),
@@ -10477,13 +11969,19 @@ exports.registerForEvent = onCall(
       const lockDocs = await Promise.all(regLockRefs.map((ref) => transaction.get(ref)));
 
       // T3: 重複報名檢查
-      const participantsIncludeSelf = sanitizedParticipants.some((p) => p.participantType !== "companion");
-      const hasActive = participantsIncludeSelf && allEventRegs.some(
-        (r) =>
-          r.userId === callerUid &&
-          (r.status === "confirmed" || r.status === "waitlisted") &&
-          r.participantType !== "companion"
+      const selfParticipantKeys = new Set(
+        sanitizedParticipants
+          .filter((p) => p.participantType !== "companion")
+          .map((p) => registrationUniqueKey(p))
       );
+      const participantsIncludeSelf = selfParticipantKeys.size > 0;
+      const hasActive = participantsIncludeSelf && allEventRegs.some((r) => {
+        const status = sanitizeStr(r.status, 32);
+        if (status !== "confirmed" && status !== "waitlisted") return false;
+        const participantType = sanitizeStr(r.participantType, 32) || "self";
+        if (participantType === "companion" || sanitizeStr(r.companionId, 128)) return false;
+        return selfParticipantKeys.has(registrationUniqueKey(r));
+      });
       if (hasActive) {
         throw new HttpsError("already-exists", "ALREADY_REGISTERED");
       }
@@ -10887,6 +12385,9 @@ exports.cancelRegistration = onCall(
       }
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
+      if (isPrivateCourseLinkedEventData(ed)) {
+        throw courseLinkedEventManagedByCourseError();
+      }
 
       // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
       const allRegsSnap = await transaction.get(
@@ -10931,6 +12432,8 @@ exports.cancelRegistration = onCall(
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
       }
+
+      assertCourseLinkedRegistrationNotManagedByCourse(permissionCheckRegs);
 
       if (targetRegs.length === 0) {
         const allActive = allEventRegs.filter(
@@ -10977,7 +12480,9 @@ exports.cancelRegistration = onCall(
       // T5: 候補遞補
       const promotedCandidates = [];
       if (hadConfirmed) {
-        promotedCandidates.push(...promoteWaitlistForAvailableSeats(ed, simRegs));
+        promotedCandidates.push(...promoteWaitlistForAvailableSeats(ed, simRegs, {
+          excludeCourseLinkedCandidates: isCourseLinkedEventData(ed),
+        }));
         for (const candidate of promotedCandidates) {
           const promoUpdate = {
             status: "confirmed",
@@ -10992,7 +12497,7 @@ exports.cancelRegistration = onCall(
       // 取消者的 activityRecord → cancelled/removed
       for (const reg of targetRegs) {
         if (reg.participantType === "companion") continue;
-        const ar = allArs.find((a) => a.uid === reg.userId && a.status !== "cancelled" && a.status !== "removed");
+        const ar = findActivityRecordForRegistration(allArs, reg);
         if (ar) {
           transaction.update(eventDoc.ref.collection("activityRecords").doc(ar._docId), { status: newStatus });
         }
@@ -11001,7 +12506,7 @@ exports.cancelRegistration = onCall(
       // 升補者的 activityRecord → registered
       for (const candidate of promotedCandidates) {
         if (candidate.participantType === "companion") continue;
-        const ar = allArs.find((a) => a.uid === candidate.userId && a.status === "waitlisted");
+        const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
         if (ar) {
           transaction.update(eventDoc.ref.collection("activityRecords").doc(ar._docId), { status: "registered" });
         }
@@ -11274,6 +12779,9 @@ exports.adjustTeamReservation = onCall(
       if (!eventDoc) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
+      if (isCourseLinkedEventData(ed)) {
+        throw courseLinkedEventManagedByCourseError();
+      }
       const maxCount = Math.max(0, Number(ed.max || 0) || 0);
       if (ed.status === "ended") throw new HttpsError("failed-precondition", "EVENT_ENDED");
       if (ed.status === "cancelled") throw new HttpsError("failed-precondition", "EVENT_CANCELLED");
@@ -11421,7 +12929,7 @@ exports.adjustTeamReservation = onCall(
         if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
         transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
         if (candidate.participantType !== "companion") {
-          const ar = allArs.find((item) => item.uid === candidate.userId && item.status === "waitlisted");
+          const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
           if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered" });
         }
       }

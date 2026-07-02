@@ -3406,6 +3406,40 @@ describe("/teams/{teamId}/groups/{groupId}", () => {
     );
   });
 
+  test("linked course sessions cannot be directly updated or deleted by clients", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"],
+      {
+        title: "Linked Session",
+        capacity: 10,
+        studentIds: ["stu1", "stu2"],
+      }
+    );
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess_linked_direct"],
+      {
+        eventId: "eventA",
+        courseLinkId: "opaque_link_mapping",
+        teamId: "teamA",
+        planId: "plan1",
+        sessionId: "sess_linked_direct",
+      }
+    );
+
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        studentIds: ["stu1"],
+      })
+    );
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        notes: "direct note update should also use callable",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"))
+    );
+  });
   test("CUD: regular user cannot manage", async () => {
     await assertFails(
       setDoc(doc(user(), "teams", "teamA", "groups", "grp_user"), {
@@ -3459,6 +3493,40 @@ describe("/teams/{teamId}/coursePlans/{planId}", () => {
     );
   });
 
+  test("linked course sessions cannot be directly updated or deleted by clients", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"],
+      {
+        title: "Linked Session",
+        capacity: 10,
+        studentIds: ["stu1", "stu2"],
+      }
+    );
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess_linked_direct"],
+      {
+        eventId: "eventA",
+        courseLinkId: "opaque_link_mapping",
+        teamId: "teamA",
+        planId: "plan1",
+        sessionId: "sess_linked_direct",
+      }
+    );
+
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        studentIds: ["stu1"],
+      })
+    );
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        notes: "direct note update should also use callable",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"))
+    );
+  });
   test("CUD: regular user cannot manage", async () => {
     await assertFails(
       setDoc(doc(user(), "teams", "teamA", "coursePlans", "plan_user"), {
@@ -3543,6 +3611,114 @@ describe("/teams/{teamId}/coursePlans/{planId}/sessions/{sessionId}", () => {
     );
   });
 
+  test("course conversion link fields stay out of public session documents", async () => {
+    const sessionRef = doc(
+      captain(),
+      "teams",
+      "teamA",
+      "coursePlans",
+      "plan1",
+      "sessions",
+      "sess_linked"
+    );
+
+    await assertFails(
+      setDoc(sessionRef, {
+        title: "Linked Session",
+        capacity: 12,
+        convertedEventId: "eventA",
+      })
+    );
+
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked"],
+      {
+        title: "Linked Session",
+        capacity: 12,
+      }
+    );
+    await assertFails(
+      updateDoc(sessionRef, {
+        courseLinkId: "opaque_link_session",
+      })
+    );
+    await assertFails(
+      updateDoc(sessionRef, {
+        courseTeamId: "teamA",
+        coursePlanId: "plan1",
+        courseSessionId: "sess_linked",
+      })
+    );
+  });
+
+  test("sessionEventLinks mapping is staff-readable but client-immutable", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess1"],
+      {
+        eventId: "eventA",
+        courseLinkId: "opaque_link_mapping",
+        teamId: "teamA",
+        planId: "plan1",
+        sessionId: "sess1",
+      }
+    );
+
+    await assertSucceeds(
+      getDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess1"))
+    );
+    await assertFails(
+      getDoc(doc(guest(), "teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess1"))
+    );
+    await assertFails(
+      setDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess2"), {
+        eventId: "eventB",
+        courseLinkId: "opaque_link_mapping_2",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess1"), {
+        eventId: "eventB",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(admin(), "teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess1"))
+    );
+  });
+
+  test("linked course sessions cannot be directly updated or deleted by clients", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"],
+      {
+        title: "Linked Session",
+        capacity: 10,
+        studentIds: ["stu1", "stu2"],
+      }
+    );
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessionEventLinks", "sess_linked_direct"],
+      {
+        eventId: "eventA",
+        courseLinkId: "opaque_link_mapping",
+        teamId: "teamA",
+        planId: "plan1",
+        sessionId: "sess_linked_direct",
+      }
+    );
+
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        studentIds: ["stu1"],
+      })
+    );
+    await assertFails(
+      updateDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"), {
+        notes: "direct note update should also use callable",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "sessions", "sess_linked_direct"))
+    );
+  });
   test("CUD: regular user cannot manage", async () => {
     await assertFails(
       setDoc(
