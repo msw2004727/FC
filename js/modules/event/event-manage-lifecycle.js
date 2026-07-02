@@ -125,6 +125,7 @@ Object.assign(App, {
     // 活動地區還原
     this._regionSetFormData?.(e.regionEnabled !== false, e.region || '', e.cities || []);
     this._updateCreateTimeSummary?.();
+    this._applyCourseLinkedEditLockState?.(e);
   },
 
   // ── 結束活動 ──

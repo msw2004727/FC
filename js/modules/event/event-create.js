@@ -17,6 +17,56 @@ Object.assign(App, {
   _defaultEventCoverAssetPath: 'LOGO/Nocoverimage set.png',
   _defaultEventCoverDataUrl: null,
   _defaultEventCoverPromise: null,
+  _courseLinkedEditLockedControlSelector: 'input, select, textarea, button',
+  _courseLinkedEditUnlockedIds: ['ce-private-event', 'ce-submit-btn'],
+  _courseLinkedEditLockedIds: [
+    'ce-template-selector',
+    'ce-image',
+    'ce-upload-preview',
+    'ce-title',
+    'ce-type',
+    'ce-region-enabled',
+    'ce-region-radios',
+    'ce-region-cities',
+    'ce-location',
+    'ce-location-btn',
+    'ce-location-clear',
+    'ce-date',
+    'ce-time-start',
+    'ce-time-end',
+    'ce-reg-open-enabled',
+    'ce-reg-open-date',
+    'ce-reg-open-clock',
+    'ce-reg-rel-days',
+    'ce-reg-rel-hours',
+    'ce-fee-enabled',
+    'ce-fee',
+    'ce-team-only',
+    'ce-team-select',
+    'ce-team-picker',
+    'ce-team-search',
+    'ce-gender-restriction-enabled',
+    'ce-gender-restriction-options',
+    'ce-allowed-gender',
+    'ce-team-split-enabled',
+    'ce-team-split-options',
+    'ce-social-links-enabled',
+    'ce-social-links-options',
+    'ce-early-bird-enabled',
+    'ce-early-bird-options',
+    'ce-gps-enabled',
+    'ce-max',
+    'ce-age-limit-enabled',
+    'ce-min-age',
+    'ce-delegate-search',
+    'ce-delegate-tags',
+    'ce-notes',
+    'ce-sport-picker',
+    'ce-sport-selected',
+    'ce-sport-search',
+    'ce-sport-list',
+    'ce-template-name',
+  ],
 
   _setCreateEventSubmitIdleLabel(label) {
     const submitBtn = document.getElementById('ce-submit-btn');
@@ -53,6 +103,149 @@ Object.assign(App, {
     const modal = document.getElementById('create-event-modal');
     if (!modal) return;
     modal.classList.toggle('ce-v2-enabled', this._isActivityCreateUiV2Enabled?.() !== false);
+  },
+
+  _isCourseLinkedEditMode(eventRecord = null) {
+    const source = eventRecord || (this._editEventId ? ApiService.getEvent?.(this._editEventId) : null);
+    return !!(source && this._isCourseLinkedEvent?.(source));
+  },
+
+  _setCourseLinkedEditControlLocked(control, locked) {
+    if (!control) return;
+    if (locked) {
+      if (!Object.prototype.hasOwnProperty.call(control.dataset || {}, 'courseLinkedPrevDisabled')) {
+        control.dataset.courseLinkedPrevDisabled = control.disabled ? '1' : '0';
+      }
+      control.disabled = true;
+      control.setAttribute('aria-disabled', 'true');
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(control.dataset || {}, 'courseLinkedPrevDisabled')) {
+      control.disabled = control.dataset.courseLinkedPrevDisabled === '1';
+      delete control.dataset.courseLinkedPrevDisabled;
+    }
+    control.removeAttribute('aria-disabled');
+  },
+
+  _getCourseLinkedEditRowForElement(element) {
+    if (!element) return null;
+    return element.closest?.('.ce-row') || element;
+  },
+
+  _syncCourseLinkedEditNotice(modal, locked) {
+    if (!modal) return;
+    let notice = document.getElementById('ce-course-linked-edit-notice');
+    if (!locked) {
+      notice?.remove();
+      return;
+    }
+    if (notice) return;
+    const body = modal.querySelector('.ce-form-v2') || modal.querySelector('.ce-form') || modal.querySelector('.modal-body');
+    if (!body) return;
+    notice = document.createElement('div');
+    notice.id = 'ce-course-linked-edit-notice';
+    notice.className = 'ce-course-linked-edit-notice';
+    notice.textContent = '\u9019\u662f\u8ab2\u7a0b\u8f49\u5316\u6d3b\u52d5\uff0c\u6642\u9593\u3001\u5730\u9ede\u3001\u540d\u984d\u3001\u6a19\u984c\u8207\u5831\u540d\u898f\u5247\u7531\u8ab2\u5802\u8cc7\u6599\u7ba1\u7406\uff1b\u672c\u8996\u7a97\u53ea\u5141\u8a31\u8abf\u6574\u79c1\u5bc6/\u516c\u958b\u72c0\u614b\u3002';
+    body.insertBefore(notice, body.firstChild || null);
+  },
+
+  _clearCourseLinkedEditLockState() {
+    const modal = document.getElementById('create-event-modal');
+    if (!modal) return;
+    const wasCourseLinkedEdit = modal.classList.contains('ce-course-linked-edit');
+    modal.classList.remove('ce-course-linked-edit');
+    this._syncCourseLinkedEditNotice(modal, false);
+    if (wasCourseLinkedEdit) {
+      const valueSection = document.getElementById('ce-value-section');
+      if (valueSection) valueSection.open = false;
+    }
+    modal.querySelectorAll('[data-course-linked-lock-control="1"]').forEach(control => {
+      this._setCourseLinkedEditControlLocked(control, false);
+      delete control.dataset.courseLinkedLockControl;
+    });
+    modal.querySelectorAll('[data-course-linked-lock-row="1"]').forEach(row => {
+      row.classList.remove('ce-course-linked-locked-row');
+      delete row.dataset.courseLinkedLockRow;
+    });
+    modal.querySelectorAll('[data-course-linked-editable-row="1"]').forEach(row => {
+      row.classList.remove('ce-course-linked-editable-row');
+      delete row.dataset.courseLinkedEditableRow;
+    });
+  },
+
+  _applyCourseLinkedEditLockState(eventRecord = null) {
+    const modal = document.getElementById('create-event-modal');
+    if (!modal) return;
+    this._clearCourseLinkedEditLockState();
+    if (!this._isCourseLinkedEditMode(eventRecord)) return;
+
+    modal.classList.add('ce-course-linked-edit');
+    this._syncCourseLinkedEditNotice(modal, true);
+    const valueSection = document.getElementById('ce-value-section');
+    if (valueSection) valueSection.open = true;
+    const privateRow = this._getCourseLinkedEditRowForElement(document.getElementById('ce-private-event'));
+    if (privateRow) {
+      privateRow.classList.add('ce-course-linked-editable-row');
+      privateRow.dataset.courseLinkedEditableRow = '1';
+    }
+
+    const unlockedIds = new Set(this._courseLinkedEditUnlockedIds || []);
+    (this._courseLinkedEditLockedIds || []).forEach(id => {
+      const element = document.getElementById(id);
+      if (!element) return;
+      const row = this._getCourseLinkedEditRowForElement(element);
+      if (row) {
+        row.classList.add('ce-course-linked-locked-row');
+        row.dataset.courseLinkedLockRow = '1';
+      }
+      const controls = element.matches?.(this._courseLinkedEditLockedControlSelector)
+        ? [element]
+        : Array.from(element.querySelectorAll?.(this._courseLinkedEditLockedControlSelector) || []);
+      controls.forEach(control => {
+        if (!control || unlockedIds.has(control.id || '')) return;
+        this._setCourseLinkedEditControlLocked(control, true);
+        control.dataset.courseLinkedLockControl = '1';
+      });
+    });
+  },
+
+  async _submitCourseLinkedEventVisibilityEdit(existingEvent, nextPrivateEvent) {
+    const eventId = this._editEventId;
+    if (!eventId || !this._isCourseLinkedEvent?.(existingEvent)) return false;
+    const privateEvent = !!nextPrivateEvent;
+    const updates = {
+      privateEvent,
+      isPublic: !privateEvent,
+    };
+    this._eventSubmitInFlight = true;
+    this._setCreateEventSubmitting?.(true);
+    try {
+      await ApiService.updateEventAwait(eventId, updates);
+      const updatedEvent = ApiService.getEvent?.(eventId);
+      if (updatedEvent) Object.assign(updatedEvent, updates);
+      this.closeModal?.();
+      this.showToast?.(privateEvent ? '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u4e0d\u516c\u958b' : '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u516c\u958b');
+      try { this.renderActivityList?.(); } catch (_) {}
+      try { this.renderHotEvents?.(); } catch (_) {}
+      try { this.renderMyActivities?.(); } catch (_) {}
+      try {
+        if (this._currentDetailEventId === eventId && typeof this.showEventDetail === 'function') {
+          await this.showEventDetail(eventId);
+        }
+      } catch (detailRefreshErr) {
+        console.warn('[courseLinkedEventVisibilityEdit] detail refresh failed:', detailRefreshErr);
+      }
+      return true;
+    } catch (err) {
+      console.error('[courseLinkedEventVisibilityEdit]', err);
+      if (!err?._toasted) {
+        this.showToast?.('\u8ab2\u7a0b\u6d3b\u52d5\u53ea\u80fd\u8abf\u6574\u516c\u958b\u72c0\u614b\uff1b\u82e5\u4ecd\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u662f\u5426\u5177\u5099\u4e3b\u8fa6\u4eba\u3001\u4ee3\u7406\u4eba\u6216\u7e3d\u7ba1\u6b0a\u9650');
+      }
+      return false;
+    } finally {
+      this._eventSubmitInFlight = false;
+      this._setCreateEventSubmitting?.(false);
+    }
   },
 
   _setCreateEventSubmitting(isSubmitting) {
@@ -414,6 +607,7 @@ Object.assign(App, {
     }
     if (!this._ensureCreateEventDomContract()) return;
     this._editEventId = null;
+    this._clearCourseLinkedEditLockState?.();
     this._eventImageVariantsData = null;
     this._delegates = [];
     this._setCreateEventModalMode(false);
@@ -471,6 +665,7 @@ Object.assign(App, {
     this._initMultiDatePicker();
     this._initSportTagPicker('');
     this._applyCreateEventUiVariant();
+    this._clearCourseLinkedEditLockState?.();
     this.showModal('create-event-modal');
     this._initDelegateSearch();
     this._renderHistoryChips('ce-location', 'ce-location');
@@ -510,6 +705,7 @@ Object.assign(App, {
     try {
     await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
     const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
+    const isCourseLinkedEdit = !!(this._editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
     const canSubmitActivity = this._editEventId
       ? this._canEditOwnActivityBasic?.(eventBeingEdited)
       : this._canCreateBasicActivity?.();
@@ -539,6 +735,10 @@ Object.assign(App, {
     let genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     let allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     let privateEvent = !!document.getElementById('ce-private-event')?.checked;
+    if (isCourseLinkedEdit) {
+      await this._submitCourseLinkedEventVisibilityEdit?.(eventBeingEdited, privateEvent);
+      return;
+    }
     let teamSplitData = this._tsGetFormData?.() || null;
     let socialLinksData = this._getEventSocialLinksFormData?.({ validate: true }) || { enabled: false, links: [] };
     if (socialLinksData.error) { this.showToast(socialLinksData.error); return; }
@@ -919,6 +1119,7 @@ Object.assign(App, {
 
     // 重置表單
     this._editEventId = null;
+    this._clearCourseLinkedEditLockState?.();
     this._eventImageVariantsData = null;
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-location').value = '';

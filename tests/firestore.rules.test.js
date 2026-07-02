@@ -2655,6 +2655,9 @@ describe("course-linked event direct write guards", () => {
       updateDoc(doc(memberA(), "events", "event_course_visibility"), editModalVisibilityPayload)
     );
     await assertSucceeds(
+      updateDoc(doc(superAdmin(), "events", "event_course_visibility"), editModalVisibilityPayload)
+    );
+    await assertSucceeds(
       updateDoc(doc(coach(), "events", "event_course_visibility"), editModalVisibilityPayload)
     );
     await assertFails(

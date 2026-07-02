@@ -1034,7 +1034,7 @@ service cloud.firestore {
           && changed.hasOnly(['isPublic', 'privateEvent', 'updatedAt'])
           && (!changed.hasAny(['isPublic']) || request.resource.data.isPublic is bool)
           && (!changed.hasAny(['privateEvent']) || request.resource.data.privateEvent is bool)
-          && canScopedManageEventData(resource.data);
+          && (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data));
       }
 
       function isUserOwnerBasicUpdate() {

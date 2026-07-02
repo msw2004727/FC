@@ -2740,3 +2740,62 @@ body.activity-map-open{overflow:hidden}
   .event-comment-body{margin-left:0;padding:.5rem .65rem}
   .event-comment-deleted,.event-comment-actions,.event-comment-replies,.event-comment-reply-form{padding-left:0;margin-left:0}
 }
+/* Course-linked activity edit guard */
+#create-event-modal.ce-course-linked-edit .ce-course-linked-edit-notice {
+  margin: 0 0 .75rem;
+  padding: .65rem .75rem;
+  border: 1px solid rgba(245, 158, 11, .32);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, .14), rgba(148, 163, 184, .1));
+  color: var(--text-primary);
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row {
+  position: relative;
+  border-color: rgba(148, 163, 184, .32);
+  background: rgba(148, 163, 184, .08);
+  filter: grayscale(.45);
+  opacity: .64;
+}
+
+#create-event-modal.ce-course-linked-edit .ce-course-linked-editable-row {
+  border-color: rgba(245, 158, 11, .42);
+  background: rgba(245, 158, 11, .08);
+}
+
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-label-row::after {
+  content: "鎖定";
+  display: inline-flex;
+  align-items: center;
+  margin-left: .35rem;
+  padding: .08rem .38rem;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 116, 139, .35);
+  background: rgba(100, 116, 139, .12);
+  color: var(--text-muted);
+  font-size: .58rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row input,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row select,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row textarea,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row button,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-upload-placeholder,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-sport-selected,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-gender-chip,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-social-link-remove,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-social-links-add {
+  cursor: not-allowed !important;
+}
+
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-upload-placeholder,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-sport-picker,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-team-picker,
+#create-event-modal.ce-course-linked-edit .ce-course-linked-locked-row .ce-delegate-wrap {
+  pointer-events: none;
+}
