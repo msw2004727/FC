@@ -626,9 +626,10 @@ Object.assign(App, {
         });
 
         dayInfo.events.forEach(e => {
-          const typeConf = TYPE_CONFIG[e.type] || TYPE_CONFIG.friendly;
+          const typeKey = this._getEventDisplayTypeKey?.(e) || (TYPE_CONFIG[e.type] ? e.type : 'friendly');
+          const typeConf = this._getEventDisplayTypeConfig?.(e) || TYPE_CONFIG[typeKey] || TYPE_CONFIG.friendly;
           const time = e.date.split(' ')[1] || '';
-          const isExternal = e.type === 'external';
+          const isExternal = typeKey === 'external';
           const effectiveStatus = !isExternal && typeof this._getEventEffectiveStatus === 'function'
             ? this._getEventEffectiveStatus(e)
             : e.status;
@@ -654,7 +655,7 @@ Object.assign(App, {
 
           // 俱樂部限定用特殊色
           const isFemaleOnly = !isExternal && this._getEventAllowedGender?.(e) === '女';
-          const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
+          const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${typeKey}`;
           const rowClass = isFemaleOnly ? `${rowBaseClass} tl-type-female-only` : rowBaseClass;
           const rowStyle = e.pinned
             ? (isFemaleOnly ? 'box-shadow:0 0 0 1px rgba(236,72,153,.16)' : 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)')

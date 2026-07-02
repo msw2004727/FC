@@ -48,7 +48,7 @@ function loadEventDetailModule({
       requestDetailAttendanceRealtime: jest.fn(),
     },
     ScriptLoader: scriptLoader,
-    TYPE_CONFIG: { friendly: { label: '友誼賽' }, external: { label: '外部活動' } },
+    TYPE_CONFIG: { friendly: { label: 'friendly' }, external: { label: 'external' }, course: { label: '\u8ab2\u7a0b' } },
     shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -203,7 +203,7 @@ function loadEventDetailAndAttendanceModule() {
       getRegistrationsByEvent: jest.fn(() => []),
       getAttendanceRecords: jest.fn(() => []),
     },
-    TYPE_CONFIG: { friendly: { label: 'friendly' }, external: { label: 'external' } },
+    TYPE_CONFIG: { friendly: { label: 'friendly' }, external: { label: 'external' }, course: { label: '\u8ab2\u7a0b' } },
     shouldUseActivityDetailOptimization: jest.fn(() => true),
     document,
     window,
@@ -1121,7 +1121,12 @@ describe('Team reservation button loading contract', () => {
     const configSource = readProjectFile('js/config.js');
     const homeCss = readProjectFile('css/home.css');
     const activityCss = readProjectFile('css/activity.css');
+    const helperSource = readProjectFile('js/modules/event/event-list-helpers.js');
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
 
+    expect(helperSource).toContain('_isCourseLinkedEvent(eventRecord)');
+    expect(helperSource).toContain('eduCourseLesson');
+    expect(detailSource).toContain('_getEventDisplayTypeKey?.(eventRecord)');
     expect(configSource).toContain("course:   { icon: '', label: '\\u8ab2\\u7a0b', color: 'course' }");
     expect(homeCss).toContain('.h-card-type-ribbon-course');
     expect(activityCss).toContain('.tl-type-course');
@@ -2066,7 +2071,8 @@ describe('Activity detail host contact and companion action labels', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
 
-    expect(detailSource).toContain('contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id');
+    expect(detailSource).toContain('_buildEventHostRowHtml(e)');
+    expect(detailSource).toContain('const contactPayload = { eventId: e?.id');
     expect(detailSource).toContain("ScriptLoader.ensureGroup('profileCard')");
     expect(detailSource).toContain('companion-signup-toolbar-action');
     expect(detailSource).toContain('\\u5BEB\\u5165\\u4E2D');
@@ -2098,6 +2104,35 @@ describe('Activity detail host contact and companion action labels', () => {
     expect(scriptLoader.ensureGroup).toHaveBeenCalledWith('profileCard');
     expect(loadedHandler).toHaveBeenCalledWith({ eventId: event.id });
     expect(result).toEqual({ ok: true, action: 'line' });
+  });
+
+  test('course-linked friendly records render course ribbon metadata', () => {
+    const app = loadEventDetailModule();
+    app._getEventDisplayTypeKey = jest.fn(eventRecord => eventRecord?.courseLinked ? 'course' : 'friendly');
+    app._getEventDisplayTypeConfig = jest.fn(eventRecord => eventRecord?.courseLinked ? { label: '\u8ab2\u7a0b' } : { label: 'friendly' });
+
+    const html = app._renderEventDetailCover({ title: 'Course Event', type: 'friendly', courseLinked: true, image: 'https://cdn.example/course.webp' });
+
+    expect(html).toContain('detail-cover-ribbon-course');
+    expect(html).toContain('\u8ab2\u7a0b');
+  });
+
+  test('host row resolves cached nickname instead of rendering raw uid', () => {
+    const app = loadEventDetailModule();
+    app._findUserByUid = jest.fn(() => ({ uid: 'U7774e1410479bafff4997f51b2c47b95', displayName: 'Coach Ada' }));
+    app._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || fallback || uid);
+    app._userTag = jest.fn(name => `<span class="user-capsule">${name}</span>`);
+
+    const html = app._buildEventHostRowHtml({
+      id: 'event-1',
+      creator: 'U7774e1410479bafff4997f51b2c47b95',
+      creatorUid: 'U7774e1410479bafff4997f51b2c47b95',
+    });
+
+    expect(app._findUserByUid).toHaveBeenCalledWith('U7774e1410479bafff4997f51b2c47b95');
+    expect(app._userTag).toHaveBeenCalledWith('Coach Ada', null, { uid: 'U7774e1410479bafff4997f51b2c47b95' });
+    expect(html).toContain('Coach Ada');
+    expect(html).not.toContain('>U7774e1410479bafff4997f51b2c47b95<');
   });
 
   test('companion signup and mixed cancel flows expose precise busy and warning states', () => {

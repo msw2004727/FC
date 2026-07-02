@@ -118,10 +118,11 @@ Object.assign(App, {
   },
 
   _renderTeamEventCard(e) {
-    const typeConf = (typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG[e.type])
-      ? TYPE_CONFIG[e.type]
-      : ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG.friendly) || { label: '\u6d3b\u52d5' });
-    const isExternal = e.type === 'external';
+    const typeKey = this._getEventDisplayTypeKey?.(e) || ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG[e.type]) ? e.type : 'friendly');
+    const typeConf = this._getEventDisplayTypeConfig?.(e)
+      || ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG[typeKey]) ? TYPE_CONFIG[typeKey] : null)
+      || ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG.friendly) || { label: '\u6d3b\u52d5' });
+    const isExternal = typeKey === 'external';
     const statusKey = !isExternal && typeof this._getEventEffectiveStatus === 'function'
       ? this._getEventEffectiveStatus(e)
       : (e.status || 'open');
@@ -164,7 +165,7 @@ Object.assign(App, {
       ? this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)
       : '';
     const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
-    const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type || 'friendly'}`;
+    const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${typeKey}`;
     const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">\u9650\u5b9a</span>' : '';
     const genderRibbon = !isExternal && typeof this._hasEventGenderRestriction === 'function' && this._hasEventGenderRestriction(e)
       ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText?.(e) || '')}</span>`

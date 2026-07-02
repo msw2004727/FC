@@ -236,8 +236,8 @@ Object.assign(App, {
 
     const cards = visible.map((e, index) => {
         const _dp = (e.date || '').split(' ')[0].split('/');
-        const _typeKey = TYPE_CONFIG?.[e.type] ? e.type : 'friendly';
-        const _typeLabel = TYPE_CONFIG?.[_typeKey]?.label || '活動';
+        const _typeKey = this._getEventDisplayTypeKey?.(e) || (TYPE_CONFIG?.[e.type] ? e.type : 'friendly');
+        const _typeLabel = (this._getEventDisplayTypeConfig?.(e) || TYPE_CONFIG?.[_typeKey])?.label || '活動';
         const _typeRibbon = `<span class="h-card-type-ribbon h-card-type-ribbon-${_typeKey}">${escapeHTML(_typeLabel)}</span>`;
         const _sportIcon = this._renderEventSportIcon(e, 'h-card-sport-chip');
         const _dateTag = _dp.length >= 3
@@ -245,7 +245,7 @@ Object.assign(App, {
           : '';
         const _cornerBadges = `<div class="h-card-corner-badges">${_sportIcon}${_dateTag}</div>`;
         const _image = this._getEventImageUrl?.(e, 'cover') || e.image || '';
-        const _isExternal = e.type === 'external';
+        const _isExternal = _typeKey === 'external';
         const _genderRibbon = !_isExternal && this._hasEventGenderRestriction(e)
           ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
           : '';

@@ -66,9 +66,10 @@ describe('registration ops guard', () => {
     expect(source).toContain('const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);');
     expect(source).toContain('minAge: 0');
     expect(source).toContain('type: "course"');
-    expect(source).toContain('image: courseImage');
-    expect(source).toContain('getCourseConvertedEventImage(plan, session)');
-    expect(source).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid)');
+    expect(source).toContain('buildCourseConvertedEventImageFields(courseImage');
+    expect(source).toContain('...imageFields');
+    expect(source).toContain('getCourseConvertedEventImage(plan, session, requestData)');
+    expect(source).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid, request.data || {})');
     expect(source).toContain('creatorName: safeCallerName');
     expect(source).toContain('organizer: safeCallerName');
     expect(source).toContain('genderRestrictionEnabled: false');

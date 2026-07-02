@@ -1089,7 +1089,9 @@ describe('registration callable source contracts', () => {
 
     const convertSource = readCloudFunctionSource('createEventFromCourseLesson');
     expect(convertSource).toContain('findUserDocByUidOrLineUserId(callerUid)');
-    expect(convertSource).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid)');
+    expect(convertSource).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid, request.data || {})');
+    expect(convertSource).toContain('buildCourseConvertedEventRepairPatch({');
+    expect(convertSource).toContain('repaired: !!existingEventDoc');
     expect(convertSource).toContain('creatorSnapshot,');
     expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');
     expect(convertSource).not.toContain('[createEventFromCourseLesson rosterSync]');
@@ -1099,11 +1101,20 @@ describe('registration callable source contracts', () => {
       'function buildCourseLessonLinkMapping'
     );
     expect(convertedEventSource).toContain('type: "course"');
-    expect(convertedEventSource).toContain('image: courseImage');
+    expect(convertedEventSource).toContain('buildCourseConvertedEventImageFields(courseImage');
+    expect(convertedEventSource).toContain('...imageFields');
     expect(convertedEventSource).toContain('creator: safeCallerName');
     expect(convertedEventSource).toContain('creatorName: safeCallerName');
     expect(convertedEventSource).toContain('organizer: safeCallerName');
     expect(convertedEventSource).toContain('creatorSnapshot: creatorSnapshot || null');
+
+    const imageFieldsSource = readSourceBetween(
+      'function buildCourseConvertedEventImageFields',
+      'function isLikelyUidDisplayValue'
+    );
+    expect(imageFieldsSource).toContain('coverImage: safeImage');
+    expect(imageFieldsSource).toContain('imageVariants.cover = safeImage');
+    expect(imageFieldsSource).toContain('imageVariants.homeNext = safeImage');
 
     const courseImageSource = readSourceBetween(
       'function getCourseConvertedEventImage',
@@ -1114,6 +1125,8 @@ describe('registration callable source contracts', () => {
     expect(courseImageSource).toContain('plan.imageVariants?.card');
     expect(courseImageSource).toContain('plan.imageVariants?.cover');
     expect(courseImageSource).toContain('plan.imageVariants?.homeNext');
+    expect(courseImageSource).toContain('requestData.courseCoverImage');
+    expect(courseImageSource).toContain('requestData.imageVariants?.cover');
 
     const rosterSource = readSourceBetween(
       'async function syncCourseLessonRosterToEventInternal',

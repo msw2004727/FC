@@ -319,7 +319,8 @@ Object.assign(App, {
     const safeId = escapeHTML(e.id || '');
     const typeMap = typeof TYPE_CONFIG !== 'undefined' ? TYPE_CONFIG : {};
     const statusMap = typeof STATUS_CONFIG !== 'undefined' ? STATUS_CONFIG : {};
-    const typeConf = typeMap[e.type] || typeMap.friendly || { label: '活動' };
+    const typeKey = this._getEventDisplayTypeKey?.(e) || (typeMap[e.type] ? e.type : 'friendly');
+    const typeConf = this._getEventDisplayTypeConfig?.(e) || typeMap[typeKey] || typeMap.friendly || { label: '活動' };
     const effectiveStatus = this._getProfileActivityEffectiveStatus(e);
     const statusConf = statusMap[effectiveStatus] || statusMap[e.status] || statusMap.open || { label: '開放', css: 'open' };
     const isEnded = effectiveStatus === 'ended' || effectiveStatus === 'cancelled';
@@ -330,7 +331,7 @@ Object.assign(App, {
     const timeText = (dateParts[1] || '').trim();
     const locationText = String(e.location || '');
     const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
-    const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type || 'friendly'}`;
+    const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${typeKey}`;
     const metaParts = [typeConf.label, timeText, locationText].filter(Boolean);
     const registrationStamp = kind === 'registered' ? this._renderProfileRegistrationStamp(item.registrationStatus) : '';
     const actionsHtml = this._renderProfileRelatedActivityActions(item, kind, effectiveStatus);

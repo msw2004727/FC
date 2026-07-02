@@ -20,6 +20,28 @@ Object.assign(App, {
     return user?.uid || 'unknown';
   },
 
+  _isCourseLinkedEvent(eventRecord) {
+    const source = String(eventRecord?.courseLinkSource || eventRecord?.source || '').trim();
+    return !!(eventRecord && (
+      eventRecord.courseLinked === true
+      || String(eventRecord.courseLinkId || '').trim()
+      || source === 'eduCourseLesson'
+    ));
+  },
+
+  _getEventDisplayTypeKey(eventRecord) {
+    if (this._isCourseLinkedEvent?.(eventRecord)) return 'course';
+    const rawType = String(eventRecord?.type || '').trim();
+    if (rawType && typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG?.[rawType]) return rawType;
+    return 'friendly';
+  },
+
+  _getEventDisplayTypeConfig(eventRecord) {
+    const typeKey = this._getEventDisplayTypeKey?.(eventRecord) || 'friendly';
+    return (typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG?.[typeKey])
+      ? TYPE_CONFIG[typeKey]
+      : ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG?.friendly) || { label: '活動', color: 'friendly' });
+  },
   _getEventCreatorTeam() {
     const user = ApiService.getCurrentUser?.() || null;
     if (!user) return { teamId: null, teamName: null };

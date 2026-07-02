@@ -131,6 +131,9 @@ function loadCourseLessonsContext(overrides = {}) {
       ...(overrides.FirebaseService || {}),
     },
     ensureFirebaseFunctionsSdk,
+    ApiService: overrides.ApiService || {
+      getCurrentUser: jest.fn(() => overrides.currentUser || null),
+    },
     document: {
 
       getElementById: jest.fn((id) => {
@@ -290,6 +293,8 @@ describe('edu course lessons', () => {
   test('convertCourseLessonToEvent uses callable and marks action as converted', async () => {
     const { app, functions } = loadCourseLessonsContext({
       isStaff: true,
+      plans: [{ id: 'weeklyPlan', coverImage: 'https://cdn.example/course-cover.webp' }],
+      currentUser: { uid: 'host-1', displayName: 'Coach Ada' },
       createEventFromCourseLessonData: {
         success: true,
         alreadyExists: false,
@@ -319,6 +324,10 @@ describe('edu course lessons', () => {
       teamId: 'teamA',
       planId: 'weeklyPlan',
       sessionId: 'weeklyA',
+      courseCoverImage: 'https://cdn.example/course-cover.webp',
+      creatorName: 'Coach Ada',
+      displayName: 'Coach Ada',
+      name: 'Coach Ada',
     });
     expect(result).toMatchObject({ success: true, eventId: 'eventA', privateEvent: true });
     expect(app.showToast).toHaveBeenCalledWith('\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\uff0c\u9810\u8a2d\u70ba\u79c1\u5bc6\u6d3b\u52d5');

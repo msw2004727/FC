@@ -32,7 +32,7 @@ Object.assign(App, {
     const event = eventId && typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function'
       ? ApiService.getEvent(eventId)
       : null;
-    const name = String(event?.creator || payload?.name || '').trim();
+    const name = String(this._getEventHostDisplayName?.(event) || payload?.name || event?.creator || '').trim();
     const uid = String(event?.creatorUid || payload?.uid || '').trim();
     if (typeof this.showUserProfile === 'function' && (name || uid)) {
       return this.showUserProfile(name || uid, { uid, allowGuest: true });
@@ -587,12 +587,54 @@ Object.assign(App, {
     return rows.join('');
   },
 
+  _isEventRawUidDisplayValue(value, uidHint = '') {
+    const safeValue = String(value || '').trim();
+    if (!safeValue) return false;
+    const safeUid = String(uidHint || '').trim();
+    if (safeUid && safeValue === safeUid) return true;
+    return /^U[0-9a-f]{16,}$/i.test(safeValue);
+  },
+
+  _getEventHostDisplayName(e) {
+    if (!e) return '';
+    const snapshot = e.creatorSnapshot && typeof e.creatorSnapshot === 'object' ? e.creatorSnapshot : {};
+    const uid = String(e.creatorUid || snapshot.uid || '').trim();
+    const pickReadable = (values) => {
+      for (const value of values) {
+        const safeValue = String(value || '').trim();
+        if (safeValue && !this._isEventRawUidDisplayValue?.(safeValue, uid)) return safeValue;
+      }
+      return '';
+    };
+    const directName = pickReadable([
+      e.creatorName,
+      e.organizer,
+      e.hostName,
+      e.host,
+      snapshot.displayName,
+      snapshot.name,
+      e.creator,
+    ]);
+    if (directName) return directName;
+    const cachedUser = uid && typeof this._findUserByUid === 'function' ? this._findUserByUid(uid) : null;
+    const cachedName = pickReadable([cachedUser?.displayName, cachedUser?.name]);
+    if (cachedName) return cachedName;
+    return String(this._displayNameOrUidFallback?.('', uid, e.creator || uid || '') || e.creator || uid || '').trim();
+  },
+
+  _buildEventHostRowHtml(e) {
+    const hostName = this._getEventHostDisplayName?.(e) || String(e?.creator || e?.creatorUid || '').trim();
+    const hostUid = String(e?.creatorUid || e?.creatorSnapshot?.uid || '').trim();
+    const profileName = hostName || hostUid;
+    const contactPayload = { eventId: e?.id || '', uid: hostUid, name: hostName || '' };
+    return `<div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(profileName, null, { uid: hostUid })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify(contactPayload))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>`;
+  },
   _buildEventDetailOwnerRowsHtml(e) {
     const teamNameLink = e.creatorTeamId
       ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${escapeHTML(e.creatorTeamId)}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8')}</a>`
       : escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8');
     const rows = {
-      host: `<div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>`,
+      host: this._buildEventHostRowHtml?.(e) || '',
       delegates: (e.delegates && e.delegates.length)
         ? `<div class="detail-row detail-row-wide" data-detail-field="delegates"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>`
         : '',
@@ -756,14 +798,13 @@ Object.assign(App, {
   },
 
   _getEventDetailRibbonMeta(eventRecord) {
-    const safeType = TYPE_CONFIG?.[eventRecord?.type] ? eventRecord.type : 'friendly';
-    const typeConf = TYPE_CONFIG?.[safeType] || TYPE_CONFIG.friendly;
+    const safeType = this._getEventDisplayTypeKey?.(eventRecord) || (TYPE_CONFIG?.[eventRecord?.type] ? eventRecord.type : 'friendly');
+    const typeConf = this._getEventDisplayTypeConfig?.(eventRecord) || TYPE_CONFIG?.[safeType] || TYPE_CONFIG.friendly;
     return {
       typeKey: safeType,
       label: typeConf?.label || '活動',
     };
   },
-
   _renderEventDetailEditButton(eventRecord) {
     const eventId = eventRecord?.id || eventRecord?._docId || eventRecord?.docId || '';
     if (!eventId) return '';
@@ -1374,7 +1415,7 @@ Object.assign(App, {
       <div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide" data-detail-field="registration-open"') : ''}
       <div class="detail-grid">${_shortCells.join('')}</div>
-      <div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
+      ${this._buildEventHostRowHtml?.(e) || ''}
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide" data-detail-field="delegates"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
       ${socialLinksRow}
       ${e.contact ? `<div class="detail-row detail-row-wide" data-detail-field="contact"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}

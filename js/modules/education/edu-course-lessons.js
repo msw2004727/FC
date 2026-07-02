@@ -900,7 +900,30 @@ Object.assign(App, {
       try {
         if (typeof ensureFirebaseFunctionsSdk !== 'function') throw new Error('FUNCTIONS_SDK_MISSING');
         const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('createEventFromCourseLesson');
-        const result = await callable({ teamId: safeTeamId, planId: safePlanId, sessionId: safeSessionId });
+        const plan = this._findEduCoursePlan?.(safeTeamId, safePlanId) || null;
+        const currentUser = typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
+          ? ApiService.getCurrentUser()
+          : null;
+        const creatorName = String(currentUser?.displayName || currentUser?.name || '').trim();
+        const courseCoverImage = String(
+          this._getCoursePlanCoverUrl?.(plan)
+          || plan?.coverImage
+          || plan?.coverUrl
+          || plan?.imageUrl
+          || plan?.image
+          || plan?.imageVariants?.cover
+          || plan?.imageVariants?.card
+          || ''
+        ).trim();
+        const result = await callable({
+          teamId: safeTeamId,
+          planId: safePlanId,
+          sessionId: safeSessionId,
+          courseCoverImage,
+          creatorName,
+          displayName: creatorName,
+          name: creatorName,
+        });
         const data = result?.data || {};
         this.showToast?.(data.alreadyExists
           ? '\u6b64\u8ab2\u5802\u5df2\u8f49\u5316\u6210\u6d3b\u52d5'

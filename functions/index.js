@@ -3988,8 +3988,17 @@ function firstCourseConvertedEventImage(values) {
   return "";
 }
 
-function getCourseConvertedEventImage(plan = {}, session = {}) {
+function getCourseConvertedEventImage(plan = {}, session = {}, requestData = {}) {
   return firstCourseConvertedEventImage([
+    requestData.courseCoverImage,
+    requestData.courseCoverUrl,
+    requestData.coverImage,
+    requestData.coverUrl,
+    requestData.imageUrl,
+    requestData.image,
+    requestData.imageVariants?.card,
+    requestData.imageVariants?.cover,
+    requestData.imageVariants?.homeNext,
     session.coverImage,
     session.coverUrl,
     session.imageUrl,
@@ -4003,12 +4012,48 @@ function getCourseConvertedEventImage(plan = {}, session = {}) {
     plan.image,
     plan.imageVariants?.card,
     plan.imageVariants?.cover,
-    plan.imageVariants?.homeNext,
-  ]);
+    plan.imageVariants?.homeNext,  ]);
 }
 
-function resolveCourseConvertedEventCreatorName(callerUserData = {}, authToken = {}, callerUid = "") {
+function buildCourseConvertedEventImageFields(courseImage, existingVariants = {}, options = {}) {
+  const safeImage = firstCourseConvertedEventImage([courseImage]);
+  if (!safeImage) {
+    return options.includeEmpty ? { image: null, coverImage: "", imageVariants: {} } : {};
+  }
+  const imageVariants = existingVariants && typeof existingVariants === "object" && !Array.isArray(existingVariants)
+    ? { ...existingVariants }
+    : {};
+  imageVariants.card = safeImage;
+  imageVariants.cover = safeImage;
+  imageVariants.homeNext = safeImage;
+  return {
+    image: safeImage,
+    coverImage: safeImage,
+    imageVariants,
+  };
+}
+
+function isLikelyUidDisplayValue(value, uidHint = "") {
+  const safeValue = sanitizeStr(value, 160);
+  if (!safeValue) return false;
+  const safeUid = sanitizeStr(uidHint, 160);
+  if (safeUid && safeValue === safeUid) return true;
+  return /^U[0-9a-f]{16,}$/i.test(safeValue);
+}
+
+function firstNonUidCourseCreatorName(values, uidHint, fallback = "") {
+  for (const value of values) {
+    const safeValue = sanitizeStr(value, 80);
+    if (safeValue && !isLikelyUidDisplayValue(safeValue, uidHint)) return safeValue;
+  }
+  return firstSanitizedString([fallback, uidHint], 80) || uidHint;
+}
+
+function resolveCourseConvertedEventCreatorName(callerUserData = {}, authToken = {}, callerUid = "", requestData = {}) {
   return firstSanitizedString([
+    requestData.creatorName,
+    requestData.displayName,
+    requestData.name,
     callerUserData.displayName,
     callerUserData.name,
     callerUserData.lineDisplayName,
@@ -4017,7 +4062,6 @@ function resolveCourseConvertedEventCreatorName(callerUserData = {}, authToken =
     callerUid,
   ], 80) || callerUid;
 }
-
 function buildCourseConvertedEventCreatorSnapshot(callerUserData = {}, callerUid = "", callerName = "") {
   const safeName = firstSanitizedString([callerName, callerUserData.displayName, callerUserData.name, callerUid], 80) || callerUid;
   const avatarUrl = firstCourseConvertedEventImage([
@@ -4036,6 +4080,52 @@ function buildCourseConvertedEventCreatorSnapshot(callerUserData = {}, callerUid
   };
 }
 
+function buildCourseConvertedEventRepairPatch({ plan, session, requestData, callerUid, callerName, creatorSnapshot, courseLinkId, existingEvent }) {
+  const existing = existingEvent || {};
+  const existingSnapshot = existing.creatorSnapshot && typeof existing.creatorSnapshot === "object" && !Array.isArray(existing.creatorSnapshot)
+    ? existing.creatorSnapshot
+    : {};
+  const creatorUid = firstSanitizedString([
+    existing.creatorUid,
+    existingSnapshot.uid,
+    callerUid,
+  ], 128) || callerUid;
+  const creatorDisplayName = firstNonUidCourseCreatorName([
+    existing.creatorName,
+    existing.organizer,
+    existing.hostName,
+    existing.host,
+    existingSnapshot.displayName,
+    existingSnapshot.name,
+    existing.creator,
+    callerName,
+  ], creatorUid, callerName);
+  const shouldUseCallerSnapshot = !creatorUid || creatorUid === callerUid;
+  const nextCreatorSnapshot = {
+    ...existingSnapshot,
+    ...(shouldUseCallerSnapshot && creatorSnapshot ? creatorSnapshot : {}),
+    uid: creatorUid,
+    name: creatorDisplayName,
+    displayName: creatorDisplayName,
+  };
+  const courseImage = getCourseConvertedEventImage(plan, session, requestData);
+  return {
+    type: "course",
+    gradient: "linear-gradient(135deg,#0284c7,#075985)",
+    courseLinked: true,
+    courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
+    courseLinkId,
+    courseLinkStatus: existing.courseLinkStatus || "active",
+    privateEvent: true,
+    creatorUid,
+    creator: creatorDisplayName,
+    creatorName: creatorDisplayName,
+    organizer: creatorDisplayName,
+    creatorSnapshot: nextCreatorSnapshot,
+    ...buildCourseConvertedEventImageFields(courseImage, existing.imageVariants),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
 function courseConvertedEventCapacity(plan, session) {
   const candidates = [
     session.maxCapacity, session.capacity, session.max,
@@ -4058,9 +4148,10 @@ function buildCourseLessonEventTitle(plan, session) {
   return sanitizeStr((planName || "Course Event") + suffix, 120);
 }
 
-function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid, callerName, creatorSnapshot, courseLinkId, eventDate, startDate, endDate, max }) {
+function buildCourseLessonConvertedEventData({ eventId, plan, session, requestData, callerUid, callerName, creatorSnapshot, courseLinkId, eventDate, startDate, endDate, max }) {
   const safeCallerName = firstSanitizedString([callerName, callerUid], 80) || callerUid;
-  const courseImage = getCourseConvertedEventImage(plan, session) || null;
+  const courseImage = getCourseConvertedEventImage(plan, session, requestData) || null;
+  const imageFields = buildCourseConvertedEventImageFields(courseImage, {}, { includeEmpty: true });
   return {
     id: eventId,
     title: buildCourseLessonEventTitle(plan, session),
@@ -4078,7 +4169,7 @@ function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid
     waitlist: 0,
     minAge: 0,
     notes: firstSanitizedString([session.notes, plan.notes], 500),
-    image: courseImage,
+    ...imageFields,
     sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
     regOpenTime: null,
     creator: safeCallerName,
@@ -4087,7 +4178,7 @@ function buildCourseLessonConvertedEventData({ eventId, plan, session, callerUid
     creatorUid: callerUid,
     creatorSnapshot: creatorSnapshot || null,
     contact: "",
-    gradient: "linear-gradient(135deg,#0d9488,#065f46)",
+    gradient: "linear-gradient(135deg,#0284c7,#075985)",
     icon: "",
     countdown: "",
     participants: [],
@@ -6926,7 +7017,7 @@ exports.createEventFromCourseLesson = onCall(
     const access = await getCallerAccessContext(request);
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
     const callerUserData = callerUserDoc?.data || {};
-    const callerName = resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid);
+    const callerName = resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid, request.data || {});
     const creatorSnapshot = buildCourseConvertedEventCreatorSnapshot(callerUserData, callerUid, callerName);
     const eventId = generateCourseConvertedEventId();
     const eventRef = db.collection("events").doc(eventId);
@@ -6946,15 +7037,7 @@ exports.createEventFromCourseLesson = onCall(
         tx.get(sessionRef),
         tx.get(linkRef),
       ]);
-      if (linkSnap.exists) {
-        const existing = linkSnap.data() || {};
-        return {
-          success: true,
-          alreadyExists: true,
-          eventId: sanitizeStr(existing.eventId, 100),
-          courseLinkId: sanitizeStr(existing.courseLinkId, 128),
-        };
-      }
+
       if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
       if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
 
@@ -6968,6 +7051,34 @@ exports.createEventFromCourseLesson = onCall(
       const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
       if (["cancelled", "canceled", "removed"].includes(sessionStatus)) {
         throw new HttpsError("failed-precondition", "SESSION_NOT_CONVERTIBLE", { code: "SESSION_NOT_CONVERTIBLE" });
+      }
+
+      if (linkSnap.exists) {
+        const existing = linkSnap.data() || {};
+        const existingEventId = sanitizeStr(existing.eventId, 100);
+        const existingEventDoc = existingEventId ? await getEventDocByPublicIdInTransaction(tx, existingEventId) : null;
+        const existingEvent = existingEventDoc?.data?.() || {};
+        const existingCourseLinkId = firstSanitizedString([existing.courseLinkId, existingEvent.courseLinkId], 128);
+        if (existingEventDoc) {
+          tx.update(existingEventDoc.ref, buildCourseConvertedEventRepairPatch({
+            plan,
+            session,
+            requestData: request.data || {},
+            callerUid,
+            callerName,
+            creatorSnapshot,
+            courseLinkId: existingCourseLinkId,
+            existingEvent,
+          }));
+        }
+        return {
+          success: true,
+          alreadyExists: true,
+          eventId: existingEventId,
+          courseLinkId: existingCourseLinkId,
+          repaired: !!existingEventDoc,
+          privateEvent: true,
+        };
       }
 
       const date = firstSanitizedString([session.date, request.data?.date], 20);
@@ -6986,6 +7097,7 @@ exports.createEventFromCourseLesson = onCall(
         eventId,
         plan,
         session,
+        requestData: request.data || {},
         callerUid,
         callerName,
         creatorSnapshot,
