@@ -77,7 +77,8 @@ describe('registration ops guard', () => {
     expect(source).toContain('privateEvent: true');
     expect(source).toContain('assertOrdinaryEventRegistrationAllowed(ed);');
     expect(source).toContain('assertCourseLinkedRegistrationNotManagedByCourse(permissionCheckRegs);');
-    expect(source).toContain('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
+    expect(source).toContain('registrations must still work for private/link-shared course events.');
+    expect(source).not.toContain('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
     expect(source).toContain('COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE');
     expect(source).toContain('source: "saveEduCourseSelfAttendance"');
     expect(source).toContain('source: "saveEduCourseSelfLeave"');
@@ -106,7 +107,7 @@ describe('registration ops guard', () => {
     expect(crudSource).not.toContain("a.eventId === eventId && a.uid === item.userId && a.status === 'waitlisted'");
 
     const rulesSource = read('firestore.rules');
-    expect(rulesSource).toContain('!isPrivateCourseLinkedEventData(resource.data)');
+    expect(rulesSource).toContain('!hasCourseLinkedRegistrationData(request.resource.data)');
     expect(rulesSource).toContain('&& isSignupFieldsOnly()');
   });
   test('registration ops guard script passes', () => {

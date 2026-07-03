@@ -310,9 +310,14 @@ Object.assign(App, {
   },
 
   _getEventRegistrationErrorCode(err) {
-    const values = [err?.details, err?.message, err?.code]
+    const details = err?.details;
+    const detailCode = details && typeof details === 'object'
+      ? (details.code || details.reason || details.message || '')
+      : details;
+    const values = [detailCode, err?.message, err?.code]
       .map(value => String(value || '').trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(value => value !== '[object Object]');
     if (values.some(value => value.toUpperCase() === 'PROFILE_INCOMPLETE')) return 'PROFILE_INCOMPLETE';
     const raw = values[0] || '';
     return raw.replace(/^functions\//i, '');
@@ -1987,6 +1992,9 @@ Object.assign(App, {
         EARLY_BIRD_FULL: '早鳥名額已滿，正式開放後可依活動狀態候補報名',
         GENDER_RESTRICTED: '此活動不符合目前性別限制',
         TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
+        COURSE_LINKED_EVENT_PRIVATE_REGISTRATION: '此課程活動目前仍為不公開，請等待職員開啟公開後再報名',
+        COURSE_LINKED_EVENT_MANAGED_BY_COURSE: '課程學員名單由課程系統同步管理，請回到課程頁面操作',
+        COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE: '課程學員名單由課程系統同步管理，請回到課程頁面操作',
         PROFILE_INCOMPLETE: '請先完善個人資料後再報名',
       };
       cfMsg.TEAM_RESERVATION_TEAM_DENIED = '你無法使用此俱樂部席位報名';

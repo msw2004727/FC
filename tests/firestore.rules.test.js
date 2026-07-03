@@ -2345,7 +2345,7 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
     await assertSucceeds(deleteDoc(doc(admin(), "events", "eventA", "registrationLocks", "self_uidA_admin_delete")));
   });
 
-  test("private course-linked events block client-owned registration locks", async () => {
+  test("private course-linked events allow ordinary client-owned registration locks", async () => {
     await seedDoc("events", "event_course_private", {
       id: "event_course_private",
       title: "Course Private",
@@ -2357,7 +2357,7 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
       status: "open",
     });
 
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA"), {
         key: "self_uidA",
         eventId: "event_course_private",
@@ -2378,7 +2378,7 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
       registrationDocId: "regA",
       status: "active",
     });
-    await assertFails(deleteDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA")));
+    await assertSucceeds(deleteDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA")));
   });
 });
 
@@ -2479,7 +2479,7 @@ describe("/registrations/{regId}", () => {
     await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_existing")));
   });
 
-  test("private course-linked events block direct root registration writes even without provenance fields", async () => {
+  test("private course-linked events allow ordinary root registration writes without provenance fields", async () => {
     await seedDoc("events", "event_course_private", {
       id: "event_course_private",
       title: "Course Private",
@@ -2491,11 +2491,20 @@ describe("/registrations/{regId}", () => {
       status: "open",
     });
 
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(memberA(), "registrations", "reg_course_private_create"), {
         eventId: "event_course_private",
         userId: "uidA",
         status: "confirmed",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "registrations", "reg_course_private_course_owned"), {
+        eventId: "event_course_private",
+        userId: "uidA",
+        status: "confirmed",
+        source: "eduCourseLesson",
+        courseLinkState: "created_by_course",
       })
     );
 
@@ -2504,12 +2513,17 @@ describe("/registrations/{regId}", () => {
       userId: "uidA",
       status: "confirmed",
     });
-    await assertFails(
+    await assertSucceeds(
       updateDoc(doc(memberA(), "registrations", "reg_course_private_existing"), {
         status: "cancelled",
       })
     );
-    await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_private_existing")));
+    await seedDoc("registrations", "reg_course_private_existing", {
+      eventId: "event_course_private",
+      userId: "uidA",
+      status: "confirmed",
+    });
+    await assertSucceeds(deleteDoc(doc(memberA(), "registrations", "reg_course_private_existing")));
   });
 });
 
@@ -2696,7 +2710,7 @@ describe("course-linked event direct write guards", () => {
       })
     );
   });
-  test("clients cannot edit or delete course-linked events directly; managers can cancel only", async () => {
+  test("clients cannot edit course-linked events directly; managers can cancel and authorized roles can delete", async () => {
     await seedDoc("events", "event_course_lifecycle", {
       id: "event_course_lifecycle",
       title: "Course Lifecycle",
@@ -2814,7 +2828,8 @@ describe("course-linked event direct write guards", () => {
       })
     );
 
-    await assertFails(deleteDoc(doc(superAdmin(), "events", "event_course_lifecycle")));
+    await assertFails(deleteDoc(doc(memberA(), "events", "event_course_lifecycle")));
+    await assertSucceeds(deleteDoc(doc(superAdmin(), "events", "event_course_lifecycle")));
   });
 
   test("subcollection course-linked registration provenance is immutable to clients", async () => {
@@ -2844,7 +2859,7 @@ describe("course-linked event direct write guards", () => {
     await assertFails(deleteDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_course_sub")));
   });
 
-  test("private course-linked events block direct subcollection registrations and activity side effects", async () => {
+  test("private course-linked events allow ordinary subcollection registrations and activity side effects", async () => {
     await seedDoc("events", "event_course_private_sub", {
       id: "event_course_private_sub",
       title: "Course Private Sub",
@@ -2856,7 +2871,7 @@ describe("course-linked event direct write guards", () => {
       status: "open",
     });
 
-    await assertFails(
+    await assertSucceeds(
       updateDoc(doc(memberA(), "events", "event_course_private_sub"), {
         current: 1,
         realCurrent: 1,
@@ -2864,18 +2879,27 @@ describe("course-linked event direct write guards", () => {
         status: "open",
       })
     );
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(memberA(), "events", "event_course_private_sub", "registrations", "reg_private_sub"), {
         eventId: "event_course_private_sub",
         userId: "uidA",
         status: "confirmed",
       })
     );
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(memberA(), "events", "event_course_private_sub", "activityRecords", "act_private_sub"), {
         eventId: "event_course_private_sub",
         uid: "uidA",
         status: "registered",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_private_sub", "activityRecords", "act_private_course_owned"), {
+        eventId: "event_course_private_sub",
+        uid: "uidA",
+        status: "registered",
+        source: "eduCourseLesson",
+        courseLinkState: "created_by_course",
       })
     );
   });

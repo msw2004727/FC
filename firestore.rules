@@ -1123,7 +1123,6 @@ service cloud.firestore {
           )
           || (
             resource.data.get('courseLinked', false) == true
-            && !isPrivateCourseLinkedEventData(resource.data)
             && isSignupFieldsOnly()
           )
           || (
@@ -1139,12 +1138,9 @@ service cloud.firestore {
             && isCourseLinkedManagerCancelUpdate()
           )
         );
-      allow delete: if !isCourseLinkedEventData(resource.data)
-        && (
-          isAdmin()
-          || hasEffectivePerm('event.delete')
-          || (isEventOwner() && hasEffectivePerm('event.delete_self'))
-        );
+      allow delete: if isAdmin()
+        || hasEffectivePerm('event.delete')
+        || (isEventOwner() && hasEffectivePerm('event.delete_self'));
     }
 
     match /eventTemplates/{templateId} {
@@ -1770,11 +1766,9 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(getRequestRegEventData())
         && (isAdmin() || isRegistrationOwnerRequest());
       allow update: if !hasCourseLinkedRegistrationData(resource.data)
         && !hasCourseLinkedRegistrationData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(getRegEventData())
         && (
           isAdmin()
           || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
@@ -1786,7 +1780,6 @@ service cloud.firestore {
           || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
         );
       allow delete: if !hasCourseLinkedRegistrationData(resource.data)
-        && !isPrivateCourseLinkedEventData(getRegEventData())
         && (isAdmin() || isRegistrationOwnerResource());
     }
 
@@ -2228,15 +2221,12 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if isAuth()
-        && !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(request.resource.data));
+        && !hasCourseLinkedSideEffectData(request.resource.data);
       allow update: if isAuth()
         && !hasCourseLinkedSideEffectData(resource.data)
         && !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(resource.data))
         && (isUserFieldOwnerResource() || isAdmin() || isActivityStatusOnly());
       allow delete: if !hasCourseLinkedSideEffectData(resource.data)
-        && !isPrivateCourseLinkedEventData(eventDataForDataEventId(resource.data))
         && isAdmin();
     }
 
@@ -2954,11 +2944,9 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(getSubRegEventData())
         && (isAdmin() || isSubRegOwnerRequest());
       allow update: if !hasCourseLinkedRegistrationData(resource.data)
         && !hasCourseLinkedRegistrationData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(getSubRegEventData())
         && (
           isAdmin()
           || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
@@ -2970,7 +2958,6 @@ service cloud.firestore {
           || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
         );
       allow delete: if !hasCourseLinkedRegistrationData(resource.data)
-        && !isPrivateCourseLinkedEventData(getSubRegEventData())
         && (isAdmin() || isSubRegOwner());
     }
 
@@ -2993,11 +2980,9 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if !isPrivateCourseLinkedEventData(pathEventData(eventId))
-        && (isAdmin() || isLockOwnerRequest());
+      allow create: if isAdmin() || isLockOwnerRequest();
       allow update: if false;
-      allow delete: if !isPrivateCourseLinkedEventData(pathEventData(eventId))
-        && (isAdmin() || isLockOwnerResource());
+      allow delete: if isAdmin() || isLockOwnerResource();
     }
 
     match /events/{eventId}/attendanceRecords/{recId} {
@@ -3027,16 +3012,13 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && requestEventIdMatchesPath(eventId)
         && (isUserFieldOwnerRequest() || isEventSiteOperatorForPath(eventId));
       allow update: if isAuth()
         && !hasCourseLinkedSideEffectData(resource.data)
         && !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventSiteOperatorForPath(eventId)));
       allow delete: if !hasCourseLinkedSideEffectData(resource.data)
-        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && isAdmin();
     }
 

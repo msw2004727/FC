@@ -30,4 +30,14 @@ describe('event signup error code handling', () => {
       message: '',
     })).toBe('failed-precondition');
   });
+
+  test('reads callable details.code objects before generic functions code', () => {
+    const App = loadSignupModule();
+
+    expect(App._getEventRegistrationErrorCode({
+      code: 'functions/failed-precondition',
+      message: 'COURSE_LINKED_EVENT_PRIVATE_REGISTRATION',
+      details: { code: 'COURSE_LINKED_EVENT_PRIVATE_REGISTRATION' },
+    })).toBe('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
+  });
 });

@@ -3915,10 +3915,10 @@ function courseLinkedEventManagedByCourseError() {
 }
 
 function assertOrdinaryEventRegistrationAllowed(eventData) {
-  if (!isPrivateCourseLinkedEventData(eventData)) return;
-  throw new HttpsError("failed-precondition", "COURSE_LINKED_EVENT_PRIVATE_REGISTRATION", {
-    code: "COURSE_LINKED_EVENT_PRIVATE_REGISTRATION",
-  });
+  if (!isCourseLinkedEventData(eventData)) return;
+  // Course-linked student registrations remain protected by
+  // assertCourseLinkedRegistrationNotManagedByCourse(); ordinary activity
+  // registrations must still work for private/link-shared course events.
 }
 
 function assertCourseLinkedRegistrationNotManagedByCourse(regs = []) {
@@ -12612,9 +12612,6 @@ exports.cancelRegistration = onCall(
       }
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
-      if (isPrivateCourseLinkedEventData(ed)) {
-        throw courseLinkedEventManagedByCourseError();
-      }
 
       // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
       const allRegsSnap = await transaction.get(
