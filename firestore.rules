@@ -2993,12 +2993,10 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && isEventSiteOperatorForPath(eventId)
         && requestEventIdMatchesPath(eventId);
       allow update: if !hasCourseLinkedSideEffectData(resource.data)
         && !hasCourseLinkedSideEffectData(request.resource.data)
-        && !isPrivateCourseLinkedEventData(pathEventData(eventId))
         && isEventSiteOperatorForPath(eventId)
         && isSubAttendanceStatusUpdate();
       allow delete: if false;

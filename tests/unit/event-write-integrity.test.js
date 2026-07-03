@@ -266,6 +266,29 @@ describe('event write integrity', () => {
     expect(cache.events).toEqual([]);
   });
 
+  test('attendance permission-denied error is not mapped to LINE login failure', () => {
+    const { ApiService } = loadApiService({ cache: { events: [] } });
+    const err = Object.assign(new Error('Missing or insufficient permissions.'), {
+      code: 'permission-denied',
+    });
+
+    const message = ApiService._mapAttendanceWriteError(err);
+
+    expect(message).toContain('Firebase 權限不足');
+    expect(message).not.toContain('LINE');
+  });
+
+  test('attendance unauthenticated error still asks for LINE login when LIFF session is missing', () => {
+    const { ApiService } = loadApiService({ cache: { events: [] } });
+    const err = Object.assign(new Error('unauthenticated'), {
+      code: 'unauthenticated',
+    });
+
+    const message = ApiService._mapAttendanceWriteError(err);
+
+    expect(message).toContain('LINE 登入');
+  });
+
   test('getEvent resolves ended event records by data id or Firestore doc id', () => {
     const item = { id: 'evt-ended-1', _docId: 'doc-ended-1', docId: 'legacy-doc-id', title: 'Ended Event', status: 'ended' };
     const { ApiService } = loadApiService({ cache: { events: [item] } });

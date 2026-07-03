@@ -466,24 +466,39 @@ const ApiService = {
     return result;
   },
 
-  _isAttendancePermissionError(err) {
+  _getAttendanceErrorText(err) {
     const raw = String(err?.message || err || '').trim();
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
     const code = String(err?.code || '').toLowerCase();
+    return { raw, normalized, code };
+  },
+
+  _isAttendanceUnauthenticatedError(err) {
+    const { normalized, code } = this._getAttendanceErrorText(err);
+    return normalized.includes('unauthenticated') || code.includes('unauthenticated');
+  },
+
+  _isAttendancePermissionDeniedError(err) {
+    const { normalized, code } = this._getAttendanceErrorText(err);
     return (
       normalized.includes('missingorinsufficientpermissions')
       || normalized.includes('permission-denied')
       || normalized.includes('insufficientpermissions')
-      || normalized.includes('unauthenticated')
       || code.includes('permission-denied')
-      || code.includes('unauthenticated')
     );
+  },
+
+  _isAttendancePermissionError(err) {
+    return this._isAttendanceUnauthenticatedError(err) || this._isAttendancePermissionDeniedError(err);
   },
 
   _mapAttendanceWriteError(err) {
     const raw = String(err?.message || err || '').trim();
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
     if (this._isAttendancePermissionError(err)) {
+      if (this._isAttendancePermissionDeniedError(err)) {
+        return 'Firebase 權限不足\n請確認你是否仍具備活動管理或現場操作權限\n若仍異常請聯繫管理員';
+      }
       if (!this._hasLiffSession()) {
         return '未偵測到 LINE 登入\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員';
       }

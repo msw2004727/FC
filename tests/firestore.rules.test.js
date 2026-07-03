@@ -2904,6 +2904,70 @@ describe("course-linked event direct write guards", () => {
     );
   });
 
+  test("private course-linked events allow site operators to manage attendance records only", async () => {
+    await seedDoc("events", "event_course_private_attendance", {
+      id: "event_course_private_attendance",
+      title: "Course Private Attendance",
+      creatorUid: "uidCoach",
+      ownerUid: "uidCoach",
+      privateEvent: true,
+      courseLinked: true,
+      courseLinkSource: "eduCourseLesson",
+      courseLinkId: "opaque_link_attendance",
+      status: "open",
+    });
+    await seedPath(["events", "event_course_private_attendance", "attendanceRecords", "att_existing"], {
+      eventId: "event_course_private_attendance",
+      uid: "uidA",
+      type: "checkin",
+      status: "active",
+    });
+
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_course_private_attendance", "attendanceRecords", "att_operator_checkin"), {
+        eventId: "event_course_private_attendance",
+        uid: "uidA",
+        type: "checkin",
+        status: "active",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_course_private_attendance", "attendanceRecords", "att_operator_note"), {
+        eventId: "event_course_private_attendance",
+        uid: "uidA",
+        type: "note",
+        note: "arrived",
+        status: "active",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_course_private_attendance", "attendanceRecords", "att_existing"), {
+        status: "removed",
+        removedAt: serverTimestamp(),
+        removedByUid: "uidCoach",
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_private_attendance", "attendanceRecords", "att_random"), {
+        eventId: "event_course_private_attendance",
+        uid: "uidA",
+        type: "checkin",
+        status: "active",
+      })
+    );
+    await assertFails(
+      setDoc(doc(coach(), "events", "event_course_private_attendance", "attendanceRecords", "att_course_owned"), {
+        eventId: "event_course_private_attendance",
+        uid: "uidA",
+        type: "checkin",
+        status: "active",
+        source: "eduCourseLesson",
+        courseLinkState: "created_by_course",
+      })
+    );
+  });
+
   test("course-linked activity records cannot be client-mutated after event is public", async () => {
     await seedDoc("events", "event_course_activity_public", {
       id: "event_course_activity_public",
