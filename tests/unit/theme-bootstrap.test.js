@@ -28,4 +28,19 @@ describe('Theme bootstrap', () => {
     expect(themeSource).toContain('if (!themeToggle) return');
     expect(themeSource).toContain("localStorage.setItem('sporthub_theme', html.dataset.theme)");
   });
+  test('top bar logo uses one data-theme switched image', () => {
+    const index = readProjectFile('index.html');
+    const themeSource = readProjectFile('js/core/theme.js');
+
+    expect((index.match(/class="logo-img/g) || []).length).toBe(1);
+    expect(index).toContain('id="top-logo-img"');
+    expect(index).toContain('data-logo-light-webp="assets/logo-black.webp"');
+    expect(index).toContain('data-logo-dark-webp="assets/logo-white.webp"');
+    expect(index).not.toContain('logo-img--light');
+    expect(index).not.toContain('logo-img--dark');
+    expect(themeSource).toContain('_syncTopLogoForTheme()');
+    expect(themeSource).toContain("document.getElementById('top-logo-img')");
+    expect(themeSource).toContain('this._syncTopLogoForTheme();');
+  });
+
 });

@@ -178,10 +178,6 @@
 .logo { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 0; }
 .logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logo-img { height: 40px; width: auto; object-fit: contain; }
-.logo-img--light { display: block; }
-.logo-img--dark { display: none; }
-[data-theme="dark"] .logo-img--light { display: none; }
-[data-theme="dark"] .logo-img--dark { display: block; }
 /* ─── Points Display ─── */
 .points-display {
   display: flex;

@@ -4,6 +4,25 @@
 
 Object.assign(App, {
 
+  _syncTopLogoForTheme() {
+    const img = document.getElementById('top-logo-img');
+    if (!img) return;
+    const isDark = document.documentElement.dataset.theme === 'dark';
+    const webp = isDark ? img.dataset.logoDarkWebp : img.dataset.logoLightWebp;
+    const fallback = isDark ? img.dataset.logoDarkPng : img.dataset.logoLightPng;
+    const nextSrc = webp || fallback || '';
+    if (!nextSrc) return;
+    img.dataset.logoFallback = fallback || '';
+    img.onerror = function() {
+      const fallbackSrc = this.dataset.logoFallback;
+      if (fallbackSrc && this.getAttribute('src') !== fallbackSrc) {
+        this.onerror = null;
+        this.src = fallbackSrc;
+      }
+    };
+    if (img.getAttribute('src') !== nextSrc) img.src = nextSrc;
+  },
+
   bindTheme() {
     let saved = '';
     try {
@@ -16,6 +35,7 @@ Object.assign(App, {
     } catch (_) {}
     const theme = saved || (prefersDark ? 'dark' : 'light');
     document.documentElement.dataset.theme = theme;
+    this._syncTopLogoForTheme();
     const initToggle = document.querySelector('#theme-toggle .toggle-switch');
     if (theme === 'dark' && initToggle) initToggle.classList.add('active');
 
@@ -26,6 +46,7 @@ Object.assign(App, {
       const isDark = html.dataset.theme === 'dark';
       html.dataset.theme = isDark ? 'light' : 'dark';
       try { localStorage.setItem('sporthub_theme', html.dataset.theme); } catch (_) {}
+      this._syncTopLogoForTheme();
       const toggle = document.querySelector('#theme-toggle .toggle-switch');
       if (toggle) toggle.classList.toggle('active', !isDark);
     });

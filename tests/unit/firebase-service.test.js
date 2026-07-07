@@ -433,9 +433,10 @@ describe('_getEffectiveTTL (firebase-service.js:180-187)', () => {
 });
 
 describe('localStorage display cache TTL wiring', () => {
-  test('normal user display cache is capped at 7 days and fresh cache fast path is 30 minutes', () => {
+  test('admin display cache is capped at 24 hours; normal user display cache is capped at 7 days and fresh cache fast path is 30 minutes', () => {
     const { FirebaseService, source } = loadFirebaseServiceWithStorage();
 
+    expect(FirebaseService._LS_TTL).toBe(24 * 60 * 60 * 1000);
     expect(FirebaseService._LS_TTL_LONG).toBe(7 * 24 * 60 * 60 * 1000);
     expect(FirebaseService._LS_FRESH_TTL).toBe(30 * 60 * 1000);
     expect(source).toContain('const _FRESH_CACHE_TTL = this._LS_FRESH_TTL || (30 * 60 * 1000);');
@@ -472,17 +473,59 @@ describe('localStorage display cache TTL wiring', () => {
     expect(FirebaseService._collectionLoadedAt.events).toBe(legacyTs);
   });
 
-  test('legacy admin cache still uses the shorter admin display cache cap', () => {
+  test('UID-scoped admin cache restores within the 24-hour admin display cache cap', () => {
     const now = Date.now();
-    const legacyTs = now - (2 * 60 * 60 * 1000);
+    const cacheTs = now - (2 * 60 * 60 * 1000);
     const { FirebaseService } = loadFirebaseServiceWithStorage({
       shub_c_currentUser: JSON.stringify({ uid: 'U-admin-cache', role: 'admin' }),
-      shub_cache_ts: String(legacyTs),
-      shub_c_events: JSON.stringify([{ id: 'admin-old-event' }]),
+      'shub_ts_U-admin-cache': String(cacheTs),
+      'shub_c_U-admin-cache_banners': JSON.stringify([{ id: 'admin-banner' }]),
+      'shub_c_U-admin-cache_announcements': JSON.stringify([{ id: 'admin-announcement' }]),
+      'shub_c_U-admin-cache_siteThemes': JSON.stringify([{ id: 'admin-theme' }]),
+      'shub_c_U-admin-cache_achievements': JSON.stringify([{ id: 'admin-achievement' }]),
+      'shub_c_U-admin-cache_events': JSON.stringify([{ id: 'admin-old-event' }]),
+    });
+
+    expect(FirebaseService._restoreCache()).toBe(true);
+    expect(FirebaseService._cache.events).toEqual([{ id: 'admin-old-event' }]);
+    expect(FirebaseService._collectionLoadedAt.events).toBe(cacheTs);
+  });
+
+  test('UID-scoped admin cache expires after the 24-hour admin display cache cap', () => {
+    const now = Date.now();
+    const cacheTs = now - (25 * 60 * 60 * 1000);
+    const { FirebaseService } = loadFirebaseServiceWithStorage({
+      shub_c_currentUser: JSON.stringify({ uid: 'U-admin-cache-expired', role: 'admin' }),
+      'shub_ts_U-admin-cache-expired': String(cacheTs),
+      'shub_c_U-admin-cache-expired_events': JSON.stringify([{ id: 'admin-expired-event' }]),
     });
 
     expect(FirebaseService._restoreCache()).toBe(false);
     expect(FirebaseService._cache.events).toEqual([]);
+  });
+});
+
+describe('_startAuthDependentWork role listener first-snapshot wiring', () => {
+  test('waits for role listener first snapshots in parallel before resolving auth role', () => {
+    const { source } = loadFirebaseServiceWithStorage();
+    const block = source.match(/async _startAuthDependentWork\(\) \{[\s\S]*?const authRole = await this\._resolveCurrentAuthRole\(\);/)?.[0];
+
+    expect(block).toBeTruthy();
+    expect(block).toContain("recordAuthTiming('firebase-service:role-listeners:first-snapshot:start')");
+    expect(block).toContain("recordAuthTiming('firebase-service:role-listeners:first-snapshot:ready')");
+    expect(block).toContain('const watcherTasks = [');
+    expect(block).toContain("_watchRolePermissionsRealtime(true)");
+    expect(block).toContain("_watchRoleActivityCapabilitiesRealtime(true)");
+    expect(block).toContain("_watchCurrentUserPermissionGrantRealtime(true)");
+    expect(block).toContain('Promise.allSettled(watcherTasks.map(task => task.run()))');
+    expect(block).toContain("result.status === 'rejected'");
+    expect(block).toContain('watcher setup failed');
+    expect(block).not.toMatch(/await this\._watchRolePermissionsRealtime\(true\);\s*await this\._watchRoleActivityCapabilitiesRealtime\(true\);\s*await this\._watchCurrentUserPermissionGrantRealtime\(true\);/);
+
+    const allSettledIndex = block.indexOf('Promise.allSettled');
+    const authRoleIndex = block.indexOf('const authRole = await this._resolveCurrentAuthRole();');
+    expect(allSettledIndex).toBeGreaterThan(-1);
+    expect(authRoleIndex).toBeGreaterThan(allSettledIndex);
   });
 });
 

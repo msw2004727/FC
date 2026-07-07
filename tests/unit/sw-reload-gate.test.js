@@ -171,6 +171,126 @@ describe('Service Worker reload gate helper', () => {
   });
 });
 
+function readCacheVersionBootstrapScript() {
+  const source = readProjectFile('index.html');
+  const match = source.match(/<script>\s*\r?\n\s*\(function\(\)\{\r?\n\s*var V='[^']+';[\s\S]*?\r?\n\s*\}\)\(\);\r?\n\s*<\/script>/);
+  expect(match).toBeTruthy();
+  const version = match[0].match(/var V='([^']+)'/)[1];
+  const script = match[0]
+    .replace(/^<script>\s*\r?\n/, '')
+    .replace(/\r?\n\s*<\/script>$/, '');
+  return { script, version };
+}
+
+function createLocalStorageLike(initial = {}) {
+  const storage = { ...initial };
+  Object.defineProperties(storage, {
+    getItem: {
+      value: jest.fn(key => (Object.prototype.hasOwnProperty.call(storage, key) ? String(storage[key]) : null)),
+      enumerable: false,
+    },
+    setItem: {
+      value: jest.fn((key, value) => { storage[key] = String(value); }),
+      enumerable: false,
+    },
+    removeItem: {
+      value: jest.fn(key => { delete storage[key]; }),
+      enumerable: false,
+    },
+  });
+  return storage;
+}
+
+function runCacheVersionBootstrap({ search = '', initialStorage = {} } = {}) {
+  const { script, version } = readCacheVersionBootstrapScript();
+  const localStorage = createLocalStorageLike(initialStorage);
+  const sessionStorage = createLocalStorageLike();
+  const caches = {
+    keys: jest.fn(() => Promise.resolve(['sporthub-0.old', 'sporthub-images-v2'])),
+    delete: jest.fn(() => Promise.resolve(true)),
+  };
+  const registrations = [{ unregister: jest.fn() }];
+  const serviceWorker = {
+    getRegistrations: jest.fn(() => Promise.resolve(registrations)),
+  };
+  const indexedDB = {
+    databases: jest.fn(() => Promise.resolve([{ name: 'firebaseLocalStorageDb' }])),
+    deleteDatabase: jest.fn(),
+  };
+  const sandbox = {
+    console,
+    URLSearchParams,
+    location: { search, pathname: '/index.html', replace: jest.fn() },
+    localStorage,
+    sessionStorage,
+    navigator: { serviceWorker },
+    caches,
+    indexedDB,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(script, sandbox, { filename: 'index.html cache version bootstrap' });
+  return { ...sandbox, version, registrations };
+}
+
+function flushMicrotasks() {
+  return Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
+}
+
+describe('Cache version bootstrap behavior', () => {
+  test('ordinary version change preserves SW, caches and display cache while setting the crossover flag', () => {
+    const ctx = runCacheVersionBootstrap({
+      initialStorage: {
+        sporthub_cache_ver: '0.old',
+        shub_c_currentUser: 'keep-user-cache',
+        shub_ts_U1: 'keep-uid-ts',
+        shub_cache_ts: 'keep-global-ts',
+      },
+    });
+
+    expect(ctx._swJustCleared).toBe(true);
+    expect(ctx.caches.keys).not.toHaveBeenCalled();
+    expect(ctx.caches.delete).not.toHaveBeenCalled();
+    expect(ctx.navigator.serviceWorker.getRegistrations).not.toHaveBeenCalled();
+    expect(ctx.localStorage.removeItem).not.toHaveBeenCalled();
+    expect(ctx.localStorage.getItem('shub_c_currentUser')).toBe('keep-user-cache');
+    expect(ctx.localStorage.getItem('shub_ts_U1')).toBe('keep-uid-ts');
+    expect(ctx.localStorage.getItem('shub_cache_ts')).toBe('keep-global-ts');
+    expect(ctx.localStorage.setItem).toHaveBeenCalledWith('sporthub_cache_ver', ctx.version);
+  });
+
+  test('clear query keeps the full reset escape hatch', async () => {
+    const ctx = runCacheVersionBootstrap({
+      search: '?clear=1&debug=1',
+      initialStorage: {
+        sporthub_cache_ver: '0.old',
+        shub_c_currentUser: 'drop-user-cache',
+        shub_ts_U1: 'drop-uid-ts',
+        shub_cache_ts: 'drop-global-ts',
+        LIFF_STORE: 'drop-liff-cache',
+        keep_unrelated: 'stay',
+      },
+    });
+
+    await flushMicrotasks();
+
+    expect(ctx.caches.keys).toHaveBeenCalledTimes(1);
+    expect(ctx.caches.delete).toHaveBeenCalledWith('sporthub-0.old');
+    expect(ctx.caches.delete).toHaveBeenCalledWith('sporthub-images-v2');
+    expect(ctx.navigator.serviceWorker.getRegistrations).toHaveBeenCalledTimes(1);
+    expect(ctx.registrations[0].unregister).toHaveBeenCalledTimes(1);
+    expect(ctx.localStorage.removeItem).toHaveBeenCalledWith('shub_c_currentUser');
+    expect(ctx.localStorage.removeItem).toHaveBeenCalledWith('shub_ts_U1');
+    expect(ctx.localStorage.removeItem).toHaveBeenCalledWith('shub_cache_ts');
+    expect(ctx.localStorage.removeItem).toHaveBeenCalledWith('LIFF_STORE');
+    expect(ctx.localStorage.getItem('keep_unrelated')).toBe('stay');
+    expect(ctx.indexedDB.deleteDatabase).toHaveBeenCalledWith('firebaseLocalStorageDb');
+    expect(ctx.sessionStorage.setItem).toHaveBeenCalledWith('_bootWatchdog', '2');
+    expect(ctx.localStorage.setItem).toHaveBeenCalledWith('sporthub_cache_ver', ctx.version);
+    expect(ctx.location.replace).toHaveBeenCalledWith('/index.html?debug=1');
+  });
+});
 describe('Service Worker reload gate source wiring', () => {
   test('controllerchange delegates to App helper with legacy fallback', () => {
     const source = readProjectFile('index.html');

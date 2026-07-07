@@ -20,7 +20,7 @@ Object.assign(App, {
   },
 
   _getEventShareVersion() {
-    return '20260521';
+    return '20260707';
   },
 
   /**
@@ -31,7 +31,7 @@ Object.assign(App, {
    * - LINE 好友 / LINE 群組 仍走 Mini App URL（由 `_buildEventLiffUrl` 提供）
    */
   _buildEventShareOgUrl(eventId) {
-    var version = encodeURIComponent(String(this._getEventShareVersion?.() || '20260521').trim());
+    var version = encodeURIComponent(String(this._getEventShareVersion?.() || '20260707').trim());
     var suffix = version ? '?v=' + version : '';
     return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim()) + suffix;
   },

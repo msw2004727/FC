@@ -249,7 +249,7 @@ const FirebaseService = {
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
   _LS_TS_KEY: 'shub_cache_ts',
-  _LS_TTL: 60 * 60 * 1000, // admin/super_admin display cache TTL: 60 minutes
+  _LS_TTL: 24 * 60 * 60 * 1000, // admin/super_admin display cache TTL: 24 hours
   _LS_TTL_LONG: 7 * 24 * 60 * 60 * 1000, // normal user display cache TTL: 7 days
   _LS_FRESH_TTL: 30 * 60 * 1000, // fresh cache fast path: 30 minutes
   _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
@@ -3197,13 +3197,21 @@ const FirebaseService = {
         if (typeof recordAuthTiming === 'function') {
           recordAuthTiming('firebase-service:role-listeners:first-snapshot:start');
         }
-        await this._watchRolePermissionsRealtime(true);
-        await this._watchRoleActivityCapabilitiesRealtime(true);
-        await this._watchCurrentUserPermissionGrantRealtime(true);
+        const watcherTasks = [
+          { name: 'rolePermissions', run: () => this._watchRolePermissionsRealtime(true) },
+          { name: 'roleActivityCapabilities', run: () => this._watchRoleActivityCapabilitiesRealtime(true) },
+          { name: 'currentUserPermissionGrant', run: () => this._watchCurrentUserPermissionGrantRealtime(true) },
+        ];
+        const watcherResults = await Promise.allSettled(watcherTasks.map(task => task.run()));
+        watcherResults.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.warn(`[FirebaseService] ${watcherTasks[index].name} watcher setup failed:`, result.reason);
+          }
+        });
         if (typeof recordAuthTiming === 'function') {
           recordAuthTiming('firebase-service:role-listeners:first-snapshot:ready');
         }
-      } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
+      } catch (err) { console.warn('[FirebaseService] role listener setup failed:', err); }
 
       const authRole = await this._resolveCurrentAuthRole();
       if (typeof recordAuthTiming === 'function') {

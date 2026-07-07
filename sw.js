@@ -6,10 +6,10 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260703a';
+const CACHE_NAME       = 'sporthub-0.20260707c';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
-const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
-const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
+const MAX_IMAGE_CACHE  = 300;                         // 最多快取 300 張圖片
+const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;   // 14 天過期
 
 const STATIC_ASSETS = [
   './',
@@ -144,14 +144,21 @@ self.addEventListener('install', (event) => {
 
 // ─── Activate：清除舊快取（保留 IMAGE_CACHE_NAME）───
 self.addEventListener('activate', (event) => {
+  const navigationPreloadReady = self.registration.navigationPreload?.enable?.() ?? Promise.resolve();
+
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME && key !== IMAGE_CACHE_NAME)
-          .map((key) => caches.delete(key))
-      );
-    }).then(() => self.clients.claim())
+    Promise.all([
+      navigationPreloadReady.catch((err) => {
+        console.warn('[SW] navigation preload enable failed:', err?.message || err);
+      }),
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME && key !== IMAGE_CACHE_NAME)
+            .map((key) => caches.delete(key))
+        );
+      }).then(() => self.clients.claim()),
+    ])
   );
 });
 
@@ -227,20 +234,24 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     const normalizeToIndex = event.request.mode === 'navigate' && isSpaNavigationPath(url.pathname);
     const cacheRequest = normalizeToIndex ? getIndexCacheRequest(url) : event.request;
-    event.respondWith(
-      fetch(event.request).then((response) => {
+    event.respondWith((async () => {
+      try {
+        const preloaded = event.request.mode === 'navigate' && event.preloadResponse
+          ? await event.preloadResponse.catch(() => null)
+          : null;
+        const response = preloaded || await fetch(event.request);
         if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(cacheRequest, clone));
         }
         return response;
-      }).catch(async () => {
+      } catch (err) {
         const cached = await caches.match(cacheRequest, { ignoreSearch: !normalizeToIndex });
         if (cached) return cached;
         if (normalizeToIndex) return caches.match(getIndexCacheRequest(url));
         return caches.match(event.request, { ignoreSearch: true });
-      })
-    );
+      }
+    })());
     return;
   }
 

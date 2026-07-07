@@ -79,4 +79,28 @@ describe('history route hosting fallback contract', () => {
     expect(source).toContain('cache.put(event.request, response.clone())');
     expect(source).not.toContain('ignoreSearch: isVersionedStaticRequest(url)');
   });
+
+  test('service worker enables and consumes navigation preload for navigate requests', () => {
+    const source = readProjectFile('sw.js');
+    const htmlBranchStart = source.indexOf('// ── 3. HTML');
+    const htmlBranchEnd = source.indexOf('// ── 4. 同源有版號資源');
+    const htmlBranch = source.slice(htmlBranchStart, htmlBranchEnd);
+
+    expect(source).toContain('self.registration.navigationPreload?.enable?.() ?? Promise.resolve()');
+    expect(source).toContain('navigationPreloadReady.catch');
+    expect(htmlBranch).toContain("event.request.mode === 'navigate' && event.preloadResponse");
+    expect(htmlBranch).toContain('await event.preloadResponse.catch(() => null)');
+    expect(htmlBranch.indexOf('event.preloadResponse')).toBeLessThan(htmlBranch.indexOf('fetch(event.request)'));
+    expect(htmlBranch).toContain('cache.put(cacheRequest, clone)');
+    expect(htmlBranch).toContain('caches.match(cacheRequest, { ignoreSearch: !normalizeToIndex })');
+  });
+
+  test('service worker image cache limit and age match the A8 tuning', () => {
+    const source = readProjectFile('sw.js');
+
+    expect(source).toContain('const MAX_IMAGE_CACHE  = 300;');
+    expect(source).toContain('const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;');
+    expect(source).toContain('keys.slice(0, keys.length - MAX_IMAGE_CACHE)');
+    expect(source).toContain('Date.now() - parseInt(cachedAt) > MAX_IMAGE_AGE_MS');
+  });
 });

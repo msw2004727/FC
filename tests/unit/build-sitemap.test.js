@@ -195,4 +195,13 @@ describe('static sitemap SEO coverage', () => {
       expect(fs.existsSync(path.join(ROOT, pathname))).toBe(true);
     }
   });
+
+  test('static sitemap versions optimized OG image references', () => {
+    const imageLocs = staticEntries.flatMap((entry) => entry.images);
+
+    expect(imageLocs).toContain('https://toosterx.com/assets/og/default.png?v=20260707');
+    for (const loc of imageLocs.filter((value) => value.includes('/assets/og/'))) {
+      expect(new URL(loc).searchParams.get('v')).toBe('20260707');
+    }
+  });
 });

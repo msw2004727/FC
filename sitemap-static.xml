@@ -12,7 +12,7 @@
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://toosterx.com/assets/og/default.png</image:loc>
+      <image:loc>https://toosterx.com/assets/og/default.png?v=20260707</image:loc>
       <image:title>ToosterX — 台灣運動揪團報名平台</image:title>
       <image:caption>ToosterX 是台灣領先的運動揪團報名平台，用 LINE 一鍵登入快速報名足球、籃球、羽球等運動活動</image:caption>
     </image:image>
@@ -84,7 +84,7 @@
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
     <image:image>
-      <image:loc>https://toosterx.com/assets/og/sports/football.jpg?v=20260521</image:loc>
+      <image:loc>https://toosterx.com/assets/og/sports/football.jpg?v=20260707</image:loc>
       <image:title>台中足球 LINE 社群與新手友善揪團</image:title>
       <image:caption>台中足球社群、女生足球、新手中低強度與成人足球揪團入口</image:caption>
     </image:image>
