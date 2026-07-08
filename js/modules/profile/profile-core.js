@@ -208,6 +208,30 @@ Object.assign(App, {
     return null;
   },
 
+  _isUserProfileFirestoreAuthReady() {
+    try {
+      return !!(typeof auth !== 'undefined' && auth?.currentUser);
+    } catch (_) {
+      return false;
+    }
+  },
+
+  async _waitForUserProfileFirestoreAuth(options = {}) {
+    if (this._isUserProfileFirestoreAuthReady()) return true;
+    const waitMs = Math.max(0, Number(options.timeoutMs || 8000) || 0);
+    const authPromise = (typeof FirebaseService !== 'undefined' && FirebaseService?._authPromise)
+      ? FirebaseService._authPromise
+      : null;
+    if (!authPromise) return this._isUserProfileFirestoreAuthReady();
+    try {
+      await Promise.race([
+        authPromise.catch(() => null),
+        new Promise(resolve => setTimeout(resolve, waitMs)),
+      ]);
+    } catch (_) {}
+    return this._isUserProfileFirestoreAuthReady();
+  },
+
   async _fetchUserProfileByUid(uid) {
     const safeUid = String(uid || '').trim();
     if (!safeUid) return null;
@@ -294,7 +318,7 @@ Object.assign(App, {
     return true;
   },
 
-  _renderUserProfileUnavailable(name, uidHint) {
+  _renderUserProfileUnavailable(name, uidHint, options = {}) {
     const container = document.getElementById('user-card-full');
     if (!container) return false;
     const safeName = String(name || uidHint || '').trim();
@@ -305,11 +329,12 @@ Object.assign(App, {
       ? `App.showUserProfile('${retryName}',{uid:'${retryUid}',bypassPageLock:true,skipPageHistory:true})`
       : `App.showUserProfile('${retryName}',{bypassPageLock:true,skipPageHistory:true})`;
     const actionPanel = safeUid ? this._buildUserCardActionPanel(safeUid) : '';
+    const unavailableMessage = options?.message || '暫時無法載入完整用戶資料';
     container.classList.remove('is-secondary-private');
     container.innerHTML = `
       <div class="uc-card-loading uc-card-unavailable" role="status" aria-live="polite">
         <div class="uc-card-loading-title" data-no-translate>${escapeHTML(safeName || 'User')}</div>
-        <div class="uc-card-loading-text">&#26283;&#26178;&#28961;&#27861;&#36617;&#20837;&#23436;&#25972;&#29992;&#25142;&#36039;&#26009;</div>
+        <div class="uc-card-loading-text">${escapeHTML(unavailableMessage)}</div>
         ${actionPanel}
         <button type="button" class="outline-btn uc-card-retry-btn" onclick="${retryAction}">&#37325;&#26032;&#36617;&#20837;</button>
       </div>
@@ -362,6 +387,14 @@ Object.assign(App, {
           console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage, stage: 'after-loading-page' });
         }
         return { ok: false, reason: 'stale' };
+      }
+      const canReadUserProfile = await this._waitForUserProfileFirestoreAuth({ timeoutMs: 8000 });
+      if (!canReadUserProfile) {
+        this.showToast?.('請先登入查看完整用戶資料');
+        this._renderUserProfileUnavailable(name || uidHint, uidHint, {
+          message: '請先登入查看完整用戶資料',
+        });
+        return { ok: false, reason: 'auth-not-ready' };
       }
       user = await this._resolveUserProfileRecord(name, uidHint);
       if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {

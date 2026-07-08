@@ -426,6 +426,27 @@ describe('first login profile completion modal', () => {
     expect(e2eSource).not.toContain('consent.checked = true');
   });
 });
+describe('user profile card auth readiness', () => {
+  test('waits for Firebase Auth before fetching a cache-missed user profile', () => {
+    const profileCoreSource = readProjectFile('js/modules/profile/profile-core.js');
+    const waitIdx = profileCoreSource.indexOf('const canReadUserProfile = await this._waitForUserProfileFirestoreAuth');
+    const fetchIdx = profileCoreSource.indexOf('user = await this._resolveUserProfileRecord(name, uidHint);');
+
+    expect(profileCoreSource).toContain('async _waitForUserProfileFirestoreAuth(options = {})');
+    expect(profileCoreSource).toContain('FirebaseService?._authPromise');
+    expect(waitIdx).toBeGreaterThan(-1);
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(waitIdx).toBeLessThan(fetchIdx);
+  });
+
+  test('auth-not-ready profile cards show a login-specific message instead of a missing-data false negative', () => {
+    const profileCoreSource = readProjectFile('js/modules/profile/profile-core.js');
+
+    expect(profileCoreSource).toContain("return { ok: false, reason: 'auth-not-ready' };");
+    expect(profileCoreSource).toContain("message: '請先登入查看完整用戶資料'");
+    expect(profileCoreSource).toContain('const unavailableMessage = options?.message');
+  });
+});
 
 describe('_getAvatarCandidateUrls (profile-avatar.js:63-73)', () => {
   test('deduplicates URLs', () => {
