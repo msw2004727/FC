@@ -1058,6 +1058,65 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('reason: linkValidationFailure');
   });
 
+  test('course plan auto roster sync updates only future auto sessions from effective course roster', () => {
+    const helperSource = readSourceBetween(
+      'async function syncEduCoursePlanAutoSessionRostersInternal',
+      'async function syncEduCoursePlanAutoSessionRostersForStudentChange'
+    );
+    expect(helperSource).toContain('const syncResult = await db.runTransaction(async (tx) => {');
+    expect(helperSource).toContain('loadEduAutoMigrationCompletedInTransaction(tx)');
+    expect(helperSource).toContain('buildEduCourseEffectiveRosterStudentIds({ plan, enrollments, students, migrationCompleted })');
+    expect(helperSource).toContain('tx.get(planRef.collection("sessions"))');
+    expect(helperSource).toContain('getEduCourseSessionRosterSyncSkipReason(item.data, nowMs)');
+    expect(helperSource).toContain('studentIds: rosterStudentIds');
+    expect(helperSource).toContain('rosterSyncedAt: FieldValue.serverTimestamp()');
+    expect(helperSource).toContain('rosterSyncRevision: FieldValue.increment(1)');
+    expect(helperSource).toContain('if (linkedEvent) linkedSyncSessions.push({');
+    expect(helperSource).toContain('if (syncResult?.skipped === true || syncResult?.success === false) return syncResult;');
+    expect(helperSource).not.toContain('if (syncResult?.skipped || syncResult?.success === false)');
+    expect(helperSource).toContain('for (const session of syncResult.linkedSyncSessions || [])');
+    expect(helperSource).toContain('syncCourseLessonRosterToEventInternal({');
+    expect(helperSource).not.toContain('createEventFromCourseLesson');
+
+    const skipReasonSource = readSourceBetween(
+      'function getEduCourseSessionRosterSyncSkipReason',
+      'async function syncEduCoursePlanAutoSessionRostersInternal'
+    );
+    expect(skipReasonSource).toContain('started_or_past_session');
+    expect(skipReasonSource).toContain('terminal_session');
+
+    const callableSource = readCloudFunctionSource('syncEduCoursePlanAutoSessionRosters');
+    expect(callableSource).toContain('hasEduCourseStaffAccess(teamDoc.data, callerUid, access)');
+    expect(callableSource).toContain('syncEduCoursePlanAutoSessionRostersInternal({');
+    expect(callableSource).toContain('COURSE_SESSION_ROSTER_SYNC_FAILED');
+    expect(callableSource).toContain('EDU_COURSE_ROSTER_SYNC_FUNCTION_OPTIONS');
+    expect(callableSource).not.toContain('EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS');
+
+    const triggerOptionsSource = readSourceBetween(
+      'const EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS',
+      'const EDU_COURSE_ROSTER_SYNC_MAX_SESSIONS'
+    );
+    expect(triggerOptionsSource).toContain('const EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS = Object.freeze({');
+    expect(triggerOptionsSource).toContain('...EDU_COURSE_ROSTER_SYNC_FUNCTION_OPTIONS,\n  retry: true,');
+
+    const enrollmentTrigger = readCloudFunctionSource('onEduCourseEnrollmentRosterSourceWrite');
+    expect(enrollmentTrigger).toContain('EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS');
+    expect(enrollmentTrigger).toContain('document: "teams/{teamId}/coursePlans/{planId}/enrollments/{enrollmentId}"');
+    expect(enrollmentTrigger).toContain('hasEduCourseEnrollmentRosterRelevantChange(beforeData, afterData)');
+    expect(enrollmentTrigger).toContain('source: "course_enrollment_write"');
+
+    const studentTrigger = readCloudFunctionSource('onEduCourseStudentRosterSourceWrite');
+    expect(studentTrigger).toContain('EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS');
+    expect(studentTrigger).toContain('document: "teams/{teamId}/students/{studentId}"');
+    expect(studentTrigger).toContain('hasEduCourseStudentRosterRelevantChange(beforeData, afterData)');
+    expect(studentTrigger).toContain('syncEduCoursePlanAutoSessionRostersForStudentChange({');
+
+    const planTrigger = readCloudFunctionSource('onEduCoursePlanRosterSourceWrite');
+    expect(planTrigger).toContain('EDU_COURSE_ROSTER_SYNC_TRIGGER_OPTIONS');
+    expect(planTrigger).toContain('document: "teams/{teamId}/coursePlans/{planId}"');
+    expect(planTrigger).toContain('hasEduCoursePlanRosterRelevantChange(beforeData, afterData)');
+    expect(planTrigger).toContain('source: "course_plan_write"');
+  });
   test('course session update callable syncs linked event details and roster cleanup', () => {
     const updateSource = readCloudFunctionSource('updateEduCourseSession');
     expect(updateSource).toContain('sanitizeEduCourseSessionUpdates');

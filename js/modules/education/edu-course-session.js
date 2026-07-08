@@ -199,9 +199,15 @@ Object.assign(App, {
   },
 
   _isCourseSessionFrozenForRoster(session, statusMeta) {
-    const status = String(session?.status || '').trim();
+    const status = String(session?.status || '').trim().toLowerCase();
     const meta = statusMeta || this._getCourseSessionStatusMeta?.(session);
-    return status === 'done' || meta?.cls === 'done';
+    const metaCls = String(meta?.cls || '').trim().toLowerCase();
+    if (['done', 'cancelled', 'canceled', 'removed'].includes(status)) return true;
+    if (metaCls === 'done' || metaCls === 'cancelled') return true;
+    const ms = typeof this._getCourseSessionSortValue === 'function'
+      ? this._getCourseSessionSortValue(session)
+      : NaN;
+    return Number.isFinite(ms) && ms > 0 && ms <= Date.now();
   },
 
   _getCourseSessionDisplayStudentCount(session, options = {}) {
