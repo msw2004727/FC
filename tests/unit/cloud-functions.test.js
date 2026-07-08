@@ -817,6 +817,8 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('const targetKind = sanitizeStr(request.data?.kind, 20) === "registered" ? "registered" : "leave"');
     expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
     expect(source).toContain('sanitizeStr(plan.planType, 32) !== "weekly"');
+    expect(source).toContain('SELF_ATTENDANCE_SESSION_CLOSED');
+    expect(source).toContain('inactiveSelfAttendanceStatuses.has(sessionStatus)');
     expect(source).toContain('rosterIds.includes(targetStudentId)');
     expect(source).toContain('isStudentOwnedByUid(student, callerUid)');
     expect(source).toContain('db.collection("eduAttendance")');

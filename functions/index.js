@@ -7110,6 +7110,11 @@ exports.saveEduCourseSelfAttendance = onCall(
     }
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
+    const inactiveSelfAttendanceStatuses = new Set(["cancelled", "canceled", "done", "removed", "completed", "ended", "closed"]);
+    if (inactiveSelfAttendanceStatuses.has(sessionStatus)) {
+      throw new HttpsError("failed-precondition", "SELF_ATTENDANCE_SESSION_CLOSED", { code: "SELF_ATTENDANCE_SESSION_CLOSED", status: sessionStatus });
+    }
     const rosterIds = Array.isArray(session.studentIds)
       ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
       : [];

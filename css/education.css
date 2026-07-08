@@ -3373,6 +3373,12 @@
 .edu-ce-pick-info { font-size: .78rem; display: flex; align-items: center; gap: .3rem; margin-top: .1rem; }
 .edu-ce-pick-hint { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
 .edu-ce-pick-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; }
+.edu-course-card-register-summary { display: grid; gap: .24rem; margin: .15rem 0 .55rem; padding: .58rem .68rem; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); }
+.edu-course-card-register-summary strong { color: var(--text-primary); font-size: .92rem; }
+.edu-course-card-register-summary span { color: var(--text-secondary); font-size: .82rem; line-height: 1.45; }
+.edu-course-card-register-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .8rem; }
+.edu-course-card-register-actions .outline-btn,
+.edu-course-card-register-actions .primary-btn { width: 100%; justify-content: center; }
 .edu-ce-paid-label { display: flex; align-items: center; gap: .3rem; cursor: pointer; font-size: .78rem; }
 .edu-ce-paid-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 .edu-ce-paid-edit {
@@ -4725,6 +4731,32 @@
   color: #0f766e;
   box-shadow: 0 4px 12px rgba(13, 148, 136, .1);
 }
+.edu-cp-next-lesson-register-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: .12rem .5rem;
+  border: 1px solid rgba(13, 148, 136, .28);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-card);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, .14);
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.edu-cp-next-lesson-register-btn:disabled,
+.edu-cp-next-lesson-register-btn.is-registered {
+  cursor: default;
+  border-color: rgba(100, 116, 139, .26);
+  background: rgba(100, 116, 139, .18);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
 [data-theme="light"] .edu-cp-next-lesson-badge {
   border-color: rgba(15, 118, 110, .22);
   background: rgba(240, 253, 250, .94);
@@ -4734,6 +4766,14 @@
   border-color: rgba(45, 212, 191, .38);
   background: rgba(13, 148, 136, .34);
   color: #ccfbf1;
+}
+[data-theme="dark"] .edu-cp-next-lesson-register-btn {
+  color: #052e2b;
+}
+[data-theme="dark"] .edu-cp-next-lesson-register-btn:disabled,
+[data-theme="dark"] .edu-cp-next-lesson-register-btn.is-registered {
+  background: rgba(148, 163, 184, .16);
+  color: #cbd5e1;
 }
 [data-theme="dark"] .edu-cp-card-hidden-badge {
   border-color: rgba(148, 163, 184, .28);
@@ -5350,7 +5390,8 @@
     justify-content: flex-end;
   }
   .edu-cp-card-hidden-badge,
-  .edu-cp-next-lesson-badge {
+  .edu-cp-next-lesson-badge,
+  .edu-cp-next-lesson-register-btn {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -385,8 +385,7 @@ Object.assign(App, {
     return (parsed.getMonth() + 1) + '/' + String(parsed.getDate()).padStart(2, '0');
   },
 
-  _getCoursePlanCardNextLessonLabel(plan, sessions = [], options = {}) {
-    if (!plan) return '';
+  _getCoursePlanNextSessionItem(sessions = [], options = {}) {
     const today = String(options.today || this._todayStr?.() || '').trim();
     const parseDateOnly = (value) => {
       const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -411,12 +410,26 @@ Object.assign(App, {
       }
       return 0;
     };
-    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed']);
-    const nextSession = [...(Array.isArray(sessions) ? sessions : [])]
+    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed']);
+    return [...(Array.isArray(sessions) ? sessions : [])]
       .map(session => ({ session, timestamp: getSessionMs(session) }))
       .filter(item => item.timestamp >= todayStartMs)
       .filter(item => !inactiveStatuses.has(String(item.session?.status || '').trim().toLowerCase()))
-      .sort((a, b) => a.timestamp - b.timestamp)[0];
+      .sort((a, b) => a.timestamp - b.timestamp)[0] || null;
+  },
+  _getCoursePlanCardNextLessonLabel(plan, sessions = [], options = {}) {
+    if (!plan) return '';
+    const today = String(options.today || this._todayStr?.() || '').trim();
+    const parseDateOnly = (value) => {
+      const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!match) return null;
+      const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return Number.isFinite(parsed.getTime()) ? parsed : null;
+    };
+    const now = options.now instanceof Date ? options.now : new Date();
+    const todayStart = parseDateOnly(today) || new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStartMs = todayStart.getTime();
+    const nextSession = this._getCoursePlanNextSessionItem(sessions, options);
     const sessionDateLabel = nextSession
       ? this._formatCoursePlanCardNextDate(nextSession.session?.date || nextSession.timestamp)
       : '';
@@ -439,6 +452,228 @@ Object.assign(App, {
     return generatedDateLabel ? '\u4e0b\u5802\u8ab2' + generatedDateLabel : '';
   },
 
+  _getCoursePlanNextLessonRegisterKey(teamId, planId, sessionId) {
+    const uid = typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
+      ? String(ApiService.getCurrentUser()?.uid || '').trim()
+      : '';
+    return [uid, teamId, planId, sessionId].map(value => String(value || '').trim()).join('|');
+  },
+
+  _isCoursePlanNextLessonRegistered(teamId, planId, sessionId) {
+    const key = this._getCoursePlanNextLessonRegisterKey(teamId, planId, sessionId);
+    return !!(key && this._eduCoursePlanNextLessonRegisteredByKey?.[key] === true);
+  },
+
+  _markCoursePlanNextLessonRegistered(teamId, planId, sessionId) {
+    const key = this._getCoursePlanNextLessonRegisterKey(teamId, planId, sessionId);
+    if (!key) return false;
+    this._eduCoursePlanNextLessonRegisteredByKey = this._eduCoursePlanNextLessonRegisteredByKey || {};
+    this._eduCoursePlanNextLessonRegisteredByKey[key] = true;
+    return true;
+  },
+
+  _setCoursePlanNextLessonRegisterButtonRegistered(button) {
+    if (!button) return;
+    button.textContent = '已報名';
+    button.disabled = true;
+    button.setAttribute?.('aria-disabled', 'true');
+    button.classList?.add('is-registered');
+  },
+
+  _getCoursePlanLessonStudentId(student) {
+    if (typeof this._getCourseLessonRosterStudentId === 'function') {
+      return this._getCourseLessonRosterStudentId(student);
+    }
+    return String(student?.studentId || student?.id || student?._docId || '').trim();
+  },
+
+  _getCoursePlanLessonDisplayKind(student) {
+    if (typeof this._getCourseLessonRosterDisplayKind === 'function') {
+      return this._getCourseLessonRosterDisplayKind(student, { planType: 'weekly' });
+    }
+    const kind = String(student?.attendanceKind || '').trim();
+    if (kind === 'leave' || kind === 'registered' || kind === 'signin' || kind === 'pending') return kind;
+    return 'leave';
+  },
+
+  _formatCoursePlanLessonConfirmDateTime(session) {
+    if (typeof this._formatCourseLessonDateTime === 'function') {
+      return this._formatCourseLessonDateTime(session);
+    }
+    const dateText = this._formatCourseSessionDate?.(session) || session?.date || '未排定日期';
+    const timeText = this._formatCourseSessionTime?.(session)
+      || [session?.startTime, session?.endTime].filter(Boolean).join(' - ')
+      || '未設定時段';
+    return dateText + ' ' + timeText;
+  },
+
+  _isCoursePlanNextLessonSessionRegisterable(session, options = {}) {
+    if (!session) return false;
+    const status = String(session.status || '').trim().toLowerCase();
+    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed']);
+    if (inactiveStatuses.has(status)) return false;
+    const parseDateOnly = (value) => {
+      const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!match) return NaN;
+      const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return Number.isFinite(parsed.getTime()) ? parsed.getTime() : NaN;
+    };
+    const sessionMs = parseDateOnly(session.date);
+    const todayMs = parseDateOnly(options.today || this._todayStr?.());
+    if (Number.isFinite(sessionMs) && Number.isFinite(todayMs) && sessionMs < todayMs) return false;
+    return true;
+  },
+
+  showCoursePlanNextLessonRegisterDialog(teamId, planId, sessionId, button) {
+    if (this._requireLogin?.()) return false;
+    const safeTeamId = String(teamId || '').trim();
+    const safePlanId = String(planId || '').trim();
+    const safeSessionId = String(sessionId || '').trim();
+    const hasRosterLoader = typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService.listEduCoursePublicRoster === 'function';
+    if (!safeTeamId || !safePlanId || !safeSessionId || !hasRosterLoader) {
+      this.showToast?.('找不到下一堂課資料');
+      return false;
+    }
+    const run = async () => {
+      let rosterPayload = null;
+      try {
+        rosterPayload = await FirebaseService.listEduCoursePublicRoster(safeTeamId, safePlanId, safeSessionId, { forceRefresh: true });
+      } catch (err) {
+        console.error('[course plan next lesson register] roster load failed:', err);
+        this.showToast?.('課堂名單載入失敗，請稍後再試');
+        return false;
+      }
+      this._rememberCourseLessonRosterPayload?.(safeTeamId, safePlanId, safeSessionId, rosterPayload);
+      return this._openCoursePlanNextLessonRegisterDialog({
+        teamId: safeTeamId,
+        planId: safePlanId,
+        sessionId: safeSessionId,
+        rosterPayload,
+        sourceButton: button || null,
+      });
+    };
+    const promise = typeof this._withButtonLoading === 'function'
+      ? this._withButtonLoading(button, '確認中...', run)
+      : run();
+    promise?.catch?.((err) => {
+      console.error('[course plan next lesson register] dialog failed:', err);
+      this.showToast?.('課堂報名暫時無法使用');
+    });
+    return false;
+  },
+
+  _openCoursePlanNextLessonRegisterDialog({ teamId, planId, sessionId, rosterPayload, sourceButton }) {
+    const session = rosterPayload?.session || {};
+    if (!this._isCoursePlanNextLessonSessionRegisterable(session)) {
+      this.showToast?.('\u9019\u5802\u8ab2\u76ee\u524d\u7121\u6cd5\u5831\u540d');
+      return false;
+    }
+    const students = Array.isArray(rosterPayload?.students) ? rosterPayload.students : [];
+    const ownedStudents = students.filter(student => student?.canSelfLeave === true);
+    const selectable = ownedStudents.filter((student) => {
+      const kind = this._getCoursePlanLessonDisplayKind(student);
+      return kind !== 'registered' && kind !== 'signin';
+    });
+    if (!ownedStudents.length) {
+      this.showToast?.('這堂課目前沒有可報名的學員');
+      return false;
+    }
+    if (!selectable.length) {
+      this._markCoursePlanNextLessonRegistered(teamId, planId, sessionId);
+      this._setCoursePlanNextLessonRegisterButtonRegistered(sourceButton);
+      this.showToast?.('下一堂課已報名');
+      return false;
+    }
+    document.querySelector?.('.edu-course-card-register-overlay')?.remove?.();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-card-register-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    const dateTimeText = this._formatCoursePlanLessonConfirmDateTime(session);
+    const locationText = String(session.location || rosterPayload?.location || '地點未設定').trim() || '地點未設定';
+    const titleText = String(session.title || session.topic || session.focus || '下一堂課').trim();
+    const renderItem = (student) => {
+      const id = this._getCoursePlanLessonStudentId(student);
+      const kind = this._getCoursePlanLessonDisplayKind(student);
+      const statusText = kind === 'registered' ? '已報名' : kind === 'signin' ? '已簽到' : '可報名';
+      return '<label class="edu-ce-pick-item edu-course-card-register-pick">'
+        + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(student.displayName || student.name || '學員') + '</span>'
+        + '<span class="edu-ce-pick-info">' + escapeHTML(statusText) + '</span></div>'
+        + '<input type="checkbox" value="' + escapeHTML(id) + '" checked></label>';
+    };
+    overlay.innerHTML = '<div class="edu-info-dialog edu-course-card-register-dialog" role="dialog" aria-modal="true">'
+      + '<div class="edu-info-dialog-title">報名上課</div>'
+      + '<div class="edu-course-card-register-summary">'
+        + '<strong>' + escapeHTML(titleText) + '</strong>'
+        + '<span>時間：' + escapeHTML(dateTimeText) + '</span>'
+        + '<span>地點：' + escapeHTML(locationText) + '</span>'
+      + '</div>'
+      + '<div class="edu-info-dialog-body">請確認本堂課的時間與地點，按下確認後視同報名此場次課堂。</div>'
+      + '<div class="edu-ce-pick-list">' + selectable.map(renderItem).join('') + '</div>'
+      + '<div class="edu-course-card-register-actions">'
+        + '<button type="button" class="outline-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+        + '<button type="button" class="primary-btn" data-edu-course-card-register-confirm="true">確認報名</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    const confirmButton = overlay.querySelector?.('[data-edu-course-card-register-confirm="true"]');
+    if (confirmButton) {
+      confirmButton.onclick = () => {
+        const selectedIds = Array.from(overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked'))
+          .map(input => String(input.value || '').trim())
+          .filter(Boolean);
+        if (!selectedIds.length) {
+          this.showToast?.('請選擇至少一位學員');
+          return false;
+        }
+        const selected = selectedIds
+          .map(id => selectable.find(student => this._getCoursePlanLessonStudentId(student) === id))
+          .filter(Boolean);
+        const save = async () => {
+          let signedInPreservedCount = 0;
+          try {
+            for (const student of selected) {
+              const studentId = this._getCoursePlanLessonStudentId(student);
+              const result = await FirebaseService.saveEduCourseSelfAttendance({
+                teamId,
+                planId,
+                sessionId,
+                date: session.date,
+                studentId,
+                studentName: student.displayName || student.name || '',
+                selfUid: student.selfUid || null,
+                parentUid: student.parentUid || null,
+                kind: 'registered',
+              });
+              if (result?.signedIn === true || result?.kind === 'signin') signedInPreservedCount += 1;
+            }
+          } catch (err) {
+            console.error('[course plan next lesson register] save failed:', err);
+            this.showToast?.('報名上課失敗，請稍後再試');
+            return false;
+          }
+          overlay.remove();
+          this._clearCourseLessonRosterPayloadCache?.(teamId, planId, sessionId);
+          if (selected.length === selectable.length) {
+            this._markCoursePlanNextLessonRegistered(teamId, planId, sessionId);
+            this._setCoursePlanNextLessonRegisterButtonRegistered(sourceButton);
+          }
+          if (signedInPreservedCount === selected.length) this.showToast?.('已簽到，保留簽到狀態');
+          else if (selected.length > 1) this.showToast?.('已完成 ' + selected.length + ' 位學員報名上課');
+          else this.showToast?.('已完成報名上課');
+          return true;
+        };
+        const savePromise = typeof this._withButtonLoading === 'function'
+          ? this._withButtonLoading(confirmButton, '報名中...', save)
+          : save();
+        savePromise?.catch?.((err) => {
+          console.error('[course plan next lesson register] save promise failed:', err);
+          this.showToast?.('報名上課失敗，請稍後再試');
+        });
+        return false;
+      };
+    }
+    return true;
+  },
   _hasCoursePlanPriceValue(value) {
     if (value === null || value === undefined) return false;
     return String(value).trim() !== '';
@@ -826,6 +1061,7 @@ Object.assign(App, {
     };
     displayPlans.forEach(applyFrozenCount);
     const nextLessonLabels = {};
+    const nextLessonEntries = {};
     const getPlanKey = (plan) => String(plan?.id || plan?._docId || '').trim();
     await Promise.all(displayPlans.filter(p => !isPlanEnded(p)).map(async (p) => {
       const planKey = getPlanKey(p);
@@ -842,6 +1078,8 @@ Object.assign(App, {
           sessions = [];
         }
       }
+      const nextSessionItem = this._getCoursePlanNextSessionItem?.(sessions, { today }) || null;
+      if (nextSessionItem?.session) nextLessonEntries[planKey] = nextSessionItem;
       const label = this._getCoursePlanCardNextLessonLabel?.(p, sessions, { today }) || '';
       if (label) nextLessonLabels[planKey] = label;
     }));
@@ -868,10 +1106,28 @@ Object.assign(App, {
       const hiddenClass = isHidden ? ' edu-cp-card-hidden' : '';
       const hiddenBadge = isStaff && isHidden ? '<span class="edu-cp-card-hidden-badge">未公開</span>' : '';
       const planEnded = isPlanEnded(p);
-      const nextLessonLabel = nextLessonLabels[getPlanKey(p)] || '';
+      const viewerEnrollmentStateForBadge = this._getCoursePlanViewerEnrollmentState(teamId, p, {
+        curUser,
+        myUid,
+        students,
+        autoMigrationCompleted,
+      });
+      const hasApprovedEnrollment = viewerEnrollmentStateForBadge.hasApprovedEnrollment === true;
+      const planKey = getPlanKey(p);
+      const nextLessonLabel = nextLessonLabels[planKey] || '';
+      const nextLessonEntry = nextLessonEntries[planKey] || null;
+      const nextLessonSession = nextLessonEntry?.session || null;
+      const nextLessonSessionId = String(nextLessonSession?.id || nextLessonSession?._docId || '').trim();
       const nextLessonBadge = nextLessonLabel ? '<span class="edu-cp-next-lesson-badge">' + escapeHTML(nextLessonLabel) + '</span>' : '';
-      const topBadgeHtml = nextLessonBadge || hiddenBadge
-        ? '<div class="edu-cp-top-badges">' + nextLessonBadge + hiddenBadge + '</div>'
+      const nextLessonRegistered = nextLessonSessionId && this._isCoursePlanNextLessonRegistered?.(teamId, planKey, nextLessonSessionId);
+      const canRegisterNextLesson = !isStaff && p.planType === 'weekly' && !planEnded && p.rosterPublic !== false && hasApprovedEnrollment && !!nextLessonSessionId && this._isCoursePlanNextLessonSessionRegisterable(nextLessonSession, { today });
+      const lessonRegisterBtn = canRegisterNextLesson
+        ? (nextLessonRegistered
+          ? '<button type="button" class="edu-cp-next-lesson-register-btn is-registered" disabled aria-disabled="true">已報名</button>'
+          : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planKey) + '\',\'' + jsArg(nextLessonSessionId) + '\',this)">報名上課</button>')
+        : '';
+      const topBadgeHtml = nextLessonBadge || lessonRegisterBtn || hiddenBadge
+        ? '<div class="edu-cp-top-badges">' + nextLessonBadge + lessonRegisterBtn + hiddenBadge + '</div>'
         : '';
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
@@ -897,13 +1153,7 @@ Object.assign(App, {
         + '</div>';
 
       // 學員報名按鈕
-      const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState(teamId, p, {
-        curUser,
-        myUid,
-        students,
-        autoMigrationCompleted,
-      });
-      const hasApprovedEnrollment = viewerEnrollmentState.hasApprovedEnrollment === true;
+      const viewerEnrollmentState = viewerEnrollmentStateForBadge;
       let signupBtn = '';
       if (p.allowSignup) {
         if (isEnded) {

@@ -2122,4 +2122,217 @@ describe('edu course plan render', () => {
     expect(context.FirebaseService.updateEduCoursePlan).not.toHaveBeenCalled();
     expect(app.showToast).toHaveBeenCalledWith('請填寫第 2 堂的日期與時段');
   });
+  test('enrolled weekly course card renders next lesson registration button', async () => {
+    const html = await renderPlans([
+      {
+        id: 'weeklyPlan',
+        name: '社區指導班',
+        planType: 'weekly',
+        startDate: '2099-07-01',
+        endDate: '2099-08-31',
+        allowSignup: false,
+        _enrollments: [{ studentId: 'stu1', status: 'approved' }],
+      },
+    ], false, 'active', {
+      todayStr: () => '2099-07-01',
+      eduStudents: [{ id: 'stu1', name: '小華', enrollStatus: 'active', selfUid: 'viewer' }],
+      loadCourseSessions: jest.fn(async () => [{
+        id: 'sess1',
+        date: '2099-07-09',
+        startTime: '19:00',
+        endTime: '20:30',
+        status: 'scheduled',
+      }]),
+    });
+
+    expect(html).toContain('下堂課7/09');
+    expect(html).toContain('edu-cp-next-lesson-register-btn');
+    expect(html).toContain('報名上課');
+    expect(html).toContain("App.showCoursePlanNextLessonRegisterDialog('teamA','weeklyPlan','sess1',this)");
+  });
+
+  test('enrolled weekly private roster course card hides next lesson registration button', async () => {
+    const html = await renderPlans([
+      {
+        id: 'privatePlan',
+        name: 'Private weekly plan',
+        planType: 'weekly',
+        rosterPublic: false,
+        startDate: '2099-07-01',
+        endDate: '2099-08-31',
+        allowSignup: false,
+        _enrollments: [{ studentId: 'stu1', status: 'approved' }],
+      },
+    ], false, 'active', {
+      todayStr: () => '2099-07-01',
+      eduStudents: [{ id: 'stu1', name: 'Student 1', enrollStatus: 'active', selfUid: 'viewer' }],
+      loadCourseSessions: jest.fn(async () => [{
+        id: 'sess1',
+        date: '2099-07-09',
+        startTime: '19:00',
+        endTime: '20:30',
+        status: 'scheduled',
+      }]),
+    });
+
+    expect(html).toContain('edu-cp-next-lesson-badge');
+    expect(html).not.toContain('edu-cp-next-lesson-register-btn');
+  });
+
+  test('next lesson registration dialog confirms time/place and saves registered attendance', async () => {
+    const confirmButton = { onclick: null };
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      remove: jest.fn(),
+      querySelector: jest.fn((selector) => selector === '[data-edu-course-card-register-confirm="true"]' ? confirmButton : null),
+      querySelectorAll: jest.fn(() => [{ value: 'stu1' }]),
+    };
+    const sourceButton = {
+      textContent: '報名上課',
+      disabled: false,
+      setAttribute: jest.fn(),
+      classList: { add: jest.fn() },
+    };
+    const app = {
+      _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
+      _rememberCourseLessonRosterPayload: jest.fn(),
+      _clearCourseLessonRosterPayloadCache: jest.fn(),
+      showToast: jest.fn(),
+    };
+    const firebase = {
+      listEduCoursePublicRoster: jest.fn(async () => ({
+        session: {
+          id: 'sess1',
+          title: '第 1 堂',
+          date: '2099-07-09',
+          startTime: '19:00',
+          endTime: '20:30',
+          location: '南屯運動中心',
+        },
+        students: [{
+          studentId: 'stu1',
+          displayName: '小華',
+          attendanceKind: 'leave',
+          canSelfLeave: true,
+          selfUid: 'viewer',
+          parentUid: null,
+        }],
+      })),
+      saveEduCourseSelfAttendance: jest.fn(async () => ({ success: true, changed: 1, kind: 'registered' })),
+    };
+    const context = {
+      App: app,
+      FirebaseService: firebase,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn() },
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+      Array,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    expect(context.App.showCoursePlanNextLessonRegisterDialog('teamA', 'weeklyPlan', 'sess1', sourceButton)).toBe(false);
+    await app._withButtonLoading.mock.results[0].value;
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledWith('teamA', 'weeklyPlan', 'sess1', { forceRefresh: true });
+    expect(overlay.innerHTML).toContain('時間：2099-07-09 19:00 - 20:30');
+    expect(overlay.innerHTML).toContain('地點：南屯運動中心');
+
+    expect(confirmButton.onclick()).toBe(false);
+    await app._withButtonLoading.mock.results[1].value;
+
+    expect(firebase.saveEduCourseSelfAttendance).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'weeklyPlan',
+      sessionId: 'sess1',
+      date: '2099-07-09',
+      studentId: 'stu1',
+      studentName: '小華',
+      selfUid: 'viewer',
+      parentUid: null,
+      kind: 'registered',
+    });
+    expect(sourceButton.textContent).toBe('已報名');
+    expect(sourceButton.disabled).toBe(true);
+    expect(app.showToast).toHaveBeenCalledWith('已完成報名上課');
+  });
+  test('next lesson registration dialog blocks inactive roster session', async () => {
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      remove: jest.fn(),
+      querySelector: jest.fn(() => null),
+      querySelectorAll: jest.fn(() => []),
+    };
+    const sourceButton = {
+      textContent: 'register',
+      disabled: false,
+      setAttribute: jest.fn(),
+      classList: { add: jest.fn() },
+    };
+    const app = {
+      _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
+      _rememberCourseLessonRosterPayload: jest.fn(),
+      showToast: jest.fn(),
+    };
+    const firebase = {
+      listEduCoursePublicRoster: jest.fn(async () => ({
+        session: {
+          id: 'sess1',
+          date: '2099-07-09',
+          startTime: '19:00',
+          endTime: '20:30',
+          status: 'cancelled',
+        },
+        students: [{
+          studentId: 'stu1',
+          displayName: 'Student 1',
+          attendanceKind: 'leave',
+          canSelfLeave: true,
+        }],
+      })),
+      saveEduCourseSelfAttendance: jest.fn(),
+    };
+    const context = {
+      App: app,
+      FirebaseService: firebase,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn() },
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+      Array,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    expect(context.App.showCoursePlanNextLessonRegisterDialog('teamA', 'weeklyPlan', 'sess1', sourceButton)).toBe(false);
+    await app._withButtonLoading.mock.results[0].value;
+
+    expect(firebase.saveEduCourseSelfAttendance).not.toHaveBeenCalled();
+    expect(context.document.body.appendChild).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith('\u9019\u5802\u8ab2\u76ee\u524d\u7121\u6cd5\u5831\u540d');
+  });
+
 });
