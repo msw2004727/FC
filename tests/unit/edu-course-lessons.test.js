@@ -389,6 +389,139 @@ describe('edu course lessons', () => {
     expect(button.textContent).toBe('\u5df2\u8f49\u5316');
   });
 
+
+  test('convertCourseLessonToEvent rerenders converted state after successful conversion', async () => {
+    const weeklyPlan = {
+      id: 'weeklyPlan',
+      name: 'Weekly Plan',
+      planType: 'weekly',
+      startDate: '2099-06-01',
+      endDate: '2099-06-30',
+    };
+    const ApiService = {
+      getCurrentUser: jest.fn(() => null),
+      getEvent: jest.fn(() => null),
+    };
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [weeklyPlan],
+      sessions: [{
+        id: 'weeklyA',
+        title: 'Weekly A',
+        status: 'scheduled',
+        date: '2099-06-03',
+        startTime: '09:00',
+        endTime: '10:30',
+        location: 'Court A',
+        studentIds: [],
+        capacity: 6,
+      }],
+      ApiService,
+      createEventFromCourseLessonData: {
+        success: true,
+        alreadyExists: false,
+        eventId: 'eventA',
+        courseLinkId: 'courseLinkA',
+        privateEvent: true,
+      },
+    });
+    await app.showCourseLessons('teamA', 'weeklyPlan');
+
+    const button = {
+      dataset: {},
+      disabled: false,
+      textContent: '\u8f49\u5316\u6210\u6d3b\u52d5',
+      style: { opacity: '' },
+      isConnected: true,
+      getAttribute: jest.fn(() => null),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+      classList: { add: jest.fn(), contains: jest.fn(() => false) },
+    };
+
+    await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyA', button);
+
+    expect(app.showToast).toHaveBeenLastCalledWith('\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\u5b8c\u6210');
+    expect(app._eduCourseLessonsContext.sessions[0]).toMatchObject({
+      convertedEventId: 'eventA',
+      linkedEventId: 'eventA',
+      courseLinked: true,
+      courseLinkId: 'courseLinkA',
+      courseLinkSource: 'eduCourseLesson',
+    });
+    expect(container.innerHTML).toContain('data-converted-event-id="eventA"');
+    expect(container.innerHTML).toContain('\u5df2\u8f49\u5316');
+    expect(container.innerHTML).not.toContain('\u4fee\u5fa9\u6d3b\u52d5');
+  });
+
+  test('convertCourseLessonToEvent rerenders converted state and repair toast after rebuild', async () => {
+    const weeklyPlan = {
+      id: 'weeklyPlan',
+      name: 'Weekly Plan',
+      planType: 'weekly',
+      startDate: '2099-06-01',
+      endDate: '2099-06-30',
+    };
+    const ApiService = {
+      getCurrentUser: jest.fn(() => null),
+      getEvent: jest.fn(() => null),
+    };
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [weeklyPlan],
+      sessions: [{
+        id: 'weeklyLinkedDeleted',
+        title: 'Linked Deleted',
+        status: 'scheduled',
+        date: '2099-06-03',
+        startTime: '09:00',
+        endTime: '10:30',
+        location: 'Court A',
+        studentIds: [],
+        capacity: 6,
+        convertedEventId: 'deletedEvent',
+        courseLinked: true,
+        courseLinkId: 'oldLink',
+      }],
+      ApiService,
+      createEventFromCourseLessonData: {
+        success: true,
+        rebuilt: true,
+        previousEventId: 'deletedEvent',
+        eventId: 'rebuiltEvent',
+        courseLinkId: 'newLink',
+        privateEvent: true,
+      },
+    });
+    await app.showCourseLessons('teamA', 'weeklyPlan');
+    expect(container.innerHTML).toContain('\u4fee\u5fa9\u6d3b\u52d5');
+
+    const button = {
+      dataset: {},
+      disabled: false,
+      textContent: '\u4fee\u5fa9\u6d3b\u52d5',
+      style: { opacity: '' },
+      isConnected: true,
+      getAttribute: jest.fn(() => null),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+      classList: { add: jest.fn(), contains: jest.fn(() => false) },
+    };
+
+    await app.convertCourseLessonToEvent('teamA', 'weeklyPlan', 'weeklyLinkedDeleted', button);
+
+    expect(app.showToast).toHaveBeenLastCalledWith('\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u4fee\u5fa9\u5b8c\u6210');
+    expect(app._eduCourseLessonsContext.sessions[0]).toMatchObject({
+      convertedEventId: 'rebuiltEvent',
+      linkedEventId: 'rebuiltEvent',
+      courseLinked: true,
+      courseLinkId: 'newLink',
+      courseLinkSource: 'eduCourseLesson',
+    });
+    expect(container.innerHTML).toContain('data-converted-event-id="rebuiltEvent"');
+    expect(container.innerHTML).toContain('\u5df2\u8f49\u5316');
+    expect(container.innerHTML).not.toContain('\u4fee\u5fa9\u6d3b\u52d5');
+  });
   test('convertCourseLessonToEvent shows toast and skips callable for already converted action', async () => {
     const { app, functions } = loadCourseLessonsContext({
       isStaff: true,

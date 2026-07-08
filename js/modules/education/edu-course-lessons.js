@@ -912,6 +912,91 @@ Object.assign(App, {
     return false;
   },
 
+  _getCourseLessonConvertEventSuccessMessage(data, options = {}) {
+    if (data?.rebuilt === true || options.repairAction === true) return '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u4fee\u5fa9\u5b8c\u6210';
+    return '\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\u5b8c\u6210';
+  },
+
+  _markCourseLessonConvertEventButtonConverted(button, data = {}) {
+    if (!button) return false;
+    try {
+      if (button.dataset) button.dataset.convertedEventId = data.eventId || '';
+      button.disabled = false;
+      button.setAttribute?.('aria-disabled', 'true');
+      button.setAttribute?.('title', '\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
+      if (button.classList?.add) button.classList.add('is-converted');
+      button.textContent = '\u5df2\u8f49\u5316';
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _patchCourseLessonConvertedEventState(teamId, planId, sessionId, data = {}) {
+    if (!data?.success) return false;
+    const safeTeamId = String(teamId || '').trim();
+    const safePlanId = String(planId || '').trim();
+    const safeSessionId = String(sessionId || '').trim();
+    if (!safeTeamId || !safePlanId || !safeSessionId) return false;
+
+    const eventId = String(data.eventId || data.convertedEventId || data.linkedEventId || '').trim();
+    const courseLinkId = String(data.courseLinkId || '').trim();
+    const patch = {
+      courseLinked: true,
+      courseLinkSource: 'eduCourseLesson',
+      _courseLessonLinkedEventConfirmedAt: Date.now(),
+    };
+    if (eventId) {
+      patch.convertedEventId = eventId;
+      patch.linkedEventId = eventId;
+    }
+    if (courseLinkId) patch.courseLinkId = courseLinkId;
+
+    const patchSession = (session) => {
+      const id = String(session?.id || session?._docId || '').trim();
+      if (!session || id !== safeSessionId) return false;
+      Object.assign(session, patch);
+      return true;
+    };
+
+    let patched = false;
+    const ctx = this._eduCourseLessonsContext;
+    if (ctx?.mode === 'list'
+      && String(ctx.teamId || '').trim() === safeTeamId
+      && String(ctx.planId || '').trim() === safePlanId
+      && Array.isArray(ctx.sessions)) {
+      patched = ctx.sessions.some(patchSession) || patched;
+    }
+
+    const cacheKey = this._getCourseSessionCacheKey?.(safeTeamId, safePlanId) || this._getCourseLessonsPreloadKey?.(safeTeamId, safePlanId);
+    const cachedSessions = cacheKey && Array.isArray(this._courseSessionCache?.[cacheKey])
+      ? this._courseSessionCache[cacheKey]
+      : null;
+    const patchedCache = cachedSessions ? cachedSessions.some(patchSession) : false;
+    if (patchedCache && typeof this._markCourseSessionCacheMutated === 'function') {
+      this._markCourseSessionCacheMutated(safeTeamId, safePlanId);
+    }
+    return patched || patchedCache;
+  },
+
+  _refreshCourseLessonListAfterConvert(teamId, planId) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'list') return false;
+    if (String(ctx.teamId || '') !== String(teamId || '') || String(ctx.planId || '') !== String(planId || '')) return false;
+    if (!ctx.plan || !Array.isArray(ctx.sessions)) return false;
+    const container = this._getEduCourseLessonsContainer?.();
+    if (!container || typeof this._renderCourseLessonList !== 'function') return false;
+    container.innerHTML = this._renderCourseLessonList(ctx.plan, ctx.sessions, {
+      teamId: ctx.teamId,
+      planId: ctx.planId,
+      isStaff: this.isEduClubStaff?.(ctx.teamId) === true,
+      currentStudentCount: ctx.currentStudentCount,
+      planType: ctx.plan?.planType,
+      confirmedCountBySessionId: ctx.confirmedCountBySessionId,
+    });
+    return true;
+  },
+
   async convertCourseLessonToEvent(teamId, planId, sessionId, button) {
     const safeTeamId = String(teamId || '').trim();
     const safePlanId = String(planId || '').trim();
@@ -936,16 +1021,16 @@ Object.assign(App, {
     else if (typeof window !== 'undefined' && typeof window.confirm === 'function') confirmed = window.confirm(confirmMessage);
     if (!confirmed) return null;
 
+    const repairAction = String(button?.textContent || '').includes('\u4fee\u5fa9');
     const markConverted = (data) => {
-      if (!data?.success || !button) return data;
-      try {
-        if (button.dataset) button.dataset.convertedEventId = data.eventId || '';
-        button.disabled = false;
-        button.setAttribute?.('aria-disabled', 'true');
-        button.setAttribute?.('title', '\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5');
-        if (button.classList?.add) button.classList.add('is-converted');
-        button.textContent = '\u5df2\u8f49\u5316';
-      } catch (_) {}
+      if (!data?.success) return data;
+      this._patchCourseLessonConvertedEventState?.(safeTeamId, safePlanId, safeSessionId, data);
+      this._markCourseLessonConvertEventButtonConverted?.(button, data);
+      this._refreshCourseLessonListAfterConvert?.(safeTeamId, safePlanId);
+      const successMessage = typeof this._getCourseLessonConvertEventSuccessMessage === 'function'
+        ? this._getCourseLessonConvertEventSuccessMessage(data, { repairAction })
+        : '\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5\u5b8c\u6210';
+      this.showToast?.(successMessage);
       return data;
     };
     const run = async () => {
@@ -976,7 +1061,6 @@ Object.assign(App, {
           name: creatorName,
         });
         const data = result?.data || {};
-        this.showToast?.('課程已轉化成活動完成');
         return data;
       } catch (err) {
         console.error('[convertCourseLessonToEvent]', err);

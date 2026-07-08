@@ -114,6 +114,10 @@ Object.assign(App, {
   _getCourseLessonEventLinkState(session) {
     const convertedToEvent = this._isCourseLessonConvertedToEvent(session);
     const convertedEventId = this._getCourseLessonConvertedEventId(session);
+    const linkConfirmedAt = Number(session?._courseLessonLinkedEventConfirmedAt || 0);
+    const recentlyConfirmed = Number.isFinite(linkConfirmedAt)
+      && linkConfirmedAt > 0
+      && (Date.now() - linkConfirmedAt) < 5 * 60 * 1000;
     const canCheckEvent = !!(convertedEventId
       && typeof ApiService !== 'undefined'
       && typeof ApiService.getEvent === 'function');
@@ -121,7 +125,7 @@ Object.assign(App, {
     return {
       convertedToEvent,
       convertedEventId,
-      missingLinkedEvent: !!(convertedToEvent && canCheckEvent && !linkedEvent),
+      missingLinkedEvent: !!(convertedToEvent && canCheckEvent && !linkedEvent && !recentlyConfirmed),
     };
   },
 
