@@ -174,7 +174,7 @@ Object.assign(App, {
             const code = err?.code || '';
             const msg = (err?.message || '').toLowerCase();
             // auth uid mismatch / session 失效 → 顯示「重新登入」彈窗取代 toast
-            if (code === 'permission-denied' && msg.includes('uid mismatch')) {
+            if (code === 'unauthenticated' || msg.includes('uid mismatch') || msg.includes('please re-login') || msg.includes('firebase auth is not available')) {
               this._showReLoginPrompt('session_expired');
             } else if (code === 'permission-denied') {
               this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');

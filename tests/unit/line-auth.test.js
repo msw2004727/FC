@@ -83,14 +83,18 @@ function _canUseCachedProfileForFastCloudReady({
     && liffDecodedUid === profile.userId;
 }
 
-function _isLoggedIn({ ready, profile, firebaseUid, cachedProfile, currentUser }) {
+function _isLoggedIn({ ready, profile, firebaseUid, cachedProfile, currentUser, hasLiffSession = false }) {
   const hasFirebaseUserFallback = () => {
     if (!firebaseUid) return false;
     if (cachedProfile && _matchesFirebaseUid(cachedProfile, firebaseUid)) return true;
     return _matchesFirebaseCurrentUserCache(currentUser, firebaseUid);
   };
   if (!ready) return hasFirebaseUserFallback();
-  if (profile !== null && profile !== undefined) return true;
+  if (profile !== null && profile !== undefined) {
+    if (hasLiffSession) return true;
+    if (_matchesFirebaseUid(profile, firebaseUid)) return true;
+    return _matchesFirebaseCurrentUserCache(currentUser, firebaseUid, true);
+  }
   return hasFirebaseUserFallback();
 }
 
@@ -312,6 +316,38 @@ describe('isLoggedIn fallback contract', () => {
     })).toBe(false);
   });
 
+  test('accepts a live LINE profile when a LIFF session is active', () => {
+    expect(_isLoggedIn({
+      ready: true,
+      profile: { userId: 'u1', displayName: 'Alice' },
+      firebaseUid: '',
+      cachedProfile: null,
+      currentUser: null,
+      hasLiffSession: true,
+    })).toBe(true);
+  });
+
+  test('rejects stale LINE profile when LIFF session and Firebase Auth are both unavailable', () => {
+    expect(_isLoggedIn({
+      ready: true,
+      profile: { userId: 'u1', displayName: 'Alice' },
+      firebaseUid: '',
+      cachedProfile: null,
+      currentUser: null,
+      hasLiffSession: false,
+    })).toBe(false);
+  });
+
+  test('accepts a cached LINE profile only when Firebase Auth matches the same uid', () => {
+    expect(_isLoggedIn({
+      ready: true,
+      profile: { userId: 'u1', displayName: 'Alice' },
+      firebaseUid: 'u1',
+      cachedProfile: null,
+      currentUser: { uid: 'u1', displayName: 'Alice' },
+      hasLiffSession: false,
+    })).toBe(true);
+  });
   test('Firebase cache fallback can provide a minimal profile for logged-in callers', () => {
     expect(_profileFromCurrentUserCache({
       uid: 'u1',

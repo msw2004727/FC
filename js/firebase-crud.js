@@ -44,6 +44,7 @@ Object.assign(FirebaseService, {
    * 在所有需要 Firestore 寫入的關鍵流程（登入、報名等）前呼叫。
    */
   async _ensureAuth(expectedUid = null) {
+    this._lastEnsureAuthError = null;
     const hasExpectedUid = uid => !expectedUid || uid === expectedUid;
     console.log('[_ensureAuth] start, currentUser=', auth?.currentUser?.uid || 'null', 'expectedUid=', expectedUid || 'none');
 
@@ -83,11 +84,18 @@ Object.assign(FirebaseService, {
     try {
       await this._signInWithAppropriateMethod(expectedUid);
     } catch (e) {
+      this._lastEnsureAuthError = e;
       console.error('[_ensureAuth] re-auth failed:', e.code || '', e.message);
     }
 
     const finalUid = auth?.currentUser?.uid || null;
     const ok = !!finalUid && hasExpectedUid(finalUid);
+    if (!ok && !this._lastEnsureAuthError) {
+      this._lastEnsureAuthError = {
+        code: 'unauthenticated',
+        message: 'Firebase auth is not ready. Please re-login.',
+      };
+    }
     console.log('[_ensureAuth] result=', ok, 'finalUid=', finalUid, 'expectedUid=', expectedUid || 'none');
     return ok;
   },
@@ -2067,7 +2075,19 @@ Object.assign(FirebaseService, {
     // Ensure Firebase Auth uid is aligned with current LINE userId.
     const authed = await this._ensureAuth(lineUserId);
     const authUid = auth?.currentUser?.uid || null;
-    if (!authed || !authUid || authUid !== lineUserId) {
+    if (!authed || !authUid) {
+      const authSyncError = this._lastEnsureAuthError || {};
+      console.warn('[createOrUpdateUser] Firebase Auth unavailable for LINE user sync:', {
+        expectedLineUserId: lineUserId,
+        authUid,
+        reason: authSyncError.code || 'unauthenticated',
+      });
+      throw {
+        code: authSyncError.code || 'unauthenticated',
+        message: authSyncError.message || 'Firebase auth is not available. Please re-login.',
+      };
+    }
+    if (authUid !== lineUserId) {
       console.error('[createOrUpdateUser] auth uid mismatch:', {
         expectedLineUserId: lineUserId,
         authUid,

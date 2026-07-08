@@ -578,7 +578,11 @@ const LineAuth = {
     };
     if (!this._ready) return hasFirebaseUserFallback();
     // Tier 1：LIFF profile 存在（正常狀態）
-    if (this._profile !== null) return true;
+    if (this._profile !== null) {
+      if (this.hasLiffSession()) return true;
+      if (this._matchesFirebaseUid(this._profile)) return true;
+      return this._matchesFirebaseCurrentUserCache();
+    }
     // Tier 2：LIFF 過期但 Firebase Auth 還活著 + 快取 profile
     return hasFirebaseUserFallback();
   },

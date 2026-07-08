@@ -2306,6 +2306,45 @@ const FirebaseService = {
     });
   },
 
+  _createFirebaseAuthSyncError(code, message, details = {}) {
+    const err = new Error(message);
+    err.code = code;
+    err.details = details;
+    return err;
+  },
+
+  _waitForFirebaseAuthUid(expectedUid = null, timeoutMs = 2500) {
+    const expected = String(expectedUid || '').trim();
+    const matches = user => {
+      const uid = String(user?.uid || '').trim();
+      return !!uid && (!expected || uid === expected);
+    };
+    if (matches(auth?.currentUser)) return Promise.resolve(auth.currentUser);
+    return new Promise(resolve => {
+      let done = false;
+      let timer = null;
+      let unsubscribe = null;
+      const finish = user => {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        if (unsubscribe) {
+          try { unsubscribe(); } catch (_) {}
+        }
+        resolve(matches(user) ? user : null);
+      };
+      timer = setTimeout(() => finish(auth?.currentUser || null), Math.max(0, Number(timeoutMs) || 0));
+      if (auth?.onAuthStateChanged) {
+        unsubscribe = auth.onAuthStateChanged(
+          user => { if (matches(user)) finish(user); },
+          () => finish(null)
+        );
+      } else {
+        finish(auth?.currentUser || null);
+      }
+    });
+  },
+
   async _signInWithAppropriateMethod(expectedUid = null) {
     // 先等待 Auth 狀態恢復——若先前已登入成功且有 persistence，不需重新走 LINE 驗證
     if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
@@ -2326,13 +2365,27 @@ const FirebaseService = {
 
     // Prod 模式：只做 Custom Token 登入，不產生匿名用戶
     if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
-      console.warn('[FirebaseService] LIFF 未登入，跳過 Firebase Auth（使用快取瀏覽）');
+      console.warn('[FirebaseService] LIFF session is unavailable; skip Firebase Auth sign-in.');
+      if (expectedUid) {
+        throw this._createFirebaseAuthSyncError(
+          'unauthenticated',
+          'LINE login session is not available. Please re-login.',
+          { expectedUid, reason: 'missing-liff-session' }
+        );
+      }
       return;
     }
 
     const accessToken = typeof LineAuth !== 'undefined' ? LineAuth.getAccessToken?.() : null;
     if (!accessToken) {
-      console.warn('[FirebaseService] 無 LINE Access Token，跳過 Firebase Auth');
+      console.warn('[FirebaseService] LINE access token is unavailable; skip Firebase Auth sign-in.');
+      if (expectedUid) {
+        throw this._createFirebaseAuthSyncError(
+          'unauthenticated',
+          'LINE access token is not available. Please re-login.',
+          { expectedUid, reason: 'missing-line-access-token' }
+        );
+      }
       return;
     }
 
@@ -2344,11 +2397,18 @@ const FirebaseService = {
       const { customToken } = result.data;
       console.log('[FirebaseService] 收到 Custom Token, 執行 signInWithCustomToken...');
       const cred = await auth.signInWithCustomToken(customToken);
-      const signedUid = cred?.user?.uid || null;
-      if (expectedUid && signedUid && signedUid !== expectedUid) {
-        console.error('[FirebaseService] Custom Token 登入後 uid 仍不一致', { expectedUid, signedUid });
+      const readyUser = expectedUid
+        ? await this._waitForFirebaseAuthUid(expectedUid, 3000)
+        : (cred?.user || auth?.currentUser || null);
+      const signedUid = readyUser?.uid || cred?.user?.uid || null;
+      if (expectedUid && signedUid !== expectedUid) {
+        throw this._createFirebaseAuthSyncError(
+          'permission-denied',
+          'Firebase auth uid mismatch with LINE userId. Please re-login.',
+          { expectedUid, signedUid: signedUid || null, reason: 'custom-token-uid-mismatch' }
+        );
       }
-      console.log('[FirebaseService] Custom Token 登入成功, uid:', signedUid);
+      console.log('[FirebaseService] Custom Token sign-in succeeded, uid:', signedUid);
       const nowMs = Date.now();
       const lastAuditMs = signedUid ? (this._lastLoginAuditAtByUid[signedUid] || 0) : 0;
       const shouldWriteLoginAudit = !!signedUid && (!lastAuditMs || (nowMs - lastAuditMs > 15000));
@@ -2382,6 +2442,9 @@ const FirebaseService = {
         } else {
           App.showToast('LINE 驗證失敗，部分功能可能受限');
         }
+      }
+      if (expectedUid) {
+        throw err;
       }
     }
   },
