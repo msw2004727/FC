@@ -111,6 +111,20 @@ Object.assign(App, {
       || String(session.courseLinkSource || '').trim() === 'eduCourseLesson';
   },
 
+  _getCourseLessonEventLinkState(session) {
+    const convertedToEvent = this._isCourseLessonConvertedToEvent(session);
+    const convertedEventId = this._getCourseLessonConvertedEventId(session);
+    const canCheckEvent = !!(convertedEventId
+      && typeof ApiService !== 'undefined'
+      && typeof ApiService.getEvent === 'function');
+    const linkedEvent = canCheckEvent ? ApiService.getEvent(convertedEventId) : null;
+    return {
+      convertedToEvent,
+      convertedEventId,
+      missingLinkedEvent: !!(convertedToEvent && canCheckEvent && !linkedEvent),
+    };
+  },
+
   _renderCourseLessonList(plan, sessions, context = {}) {
     const teamId = context.teamId || '';
     const planId = plan?.id || context.planId || '';
@@ -127,13 +141,15 @@ Object.assign(App, {
         && context.planType === 'weekly'
         && !['cancelled', 'canceled', 'removed'].includes(statusKey)
         && !['cancelled', 'canceled', 'removed'].includes(String(status.cls || '').trim().toLowerCase());
-      const convertedToEvent = this._isCourseLessonConvertedToEvent(session);
-      const convertedEventId = this._getCourseLessonConvertedEventId(session);
+      const linkState = this._getCourseLessonEventLinkState(session);
+      const convertedToEvent = linkState.convertedToEvent && !linkState.missingLinkedEvent;
+      const convertedEventId = linkState.convertedEventId;
       const convertedAttrs = convertedToEvent
         ? ' aria-disabled="true" data-converted-event-id="' + escapeHTML(convertedEventId) + '" title="\u8a72\u8ab2\u7a0b\u5df2\u8f49\u5316\u6210\u6d3b\u52d5"'
         : '';
+      const convertEventLabel = linkState.missingLinkedEvent ? '\u4fee\u5fa9\u6d3b\u52d5' : (convertedToEvent ? '\u5df2\u8f49\u5316' : '\u8f49\u5316\u6210\u6d3b\u52d5');
       const convertEventBtn = canConvertToEvent
-        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn' + (convertedToEvent ? ' is-converted' : '') + '"' + convertedAttrs + ' onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">' + (convertedToEvent ? '\u5df2\u8f49\u5316' : '\u8f49\u5316\u6210\u6d3b\u52d5') + '</button>'
+        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn' + (convertedToEvent ? ' is-converted' : '') + '"' + convertedAttrs + ' onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">' + convertEventLabel + '</button>'
         : '';
       const quickAdjustBtn = context.isStaff
         ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">'

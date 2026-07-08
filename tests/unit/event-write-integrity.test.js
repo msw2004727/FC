@@ -319,6 +319,41 @@ describe('event lifecycle operation logs', () => {
     expect(ApiService._writeOpLog).toHaveBeenCalledWith('event_end', '結束活動', '結束「Test Event」', 'evt-1');
   });
 
+  test('course-linked lifecycle guard recognizes course links and ignores ordinary events', () => {
+    const { App } = loadLifecycle();
+
+    expect(App._guardCourseLinkedEventLifecycle({ id: 'course-1', courseLinked: true })).toBe(true);
+    expect(App.showToast).toHaveBeenCalledWith(expect.stringContaining('\u8ab2\u7a0b\u8f49\u5316'));
+
+    App.showToast.mockClear();
+    expect(App._guardCourseLinkedEventLifecycle({ id: 'course-2', courseLinkId: 'link-1' })).toBe(true);
+    expect(App.showToast).toHaveBeenCalledWith(expect.stringContaining('\u8ab2\u7a0b\u8f49\u5316'));
+
+    App.showToast.mockClear();
+    expect(App._guardCourseLinkedEventLifecycle({ id: 'plain-1' })).toBe(false);
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('deleteMyActivity blocks course-linked events before destructive writes', async () => {
+    const { App, ApiService } = loadLifecycle();
+    ApiService.getEvent.mockReturnValue({
+      id: 'evt-1',
+      _docId: 'doc-1',
+      title: 'Course Event',
+      date: '2026/05/01 19:00~21:00',
+      status: 'open',
+      courseLinked: true,
+      courseLinkId: 'link-1',
+    });
+
+    await App.deleteMyActivity('evt-1');
+
+    expect(App.appConfirm).not.toHaveBeenCalled();
+    expect(ApiService.deleteEvent).not.toHaveBeenCalled();
+    expect(App._cleanupCancelledRecords).not.toHaveBeenCalled();
+    expect(ApiService._writeOpLog).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), 'evt-1');
+  });
+
   test('deleteMyActivity preserves event doc id for cleanup and writes event id in operation log', async () => {
     const { App, ApiService } = loadLifecycle();
 

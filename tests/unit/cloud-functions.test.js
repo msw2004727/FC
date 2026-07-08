@@ -1150,6 +1150,11 @@ describe('registration callable source contracts', () => {
     expect(convertSource).toContain('findUserDocByUidOrLineUserId(callerUid)');
     expect(convertSource).toContain('resolveCourseConvertedEventCreatorName(callerUserData, request.auth.token || {}, callerUid, request.data || {})');
     expect(convertSource).toContain('buildCourseConvertedEventRepairPatch({');
+    expect(convertSource).toContain('const buildNewCourseLessonConversion = (nextEventId, nextCourseLinkId) => {');
+    expect(convertSource).toContain('const rebuiltCourseLinkId = crypto.randomBytes(16).toString("hex");');
+    expect(convertSource).toContain('tx.set(linkRef, rebuiltMapping)');
+    expect(convertSource).toContain('rebuilt: true');
+    expect(convertSource).toContain('previousEventId: existingEventId || null');
     expect(convertSource).toContain('repaired: !!existingEventDoc');
     expect(convertSource).toContain('creatorSnapshot,');
     expect(convertSource).toContain('throw new HttpsError("failed-precondition", "COURSE_EVENT_ROSTER_SYNC_FAILED"');

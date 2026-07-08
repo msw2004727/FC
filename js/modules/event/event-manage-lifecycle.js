@@ -6,6 +6,22 @@ Object.assign(App, {
 
   _cancelActivityBusyMap: Object.create(null),
 
+  _isCourseLinkedEventLifecycleLocked(eventRecord) {
+    const source = String(eventRecord?.courseLinkSource || eventRecord?.source || '').trim();
+    return !!(eventRecord && (
+      eventRecord.courseLinked === true
+      || String(eventRecord.courseLinkId || '').trim()
+      || source === 'eduCourseLesson'
+      || this._isCourseLinkedEvent?.(eventRecord)
+    ));
+  },
+
+  _guardCourseLinkedEventLifecycle(eventRecord) {
+    if (!this._isCourseLinkedEventLifecycleLocked?.(eventRecord)) return false;
+    this.showToast?.('\u8ab2\u7a0b\u8f49\u5316\u7684\u6d3b\u52d5\u8acb\u56de\u8ab2\u5802\u7ba1\u7406\uff0c\u4e0d\u80fd\u5728\u6d3b\u52d5\u7aef\u53d6\u6d88\u3001\u7d50\u675f\u3001\u522a\u9664\u6216\u91cd\u65b0\u958b\u653e');
+    return true;
+  },
+
   editExternalActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e || e.type !== 'external') return;
@@ -132,6 +148,7 @@ Object.assign(App, {
   async closeMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (this._guardCourseLinkedEventLifecycle?.(e)) return;
     if (e && !this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     const startDate = this._parseEventStartDate?.(e.date);
@@ -180,6 +197,7 @@ Object.assign(App, {
 
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (this._guardCourseLinkedEventLifecycle?.(e)) return;
     if (e && !this._canCancelOwnActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
     this._cancelActivityBusyMap[id] = true;
     try {
@@ -219,6 +237,7 @@ Object.assign(App, {
   async reopenMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (this._guardCourseLinkedEventLifecycle?.(e)) return;
     if (!this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     // 檢查活動時間是否在未來
@@ -245,6 +264,7 @@ Object.assign(App, {
   async relistMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (this._guardCourseLinkedEventLifecycle?.(e)) return;
     if (!this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     // 檢查活動時間是否在未來
@@ -562,6 +582,7 @@ Object.assign(App, {
   async deleteMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (this._guardCourseLinkedEventLifecycle?.(e)) return;
     if (e && !this._canDeleteActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
     const title = e.title;

@@ -7490,6 +7490,36 @@ exports.createEventFromCourseLesson = onCall(
         throw new HttpsError("failed-precondition", "SESSION_NOT_CONVERTIBLE", { code: "SESSION_NOT_CONVERTIBLE" });
       }
 
+      const buildNewCourseLessonConversion = (nextEventId, nextCourseLinkId) => {
+        const date = firstSanitizedString([session.date, request.data?.date], 20);
+        const startTime = firstSanitizedString([session.startTime, plan.startTime, plan.timeStart], 20);
+        const endTime = firstSanitizedString([session.endTime, plan.endTime, plan.timeEnd], 20);
+        const eventDate = normalizeCourseLessonEventDateText(date, startTime, endTime);
+        const startDate = parseEventStartDateInTaipei(eventDate);
+        const endDate = parseEventEndDateInTaipei(eventDate);
+        if (!eventDate || !startDate) {
+          throw new HttpsError("failed-precondition", "COURSE_LESSON_TIME_REQUIRED", { code: "COURSE_LESSON_TIME_REQUIRED" });
+        }
+
+        const max = courseConvertedEventCapacity(plan, session);
+        const eventData = buildCourseLessonConvertedEventData({
+          eventId: nextEventId,
+          plan,
+          session,
+          requestData: request.data || {},
+          callerUid,
+          callerName,
+          creatorSnapshot,
+          courseLinkId: nextCourseLinkId,
+          eventDate,
+          startDate,
+          endDate,
+          max,
+        });
+        const mapping = buildCourseLessonLinkMapping({ eventId: nextEventId, courseLinkId: nextCourseLinkId, teamId, planId, sessionId, callerUid });
+        return { eventData, mapping };
+      };
+
       if (linkSnap.exists) {
         const existing = linkSnap.data() || {};
         const existingEventId = sanitizeStr(existing.eventId, 100);
@@ -7507,54 +7537,52 @@ exports.createEventFromCourseLesson = onCall(
             courseLinkId: existingCourseLinkId,
             existingEvent,
           }));
-        }
-        if (existingEventId || existingCourseLinkId) {
-          tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch({
+          if (existingEventId || existingCourseLinkId) {
+            tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch({
+              eventId: existingEventId,
+              courseLinkId: existingCourseLinkId,
+              teamId,
+              planId,
+              sessionId,
+            }));
+          }
+          return {
+            success: true,
+            alreadyExists: true,
             eventId: existingEventId,
             courseLinkId: existingCourseLinkId,
-            teamId,
-            planId,
-            sessionId,
-          }));
+            repaired: !!existingEventDoc,
+            privateEvent: true,
+          };
         }
+
+        const rebuiltCourseLinkId = crypto.randomBytes(16).toString("hex");
+        const rebuilt = buildNewCourseLessonConversion(eventId, rebuiltCourseLinkId);
+        const rebuiltMapping = {
+          ...rebuilt.mapping,
+          previousEventId: existingEventId || null,
+          previousCourseLinkId: existingCourseLinkId || null,
+          rebuiltAt: FieldValue.serverTimestamp(),
+          rebuiltByUid: callerUid,
+        };
+        tx.create(eventRef, rebuilt.eventData);
+        tx.create(eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID), rebuiltMapping);
+        tx.set(linkRef, rebuiltMapping);
+        tx.update(sessionRef, buildCourseLessonSessionEventLinkPatch({ eventId, courseLinkId: rebuiltCourseLinkId, teamId, planId, sessionId }));
         return {
           success: true,
-          alreadyExists: true,
-          eventId: existingEventId,
-          courseLinkId: existingCourseLinkId,
-          repaired: !!existingEventDoc,
+          alreadyExists: false,
+          rebuilt: true,
+          previousEventId: existingEventId || null,
+          previousCourseLinkId: existingCourseLinkId || null,
+          eventId,
+          courseLinkId: rebuiltCourseLinkId,
           privateEvent: true,
         };
       }
 
-      const date = firstSanitizedString([session.date, request.data?.date], 20);
-      const startTime = firstSanitizedString([session.startTime, plan.startTime, plan.timeStart], 20);
-      const endTime = firstSanitizedString([session.endTime, plan.endTime, plan.timeEnd], 20);
-      const eventDate = normalizeCourseLessonEventDateText(date, startTime, endTime);
-      const startDate = parseEventStartDateInTaipei(eventDate);
-      const endDate = parseEventEndDateInTaipei(eventDate);
-      if (!eventDate || !startDate) {
-        throw new HttpsError("failed-precondition", "COURSE_LESSON_TIME_REQUIRED", { code: "COURSE_LESSON_TIME_REQUIRED" });
-      }
-
       const courseLinkId = crypto.randomBytes(16).toString("hex");
-      const max = courseConvertedEventCapacity(plan, session);
-      const eventData = buildCourseLessonConvertedEventData({
-        eventId,
-        plan,
-        session,
-        requestData: request.data || {},
-        callerUid,
-        callerName,
-        creatorSnapshot,
-        courseLinkId,
-        eventDate,
-        startDate,
-        endDate,
-        max,
-      });
-      const mapping = buildCourseLessonLinkMapping({ eventId, courseLinkId, teamId, planId, sessionId, callerUid });
-
+      const { eventData, mapping } = buildNewCourseLessonConversion(eventId, courseLinkId);
       tx.create(eventRef, eventData);
       tx.create(eventRef.collection("management").doc(COURSE_LINK_MANAGEMENT_DOC_ID), mapping);
       tx.create(linkRef, mapping);

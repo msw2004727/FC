@@ -297,6 +297,47 @@ describe('edu course lessons', () => {
     expect(viewer.container.innerHTML).not.toContain('edu-course-lesson-convert-event-btn');
   });
 
+  test('missing linked event renders a repair action instead of a converted lock', async () => {
+    const weeklyPlan = {
+      id: 'weeklyPlan',
+      name: 'Weekly Plan',
+      planType: 'weekly',
+      startDate: '2099-06-01',
+      endDate: '2099-06-30',
+    };
+    const ApiService = {
+      getCurrentUser: jest.fn(() => null),
+      getEvent: jest.fn(() => null),
+    };
+    const staff = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [weeklyPlan],
+      sessions: [{
+        id: 'weeklyLinkedDeleted',
+        title: '\u5df2\u522a\u9664\u6d3b\u52d5\u7684\u8ab2',
+        status: 'scheduled',
+        date: '2099-06-03',
+        startTime: '09:00',
+        endTime: '10:30',
+        location: 'Court A',
+        studentIds: [],
+        capacity: 6,
+        convertedEventId: 'deletedEvent',
+        courseLinked: true,
+        courseLinkId: 'oldLink',
+      }],
+      ApiService,
+    });
+
+    await staff.app.showCourseLessons('teamA', 'weeklyPlan');
+
+    expect(ApiService.getEvent).toHaveBeenCalledWith('deletedEvent');
+    expect(staff.container.innerHTML).toContain('\u4fee\u5fa9\u6d3b\u52d5');
+    expect(staff.container.innerHTML).toContain("App.convertCourseLessonToEvent('teamA','weeklyPlan','weeklyLinkedDeleted',this)");
+    expect(staff.container.innerHTML).not.toContain('edu-course-lesson-convert-event-btn is-converted');
+    expect(staff.container.innerHTML).not.toContain('data-converted-event-id="deletedEvent"');
+  });
+
   test('convertCourseLessonToEvent uses callable and marks action as converted', async () => {
     const { app, functions } = loadCourseLessonsContext({
       isStaff: true,
