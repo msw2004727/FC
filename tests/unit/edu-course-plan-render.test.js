@@ -334,6 +334,10 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('background: rgba(13, 148, 136, .34);');
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row\s*\{[^}]*flex-direction: row;[^}]*justify-content: space-between;/s);
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row \.toggle-switch\s*\{[^}]*align-self: flex-start;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-top-badges\s*\{[^}]*position: relative;[^}]*grid-column: 1 \/ -1;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-compact-title,[\s\S]*padding-right: 0;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-card-actions\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+    expect(cssSource).toMatch(/@media \(max-width: 360px\)\s*\{[\s\S]*\.edu-cp-card-actions\s*\{[^}]*grid-template-columns: 1fr;/s);
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-card-hidden-badge');
     expect(cssSource).toContain('.edu-cp-lessons-btn-enrolled');
     expect(cssSource).toContain('.edu-cp-lessons-check');

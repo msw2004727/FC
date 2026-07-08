@@ -5334,6 +5334,60 @@
     gap: .18rem;
   }
 }
+@media (max-width: 420px) {
+  .edu-course-card.edu-cp-card-compact {
+    align-items: stretch;
+    gap: .46rem;
+    padding: .58rem;
+  }
+  .edu-cp-top-badges {
+    position: relative;
+    top: auto;
+    right: auto;
+    grid-column: 1 / -1;
+    max-width: 100%;
+    margin: -.08rem 0 0;
+    justify-content: flex-end;
+  }
+  .edu-cp-card-hidden-badge,
+  .edu-cp-next-lesson-badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .edu-cp-compact-title,
+  .edu-course-card.edu-cp-card-hidden .edu-cp-compact-title {
+    padding-right: 0;
+  }
+  .edu-course-card.edu-cp-card-compact .edu-course-name {
+    flex: 1 1 auto;
+  }
+  .edu-cp-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+    gap: .36rem;
+  }
+  .edu-cp-card-actions .outline-btn,
+  .edu-cp-card-actions .primary-btn {
+    width: 100%;
+    min-width: 0;
+    padding-inline: .42rem;
+  }
+  .edu-cp-card-actions .edu-cp-signup-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 360px) {
+  .edu-cp-card-actions {
+    grid-template-columns: 1fr;
+  }
+  .edu-cp-card-actions .edu-cp-signup-btn {
+    grid-column: auto;
+  }
+}
 
 /* Native, regular-weight typography for club education content. */
 .edu-course-plan-section,
