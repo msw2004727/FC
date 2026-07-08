@@ -129,17 +129,30 @@ Object.assign(App, {
 
   /**
    * 判斷當前用戶是否為該教育型俱樂部的幹部（可管理分組/學員/課程/簽到）
-   * 複用既有 isCurrentUserTeamCaptainOrLeader 邏輯
+   * 對齊 Rules / Cloud Functions 的課程職員定義
    */
   isEduClubStaff(teamOrId) {
     const team = typeof teamOrId === 'string'
       ? ApiService.getTeam(teamOrId)
       : teamOrId;
     if (!team) return false;
-    // 全域管理員視同俱樂部幹部
     const curUser = ApiService.getCurrentUser?.();
-    if (curUser && (curUser.role === 'admin' || curUser.role === 'super_admin')) return true;
-    return this._canManageTeamMembers(team);
+    if (curUser?.role === 'super_admin') return true;
+    if (typeof this.hasPermission === 'function' && this.hasPermission('team.manage_all')) return true;
+    const myUid = String(curUser?.uid || curUser?.lineUserId || curUser?._docId || '').trim();
+    return this._isEduTeamStaffUid(team, myUid);
+  },
+
+  _isEduTeamStaffUid(team, uid) {
+    if (!team) return false;
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return false;
+    const singleUidFields = ['captainUid', 'creatorUid', 'ownerUid', 'leaderUid'];
+    if (singleUidFields.some(field => String(team[field] || '').trim() === safeUid)) return true;
+    return ['leaderUids', 'coachUids'].some(field => (
+      Array.isArray(team[field])
+      && team[field].some(item => String(item || '').trim() === safeUid)
+    ));
   },
 
   /**
