@@ -328,6 +328,7 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
     expect(cssSource).toContain('.edu-cp-top-badges');
+    expect(cssSource).toContain('.edu-cp-next-lesson-action');
     expect(cssSource).toContain('.edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="light"] .edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-next-lesson-badge');
@@ -2146,6 +2147,7 @@ describe('edu course plan render', () => {
     });
 
     expect(html).toContain('下堂課7/09');
+    expect(html).toContain('edu-cp-next-lesson-action');
     expect(html).toContain('edu-cp-next-lesson-register-btn');
     expect(html).toContain('報名上課');
     expect(html).toContain("App.showCoursePlanNextLessonRegisterDialog('teamA','weeklyPlan','sess1',this)");

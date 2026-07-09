@@ -1126,8 +1126,11 @@ Object.assign(App, {
           ? '<button type="button" class="edu-cp-next-lesson-register-btn is-registered" disabled aria-disabled="true">已報名</button>'
           : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planKey) + '\',\'' + jsArg(nextLessonSessionId) + '\',this)">報名上課</button>')
         : '';
-      const topBadgeHtml = nextLessonBadge || lessonRegisterBtn || hiddenBadge
-        ? '<div class="edu-cp-top-badges">' + nextLessonBadge + lessonRegisterBtn + hiddenBadge + '</div>'
+      const nextLessonActionHtml = nextLessonBadge || lessonRegisterBtn
+        ? '<div class="edu-cp-next-lesson-action">' + nextLessonBadge + lessonRegisterBtn + '</div>'
+        : '';
+      const topBadgeHtml = nextLessonActionHtml || hiddenBadge
+        ? '<div class="edu-cp-top-badges">' + nextLessonActionHtml + hiddenBadge + '</div>'
         : '';
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'

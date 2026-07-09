@@ -4703,12 +4703,11 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: .28rem;
+  gap: .32rem;
   max-width: calc(100% - 1rem);
   pointer-events: none;
 }
-.edu-cp-card-hidden-badge,
-.edu-cp-next-lesson-badge {
+.edu-cp-card-hidden-badge {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -4718,62 +4717,88 @@
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-}
-.edu-cp-card-hidden-badge {
   border: 1px solid rgba(100, 116, 139, .24);
   background: rgba(248, 250, 252, .94);
   color: #64748b;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
-.edu-cp-next-lesson-badge {
-  border: 1px solid rgba(13, 148, 136, .22);
-  background: rgba(13, 148, 136, .1);
-  color: #0f766e;
-  box-shadow: 0 4px 12px rgba(13, 148, 136, .1);
+.edu-cp-next-lesson-action {
+  pointer-events: none;
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  max-width: 100%;
+  min-height: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(13, 148, 136, .32);
+  border-radius: 999px;
+  background: rgba(240, 253, 250, .96);
+  box-shadow: none;
 }
+.edu-cp-next-lesson-badge,
 .edu-cp-next-lesson-register-btn {
-  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 22px;
-  padding: .12rem .5rem;
-  border: 1px solid rgba(13, 148, 136, .28);
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg-card);
-  box-shadow: 0 4px 12px rgba(13, 148, 136, .14);
-  font-size: .7rem;
+  min-height: 28px;
+  padding: .18rem .58rem;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: .72rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+}
+.edu-cp-next-lesson-badge {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+  color: #0f766e;
+}
+.edu-cp-next-lesson-register-btn {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  border-left: 1px solid rgba(13, 148, 136, .24);
+  background: #0f766e;
+  color: #fff;
   cursor: pointer;
 }
 .edu-cp-next-lesson-register-btn:disabled,
 .edu-cp-next-lesson-register-btn.is-registered {
   cursor: default;
-  border-color: rgba(100, 116, 139, .26);
-  background: rgba(100, 116, 139, .18);
-  color: var(--text-secondary);
-  box-shadow: none;
-}
-[data-theme="light"] .edu-cp-next-lesson-badge {
-  border-color: rgba(15, 118, 110, .22);
-  background: rgba(240, 253, 250, .94);
+  background: rgba(15, 118, 110, .12);
   color: #0f766e;
 }
-[data-theme="dark"] .edu-cp-next-lesson-badge {
-  border-color: rgba(45, 212, 191, .38);
+[data-theme="light"] .edu-cp-next-lesson-action {
+  border-color: rgba(15, 118, 110, .28);
+  background: rgba(240, 253, 250, .96);
+}
+[data-theme="light"] .edu-cp-next-lesson-badge {
+  color: #0f766e;
+}
+[data-theme="light"] .edu-cp-next-lesson-register-btn {
+  background: #0f766e;
+  color: #fff;
+}
+[data-theme="dark"] .edu-cp-next-lesson-action {
+  border-color: rgba(45, 212, 191, .42);
   background: rgba(13, 148, 136, .34);
+}
+[data-theme="dark"] .edu-cp-next-lesson-badge {
   color: #ccfbf1;
 }
 [data-theme="dark"] .edu-cp-next-lesson-register-btn {
-  color: #052e2b;
+  border-left-color: rgba(204, 251, 241, .22);
+  background: #5eead4;
+  color: #042f2e;
 }
 [data-theme="dark"] .edu-cp-next-lesson-register-btn:disabled,
 [data-theme="dark"] .edu-cp-next-lesson-register-btn.is-registered {
-  background: rgba(148, 163, 184, .16);
-  color: #cbd5e1;
+  background: rgba(204, 251, 241, .14);
+  color: #ccfbf1;
 }
 [data-theme="dark"] .edu-cp-card-hidden-badge {
   border-color: rgba(148, 163, 184, .28);
@@ -5390,6 +5415,7 @@
     justify-content: flex-end;
   }
   .edu-cp-card-hidden-badge,
+  .edu-cp-next-lesson-action,
   .edu-cp-next-lesson-badge,
   .edu-cp-next-lesson-register-btn {
     max-width: 100%;
