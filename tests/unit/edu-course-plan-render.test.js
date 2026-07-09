@@ -332,7 +332,10 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="light"] .edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-next-lesson-badge');
-    expect(cssSource).toContain('background: rgba(13, 148, 136, .34);');
+    expect(cssSource).toContain('background: linear-gradient(135deg, #facc15 0%, #fef3c7 42%, #f59e0b 100%);');
+    expect(cssSource).toContain('@keyframes edu-cp-next-lesson-shine');
+    expect(cssSource).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(cssSource).toContain('font-size: .74rem;');
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row\s*\{[^}]*flex-direction: row;[^}]*justify-content: space-between;/s);
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row \.toggle-switch\s*\{[^}]*align-self: flex-start;/s);
     expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-top-badges\s*\{[^}]*position: relative;[^}]*grid-column: 1 \/ -1;/s);
@@ -2146,10 +2149,10 @@ describe('edu course plan render', () => {
       }]),
     });
 
-    expect(html).toContain('下堂課7/09');
+    expect(html).toContain('下堂課');
     expect(html).toContain('edu-cp-next-lesson-action');
     expect(html).toContain('edu-cp-next-lesson-register-btn');
-    expect(html).toContain('報名上課');
+    expect(html).toContain('立即報名7/09的課程');
     expect(html).toContain("App.showCoursePlanNextLessonRegisterDialog('teamA','weeklyPlan','sess1',this)");
   });
 
@@ -2178,6 +2181,7 @@ describe('edu course plan render', () => {
     });
 
     expect(html).toContain('edu-cp-next-lesson-badge');
+    expect(html).toContain('下堂課7/09');
     expect(html).not.toContain('edu-cp-next-lesson-register-btn');
   });
 
@@ -2192,7 +2196,7 @@ describe('edu course plan render', () => {
       querySelectorAll: jest.fn(() => [{ value: 'stu1' }]),
     };
     const sourceButton = {
-      textContent: '報名上課',
+      textContent: '立即報名7/09的課程',
       disabled: false,
       setAttribute: jest.fn(),
       classList: { add: jest.fn() },

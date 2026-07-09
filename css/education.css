@@ -4728,77 +4728,113 @@
   align-items: stretch;
   justify-content: flex-end;
   max-width: 100%;
-  min-height: 28px;
+  min-height: 32px;
   overflow: hidden;
-  border: 1px solid rgba(13, 148, 136, .32);
+  border: 1px solid rgba(245, 158, 11, .42);
   border-radius: 999px;
-  background: rgba(240, 253, 250, .96);
-  box-shadow: none;
+  background: rgba(255, 251, 235, .96);
+  box-shadow: 0 7px 15px rgba(245, 158, 11, .16), inset 0 1px 0 rgba(255, 255, 255, .78);
 }
 .edu-cp-next-lesson-badge,
 .edu-cp-next-lesson-register-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: .18rem .58rem;
+  min-height: 32px;
+  padding: .36rem .52rem;
   border: 0;
   border-radius: 0;
-  box-shadow: none;
-  font-size: .72rem;
+  font-size: .74rem;
   font-weight: 800;
   line-height: 1;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 .edu-cp-next-lesson-badge {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
   background: transparent;
-  color: #0f766e;
+  color: #713f12;
 }
 .edu-cp-next-lesson-register-btn {
   pointer-events: auto;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   flex: 0 0 auto;
-  border-left: 1px solid rgba(13, 148, 136, .24);
-  background: #0f766e;
-  color: #fff;
+  border-left: 1px solid rgba(146, 64, 14, .18);
+  background: linear-gradient(135deg, #facc15 0%, #fef3c7 42%, #f59e0b 100%);
+  color: #713f12;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .76);
   cursor: pointer;
+}
+.edu-cp-next-lesson-register-btn::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -45%;
+  bottom: -45%;
+  left: -70%;
+  width: 46%;
+  transform: skewX(-24deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .82), transparent);
+  animation: edu-cp-next-lesson-shine 2.8s ease-in-out infinite;
+  pointer-events: none;
 }
 .edu-cp-next-lesson-register-btn:disabled,
 .edu-cp-next-lesson-register-btn.is-registered {
   cursor: default;
-  background: rgba(15, 118, 110, .12);
-  color: #0f766e;
+  border-left-color: rgba(120, 113, 108, .2);
+  background: rgba(120, 113, 108, .12);
+  color: #78716c;
+  text-shadow: none;
+  box-shadow: none;
+}
+.edu-cp-next-lesson-register-btn:disabled::after,
+.edu-cp-next-lesson-register-btn.is-registered::after {
+  display: none;
 }
 [data-theme="light"] .edu-cp-next-lesson-action {
-  border-color: rgba(15, 118, 110, .28);
-  background: rgba(240, 253, 250, .96);
+  border-color: rgba(245, 158, 11, .42);
+  background: rgba(255, 251, 235, .96);
 }
 [data-theme="light"] .edu-cp-next-lesson-badge {
-  color: #0f766e;
+  color: #713f12;
 }
 [data-theme="light"] .edu-cp-next-lesson-register-btn {
-  background: #0f766e;
-  color: #fff;
+  background: linear-gradient(135deg, #facc15 0%, #fef3c7 42%, #f59e0b 100%);
+  color: #713f12;
 }
 [data-theme="dark"] .edu-cp-next-lesson-action {
-  border-color: rgba(45, 212, 191, .42);
-  background: rgba(13, 148, 136, .34);
+  border-color: rgba(251, 191, 36, .46);
+  background: rgba(120, 53, 15, .34);
+  box-shadow: 0 7px 15px rgba(251, 191, 36, .12), inset 0 1px 0 rgba(255, 255, 255, .28);
 }
 [data-theme="dark"] .edu-cp-next-lesson-badge {
-  color: #ccfbf1;
+  color: #fde68a;
 }
 [data-theme="dark"] .edu-cp-next-lesson-register-btn {
-  border-left-color: rgba(204, 251, 241, .22);
-  background: #5eead4;
-  color: #042f2e;
+  border-left-color: rgba(254, 243, 199, .24);
+  background: linear-gradient(135deg, #f59e0b 0%, #fde68a 45%, #b45309 100%);
+  color: #1c1917;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .38);
 }
 [data-theme="dark"] .edu-cp-next-lesson-register-btn:disabled,
 [data-theme="dark"] .edu-cp-next-lesson-register-btn.is-registered {
-  background: rgba(204, 251, 241, .14);
-  color: #ccfbf1;
+  background: rgba(214, 211, 209, .14);
+  color: #d6d3d1;
+}
+@keyframes edu-cp-next-lesson-shine {
+  0% { left: -70%; opacity: 0; }
+  18% { opacity: .85; }
+  48% { left: 125%; opacity: 0; }
+  100% { left: 125%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edu-cp-next-lesson-register-btn::after {
+    animation: none;
+    opacity: .28;
+  }
 }
 [data-theme="dark"] .edu-cp-card-hidden-badge {
   border-color: rgba(148, 163, 184, .28);
