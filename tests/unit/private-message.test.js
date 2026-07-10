@@ -172,10 +172,12 @@ describe('private message feature wiring', () => {
     expect(css).toContain('@media (max-width:560px)');
   });
 
-  test('PM audit exposes a super-admin switch for user-to-user private messaging', () => {
+  test('PM audit exposes a super-admin switch for all-role private messaging', () => {
     const audit = readProjectFile('js/modules/message/pm-audit.js');
 
-    expect(audit).toContain('User互相私訊');
+    expect(audit).toContain('所有角色互相私訊');
+    expect(audit).toContain('所有角色都可以互相建立新私訊');
+    expect(audit).toContain('載入 log 失敗');
     expect(audit).toContain('id="pm-user-pm-toggle"');
     expect(audit).toContain('loadPmAuditSettings');
     expect(audit).toContain('savePmAuditSettings');
@@ -462,8 +464,30 @@ describe('private message feature wiring', () => {
     expect(source).toContain('PM_KEYBOARD_RESTORE_DELAY_MS: 320');
     expect(source).toContain('parsed.uidA === safeUid || parsed.uidB === safeUid');
     expect(source).toContain('allowUserToUserPm');
-    expect(source).toContain("normalizedFromRole === 'user' && normalizedToRole === 'user'");
+    expect(source).toContain('if (settings?.allowUserToUserPm === true) return true;');
+    expect(source).not.toContain("normalizedFromRole === 'user' && normalizedToRole === 'user'");
     expect(source).toContain('return fromLevel < toLevel');
+  });
+
+  test('PM global switch allows every built-in role pair to start a new conversation', () => {
+    const App = {};
+    vm.runInNewContext(readProjectFile('js/modules/message/pm-permission.js'), {
+      App,
+      ensureFirebaseFunctionsSdk: jest.fn(),
+      auth: { currentUser: null },
+      ApiService: { getCurrentUser: () => null },
+      console,
+    });
+    const roles = Object.keys(App._pmRoleLevels);
+
+    roles.forEach(fromRole => {
+      roles.forEach(toRole => {
+        expect(App.canSendPMTo(fromRole, toRole, false, { allowUserToUserPm: true })).toBe(true);
+      });
+    });
+    expect(App.canSendPMTo('coach', 'user', false, { allowUserToUserPm: false })).toBe(false);
+    expect(App.canSendPMTo('user', 'coach', false, { allowUserToUserPm: false })).toBe(true);
+    expect(App.canSendPMTo('coach', 'user', true, { allowUserToUserPm: false })).toBe(true);
   });
 
   test('PM callable helper returns an async callable wrapper', async () => {
@@ -506,7 +530,8 @@ describe('private message feature wiring', () => {
     expect(functions).toContain('exports.getPrivateMessageSettings');
     expect(functions).toContain('exports.updatePrivateMessageSettings');
     expect(functions).toContain('pmGetSettingsInTransaction');
-    expect(functions).toContain('normalizedFromRole === "user" && normalizedToRole === "user"');
+    expect(functions).toContain('if (settings?.allowUserToUserPm === true) return true;');
+    expect(functions).not.toContain('normalizedFromRole === "user" && normalizedToRole === "user"');
     expect(functions).toContain('exports.searchPmAuditUsers');
     expect(functions).toContain('exports.getPmAuditConversation');
     expect(functions).toContain('exports.getPmAuditLogs');

@@ -16489,7 +16489,7 @@ function pmCanSendTo(fromRole, toRole, hasExistingConversation, settings = PM_DE
   const toLevel = PM_BUILTIN_LEVELS[normalizedToRole] ?? 0;
   if (fromLevel >= PM_BUILTIN_LEVELS.admin) return true;
   if (hasExistingConversation) return true;
-  if (settings?.allowUserToUserPm === true && normalizedFromRole === "user" && normalizedToRole === "user") return true;
+  if (settings?.allowUserToUserPm === true) return true;
   return fromLevel < toLevel;
 }
 

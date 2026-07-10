@@ -93,10 +93,10 @@ Object.assign(App, {
           <section class="pm-audit-card pm-audit-settings-card">
             <div class="pm-audit-setting-row">
               <div class="pm-audit-setting-copy">
-                <h3>User互相私訊</h3>
-                <p>開啟後 user 層級可彼此開新私訊；關閉時維持上下層級或既有對話。</p>
+                <h3>所有角色互相私訊</h3>
+                <p>開啟後所有已登入且未受限角色可彼此開新私訊；關閉時僅管理員、向上層級或既有對話可私訊。</p>
               </div>
-              <label class="pm-audit-switch" aria-label="User互相私訊">
+              <label class="pm-audit-switch" aria-label="所有角色互相私訊">
                 <input id="pm-user-pm-toggle" type="checkbox" onchange="App.savePmAuditSettings(this.checked)">
                 <span></span>
               </label>
@@ -156,8 +156,8 @@ Object.assign(App, {
       const allowUserToUserPm = resp?.data?.settings?.allowUserToUserPm === true;
       toggle.checked = allowUserToUserPm;
       status.textContent = allowUserToUserPm
-        ? '已開啟：user 可以互相建立新私訊。'
-        : '已關閉：user 只能依上下層級或既有對話私訊。';
+        ? '已開啟：所有角色都可以互相建立新私訊。'
+        : '已關閉：僅管理員、向上層級或既有對話可私訊。';
     } catch (err) {
       console.warn('[loadPmAuditSettings]', err);
       status.textContent = '設定載入失敗';
@@ -180,8 +180,8 @@ Object.assign(App, {
       if (toggle) toggle.checked = saved;
       if (status) {
         status.textContent = saved
-          ? '已開啟：user 可以互相建立新私訊。'
-          : '已關閉：user 只能依上下層級或既有對話私訊。';
+          ? '已開啟：所有角色都可以互相建立新私訊。'
+          : '已關閉：僅管理員、向上層級或既有對話可私訊。';
       }
       this.showToast?.('私訊設定已更新');
       this.loadPmAuditLogs('settings_update');
@@ -361,7 +361,7 @@ Object.assign(App, {
       if (append) {
         this._renderPmAuditLogList(this._pmAuditLogItems, { hasMore: !!this._pmAuditLogNextCursor });
       } else {
-        box.innerHTML = '<div class="muted">頛 log 憭望?</div>';
+        box.innerHTML = '<div class="muted">載入 log 失敗</div>';
       }
     } finally {
       this._pmAuditLogLoading = false;

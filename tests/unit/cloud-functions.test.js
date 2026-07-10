@@ -1881,6 +1881,13 @@ describe('registerForEvent CF logic', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('private message callable source contracts', () => {
+  test('PM policy treats the enabled global switch as role-agnostic', () => {
+    const source = readSourceBetween('function pmCanSendTo(', 'function pmBuildConversationId');
+    expect(source).toContain('if (settings?.allowUserToUserPm === true) return true;');
+    expect(source).not.toContain('normalizedFromRole === "user"');
+    expect(source).not.toContain('normalizedToRole === "user"');
+  });
+
   test('sendPrivateMessage authenticates LINE UIDs, enforces PM policy, rate limits, and writes audit copy', () => {
     const source = readCloudFunctionSource('sendPrivateMessage');
     expect(source).toContain('if (!request.auth?.uid)');

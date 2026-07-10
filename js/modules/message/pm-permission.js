@@ -60,7 +60,7 @@ Object.assign(App, {
     const toLevel = this._pmRoleLevels[normalizedToRole] ?? 0;
     if (fromLevel >= this._pmRoleLevels.admin) return true;
     if (hasExistingConvo) return true;
-    if (settings?.allowUserToUserPm === true && normalizedFromRole === 'user' && normalizedToRole === 'user') return true;
+    if (settings?.allowUserToUserPm === true) return true;
     return fromLevel < toLevel;
   },
 
