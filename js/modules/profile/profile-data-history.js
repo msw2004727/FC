@@ -229,6 +229,7 @@ Object.assign(App, {
     const nowMs = Date.now();
     const items = (ApiService.getEvents?.() || [])
       .filter(eventRecord => this._isProfileHostedActivity(eventRecord, ctx))
+      .filter(eventRecord => this._getProfileActivityEffectiveStatus(eventRecord) === 'open')
       .map(eventRecord => ({ event: eventRecord }));
 
     return items.sort((a, b) => {
@@ -288,7 +289,7 @@ Object.assign(App, {
     if (!list) return;
     if (count) count.textContent = String(items.length);
     if (!items.length) {
-      list.innerHTML = `<div class="profile-related-empty">${isHosted ? '目前沒有你主辦的活動' : '目前沒有正取或候補中的報名活動'}</div>`;
+      list.innerHTML = `<div class="profile-related-empty">${isHosted ? '目前沒有報名中的主辦活動' : '目前沒有正取或候補中的報名活動'}</div>`;
       return;
     }
     const pageSize = Math.max(1, Number(this._profileHostedActivityPageSize) || 10);

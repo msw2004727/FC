@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '../..');
 
@@ -318,6 +319,50 @@ describe('secondary identity profile controls', () => {
 });
 
 describe('profile related activity shortcuts', () => {
+  test('hosted activities only include events whose effective status is open', () => {
+    const app = {};
+    const events = [
+      { id: 'open', creatorUid: 'user-1', status: 'open', date: '2026/07/20 19:00' },
+      { id: 'full', creatorUid: 'user-1', status: 'full', date: '2026/07/21 19:00' },
+      { id: 'upcoming', creatorUid: 'user-1', status: 'upcoming', date: '2026/07/22 19:00' },
+      { id: 'ended', creatorUid: 'user-1', status: 'ended', date: '2026/07/01 19:00' },
+      { id: 'cancelled', creatorUid: 'user-1', status: 'cancelled', date: '2026/07/23 19:00' },
+      { id: 'stale-open', creatorUid: 'user-1', status: 'open', effectiveStatus: 'ended', date: '2026/07/02 19:00' },
+      { id: 'other-owner', creatorUid: 'user-2', status: 'open', date: '2026/07/24 19:00' },
+    ];
+    const context = {
+      App: app,
+      ApiService: {
+        getCurrentUser: () => ({ uid: 'user-1' }),
+        getEvents: () => events,
+      },
+      Date,
+      String,
+      Set,
+      Map,
+      Array,
+      Number,
+      Object,
+      Math,
+      console,
+      escapeHTML: value => String(value || ''),
+    };
+    vm.runInNewContext(
+      readProjectFile('js/modules/profile/profile-data-history.js'),
+      context,
+      { filename: 'js/modules/profile/profile-data-history.js' },
+    );
+    app._isEventOwner = eventRecord => eventRecord.creatorUid === 'user-1';
+    app._getEventEffectiveStatus = eventRecord => eventRecord.effectiveStatus || eventRecord.status || 'open';
+
+    const hostedIds = Array.from(
+      app._getProfileHostedActivityItems(),
+      item => item.event.id,
+    );
+
+    expect(hostedIds).toEqual(['open']);
+  });
+
   test('profile page renders open registered and hosted activity containers before secondary identity', () => {
     const profileHtml = readProjectFile('pages/profile.html');
 
@@ -346,6 +391,8 @@ describe('profile related activity shortcuts', () => {
     expect(profileHistorySource).toContain('renderProfileRelatedActivities()');
     expect(profileHistorySource).toContain('_getProfileRegisteredActivityItems()');
     expect(profileHistorySource).toContain('_getProfileHostedActivityItems()');
+    expect(profileHistorySource).toContain("this._getProfileActivityEffectiveStatus(eventRecord) === 'open'");
+    expect(profileHistorySource).toContain('\u76ee\u524d\u6c92\u6709\u5831\u540d\u4e2d\u7684\u4e3b\u8fa6\u6d3b\u52d5');
     expect(profileHistorySource).toContain('_profileHostedActivityPageSize: 10');
     expect(profileHistorySource).toContain('const visibleItems = isHosted ? items.slice(0, hostedLimit) : items;');
     expect(profileHistorySource).toContain('_renderProfileHostedActivityLoadMore(visibleItems.length, items.length)');
