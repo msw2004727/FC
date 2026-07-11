@@ -59,7 +59,7 @@ function _hasDashboardParticipantSearchHighlight(state) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from personal-dashboard.js:199-218
+// Extracted from personal-dashboard.js:221-240
 // _calcWeeklyActivity — 12-week sliding window
 // Adapted: accepts explicit `now` and `parseDate` for testability
 // ---------------------------------------------------------------------------
