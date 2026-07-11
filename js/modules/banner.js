@@ -646,12 +646,29 @@ Object.assign(App, {
       }
     };
 
+    const removeTouchDragListeners = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+    };
+
+    const onTouchEnd = (e) => {
+      onEnd(e);
+      removeTouchDragListeners();
+    };
+
+    const onTouchStart = (e) => {
+      removeTouchDragListeners();
+      onStart(e);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+      document.addEventListener('touchcancel', onTouchEnd);
+    };
+
     floatingAds.addEventListener('mousedown', onStart);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onEnd);
-    floatingAds.addEventListener('touchstart', onStart, { passive: true });
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd);
+    floatingAds.addEventListener('touchstart', onTouchStart, { passive: true });
   },
 
 });

@@ -498,14 +498,14 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
   test('flag 關閉：所有頁面映射與現行完全相同', () => {
     const SL = loadRealScriptLoader({ splitEnabled: false });
     expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activity', 'achievement', 'profileCard']);
-    expect(SL._resolvePageGroups('page-activities')).toEqual(['activity']);
+    expect(SL._resolvePageGroups('page-activities')).toEqual(['activityList']);
     expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
   });
 
   test('flag 開啟：僅 page-activity-detail 換用 activityDetailCore，其餘頁不受影響', () => {
     const SL = loadRealScriptLoader({ splitEnabled: true });
     expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activityDetailCore']);
-    expect(SL._resolvePageGroups('page-activities')).toEqual(['activity']);
+    expect(SL._resolvePageGroups('page-activities')).toEqual(['activityList']);
     expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
     expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail', 'education']);
   });
@@ -528,26 +528,24 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
   });
 });
 
-describe('detailCoreSplit — on-demand modules are excluded from preload paths', () => {
+describe('activity list and detail preload boundaries', () => {
   const deferredAttendanceScripts = [
     'js/modules/event/event-manage-attendance.js',
     'js/modules/event/event-manage-badges.js',
     'js/modules/event/event-manage-noshow.js',
   ];
 
-  test('page-activities preload scripts skip attendance/no-show/badge when aux on-demand is enabled', () => {
-    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: true });
-    const scripts = SL._resolvePagePreloadScripts('page-activities');
+  test('page-activities remains list-only regardless of detail aux flag', () => {
+    [true, false].forEach(auxOnDemand => {
+      const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand });
+      const scripts = SL._resolvePagePreloadScripts('page-activities');
 
-    deferredAttendanceScripts.forEach(src => expect(scripts).not.toContain(src));
-    expect(scripts).toContain('js/modules/event/event-detail.js');
-  });
-
-  test('page-activities preload scripts keep attendance/no-show/badge when aux on-demand is disabled', () => {
-    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: false });
-    const scripts = SL._resolvePagePreloadScripts('page-activities');
-
-    deferredAttendanceScripts.forEach(src => expect(scripts).toContain(src));
+      expect(scripts).toContain('js/modules/event/event-list-timeline.js');
+      deferredAttendanceScripts.forEach(src => expect(scripts).not.toContain(src));
+      expect(scripts).not.toContain('js/modules/event/event-detail.js');
+      expect(scripts).not.toContain('js/modules/event/event-create.js');
+      expect(scripts).not.toContain('js/modules/event/event-manage.js');
+    });
   });
 
   test('preloadAll does not execute deferred attendance scripts', () => {
@@ -568,10 +566,22 @@ describe('detailCoreSplit — on-demand modules are excluded from preload paths'
     expect(loadedScripts).toContain('js/modules/event/event-detail.js');
   });
 
-  test('executable idle preload does not execute deferred attendance scripts', async () => {
+  test('executable idle preload is fail-closed unless explicitly enabled', async () => {
+    const SL = loadRealScriptLoader({ immediateTimers: true });
+    const loadedScripts = [];
+    SL.loadGroup = async scripts => { loadedScripts.push(...scripts); };
+
+    SL.preloadCorePagesExecutable();
+    await Promise.resolve();
+
+    expect(loadedScripts).toEqual([]);
+  });
+
+  test('explicit executable preload still respects deferred detail modules', async () => {
     const SL = loadRealScriptLoader({
       splitEnabled: true,
       auxOnDemand: true,
+      performanceFlags: { idleModuleExecutionPreload: true },
       immediateTimers: true,
     });
     const loadedScripts = [];
@@ -579,17 +589,12 @@ describe('detailCoreSplit — on-demand modules are excluded from preload paths'
       loadedScripts.push(...scripts);
       scripts.forEach(src => { SL._loaded[src] = true; });
     };
-    SL._load = (src) => {
-      loadedScripts.push(src);
-      SL._loaded[src] = true;
-      return Promise.resolve();
-    };
 
     SL.preloadCorePagesExecutable();
     await Promise.resolve();
 
     deferredAttendanceScripts.forEach(src => expect(loadedScripts).not.toContain(src));
-    expect(loadedScripts).toContain('js/modules/event/event-detail.js');
+    expect(loadedScripts).toContain('js/modules/event/event-list-timeline.js');
   });
 });
 

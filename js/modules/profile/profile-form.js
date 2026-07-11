@@ -145,7 +145,7 @@ Object.assign(App, {
           this.renderProfileFavorites?.();
           this.renderLoginUI();
           this.renderHotEvents();
-          this.renderActivityList();
+          this.renderActivityList?.();
           this.renderMyActivities?.();
           void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });
           void this._resumePendingAuthAction?.();
@@ -190,7 +190,7 @@ Object.assign(App, {
         // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
         // LINE 登入完成後重新渲染活動列表（修正 currentUser 尚未載入的時序問題）
         this.renderHotEvents();
-        this.renderActivityList();
+        this.renderActivityList?.();
         this.renderMyActivities?.();
       }
     }

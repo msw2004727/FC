@@ -107,7 +107,7 @@ Object.assign(App, {
     }
     if (listEl) listEl.hidden = false;
     if (calEl) calEl.hidden = true;
-    if (render) this.renderActivityList();
+    if (render) this.renderActivityList?.();
   },
 
   /** 月曆 tab lazy-load：首次切才載入對應 scripts（見 calendar-view-plan §5 方案 A） */

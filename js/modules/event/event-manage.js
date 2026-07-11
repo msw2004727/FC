@@ -301,6 +301,9 @@ Object.assign(App, {
 
     // 預計算出席紀錄 Map（避免每筆活動重新 filter 全部出席紀錄）
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
+    if (isSuperAdmin && typeof FirebaseService !== 'undefined') {
+      FirebaseService.requestAttendanceRecordsRealtime?.();
+    }
     const checkoutsByEvent = new Map();
     const unregUidsByEvent = new Map();
     if (isSuperAdmin) {

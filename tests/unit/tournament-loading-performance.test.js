@@ -23,11 +23,13 @@ describe('tournament loading performance contract', () => {
     expect(detailGroup[1]).toContain('tournament-detail.js');
   });
 
-  test('boot HTML includes tournament so stale-first can activate immediately', () => {
+  test('boot HTML loads only home and keeps tournament route-addressable', () => {
     const source = readProjectFile('js/core/page-loader.js');
     const normalized = source.replace(/\r\n/g, '\n');
-    expect(normalized).toContain("_bootPages: ['home', 'activity', 'team', 'message', 'profile', 'tournament']");
-    expect(normalized).toContain("_deferredPages: [\n    'scan', 'shop',");
+    expect(normalized).toContain("_bootPages: ['home']");
+    expect(normalized).toContain("_deferredPages: [\n    'activity', 'team', 'message', 'profile', 'tournament',");
+    expect(normalized).toContain("'page-tournaments':        'tournament'");
+    expect(normalized).not.toContain("(() => this._loadDeferred())");
   });
 
   test('public tournament list waits only for tournament realtime data', () => {

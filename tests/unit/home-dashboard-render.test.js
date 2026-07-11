@@ -89,6 +89,7 @@ function runHomeDashboardModule(options = {}) {
     getSportLabelByKey: key => key,
     ScriptLoader: {
       ensureForPage: jest.fn().mockResolvedValue(undefined),
+      ensureGroup: jest.fn().mockResolvedValue(undefined),
     },
   });
   if (options.firebaseService) {
@@ -271,6 +272,7 @@ describe("home-dashboard browser binding", () => {
 
     expect(app.showPage).toHaveBeenCalledWith("page-activities", { disableShellFirst: true });
     expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
+    expect(context.ScriptLoader.ensureGroup).toHaveBeenCalledWith("activityCreate");
     expect(app.openCreateEventModal).toHaveBeenCalledTimes(1);
   });
 
@@ -292,6 +294,7 @@ describe("home-dashboard browser binding", () => {
     }
 
     expect(app.showPage).toHaveBeenCalledWith("page-activities", { disableShellFirst: true });
+    expect(context.ScriptLoader.ensureGroup).toHaveBeenCalledWith("activityCreate");
     expect(app.openCreateEventModal).not.toHaveBeenCalled();
     expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining("\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u8f09\u5165\u5931\u6557"));
   });
@@ -537,6 +540,21 @@ describe("home-dashboard browser binding", () => {
     expect(sportEntry.querySelector('[data-home-sport="dodgeball"]')).toBeNull();
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("530");
     expect(dom.window.document.getElementById("home-sport-views").textContent).toContain("530");
+  });
+
+  test("keeps stale home summary refresh retryable until Firestore is ready", async () => {
+    const firebaseService = {
+      _cache: { events: [] },
+      _shouldReloadCollection: jest.fn(() => true),
+      _loadEventsStatic: jest.fn(),
+    };
+    const { app } = runHomeDashboardModule({ firebaseService });
+
+    await expect(app._refreshHomeSummaryFromEvents()).resolves.toBeNull();
+
+    expect(firebaseService._loadEventsStatic).not.toHaveBeenCalled();
+    expect(app._homeSummaryRefreshing).toBe(false);
+    expect(app._homeSummaryRefreshedAt).toBeUndefined();
   });
 
   test("watch party shortcut opens activities with the restaurant sport filter", async () => {

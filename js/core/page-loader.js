@@ -8,10 +8,11 @@
 const PageLoader = {
 
   /** 啟動時必須載入的頁面（首頁 + 核心頁面） */
-  _bootPages: ['home', 'activity', 'team', 'message', 'profile', 'tournament'],
+  _bootPages: ['home'],
 
   /** 延遲載入的頁面 */
   _deferredPages: [
+    'activity', 'team', 'message', 'profile', 'tournament',
     'scan', 'shop',
     'admin-users', 'admin-content', 'admin-system',
     'admin-notif',
@@ -188,7 +189,7 @@ const PageLoader = {
       const historyPage = String((typeof App !== 'undefined' && App._bootHistoryTargetPageId) || window._bootHistoryTargetPageId || '').trim();
       if (historyPage && /^page-[\w-]+$/.test(historyPage)) {
         const historyFile = this._pageFileMap[historyPage];
-        if (this._bootPages.includes(historyFile)) return historyFile;
+        if (historyFile) return historyFile;
       }
 
       const hashPage = (location.hash || '').replace(/^#/, '').trim();
@@ -197,7 +198,7 @@ const PageLoader = {
         ? App._resolveBootPageId(hashPage)
         : hashPage;
       const fileName = this._pageFileMap[resolvedHash] || this._pageFileMap[hashPage];
-      return this._bootPages.includes(fileName) ? fileName : null;
+      return fileName || null;
     } catch (_) {
       return null;
     }
@@ -214,22 +215,25 @@ const PageLoader = {
     return this._bootFetchMap[name];
   },
 
-  _startBootFetches() {
-    if (this._bootFetchMap) return;
+  _startBootFetches(priorityFile = null) {
+    if (!this._bootFetchMap) this._bootFetchMap = {};
 
-    this._bootFetchMap = {};
-    for (const name of this._bootPages) {
-      this._queueBootFetch(name);
+    const files = new Set(this._bootPages);
+    if (priorityFile) files.add(priorityFile);
+    for (const name of files) {
+      if (!this._bootFetchMap[name]) this._queueBootFetch(name);
     }
 
-    this._bootModalFetch = Promise.all(
-      this._modals.map(name =>
-        this._fetchPageFragment(name, {
-          reason: 'boot modal',
-          timeoutMs: this._bootPageFragmentTimeoutMs,
-        })
-      )
-    );
+    if (!this._bootModalFetch) {
+      this._bootModalFetch = Promise.all(
+        this._modals.map(name =>
+          this._fetchPageFragment(name, {
+            reason: 'boot modal',
+            timeoutMs: this._bootPageFragmentTimeoutMs,
+          })
+        )
+      );
+    }
   },
 
   _keepBootHashTargetActive() {
@@ -247,7 +251,7 @@ const PageLoader = {
       return;
     }
 
-    this._startBootFetches();
+    this._startBootFetches(fileName);
     const html = await (this._bootFetchMap[fileName] || this._queueBootFetch(fileName));
     if (html && !this._loaded[fileName]) {
       this._appendToMainContent(html);
@@ -271,7 +275,7 @@ const PageLoader = {
 
       // ── Deep link 優先載入偵測 ──
       const priorityFile = this._getBootPriorityFile();
-      this._startBootFetches();
+      this._startBootFetches(priorityFile);
 
       // 所有 fetch 同時啟動（不論有無 priority，都並行）
       const fetchMap = this._bootFetchMap;
@@ -311,9 +315,6 @@ const PageLoader = {
       this._bindLoadedPageElements();
       console.log(`[PageLoader] 啟動載入 ${this._bootPages.length} 頁 + ${this._modals.length} 彈窗，延遲 ${this._deferredPages.length} 頁`);
 
-      // 背景預載入延遲頁面（不阻塞啟動）
-      // 注意：iOS Safari 不支援 requestIdleCallback，必須用 window. 存取避免 ReferenceError
-      (window.requestIdleCallback || function(cb) { setTimeout(cb, 2000); })(() => this._loadDeferred());
     })();
 
     return this._loadAllPromise;
@@ -333,15 +334,9 @@ const PageLoader = {
     const fileName = this._pageFileMap[pageId];
     if (!fileName || this._loaded[fileName]) return;
 
-    if (this._bootPages.includes(fileName)) {
-      await this._ensureBootFile(fileName, 'boot page requested');
+    if (this._bootFetchMap?.[fileName] || this._bootPages.includes(fileName)) {
+      await this._ensureBootFile(fileName, 'route requested');
       return;
-    }
-
-    const bootReady = this._bootPages.every(name => this._loaded[name]);
-    if (!bootReady) {
-      await this.loadAll();
-      if (this._loaded[fileName]) return;
     }
 
     await this._loadSingleFile(fileName);

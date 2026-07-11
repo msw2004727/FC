@@ -36,12 +36,13 @@ describe('permission audit page wiring', () => {
     expect(loader).not.toContain('js/modules/user-admin/user-admin-permission-audit.js');
   });
 
-  test('permission audit CSS is independent and pre-cached', () => {
+  test('permission audit CSS is independent and runtime-cacheable', () => {
     const index = read('index.html');
     const sw = read('sw.js');
     const adminCss = read('css/admin.css');
-    expect(index).toContain('css/permission-audit.css');
-    expect(sw).toContain('./css/permission-audit.css');
+    expect(index).toMatch(/css\/permission-audit\.css\?v=[^"]+" media="print"/);
+    expect(sw).not.toContain("withPrecacheVersion('./css/permission-audit.css')");
+    expect(sw).toContain('await cache.put(event.request, response.clone())');
     expect(adminCss).not.toContain('.permission-audit-card');
   });
 

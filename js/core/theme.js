@@ -122,7 +122,7 @@ Object.assign(App, {
     const _rerenderBoth = (options = {}) => {
       syncFilterState();
       if (options.syncUrl) this._syncActivityUrlFilters?.({ replace: true });
-      this.renderActivityList();
+      this.renderActivityList?.();
       if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
     };
     typeSelect?.addEventListener('change', () => _rerenderBoth({ syncUrl: true }));
@@ -262,7 +262,7 @@ Object.assign(App, {
 
       // 觸發列表重繪（各頁面內部會讀取 App._activeSport 進行篩選）
       try { this.renderHotEvents(); } catch (_) {}
-      try { this.renderActivityList(); } catch (_) {}
+      try { this.renderActivityList?.(); } catch (_) {}
       // 月曆 tab 下也要同步重 render（見 calendar-view-plan §12.D）
       try { if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.(); } catch (_) {}
       try { this.renderTeamList?.(); } catch (_) {}

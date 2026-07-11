@@ -174,12 +174,18 @@
     const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
     if (!firebaseService?._cache || app._homeSummaryRefreshing) return null;
     app._homeSummaryRefreshing = true;
+    let refreshStarted = false;
     try {
       const shouldReloadEvents = typeof firebaseService._shouldReloadCollection === 'function'
         ? firebaseService._shouldReloadCollection('events')
         : (!Array.isArray(firebaseService._cache.events) || !firebaseService._cache.events.length);
       if (shouldReloadEvents && typeof firebaseService._loadEventsStatic === 'function') {
+        const firestoreReady = typeof db !== 'undefined' && !!db;
+        if (!firestoreReady) return null;
+        refreshStarted = true;
         await firebaseService._loadEventsStatic();
+      } else {
+        refreshStarted = true;
       }
       const events = Array.isArray(firebaseService._cache.events) ? firebaseService._cache.events : [];
       if (!events.length) return null;
@@ -198,7 +204,7 @@
       return null;
     } finally {
       app._homeSummaryRefreshing = false;
-      app._homeSummaryRefreshedAt = Date.now();
+      if (refreshStarted) app._homeSummaryRefreshedAt = Date.now();
     }
   }
 
@@ -743,7 +749,13 @@
         if (showResult && showResult.ok === false) {
           throw new Error(`showPage failed: ${showResult.reason || 'unknown'}`);
         }
-        await scriptLoader?.ensureForPage?.('page-activities');
+        if (typeof scriptLoader?.ensureGroup !== 'function') {
+          throw new Error('activity create script group is unavailable');
+        }
+        await Promise.all([
+          scriptLoader.ensureForPage?.('page-activities'),
+          scriptLoader.ensureGroup('activityCreate'),
+        ]);
         if (requestSeq !== this._homeCreateEventRequestSeq) return false;
 
         const ready = await this._waitForHomeCreateEventReady(requestSeq);

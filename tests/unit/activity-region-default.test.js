@@ -53,7 +53,7 @@ describe('activity region default', () => {
     expect(femaleThemeSource).toContain('Math.round(((state.cssWidth || 360) / 14) * 0.8)');
     expect(femaleThemeSource).toContain('speed: 0.0365 + Math.random() * 0.07');
     expect(scriptLoaderSource).toContain("'js/modules/event/event-list-female-theme.js'");
-    expect(indexHtml).toContain('js/modules/event/event-list-female-theme.js');
+    expect(indexHtml).not.toContain('js/modules/event/event-list-female-theme.js');
     expect(tabSource).toContain("this.showToast?.('功能尚未開放')");
     expect(tabSource).toContain('event?.stopImmediatePropagation?.()');
     expect(timelineSource).toContain("if (activeTab === 'female')");

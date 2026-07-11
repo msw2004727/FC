@@ -113,10 +113,10 @@ function _deduplicateDocs(docs) {
 // Pure function: returns realtime collections for a page
 // ===========================================================================
 const _pageScopedRealtimeMap = {
-  'page-activities':      ['registrations', 'attendanceRecords'],
-  'page-activity-detail': ['registrations', 'attendanceRecords'],
-  'page-my-activities':   ['registrations', 'attendanceRecords'],
-  'page-scan':            ['attendanceRecords'],
+  'page-activities':      ['registrations', 'events'],
+  'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
+  'page-my-activities':   ['registrations'],
+  'page-scan':            ['attendanceRecords', 'registrations'],
 };
 
 function _getPageScopedRealtimeCollections(pageId) {
@@ -598,13 +598,19 @@ describe('_getPageScopedRealtimeCollections (firebase-service.js:380-382)', () =
     expect(_getPageScopedRealtimeCollections('page-home')).toEqual([]);
   });
 
-  test('page-activities \u2192 registrations + attendanceRecords', () => {
+  test('page-activities \u2192 registrations + events only', () => {
     expect(_getPageScopedRealtimeCollections('page-activities'))
-      .toEqual(['registrations', 'attendanceRecords']);
+      .toEqual(['registrations', 'events']);
   });
 
-  test('page-scan \u2192 attendanceRecords', () => {
-    expect(_getPageScopedRealtimeCollections('page-scan')).toEqual(['attendanceRecords']);
+  test('page-my-activities defers attendance until a super-admin requests it', () => {
+    expect(_getPageScopedRealtimeCollections('page-my-activities'))
+      .toEqual(['registrations']);
+  });
+
+  test('page-scan \u2192 attendanceRecords + registrations', () => {
+    expect(_getPageScopedRealtimeCollections('page-scan'))
+      .toEqual(['attendanceRecords', 'registrations']);
   });
 
   test('unknown page \u2192 empty array', () => {
@@ -1008,6 +1014,172 @@ describe('ensureUserStatsLoaded degraded Firestore support', () => {
       attendanceRecords: null,
     });
     expect(sandbox.console.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('route-scoped users and manual attendance realtime', () => {
+  test('full users listener is disabled on public boot routes and enabled on member workflows', () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+
+    ['page-home', 'page-activities', 'page-activity-detail', 'page-tournaments']
+      .forEach(pageId => expect(FirebaseService._pageNeedsFullUsersRealtime(pageId)).toBe(false));
+    ['page-teams', 'page-messages', 'page-my-activities', 'page-scan',
+      'page-admin-users', 'page-admin-messages', 'page-admin-dashboard',
+      'page-admin-games', 'page-admin-shop', 'page-admin-audit-logs',
+      'page-edu-students']
+      .forEach(pageId => expect(FirebaseService._pageNeedsFullUsersRealtime(pageId)).toBe(true));
+  });
+
+  test('feature flag off restores the legacy global full-users listener behavior', () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: false };
+
+    expect(FirebaseService._pageNeedsFullUsersRealtime('page-home')).toBe(true);
+    expect(FirebaseService._pageNeedsFullUsersRealtime('page-activities')).toBe(true);
+  });
+
+  test('route synchronization starts or stops the users listener for the active page', () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+    sandbox.auth = { currentUser: { uid: 'user-1' } };
+    FirebaseService._startUsersListener = jest.fn();
+    FirebaseService._stopUsersListener = jest.fn();
+
+    expect(FirebaseService._syncUsersListenerForPage('page-teams')).toBe(true);
+    expect(FirebaseService._startUsersListener).toHaveBeenCalledTimes(1);
+
+    expect(FirebaseService._syncUsersListenerForPage('page-home')).toBe(false);
+    expect(FirebaseService._stopUsersListener).toHaveBeenCalledTimes(1);
+  });
+
+  test('cold member route waits for the first full-users snapshot when cache is empty', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+    sandbox.PERFORMANCE_LIMITS = { fullUsersColdStartWaitMs: 1000 };
+    sandbox.auth = { currentUser: { uid: 'user-1' } };
+    let emitSnapshot = null;
+    const unsubscribe = jest.fn();
+    sandbox.db = {
+      collection: jest.fn(name => {
+        expect(name).toBe('users');
+        return {
+          onSnapshot: jest.fn(next => {
+            emitSnapshot = next;
+            return unsubscribe;
+          }),
+        };
+      }),
+    };
+    FirebaseService._syncCurrentUserFromUsersSnapshot = jest.fn();
+    FirebaseService._debouncedPersistCache = jest.fn();
+    FirebaseService._renderAfterUsersHydrated = jest.fn();
+
+    const ready = FirebaseService.ensureFullUsersReadyForPage('page-team-detail');
+    expect(emitSnapshot).toEqual(expect.any(Function));
+    expect(FirebaseService._cache.adminUsers).toEqual([]);
+
+    emitSnapshot({ metadata: { fromCache: true }, docs: [] });
+    await Promise.resolve();
+    expect(FirebaseService._usersSnapshotReady).toBe(false);
+    expect(FirebaseService._renderAfterUsersHydrated).not.toHaveBeenCalled();
+
+    emitSnapshot({
+      metadata: { fromCache: false },
+      docs: [{ id: 'member-1', data: () => ({ uid: 'member-1', displayName: 'Member' }) }],
+    });
+
+    await expect(ready).resolves.toBe(true);
+    expect(FirebaseService._cache.adminUsers).toEqual([
+      expect.objectContaining({ uid: 'member-1', name: 'Member', _docId: 'member-1' }),
+    ]);
+    expect(FirebaseService._usersSnapshotReady).toBe(true);
+  });
+
+  test('empty Firestore cache snapshot preserves a usable persisted users directory', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+    sandbox.auth = { currentUser: { uid: 'user-1' } };
+    FirebaseService._cache.adminUsers = [{ uid: 'cached-1', name: 'Cached User' }];
+    let emitSnapshot = null;
+    sandbox.db = {
+      collection: jest.fn(() => ({
+        onSnapshot: jest.fn(next => {
+          emitSnapshot = next;
+          return jest.fn();
+        }),
+      })),
+    };
+    FirebaseService._syncCurrentUserFromUsersSnapshot = jest.fn();
+    FirebaseService._debouncedPersistCache = jest.fn();
+
+    await expect(FirebaseService.ensureFullUsersReadyForPage('page-admin-games')).resolves.toBe(true);
+    emitSnapshot({ metadata: { fromCache: true }, docs: [] });
+
+    expect(FirebaseService._cache.adminUsers).toEqual([{ uid: 'cached-1', name: 'Cached User' }]);
+    expect(FirebaseService._debouncedPersistCache).not.toHaveBeenCalled();
+  });
+
+  test('full-users listener startup failure does not reject route readiness', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+    sandbox.auth = { currentUser: { uid: 'user-1' } };
+    sandbox.db = {
+      collection: jest.fn(() => {
+        throw new Error('Firestore unavailable');
+      }),
+    };
+
+    await expect(FirebaseService.ensureFullUsersReadyForPage('page-messages')).resolves.toBe(false);
+    expect(FirebaseService._realtimeListenerStarted.users).toBe(false);
+    expect(FirebaseService._usersSnapshotPromise).toBeNull();
+    expect(sandbox.console.warn).toHaveBeenCalledWith(
+      '[onSnapshot] users listener start failed:',
+      expect.any(Error),
+    );
+  });
+
+  test('public routes never start full-users hydration', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.PERFORMANCE_FLAGS = { routeScopedUsersRealtime: true };
+    sandbox.auth = { currentUser: { uid: 'user-1' } };
+    FirebaseService._startUsersListener = jest.fn();
+
+    await expect(FirebaseService.ensureFullUsersReadyForPage('page-activities')).resolves.toBe(true);
+    expect(FirebaseService._startUsersListener).not.toHaveBeenCalled();
+  });
+
+  test('manual attendance request survives rendering and resets when its listener stops', () => {
+    const { FirebaseService } = loadFirebaseServiceWithStorage();
+    FirebaseService._startAttendanceRecordsListener = jest.fn();
+
+    expect(FirebaseService.requestAttendanceRecordsRealtime()).toBe(true);
+    expect(FirebaseService._manualAttendanceRealtimeRequested).toBe(true);
+    expect(FirebaseService._startAttendanceRecordsListener).toHaveBeenCalledTimes(1);
+
+    FirebaseService._attendanceUnsub = null;
+    FirebaseService._stopAttendanceRecordsListener();
+    expect(FirebaseService._manualAttendanceRealtimeRequested).toBe(false);
+  });
+
+  test('attendance snapshots repaint super-admin activity management after hydration', () => {
+    jest.useFakeTimers();
+    try {
+      const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+      sandbox.App = {
+        currentPage: 'page-my-activities',
+        _myActivitiesLastFp: 'stale-fingerprint',
+        renderMyActivities: jest.fn(),
+      };
+
+      FirebaseService._debouncedSnapshotRender('attendance');
+      jest.advanceTimersByTime(80);
+
+      expect(sandbox.App._myActivitiesLastFp).toBeNull();
+      expect(sandbox.App.renderMyActivities).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

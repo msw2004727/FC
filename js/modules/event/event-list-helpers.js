@@ -810,7 +810,7 @@ Object.assign(App, {
     this._syncActivityUrlFilters?.({ replace: true });
     // 重新渲染（頁面未載入時靜默跳過）
     try { this.renderHotEvents(); } catch (_) {}
-    try { this.renderActivityList(); } catch (_) {}
+    try { this.renderActivityList?.(); } catch (_) {}
     // 月曆 tab 下也要同步重 render（見 calendar-view-plan §12.D）
     try { if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.(); } catch (_) {}
   },

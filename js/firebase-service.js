@@ -306,7 +306,18 @@ const FirebaseService = {
       return;
     }
 
-    // attendance 變更不影響列表頁，跳過
+    if (page === 'page-my-activities' && source === 'attendance') {
+      clearTimeout(this._snapshotRenderTimer);
+      this._snapshotRenderTimer = setTimeout(() => {
+        if (typeof App !== 'undefined' && App.currentPage === 'page-my-activities') {
+          App._myActivitiesLastFp = null;
+          App.renderMyActivities?.();
+        }
+      }, 80);
+      return;
+    }
+
+    // attendance 變更不影響其他列表頁，跳過
     if (source === 'attendance') return;
 
     // messages 變更：立即更新徽章 + 訊息列表
@@ -1008,9 +1019,9 @@ const FirebaseService = {
     'page-tournament-detail': ['tournaments', 'standings', 'matches'],
     'page-shop':              ['shopItems', 'trades'],
     'page-shop-detail':       ['shopItems', 'trades'],
-    'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations', 'roleActivityCapabilities'],
+    'page-activities':        ['events', 'registrations', 'roleActivityCapabilities'],
     'page-activity-detail':   ['events', 'teams', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections', 'operationLogs'],
-    'page-my-activities':     ['events', 'attendanceRecords', 'registrations', 'roleActivityCapabilities'],
+    'page-my-activities':     ['events', 'registrations', 'roleActivityCapabilities'],
     'page-scan':              ['attendanceRecords', 'registrations'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
     'page-admin-users':       ['permissions', 'customRoles', 'roleActivityCapabilities'],
@@ -1036,12 +1047,105 @@ const FirebaseService = {
   },
 
   _pageScopedRealtimeMap: {
-    'page-activities':      ['registrations', 'attendanceRecords', 'events'],
+    'page-activities':      ['registrations', 'events'],
     'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
-    'page-my-activities':   ['registrations', 'attendanceRecords'],
+    'page-my-activities':   ['registrations'],
     'page-scan':            ['attendanceRecords', 'registrations'],
     'page-teams':           ['teams'],
     'page-tournaments':     ['tournaments'],
+  },
+
+  _fullUsersRealtimePages: new Set([
+    'page-teams', 'page-team-detail', 'page-team-manage',
+    'page-messages', 'page-my-activities', 'page-scan',
+    'page-tournament-detail',
+    'page-admin-dashboard', 'page-temp-participant-report',
+    'page-admin-users', 'page-admin-exp', 'page-admin-notif',
+    'page-admin-roles', 'page-admin-logs', 'page-admin-audit-logs',
+    'page-admin-inactive', 'page-admin-error-logs', 'page-admin-repair',
+    'page-admin-banners', 'page-admin-messages', 'page-admin-achievements',
+    'page-admin-announcements', 'page-admin-games', 'page-admin-themes',
+    'page-admin-seo', 'page-admin-auto-exp', 'page-admin-teams',
+    'page-admin-tournaments', 'page-admin-shop',
+    'page-edu-groups', 'page-edu-students', 'page-edu-course-plan',
+    'page-edu-course-lessons', 'page-edu-course-enrollment',
+    'page-edu-checkin', 'page-edu-calendar', 'page-edu-student-apply',
+  ]),
+
+  _usersSnapshotReady: false,
+  _usersSnapshotPromise: null,
+  _usersSnapshotResolve: null,
+
+  _isRouteScopedUsersRealtimeEnabled() {
+    try {
+      return typeof PERFORMANCE_FLAGS !== 'undefined'
+        && PERFORMANCE_FLAGS.routeScopedUsersRealtime === true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _pageNeedsFullUsersRealtime(pageId) {
+    if (!this._isRouteScopedUsersRealtimeEnabled()) return true;
+    return this._fullUsersRealtimePages.has(String(pageId || ''));
+  },
+
+  async ensureFullUsersReadyForPage(pageId, options = {}) {
+    if (!this._pageNeedsFullUsersRealtime(pageId)) return true;
+    if (typeof auth === 'undefined' || !auth?.currentUser) return false;
+
+    const hasCachedUsers = Array.isArray(this._cache.adminUsers)
+      && this._cache.adminUsers.length > 0;
+    const snapshotPromise = this._startUsersListener();
+    if (hasCachedUsers || this._usersSnapshotReady) return true;
+    if (!snapshotPromise) return false;
+
+    const configuredWait = typeof PERFORMANCE_LIMITS !== 'undefined'
+      ? Number(PERFORMANCE_LIMITS.fullUsersColdStartWaitMs)
+      : NaN;
+    const timeoutMs = Math.max(250, Number(options.timeoutMs) || configuredWait || 3000);
+    let timer = null;
+    try {
+      return await Promise.race([
+        Promise.resolve(snapshotPromise).then(Boolean),
+        new Promise(resolve => {
+          timer = setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
+
+  _syncUsersListenerForPage(pageId) {
+    if (!auth?.currentUser) {
+      this._stopUsersListener();
+      return false;
+    }
+    if (this._pageNeedsFullUsersRealtime(pageId)) {
+      this._startUsersListener();
+      return true;
+    }
+    this._stopUsersListener();
+    return false;
+  },
+
+  _renderAfterUsersHydrated() {
+    if (typeof App === 'undefined') return;
+    const pageId = App.currentPage;
+    if (pageId === 'page-teams') App.renderTeamList?.();
+    else if (pageId === 'page-messages') App.renderMessageList?.();
+    else if (pageId === 'page-my-activities') App.renderMyActivities?.();
+    else if (pageId === 'page-admin-users') App.filterAdminUsers?.();
+    else if (pageId === 'page-admin-exp') App.renderExpLogs?.();
+    else if (pageId === 'page-admin-roles') App.renderRoleHierarchy?.();
+    else if (pageId === 'page-admin-inactive') App.renderInactiveData?.();
+    else if (pageId === 'page-admin-repair') App.renderUserCorrectionManager?.();
+    else if (pageId === 'page-edu-groups' && App._eduCurrentTeamId) {
+      App.renderEduGroupList?.(App._eduCurrentTeamId);
+    } else if (pageId === 'page-edu-students' && App._eduCurrentTeamId && App._eduCurrentGroupId) {
+      App._renderEduStudentListFromCache?.(App._eduCurrentTeamId, App._eduCurrentGroupId);
+    }
   },
 
   _staticReloadMaxAgeMs: {
@@ -1444,6 +1548,7 @@ const FirebaseService = {
 
   finalizePageScopedRealtimeForPage(pageId) {
     this._cancelAllDeferredPageScopedRealtimeStarts();
+    this._syncUsersListenerForPage(pageId);
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (!needed.has('registrations')) this._stopRegistrationsListener();
     if (!needed.has('attendanceRecords')) this._stopAttendanceRecordsListener();
@@ -3155,23 +3260,63 @@ const FirebaseService = {
     this._debouncedPersistCache();
   },
 
-  /** 啟動 users 監聽器（需 Auth） */
+  /** 啟動 users 監聽器（需 Auth，僅限確實需要完整名單的頁面） */
   _startUsersListener() {
-    if (!auth?.currentUser) return;
-    if (this._realtimeListenerStarted.users) return;
+    if (!auth?.currentUser) return null;
+    if (this._realtimeListenerStarted.users) return this._usersSnapshotPromise;
     this._realtimeListenerStarted.users = true;
-    this._usersUnsub = db.collection('users')
-      .onSnapshot(
-        snapshot => {
-          this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
-          this._syncCurrentUserFromUsersSnapshot();
-          this._debouncedPersistCache();
-          if (typeof App !== 'undefined' && App.currentPage === 'page-admin-users') {
-            App.filterAdminUsers?.();
+    this._usersHydrationRendered = false;
+    this._usersSnapshotReady = false;
+    this._usersSnapshotPromise = new Promise(resolve => {
+      this._usersSnapshotResolve = resolve;
+    });
+    try {
+      this._usersUnsub = db.collection('users')
+        .onSnapshot(
+          snapshot => {
+            const fromCache = snapshot.metadata?.fromCache === true;
+            const snapshotUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+            const canHydratePage = !fromCache || snapshotUsers.length > 0;
+            if (canHydratePage) {
+              this._cache.adminUsers = snapshotUsers;
+              this._syncCurrentUserFromUsersSnapshot();
+              this._debouncedPersistCache();
+            }
+
+            if (!this._usersSnapshotReady && canHydratePage) {
+              this._usersSnapshotReady = true;
+              this._usersSnapshotResolve?.(true);
+              this._usersSnapshotResolve = null;
+            }
+
+            if (!this._usersHydrationRendered && canHydratePage) {
+              this._usersHydrationRendered = true;
+              this._renderAfterUsersHydrated();
+            } else if (typeof App !== 'undefined' && App.currentPage === 'page-admin-users') {
+              App.filterAdminUsers?.();
+            }
+          },
+          err => {
+            this._usersSnapshotResolve?.(false);
+            this._usersSnapshotResolve = null;
+            this._usersSnapshotPromise = null;
+            this._usersSnapshotReady = false;
+            this._realtimeListenerStarted.users = false;
+            this._usersUnsub = null;
+            console.warn('[onSnapshot] users listener error:', err);
           }
-        },
-        err => { console.warn('[onSnapshot] users 監聽錯誤:', err); }
-      );
+        );
+      return this._usersSnapshotPromise;
+    } catch (err) {
+      this._usersSnapshotResolve?.(false);
+      this._usersSnapshotResolve = null;
+      this._usersSnapshotPromise = null;
+      this._usersSnapshotReady = false;
+      this._realtimeListenerStarted.users = false;
+      this._usersUnsub = null;
+      console.warn('[onSnapshot] users listener start failed:', err);
+      return null;
+    }
   },
 
   _stopUsersListener() {
@@ -3179,10 +3324,15 @@ const FirebaseService = {
       try { this._usersUnsub(); } catch (_) {}
       this._usersUnsub = null;
     }
+    this._usersSnapshotResolve?.(false);
+    this._usersSnapshotResolve = null;
+    this._usersSnapshotPromise = null;
+    this._usersSnapshotReady = false;
     this._realtimeListenerStarted.users = false;
+    this._usersHydrationRendered = false;
   },
 
-  /** 啟動 registrations 監聽器（需 Auth，進入活動頁面時觸發） */
+  /** Start registrations realtime when the active route requires it. */
   _startRegistrationsListener() {
     if (!auth?.currentUser) {
       if (this._authPromise && !this._realtimeListenerStarted._pendingRegistrations) {
@@ -3278,6 +3428,14 @@ const FirebaseService = {
 
   // Phase 3c: fetchEventAttendanceRecords 已移除（子集合遷移後不再需要 per-event cache workaround）
 
+  _manualAttendanceRealtimeRequested: false,
+
+  requestAttendanceRecordsRealtime() {
+    this._manualAttendanceRealtimeRequested = true;
+    this._startAttendanceRecordsListener();
+    return true;
+  },
+
   /** 啟動 attendanceRecords 監聽器（需 Auth，進入掃描/管理頁時觸發） */
   _startAttendanceRecordsListener() {
     if (this._realtimeListenerStarted.attendanceRecords) return;
@@ -3286,7 +3444,10 @@ const FirebaseService = {
         this._realtimeListenerStarted._pendingAttendance = true;
         this._authPromise.then(() => {
           this._realtimeListenerStarted._pendingAttendance = false;
-          if (auth?.currentUser && this._getPageScopedRealtimeCollections(App?.currentPage).includes('attendanceRecords')) {
+          if (auth?.currentUser && (
+            this._manualAttendanceRealtimeRequested
+            || this._getPageScopedRealtimeCollections(App?.currentPage).includes('attendanceRecords')
+          )) {
             this._startAttendanceRecordsListener();
           }
         });
@@ -3323,6 +3484,7 @@ const FirebaseService = {
     this._realtimeListenerStarted.attendanceRecords = false;
     this._realtimeListenerStarted._pendingAttendance = false;
     this._attendanceSnapshotReady = false;
+    this._manualAttendanceRealtimeRequested = false;
   },
 
   /** Auth 完成後啟動需驗證的監聽器 + seed（背景執行，不阻塞首頁） */
@@ -3397,9 +3559,13 @@ const FirebaseService = {
       }
 
       this.primeCurrentUserFromLineProfile();
+      if (!this._userListener && typeof this._setupUserListener === 'function') {
+        this._setupUserListener(authUid);
+      } else {
+        this._setupIdentityPrivateListener(authUid);
+      }
       this._startMessagesListener();
-      this._startUsersListener();
-      this._setupIdentityPrivateListener(authUid);
+      this._syncUsersListenerForPage(App?.currentPage || 'page-home');
       this.ensureCurrentIdentitySettingsLoaded({ uid: authUid, force: true, maxAgeMs: 0 })
         .catch(err => console.warn('[FirebaseService] identityPrivate/settings initial load failed:', err?.code || err?.message || err));
 
@@ -4482,7 +4648,7 @@ const FirebaseService = {
     const authUser = (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
     if (!authUser) return;
     // 重啟全域 listeners
-    this._startUsersListener();
+    this._syncUsersListenerForPage(App?.currentPage || 'page-home');
     this._startMessagesListener();
     this._setupIdentityPrivateListener(authUser.uid);
     this.ensureCurrentIdentitySettingsLoaded({ uid: authUser.uid, force: true, maxAgeMs: 0 })

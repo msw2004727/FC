@@ -6,48 +6,34 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260711';
+const CACHE_NAME       = 'sporthub-0.20260711c';
+const PRECACHE_VERSION = CACHE_NAME.replace('sporthub-', '');
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
-const MAX_IMAGE_CACHE  = 300;                         // 最多快取 300 張圖片
-const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;   // 14 天過期
+const MAX_IMAGE_CACHE  = 300;
+const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const IMAGE_CACHE_TRIM_INTERVAL = 20;
+
+function withPrecacheVersion(asset) {
+  const separator = asset.includes('?') ? '&' : '?';
+  return `${asset}${separator}v=${encodeURIComponent(PRECACHE_VERSION)}`;
+}
 
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './css/base.css',
-  './css/layout.css',
-  './css/home.css',
-  './css/activity.css',
-  './css/team.css',
-  './css/team-detail-v2.css',
-  './css/profile.css',
-  './css/message.css',
-  './css/tournament.css',
-  './css/shop.css',
-  './css/scan.css',
-  './css/admin.css',
-  './css/calendar.css',
-  './css/calendar-sport-counts.css',
-  './css/admin-seo.css',
-  './css/game.css',
-  './css/image-cropper.css',
-  './css/education.css',
-  './css/permission-audit.css',
-  './js/config.js',
-  './js/i18n.js',
-  './js/core/history-route-flags.js',
-  './js/core/history-route-adapter.js',
-  './js/core/page-loader.js',
-  './js/core/navigation.js',
-  './js/core/theme.js',
-  './js/core/script-loader.js',
-  // boot page HTML fragments — 回訪時從 SW cache 秒取
-  './pages/home.html',
-  './pages/activity.html',
-  './pages/team.html',
-  './pages/message.html',
-  './pages/profile.html',
-  './pages/modals.html',
+  withPrecacheVersion('./css/base.css'),
+  withPrecacheVersion('./css/layout.css'),
+  withPrecacheVersion('./css/home.css'),
+  withPrecacheVersion('./js/i18n.js'),
+  withPrecacheVersion('./js/config.js'),
+  withPrecacheVersion('./js/core/history-route-flags.js'),
+  withPrecacheVersion('./js/core/history-route-adapter.js'),
+  withPrecacheVersion('./js/core/page-loader.js'),
+  withPrecacheVersion('./js/core/navigation.js'),
+  withPrecacheVersion('./js/core/theme.js'),
+  withPrecacheVersion('./js/core/script-loader.js'),
+  withPrecacheVersion('./pages/home.html'),
+  withPrecacheVersion('./pages/modals.html'),
   './img/Instagram-Logo--Streamline-Plump-Gradient.png',
   './img/Thread-Block-Logo--Streamline-Ultimate.png',
   './img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png',
@@ -94,31 +80,39 @@ function isVersionedStaticRequest(url) {
 /**
  * 將圖片存入 IMAGE_CACHE，附上時間戳記，並清除超量舊項目
  */
+let imageCacheWritesSinceTrim = 0;
+
+async function trimImageCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= MAX_IMAGE_CACHE) return;
+  const toDelete = keys.slice(0, keys.length - MAX_IMAGE_CACHE);
+  await Promise.all(toDelete.map(request => cache.delete(request)));
+}
+
 async function storeImageInCache(cache, request, response) {
   try {
-    const body = await response.clone().arrayBuffer();
+    if (!response?.body) return;
     const headers = new Headers(response.headers);
     headers.set('sw-cached-at', Date.now().toString());
-    const cachedResponse = new Response(body, {
+    const cachedResponse = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers,
     });
     await cache.put(request, cachedResponse);
 
-    // 超過上限時刪除最舊的
-    const keys = await cache.keys();
-    if (keys.length > MAX_IMAGE_CACHE) {
-      const toDelete = keys.slice(0, keys.length - MAX_IMAGE_CACHE);
-      await Promise.all(toDelete.map(k => cache.delete(k)));
+    imageCacheWritesSinceTrim += 1;
+    if (imageCacheWritesSinceTrim >= IMAGE_CACHE_TRIM_INTERVAL) {
+      imageCacheWritesSinceTrim = 0;
+      await trimImageCache(cache);
     }
-  } catch (e) {
-    // 儲存失敗不影響主流程
+  } catch (_) {
+    // Image caching is best-effort; the network response remains usable.
   }
 }
 
 /**
- * 判斷快取的圖片是否已超過有效期
+ * Returns whether a cached image exceeded its freshness window.
  */
 function isImageExpired(cachedResponse) {
   const cachedAt = cachedResponse.headers.get('sw-cached-at');
@@ -158,6 +152,7 @@ self.addEventListener('activate', (event) => {
             .map((key) => caches.delete(key))
         );
       }).then(() => self.clients.claim()),
+      caches.open(IMAGE_CACHE_NAME).then(cache => trimImageCache(cache)),
     ])
   );
 });
@@ -186,32 +181,32 @@ self.addEventListener('fetch', (event) => {
 
   // ── 1. Firebase Storage 圖片：Stale-While-Revalidate ──
   if (url.hostname === 'firebasestorage.googleapis.com') {
-    event.respondWith(
-      caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(event.request);
-        const isValid = cached && !isImageExpired(cached);
+    let imageCacheUpdate = Promise.resolve();
+    const imageResponse = caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request);
+      const isValid = cached && !isImageExpired(cached);
 
-        // 背景 fetch：更新快取用（不等待）
-        const networkFetch = fetch(event.request)
-          .then(async (response) => {
-            if (response && response.status === 200) {
-              storeImageInCache(cache, event.request, response.clone());
-            }
-            return response;
-          })
-          .catch(() => null);
+      // Return the network response without waiting for the streaming cache write.
+      const networkFetch = fetch(event.request)
+        .then((response) => {
+          const cacheWrite = response && response.status === 200
+            ? storeImageInCache(cache, event.request, response.clone())
+            : Promise.resolve();
+          return { response, cacheWrite };
+        })
+        .catch(() => ({ response: null, cacheWrite: Promise.resolve() }));
+      imageCacheUpdate = networkFetch
+        .then(({ cacheWrite }) => cacheWrite)
+        .catch(() => {});
 
-        if (isValid) {
-          // 快取有效：立即回傳，背景悄悄更新
-          event.waitUntil(networkFetch);
-          return cached;
-        }
+      if (isValid) return cached;
 
-        // 無快取或已過期：等網路，失敗時回退舊快取
-        const networkResponse = await networkFetch;
-        return networkResponse || cached;
-      })
-    );
+      // 無快取或已過期：等網路，失敗時回退舊快取
+      const { response } = await networkFetch;
+      return response || cached;
+    });
+    event.respondWith(imageResponse);
+    event.waitUntil(imageResponse.then(() => imageCacheUpdate).catch(() => {}));
     return;
   }
 

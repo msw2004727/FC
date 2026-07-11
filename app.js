@@ -515,7 +515,7 @@ const App = {
     // 用戶會先看到「banner + 熱門活動」的完整首頁,過幾秒才跳目標頁的瑕疵。
     // 守衛邏輯:URL 有 hash navigation 或 sessionStorage 有 deep link → 跳過首頁渲染
     // 設計依據:docs/archive/boot-skip-home-downgrade-plan.md(8 輪自審 + 2 輪 QA 審計)
-    // 注意:仍呼叫 ScriptLoader.preloadCorePages() 保留全域必要副作用(預載 core pages)
+    // 路由片段與模組由目標頁按需載入，不在 boot 背景預載。
     const bootHash = (location.hash || '').replace(/^#/, '').trim();
     const isHashNav = bootHash && /^page-[\w-]+$/.test(bootHash) && bootHash !== 'page-home';
     let isDeepLink = false;
@@ -529,11 +529,7 @@ const App = {
     } catch (_) {}
     if (isHashNav || isDeepLink) {
       console.log('[Boot] 跳過首頁初始渲染 (hash=' + bootHash + ', deepLink=' + isDeepLink + ')');
-      // 仍呼叫 preloadCorePages 保留全域必要副作用
-      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
-        try { ScriptLoader.preloadCorePages(); } catch (_) {}
-        try { ScriptLoader.preloadCorePagesExecutable?.(); } catch (_) {}
-      }
+      // Route fragments and modules load only after explicit navigation intent.
       return;
     }
 
@@ -576,11 +572,7 @@ const App = {
     this._renderHomeVersionTag();
     this._showSlowNetHint();
     this._markPageSnapshotReady('page-home');
-    // 首頁渲染完成 → 背景預載入核心頁面 scripts（活動→俱樂部→賽事）
-    if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
-      ScriptLoader.preloadCorePages();
-      ScriptLoader.preloadCorePagesExecutable?.();
-    }
+    // Keep home idle time free for user input; route modules load on navigation.
   },
 
   _renderHomeVersionTag(visible) {

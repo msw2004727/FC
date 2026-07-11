@@ -743,6 +743,12 @@ Object.assign(App, {
       }
     }
 
+    const fullUsersReadyPromise = !canActivateBeforeCloud
+      && typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService.ensureFullUsersReadyForPage === 'function'
+      ? FirebaseService.ensureFullUsersReadyForPage(pageId)
+      : null;
+
     if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
       await PageLoader.ensurePage(pageId);
     }
@@ -767,6 +773,8 @@ Object.assign(App, {
         skipRealtimeStart: hasRealtime,
       });
     }
+
+    if (fullUsersReadyPromise) await fullUsersReadyPromise;
 
     if (canActivateBeforeCloud
       && !this._cloudReady

@@ -143,6 +143,14 @@ const ScriptLoader = {
       'js/modules/achievement/profile.js',
       'js/modules/achievement.js',
     ],
+    activityList: [
+      'js/modules/event/event-list-helpers.js',
+      'js/modules/event/event-list-stats.js',
+      'js/modules/event/event-list-home.js',
+      'js/modules/event/event-list-timeline.js',
+      'js/modules/event/event-list-female-theme.js',
+      'js/modules/event/event-list.js',
+    ],
     activity: [
       'js/modules/auto-exp/index.js',
       'js/modules/auto-exp/rules.js',
@@ -188,7 +196,7 @@ const ScriptLoader = {
     // === detailCoreSplit（Wave 2 拆包）====================================
     // 以下三組為既有 activity group 的「檔案級」三分拆（聯集=activity、互不重疊、保持原相對順序）。
     // 僅 page-activity-detail 在 detailCoreSplit 開啟時改用 activityDetailCore；
-    // page-activities / page-my-activities 永遠維持完整 ['activity']（計畫書 §3-7）。
+    // page-activities 使用 list-only activityList；page-my-activities 保留完整 activity 管理功能。
     // 修改 activity group 內容時，必須同步維護這三組（tests/unit/script-loader.test.js 有分拆一致性測試把關）。
     // 首屏必留核心依據：docs/specs/活動詳細頁秒開_Wave2_7A依賴矩陣_v1.md
     //（attendance=名單渲染本體、badges/noshow/manage=首屏 helper、create-options=_renderEventSocialLinksHtml）
@@ -591,7 +599,7 @@ const ScriptLoader = {
   _pageGroups: {
     'page-achievements':       ['achievement'],
     'page-admin-achievements': ['achievement'],
-    'page-activities':         ['activity'],
+    'page-activities':         ['activityList'],
     'page-activity-detail':    ['activity', 'achievement', 'profileCard'],
     'page-my-activities':      ['activity'],
     'page-teams':              ['teamList'],
@@ -811,9 +819,11 @@ const ScriptLoader = {
    */
   preloadCorePagesExecutable() {
     try {
-      if (typeof PERFORMANCE_FLAGS !== 'undefined'
-        && PERFORMANCE_FLAGS.idleModuleExecutionPreload === false) return;
-    } catch (_) {}
+      if (typeof PERFORMANCE_FLAGS === 'undefined'
+        || PERFORMANCE_FLAGS.idleModuleExecutionPreload !== true) return;
+    } catch (_) {
+      return;
+    }
     if (this._idlePreloadQueued) return;
     this._idlePreloadQueued = true;
 
