@@ -160,8 +160,9 @@ test.describe('Navigation', () => {
 
     const activityTab = page.locator('.bot-tab[data-page="page-activities"]').first();
     await expect(activityTab).toBeVisible({ timeout: 10000 });
-    await forceShowPageIfNeeded(page, 'page-activities');
+    await activityTab.click();
     await expect(page.locator('#page-activities.active')).toBeVisible({ timeout: 10000 });
+    await expect(activityTab).toHaveClass(/active/);
   });
 
   test('can navigate to profile page', async ({ page }) => {
@@ -184,8 +185,9 @@ test.describe('Navigation', () => {
 
     const tournamentTab = page.locator('[data-page="page-tournaments"]').first();
     await expect(tournamentTab).toBeVisible();
-    await forceShowPageIfNeeded(page, 'page-tournaments');
+    await tournamentTab.click();
     await expect(page.locator('#page-tournaments.active')).toBeVisible({ timeout: 10000 });
+    await expect(tournamentTab).toHaveClass(/active/);
     await expect(page.locator('#page-tournaments.active #tournament-timeline')).toBeAttached();
   });
 });

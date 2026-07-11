@@ -405,25 +405,35 @@ Object.assign(App, {
   },
 
   bindNavigation() {
-    document.querySelectorAll('.bot-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
+    const nav = document.getElementById('bottom-tabs');
+    if (!nav || nav.dataset.navigationBound === '1') return;
+    nav.dataset.navigationBound = '1';
+
+    nav.querySelectorAll('.bot-tab').forEach(tab => {
+      tab.addEventListener('click', async () => {
         const page = tab.dataset.page;
-        if (this._isCurrentUserRestricted() && page !== 'page-home') {
-          this._showRestrictedToast();
-          return;
+        try {
+          if (this._isCurrentUserRestricted() && page !== 'page-home') {
+            this._showRestrictedToast();
+            return;
+          }
+          // v8：延遲登入——活動/俱樂部/賽事改為訪客可瀏覽、只個人/訊息仍擋（見 js/config.js AUTH_REQUIRED_PAGES）
+          const guardedPages = AUTH_REQUIRED_PAGES;
+          if (guardedPages.includes(page) && this._requireProtectedActionLogin({ type: 'showPage', pageId: page }, {
+            suppressToast: true,
+          })) {
+            return;
+          }
+          this.pageHistory = [];
+          if (page === 'page-home') this.resetHomeEntryFilters?.();
+          const result = await this.showPage(page);
+          if (result?.ok === false && result.reason === 'missing_target') {
+            this.showToast?.('頁面載入失敗，請稍後再試');
+          }
+        } catch (err) {
+          console.error(`[Navigation] bottom tab failed for ${page}:`, err);
+          this.showToast?.('頁面載入失敗，請稍後再試');
         }
-        // v8：延遲登入——活動/俱樂部/賽事改為訪客可瀏覽、只個人/訊息仍擋（見 js/config.js AUTH_REQUIRED_PAGES）
-        const guardedPages = AUTH_REQUIRED_PAGES;
-        if (guardedPages.includes(page) && this._requireProtectedActionLogin({ type: 'showPage', pageId: page }, {
-          suppressToast: true,
-        })) {
-          return;
-        }
-        this.pageHistory = [];
-        if (page === 'page-home') this.resetHomeEntryFilters?.();
-        void this.showPage(page);
-        document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
       });
     });
 
