@@ -1186,10 +1186,6 @@ Object.assign(App, {
       this.renderProfileData?.();
     }, { timeout: 1200, fallbackDelayMs: 350 });
 
-    runWhenIdle(() => {
-      if (this.renderActivityRecords) this.renderActivityRecords('all', 1);
-    }, { delayMs: 120, timeout: 900, fallbackDelayMs: 120 });
-
     runWhenIdle(async () => {
       if (!stillCurrent() || typeof ScriptLoader === 'undefined') return;
       await ScriptLoader.ensureGroup?.('profileScene');

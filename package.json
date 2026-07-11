@@ -2,7 +2,7 @@
   "name": "fc-github-rules-tests",
   "private": true,
   "scripts": {
-    "test:rules:unit": "jest --runInBand --runTestsByPath tests/firestore.rules.test.js tests/firestore-rules-extended.test.js tests/team-split-rules.test.js tests/firestore-rules/team-feed-rules.test.js tests/firestore-rules/tournament-member-rules.test.js",
+    "test:rules:unit": "jest --runInBand --runTestsByPath tests/firestore.rules.test.js tests/firestore-rules-extended.test.js tests/team-split-rules.test.js tests/firestore-rules/team-feed-rules.test.js tests/firestore-rules/tournament-member-rules.test.js tests/firestore-rules/user-attendance-stats-rules.test.js",
     "test:rules": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit\"",
     "test:rules:watch": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit -- --watch\"",
     "test:unit": "jest tests/unit/",

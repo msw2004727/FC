@@ -784,6 +784,27 @@ a.social-btn { text-decoration: none; }
   }
 }
 
+.profile-record-title-row {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 1;
+  min-width: 0;
+}
+.profile-record-sync-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.profile-record-updated-at {
+  color: var(--text-muted);
+  font-size: .64rem;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .profile-record-refresh-btn {
   width: 1.65rem;
   height: 1.65rem;

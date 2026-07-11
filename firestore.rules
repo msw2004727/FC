@@ -3353,6 +3353,14 @@ service cloud.firestore {
       }
     }
 
+    // Materialized attendance summaries are server-owned and readable on authenticated profile cards.
+    match /userAttendanceStats/{uid} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+    match /userAttendanceStatsQueue/{uid} {
+      allow read, write: if false;
+    }
     // collectionGroup wildcard rules（僅 read，供 Phase 3 collectionGroup 查詢使用）
     match /{path=**}/registrations/{regId} {
       allow read: if request.auth != null;

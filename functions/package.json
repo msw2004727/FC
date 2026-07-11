@@ -6,6 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
+    "backfill:attendance-stats": "node backfill-user-attendance-stats.js",
     "test:rules:unit": "jest --runInBand tests/firestore.rules.test.js",
     "test:rules": "firebase emulators:exec --config ../firebase.json --only firestore --project demo-rules-test \"npm run test:rules:unit\""
   },

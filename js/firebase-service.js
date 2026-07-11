@@ -243,6 +243,14 @@ const FirebaseService = {
   _eventsServerSnapshotReceived: false,
   _authPromise: null,            // Auth 並行 Promise
   _userStatsCache: { uid: null, activityRecords: null, attendanceRecords: null },
+  _userStatsLoadPromise: null,
+  _userStatsLoadUid: null,
+  _userStatsLoadSeq: 0,
+  _userAttendanceSummaryCache: new Map(),
+  _userAttendanceSummaryUid: null,
+  _userAttendanceSummaryUnsub: null,
+  _userAttendanceSummaryLoadPromise: null,
+  _userAttendanceSummaryLoadCancel: null,
   _userAchievementProgress: [],  // Per-user achievement progress from subcollection
   _userAchievementProgressUid: null,
 
@@ -1022,8 +1030,8 @@ const FirebaseService = {
     'page-admin-shop':        ['shopItems', 'trades'],
     'page-admin-themes':      ['siteThemes'],
     'page-admin-announcements': ['announcements'],
-    'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
-    'page-profile':            ['attendanceRecords', 'activityRecords', 'teams'],
+    'page-personal-dashboard': [],
+    'page-profile':            ['teams'],
     'page-leaderboard':       ['leaderboard'],
   },
 
@@ -1442,6 +1450,9 @@ const FirebaseService = {
     if (!needed.has('events')) this._stopEventsRealtimeListener();
     if (!needed.has('teams')) this._stopTeamsRealtimeListener();
     if (!needed.has('tournaments')) this._stopTournamentsRealtimeListener();
+    if (!['page-profile', 'page-personal-dashboard', 'page-user-card'].includes(pageId)) {
+      this._stopUserAttendanceSummaryListener();
+    }
   },
 
   /** 根據頁面 ID 懶載入對應的集合 */
@@ -1457,27 +1468,22 @@ const FirebaseService = {
     }
     const realtimeNeeded = new Set(this._getPageScopedRealtimeCollections(pageId));
 
-    // 用戶統計頁面：並行載入 user-specific records（無 limit 截斷）
-    const _userStatsPages = ['page-profile', 'page-personal-dashboard'];
-    let userStatsPromise = null;
-    if (_userStatsPages.includes(pageId) && auth?.currentUser?.uid) {
-      userStatsPromise = this.ensureUserStatsLoaded(auth.currentUser.uid);
+    // 統計摘要非阻塞監聽；完整紀錄由展開區塊或手動刷新按需載入
+    const _summaryPages = ['page-profile', 'page-personal-dashboard'];
+    if (_summaryPages.includes(pageId) && auth?.currentUser?.uid) {
+      this.ensureUserAttendanceSummaryLoaded(auth.currentUser.uid, { listen: true })
+        .catch(err => console.warn('[FirebaseService] attendance summary load failed:', err));
     }
 
-    // 靜態集合載入（排除即時監聽器管理的集合）
     const toLoad = needed.filter(name =>
       !realtimeNeeded.has(name) && this._shouldReloadCollection(name)
     );
     if (toLoad.length === 0) {
-      if (userStatsPromise) await userStatsPromise;
       return [];
     }
 
     console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
-    const [loaded] = await Promise.all([
-      this._loadCollectionsByName(toLoad),
-      userStatsPromise,
-    ].filter(Boolean));
+    const loaded = await this._loadCollectionsByName(toLoad);
     // 持久化新載入的集合
     this._persistCache();
     return loaded;
@@ -1687,9 +1693,21 @@ const FirebaseService = {
    * 載入指定用戶的完整 activityRecords + attendanceRecords（無 limit 截斷）
    * 結果存入 _userStatsCache，供統計函式優先使用
    */
+  clearUserStatsCache() {
+    this._userStatsLoadSeq += 1;
+    this._userStatsLoadPromise = null;
+    this._userStatsLoadUid = null;
+    this._userStatsCache = { uid: null, activityRecords: null, attendanceRecords: null };
+  },
+
   async ensureUserStatsLoaded(uid) {
-    if (!uid) return;
-    if (this._userStatsCache.uid === uid && this._userStatsCache.activityRecords !== null) return;
+    if (!uid) return null;
+    if (this._userStatsCache.uid === uid && this._userStatsCache.activityRecords !== null) {
+      return this._userStatsCache;
+    }
+    if (this._userStatsLoadPromise && this._userStatsLoadUid === uid) {
+      return this._userStatsLoadPromise;
+    }
 
     const hasCollectionGroup = typeof db !== 'undefined' && db && typeof db.collectionGroup === 'function';
     if (!hasCollectionGroup) {
@@ -1697,33 +1715,173 @@ const FirebaseService = {
         && (window.__FORCE_DEMO === true || !!window.__E2E_TEST_HARNESS__);
       if (canUseEmptyStatsFallback) {
         this._userStatsCache = { uid, activityRecords: [], attendanceRecords: [] };
+        return this._userStatsCache;
       }
-      return;
+      return null;
     }
 
+    const loadSeq = ++this._userStatsLoadSeq;
+    this._userStatsLoadUid = uid;
+    const loadPromise = (async () => {
+      try {
+        const [actSnap, attSnap] = await Promise.all([
+          db.collectionGroup('activityRecords').where('uid', '==', uid).get(),
+          db.collectionGroup('attendanceRecords').where('uid', '==', uid).get(),
+        ]);
+        const nextCache = {
+          uid,
+          activityRecords: actSnap.docs
+            .filter(doc => doc.ref.parent.parent !== null)
+            .map(doc => this._mapSubcollectionDoc(doc, 'activityRecords')),
+          attendanceRecords: attSnap.docs
+            .filter(doc => doc.ref.parent.parent !== null)
+            .map(doc => this._mapSubcollectionDoc(doc, 'attendanceRecords')),
+        };
+        if (loadSeq === this._userStatsLoadSeq) this._userStatsCache = nextCache;
+        return nextCache;
+      } catch (err) {
+        console.warn('[FirebaseService] ensureUserStatsLoaded failed:', err);
+        throw err;
+      }
+    })();
+    this._userStatsLoadPromise = loadPromise;
     try {
-      const [actSnap, attSnap] = await Promise.all([
-        db.collectionGroup('activityRecords').where('uid', '==', uid).get(),
-        db.collectionGroup('attendanceRecords').where('uid', '==', uid).get(),
-      ]);
-      const attDocs = attSnap.docs
-        .filter(doc => doc.ref.parent.parent !== null)
-        .map(doc => this._mapSubcollectionDoc(doc, 'attendanceRecords'));
-
-      this._userStatsCache = {
-        uid,
-        activityRecords: actSnap.docs
-          .filter(doc => doc.ref.parent.parent !== null)
-          .map(doc => this._mapSubcollectionDoc(doc, 'activityRecords')),
-        attendanceRecords: attDocs,
-      };
-    } catch (err) {
-      console.warn('[FirebaseService] ensureUserStatsLoaded failed:', err);
+      return await loadPromise;
+    } finally {
+      if (this._userStatsLoadPromise === loadPromise) {
+        this._userStatsLoadPromise = null;
+        this._userStatsLoadUid = null;
+      }
     }
   },
 
   getUserStatsCache() {
     return this._userStatsCache;
+  },
+
+  _normalizeUserAttendanceSummary(uid, data, exists = true) {
+    const expectedCount = Math.max(0, Math.trunc(Number(data?.expectedCount || 0)));
+    const attendedCount = Math.max(0, Math.trunc(Number(data?.attendedCount || 0)));
+    const completedCount = Math.max(0, Math.trunc(Number(data?.completedCount || 0)));
+    return {
+      uid,
+      exists,
+      sourceVersion: Math.max(0, Math.trunc(Number(data?.sourceVersion || 0))),
+      expectedCount,
+      attendedCount,
+      completedCount,
+      attendRate: expectedCount > 0 ? Math.round((attendedCount / expectedCount) * 100) : 0,
+      updatedAt: data?.updatedAt || null,
+    };
+  },
+
+  getUserAttendanceSummary(uid) {
+    return uid ? (this._userAttendanceSummaryCache.get(uid) || null) : null;
+  },
+
+  hasUserAttendanceSummary(uid) {
+    return !!uid && this._userAttendanceSummaryCache.has(uid);
+  },
+
+  _stopUserAttendanceSummaryListener() {
+    const cancelPendingLoad = this._userAttendanceSummaryLoadCancel;
+    try { this._userAttendanceSummaryUnsub?.(); } catch (_) {}
+    this._userAttendanceSummaryUnsub = null;
+    this._userAttendanceSummaryUid = null;
+    this._userAttendanceSummaryLoadPromise = null;
+    this._userAttendanceSummaryLoadCancel = null;
+    cancelPendingLoad?.();
+  },
+
+  _notifyUserAttendanceSummaryUpdated(uid) {
+    if (typeof App === 'undefined') return;
+    if (App.currentPage === 'page-profile') {
+      const current = typeof ApiService !== 'undefined' ? ApiService.getCurrentUser?.() : null;
+      const currentUid = current?.uid || current?.lineUserId || '';
+      if (currentUid !== uid) return;
+      if (typeof App._renderUserAttendanceSummary === 'function') {
+        App._renderUserAttendanceSummary(uid, {
+          totalId: 'profile-stat-total', doneId: 'profile-stat-done', rateId: 'profile-stat-rate',
+          updatedId: 'my-records-updated-at',
+        });
+      } else {
+        App.renderProfileData?.();
+      }
+    } else if (App.currentPage === 'page-user-card' && App._ucRecordUid === uid) {
+      App._renderUserAttendanceSummary?.(uid, {
+        totalId: 'uc-stat-total', doneId: 'uc-stat-done', rateId: 'uc-stat-rate',
+        updatedId: 'uc-records-updated-at',
+      });
+    } else if (App.currentPage === 'page-personal-dashboard') {
+      App.renderPersonalDashboard?.();
+    }
+  },
+
+  async ensureUserAttendanceSummaryLoaded(uid, options = {}) {
+    const targetUid = String(uid || '').trim();
+    if (!targetUid || targetUid.includes('/')) return null;
+    const canRead = typeof db !== 'undefined' && db && typeof db.collection === 'function';
+    if (!canRead) return null;
+    const ref = db.collection('userAttendanceStats').doc(targetUid);
+
+    if (options.force === true) {
+      const snapshot = await ref.get({ source: 'server' });
+      const summary = this._normalizeUserAttendanceSummary(
+        targetUid,
+        snapshot.exists ? snapshot.data() : {},
+        snapshot.exists
+      );
+      this._userAttendanceSummaryCache.set(targetUid, summary);
+      this._notifyUserAttendanceSummaryUpdated(targetUid);
+      return summary;
+    }
+
+    const cached = this.getUserAttendanceSummary(targetUid);
+    if (options.listen === false && cached) return cached;
+    if (this._userAttendanceSummaryUid === targetUid) {
+      if (cached) return cached;
+      if (this._userAttendanceSummaryLoadPromise) return this._userAttendanceSummaryLoadPromise;
+    }
+
+    this._stopUserAttendanceSummaryListener();
+    this._userAttendanceSummaryUid = targetUid;
+    let settled = false;
+    const firstSnapshot = new Promise((resolve, reject) => {
+      this._userAttendanceSummaryLoadCancel = () => {
+        if (settled) return;
+        settled = true;
+        resolve(this.getUserAttendanceSummary(targetUid));
+      };
+      this._userAttendanceSummaryUnsub = ref.onSnapshot(
+        snapshot => {
+          const summary = this._normalizeUserAttendanceSummary(
+            targetUid,
+            snapshot.exists ? snapshot.data() : {},
+            snapshot.exists
+          );
+          this._userAttendanceSummaryCache.set(targetUid, summary);
+          this._notifyUserAttendanceSummaryUpdated(targetUid);
+          if (!settled) {
+            settled = true;
+            this._userAttendanceSummaryLoadCancel = null;
+            resolve(summary);
+          }
+        },
+        err => {
+          console.warn('[FirebaseService] userAttendanceStats listener failed:', err);
+          if (!settled) {
+            settled = true;
+            this._userAttendanceSummaryLoadCancel = null;
+            reject(err);
+          }
+          if (this._userAttendanceSummaryUid === targetUid) {
+            this._stopUserAttendanceSummaryListener();
+          }
+        }
+      );
+    });
+    this._userAttendanceSummaryLoadPromise = firstSnapshot;
+    return firstSnapshot;
   },
 
   async ensureStaticCollectionsLoaded(names) {
@@ -4312,6 +4470,7 @@ const FirebaseService = {
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
     this._stopEventsRealtimeListener();
+    this._stopUserAttendanceSummaryListener();
     this._persistCache();
     console.log('[FirebaseService] 背景分頁：已暫停所有 data listeners');
   },
@@ -4332,6 +4491,13 @@ const FirebaseService = {
     if (typeof App !== 'undefined') {
       const pageId = App.currentPage;
       this.schedulePageScopedRealtimeForPage?.(pageId, { delayMs: 0 });
+      const summaryUid = pageId === 'page-user-card'
+        ? (App._ucRecordUid || '')
+        : (authUser.uid || '');
+      if (['page-profile', 'page-personal-dashboard', 'page-user-card'].includes(pageId) && summaryUid) {
+        this.ensureUserAttendanceSummaryLoaded(summaryUid, { listen: true })
+          .catch(err => console.warn('[FirebaseService] attendance summary resume failed:', err));
+      }
     }
     console.log('[FirebaseService] 前景恢復：已重啟 data listeners');
   },

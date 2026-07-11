@@ -92,6 +92,39 @@ Object.assign(App, {
     return { registered, completed, cancelled };
   },
 
+  _formatUserAttendanceSummaryTime(value) {
+    let date = null;
+    if (value && typeof value.toDate === 'function') date = value.toDate();
+    else if (value && Number.isFinite(Number(value.seconds))) date = new Date(Number(value.seconds) * 1000);
+    else if (value) date = new Date(value);
+    if (!date || Number.isNaN(date.getTime())) return '--';
+    const pad = number => String(number).padStart(2, '0');
+    return date.getFullYear() + '/' + pad(date.getMonth() + 1) + '/' + pad(date.getDate())
+      + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+  },
+
+  _renderUserAttendanceSummary(uid, ids = {}) {
+    const summary = typeof FirebaseService !== 'undefined'
+      ? FirebaseService.getUserAttendanceSummary?.(uid)
+      : null;
+    const setText = (id, value) => {
+      const node = id ? document.getElementById(id) : null;
+      if (node) node.textContent = value;
+    };
+    if (!summary) {
+      setText(ids.totalId, '--');
+      setText(ids.doneId, '--');
+      setText(ids.rateId, '--');
+      setText(ids.updatedId, '資料更新 --');
+      return false;
+    }
+    setText(ids.totalId, summary.expectedCount);
+    setText(ids.doneId, summary.completedCount);
+    setText(ids.rateId, summary.attendRate + '%');
+    setText(ids.updatedId, '資料更新 ' + this._formatUserAttendanceSummaryTime(summary.updatedAt));
+    return true;
+  },
+
   /**
    * 方向 B 統計：以掃碼紀錄為唯一依據
    * 參加場次 = 有 checkin 的不重複場次
@@ -99,6 +132,16 @@ Object.assign(App, {
    * 出席率   = checkin場次 ÷ 已結束有效報名場次 × 100%
    */
   _calcScanStats(uid) {
+    const summary = typeof FirebaseService !== 'undefined'
+      ? FirebaseService.getUserAttendanceSummary?.(uid)
+      : null;
+    if (summary) {
+      return {
+        expectedCount: summary.expectedCount,
+        completedCount: summary.completedCount,
+        attendRate: summary.attendRate,
+      };
+    }
     const stats = this._getAchievementStats?.();
     const events = ApiService.getEvents?.() || [];
     const eventMap = new Map(events.map(event => [event.id, event]));
@@ -204,34 +247,31 @@ Object.assign(App, {
     const f = filter || 'all';
     const p = page || 1;
     this._recordPage = p;
-
     const user = ApiService.getCurrentUser();
-    const uid = user?.uid || '';
-    const el = (id) => document.getElementById(id);
+    const uid = user?.uid || user?.lineUserId || '';
+    const cache = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+    const recordsReady = cache && cache.uid === uid && cache.activityRecords !== null;
 
-    // cache 未 ready 時顯示載入中 + "--"，背景載入完成後重繪，避免首次進場顯示 0 誤導
-    const usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
-    const statsReady = usc && usc.uid === uid && usc.attendanceRecords !== null;
-    if (uid && !statsReady) {
-      if (typeof FirebaseService !== 'undefined' && FirebaseService.ensureUserStatsLoaded) {
-        FirebaseService.ensureUserStatsLoaded(uid).then(() => {
-          if (this.currentPage === 'page-profile') this.renderActivityRecords(f, p);
-        }).catch(() => {});
-      }
+    if (uid && !recordsReady) {
       container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入紀錄中...</div>';
-      if (el('profile-stat-total')) el('profile-stat-total').textContent = '--';
-      if (el('profile-stat-done')) el('profile-stat-done').textContent = '--';
-      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = '--';
+      FirebaseService.ensureUserStatsLoaded?.(uid).then(() => {
+        if (this.currentPage === 'page-profile') this.renderActivityRecords(f, p);
+      }).catch(err => {
+        console.warn('[renderActivityRecords]', err);
+        if (this.currentPage === 'page-profile') {
+          container.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">紀錄載入失敗，請按重新整理</div>';
+        }
+      });
     } else {
       const filtered = this._getFilteredRecords(uid, f, false);
       container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
-      const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
-      if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
-      if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
-      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
     }
 
-    // 綁定頁籤（使用 recordBound 避免被 bindTabBars 的通用 bound flag 搶先佔位）
+    this._renderUserAttendanceSummary(uid, {
+      totalId: 'profile-stat-total', doneId: 'profile-stat-done', rateId: 'profile-stat-rate',
+      updatedId: 'my-records-updated-at',
+    });
+
     const tabs = document.getElementById('record-tabs');
     if (tabs) {
       tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
@@ -257,28 +297,21 @@ Object.assign(App, {
     const uid = this._ucRecordUid;
     if (!uid) return;
     const f = filter || 'all';
-    const filtered = this._getFilteredRecords(uid, f, true);
-    container.innerHTML = this._renderRecordListHtml(filtered, page || 1, 'renderUserCardRecords', f);
-
-    // 更新統計（方向 B：以掃碼紀錄為依據）
-    // 資料尚未載入時顯示 "--"，避免顯示 0 造成誤解
-    const usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
-    const statsReady = usc && usc.uid === uid && usc.attendanceRecords !== null;
-    const el = (id) => document.getElementById(id);
-    if (statsReady) {
-      const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
-      if (el('uc-stat-total')) el('uc-stat-total').textContent = expectedCount;
-      if (el('uc-stat-done')) el('uc-stat-done').textContent = completedCount;
-      if (el('uc-stat-rate')) el('uc-stat-rate').textContent = `${attendRate}%`;
+    const cache = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+    const recordsReady = cache && cache.uid === uid && cache.activityRecords !== null;
+    if (recordsReady) {
+      const filtered = this._getFilteredRecords(uid, f, true);
+      container.innerHTML = this._renderRecordListHtml(filtered, page || 1, 'renderUserCardRecords', f);
     } else {
-      if (el('uc-stat-total')) el('uc-stat-total').textContent = '--';
-      if (el('uc-stat-done')) el('uc-stat-done').textContent = '--';
-      if (el('uc-stat-rate')) el('uc-stat-rate').textContent = '--';
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">點擊重新整理載入活動紀錄</div>';
     }
-    // 徽章數量：必須對應目標用戶，非當前登入者
+
+    this._renderUserAttendanceSummary(uid, {
+      totalId: 'uc-stat-total', doneId: 'uc-stat-done', rateId: 'uc-stat-rate',
+      updatedId: 'uc-records-updated-at',
+    });
     this._updateUserCardBadgeCount(uid);
 
-    // 綁定頁籤
     const tabs = document.getElementById('uc-record-tabs');
     if (tabs && !tabs.dataset.bound) {
       tabs.dataset.bound = '1';

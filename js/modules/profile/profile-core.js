@@ -458,11 +458,13 @@ Object.assign(App, {
     // 計算 target uid 與 cache 命中狀態（決定是否顯示毛玻璃遮蔽 — 節省 Firestore 讀取）
     const targetUid = user ? (user.uid || user.lineUserId) : null;
     const _statsCache = (typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.()) || {};
-    const _statsCacheHit = targetUid && _statsCache.uid === targetUid && _statsCache.attendanceRecords !== null;
+    const _recordsCacheHit = targetUid && _statsCache.uid === targetUid && _statsCache.attendanceRecords !== null;
+    const _summaryCacheHit = targetUid && typeof FirebaseService !== 'undefined'
+      && FirebaseService.hasUserAttendanceSummary?.(targetUid);
     const _badgeCacheUid = (typeof FirebaseService !== 'undefined') ? FirebaseService._userAchievementProgressUid : null;
     const _badgeCacheHit = targetUid && _badgeCacheUid === targetUid;
     // isSelf 不遮徽章（本地 cache 已有，同步計算）；非 self 才考慮遮
-    const _showStatsBlur = targetUid && !isSecondaryIdentity && !_statsCacheHit;
+    const _showStatsBlur = targetUid && !isSecondaryIdentity && !(_recordsCacheHit && _summaryCacheHit);
     const _showBadgesBlur = targetUid && !isSecondaryIdentity && !isSelf && !_badgeCacheHit;
 
     const _blurOnClick = `App._loadUserCardUncovered('${escapeHTML(targetUid || '')}')`;
@@ -508,7 +510,13 @@ Object.assign(App, {
         ${_badgeBlurHtml}
       </div>
       <div class="info-card">
-        <div class="info-title" style="display:flex;align-items:center">活動紀錄<button id="uc-records-refresh" type="button" onclick="App.refreshUserCardRecords()" title="重新整理" style="width:1.8rem;height:1.8rem;border:1px solid var(--border);border-radius:50%;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button></div>
+        <div class="info-title profile-record-title-row">
+          <span>活動紀錄</span>
+          <span class="profile-record-sync-meta">
+            <span id="uc-records-updated-at" class="profile-record-updated-at">資料更新 --</span>
+            <button id="uc-records-refresh" class="profile-record-refresh-btn" type="button" onclick="App.refreshUserCardRecords()" title="重新整理" aria-label="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+          </span>
+        </div>
         <div class="profile-stats" style="margin:-.2rem 0 .5rem" id="uc-record-stats">
           <div class="stat-item"><span class="stat-num" id="uc-stat-total">--</span><span class="stat-label">應到場次</span></div>
           <div class="stat-item"><span class="stat-num" id="uc-stat-done">--</span><span class="stat-label">完成場次</span></div>
@@ -561,6 +569,11 @@ Object.assign(App, {
       return { ok: false, reason: 'stale' };
     }
 
+    if (!isSecondaryIdentity && targetUid && typeof FirebaseService !== 'undefined') {
+      FirebaseService.ensureUserAttendanceSummaryLoaded?.(targetUid, { listen: true })
+        .catch(err => console.warn('[showUserProfile attendance summary]', err));
+    }
+
     // 徽章異步載入：只在 cache 命中時才跑（避免自動讀取 Firestore）
     // 非 self 且 cache 未命中時，等用戶點擊遮蔽觸發 _loadUserCardUncovered
     if (!isSecondaryIdentity && !isSelf && user && _badgeCacheHit && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
@@ -576,7 +589,7 @@ Object.assign(App, {
     }
 
     // 活動紀錄：只在 cache 命中時才渲染（否則遮蔽已在 HTML，等用戶點擊）
-    if (!isSecondaryIdentity && targetUid && _statsCacheHit) {
+    if (!isSecondaryIdentity && targetUid && _recordsCacheHit && _summaryCacheHit) {
       this.renderUserCardRecords('all', 1);
     }
     return { ok: true };
@@ -586,18 +599,19 @@ Object.assign(App, {
     const uid = this._ucRecordUid;
     if (!uid) return;
     const btn = document.getElementById('uc-records-refresh');
-    if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+    if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
     try {
-      // 清除快取強制重新載入
-      if (FirebaseService._userStatsCache) {
-        FirebaseService._userStatsCache = { uid: null, activityRecords: null, attendanceRecords: null };
-      }
-      await FirebaseService.ensureUserStatsLoaded(uid);
+      FirebaseService.clearUserStatsCache?.();
+      await Promise.all([
+        FirebaseService.ensureUserStatsLoaded(uid),
+        FirebaseService.ensureUserAttendanceSummaryLoaded(uid, { force: true }),
+      ]);
       this.renderUserCardRecords('all', 1);
     } catch (err) {
       console.warn('[refreshUserCardRecords]', err);
+      this.showToast?.('活動紀錄刷新失敗');
     } finally {
-      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
     }
   },
 
@@ -614,20 +628,19 @@ Object.assign(App, {
       btn.classList.add('spinning');
     }
     try {
-      const fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
+      const fn = await ensureFirebaseFunctionsSdk('asia-east1');
       const callable = fn.httpsCallable('refreshMyActivityRecords');
       const resp = await callable({});
       const data = resp.data || {};
-
-      if (FirebaseService._userStatsCache) {
-        FirebaseService._userStatsCache = { uid: null, activityRecords: null, attendanceRecords: null };
-      }
-      await FirebaseService.ensureUserStatsLoaded(uid);
+      FirebaseService.clearUserStatsCache?.();
+      await Promise.all([
+        FirebaseService.ensureUserStatsLoaded(uid),
+        FirebaseService.ensureUserAttendanceSummaryLoaded(uid, { force: true }),
+      ]);
 
       const activeTab = document.querySelector('#record-tabs .tab.active');
       const filter = activeTab?.dataset?.filter || 'all';
       this.renderActivityRecords?.(filter, 1);
-
       const changed = Number(data.created || 0) + Number(data.updated || 0);
       this.showToast?.(changed > 0 ? '報名紀錄已更新' : '報名紀錄已是最新');
     } catch (err) {
@@ -646,10 +659,7 @@ Object.assign(App, {
     }
   },
 
-  /**
-   * 從毛玻璃遮蔽點擊觸發：首次載入用戶卡片的活動紀錄 + 徽章
-   * 設計目的：預設不自動讀 Firestore，由用戶點擊才載入以節省成本
-   */
+  // User-triggered load keeps full activity records off the initial card path.
   async _loadUserCardUncovered(uid) {
     if (!uid) return;
     if (this._userCardLoading) return;
@@ -662,8 +672,12 @@ Object.assign(App, {
 
     try {
       // 並行載入 stats 與 badges
-      const statsTask = (typeof FirebaseService !== 'undefined' && FirebaseService.ensureUserStatsLoaded)
-        ? FirebaseService.ensureUserStatsLoaded(uid) : Promise.resolve();
+      const statsTask = (typeof FirebaseService !== 'undefined')
+        ? Promise.all([
+          FirebaseService.ensureUserStatsLoaded?.(uid),
+          FirebaseService.ensureUserAttendanceSummaryLoaded?.(uid, { listen: true }),
+        ])
+        : Promise.resolve();
 
       const achievementProfile = this._getAchievementProfile?.();
       const users = ApiService.getAdminUsers?.() || [];
@@ -680,7 +694,7 @@ Object.assign(App, {
       const [, badgeHtml] = await Promise.all([statsTask, badgeTask]);
 
       // 頁面若已切走，不動 DOM（防 race）
-      if (this.currentPage !== 'page-user-card') return;
+      if (this.currentPage !== 'page-user-card' || this._ucRecordUid !== uid) return;
 
       // 更新徽章 container
       if (typeof badgeHtml === 'string' && badgeHtml) {
@@ -695,7 +709,7 @@ Object.assign(App, {
       this.renderUserCardRecords('all', 1);
     } catch (err) {
       console.warn('[_loadUserCardUncovered]', err);
-      if (this.currentPage === 'page-user-card') {
+      if (this.currentPage === 'page-user-card' && this._ucRecordUid === uid) {
         document.querySelectorAll('#page-user-card .uc-blur-overlay .uc-blur-text').forEach(el => {
           el.innerHTML = '載入失敗，點擊重試';
         });

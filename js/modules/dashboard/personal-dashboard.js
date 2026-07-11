@@ -24,14 +24,36 @@ Object.assign(App, {
     }
   },
 
+  async _loadPersonalDashboardRecords(uid) {
+    if (!uid || typeof FirebaseService === 'undefined' || !FirebaseService.ensureUserStatsLoaded) return;
+    if (this._personalDashboardRecordsLoadUid === uid) return;
+    this._personalDashboardRecordsLoadUid = uid;
+    try {
+      await FirebaseService.ensureUserStatsLoaded(uid);
+      const currentUser = ApiService.getCurrentUser?.();
+      const currentUid = currentUser?.uid || currentUser?.lineUserId || '';
+      if (this.currentPage === 'page-personal-dashboard' && currentUid === uid) this.renderPersonalDashboard();
+    } catch (err) {
+      console.warn('[personalDashboardRecords]', err);
+    } finally {
+      if (this._personalDashboardRecordsLoadUid === uid) {
+        this._personalDashboardRecordsLoadUid = null;
+      }
+    }
+  },
+
   _renderPersonalDashboardInner(container, user) {
-    const uid = user.uid || '';
-    const records = ApiService.getActivityRecords?.(uid) || [];
-    // 統一使用 _calcScanStats（與 profile 頁面一致，以掃碼紀錄為依據）
-    const scanStats = this._calcScanStats?.(uid) || { expectedCount: 0, completedCount: 0, attendRate: 0 };
-    const totalGames = scanStats.expectedCount;
-    const completedGames = scanStats.completedCount;
-    const attendanceRate = scanStats.attendRate;
+    const uid = user.uid || user.lineUserId || '';
+    const recordsCache = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+    const recordsReady = recordsCache && recordsCache.uid === uid && recordsCache.activityRecords !== null;
+    const records = recordsReady ? (ApiService.getActivityRecords?.(uid) || []) : [];
+    if (uid && !recordsReady) this._loadPersonalDashboardRecords(uid);
+    const summary = typeof FirebaseService !== 'undefined'
+      ? FirebaseService.getUserAttendanceSummary?.(uid)
+      : null;
+    const totalGames = summary ? summary.expectedCount : '--';
+    const completedGames = summary ? summary.completedCount : '--';
+    const attendanceRate = summary ? (summary.attendRate + '%') : '--';
     const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const totalExp = user.exp || 0;
     const calcLevel = App._calcLevelFromExp ? App._calcLevelFromExp(totalExp) : { level: 0 };
@@ -42,7 +64,7 @@ Object.assign(App, {
       <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.5rem">
         <div class="stat-item"><span class="stat-num">${totalGames}</span><span class="stat-label">參加場次</span></div>
         <div class="stat-item"><span class="stat-num">${completedGames}</span><span class="stat-label">完成</span></div>
-        <div class="stat-item"><span class="stat-num">${attendanceRate}%</span><span class="stat-label">出席率</span></div>
+        <div class="stat-item"><span class="stat-num">${attendanceRate}</span><span class="stat-label">出席率</span></div>
       </div>
       <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.5rem">
         <div class="stat-item"><span class="stat-num">${badgeCount}</span><span class="stat-label">徽章</span></div>

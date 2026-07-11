@@ -13,6 +13,10 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
+  createUserAttendanceStatsExports,
+  rebuildUserAttendanceSummary,
+} = require("./user-attendance-stats");
+const {
   addDaysKey,
   buildOpsLtvReport,
   clampDateRange,
@@ -16185,6 +16189,7 @@ exports.refreshMyActivityRecords = onCall(
       batchSize: config.batchSize,
       source: "self_refresh",
     });
+    await rebuildUserAttendanceSummary({ db, Timestamp, uid: targetUid });
     if (userRef) {
       await userRef.set({
         activityRecordsManualRefreshResult: result,
@@ -17145,4 +17150,12 @@ Object.assign(exports, createSportsApiProScoreboardExports({
   HttpsError,
   defineSecret,
   getCallerAccessContext,
+}));
+
+Object.assign(exports, createUserAttendanceStatsExports({
+  db,
+  FieldValue,
+  Timestamp,
+  onDocumentWritten,
+  onSchedule,
 }));
