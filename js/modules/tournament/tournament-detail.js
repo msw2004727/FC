@@ -5,13 +5,26 @@ Object.assign(App, {
 
   _tournamentDetailRequestSeq: 0,
 
-  async showTournamentDetail(id, options) {
-    if (!(options && options.allowGuest) && this._requireLogin()) return;
+  async showTournamentDetail(id, options = {}) {
+    if (!options.allowGuest && this._requireLogin()) return;
+    const inheritedRouteTransitionSeq = Number(options?._navigationTransitionSeq);
+    const isSameTournamentRefresh = this.currentPage === 'page-tournament-detail' && this.currentTournament === id;
+    const routeTransitionOptions = isSameTournamentRefresh
+      && !(Number.isSafeInteger(inheritedRouteTransitionSeq) && inheritedRouteTransitionSeq > 0)
+      ? { ...options, _navigationTransitionSeq: this._activePageTransitionSeq }
+      : options;
+    const routeTransitionSeq = this._claimPageTransition('page-tournament-detail', routeTransitionOptions);
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showTournamentDetail-entry', 'page-tournament-detail', routeTransitionSeq);
+    }
     const requestSeq = ++this._tournamentDetailRequestSeq;
     let t = ApiService.getTournament(id);
     if (!t) {
       // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
       t = await ApiService.getTournamentAsync(id);
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showTournamentDetail-record', 'page-tournament-detail', routeTransitionSeq);
+      }
       if (requestSeq !== this._tournamentDetailRequestSeq) {
         if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
           console.log('[race-skip]', { fn: 'showTournamentDetail', seq: requestSeq, latest: this._tournamentDetailRequestSeq, stage: 'after-getTournamentAsync' });
@@ -24,7 +37,11 @@ Object.assign(App, {
       suppressHashSync: true,
       bypassPageLock: options?.bypassPageLock,
       skipPageHistory: options?.skipPageHistory,
+      _navigationTransitionSeq: routeTransitionSeq,
     });
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showTournamentDetail-after-showPage', 'page-tournament-detail', routeTransitionSeq);
+    }
     if (requestSeq !== this._tournamentDetailRequestSeq || this.currentPage !== 'page-tournament-detail') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
         console.log('[race-skip]', { fn: 'showTournamentDetail', seq: requestSeq, latest: this._tournamentDetailRequestSeq, currentPage: this.currentPage });

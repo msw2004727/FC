@@ -91,33 +91,58 @@ Object.assign(App, {
     });
   },
 
-  async showTournamentDetail(id, options) {
+  async showTournamentDetail(id, options = {}) {
+    const inheritedRouteTransitionSeq = Number(options?._navigationTransitionSeq);
+    const isSameTournamentRefresh = this.currentPage === 'page-tournament-detail' && this.currentTournament === id;
+    const routeTransitionOptions = isSameTournamentRefresh
+      && !(Number.isSafeInteger(inheritedRouteTransitionSeq) && inheritedRouteTransitionSeq > 0)
+      ? { ...options, _navigationTransitionSeq: this._activePageTransitionSeq }
+      : options;
+    const routeTransitionSeq = this._claimPageTransition('page-tournament-detail', routeTransitionOptions);
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showFriendlyTournamentDetail-entry', 'page-tournament-detail', routeTransitionSeq);
+    }
     let base = ApiService.getTournament?.(id);
     // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
     if (!base) base = await ApiService.getTournamentAsync?.(id);
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showFriendlyTournamentDetail-record', 'page-tournament-detail', routeTransitionSeq);
+    }
     if (!base || !this._isFriendlyTournamentRecord(base)) {
       this._stopFriendlyTournamentDetailRealtime?.();
-      return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id, options);
+      return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id, {
+        ...options,
+        _navigationTransitionSeq: routeTransitionSeq,
+      });
     }
-    if (!(options && options.allowGuest) && this._requireLogin()) return;
+    if (!options.allowGuest && this._requireLogin()) return;
     this._stopFriendlyTournamentDetailRealtime?.();
 
     const seq = ++this._friendlyTournamentDetailSeq;
     const currentUser = ApiService.getCurrentUser?.();
     const statePromise = (async () => {
       await this._ensureFriendlyTournamentApplyTeamsLoaded?.(currentUser);
+      if (seq !== this._friendlyTournamentDetailSeq
+        || !this._isPageTransitionCurrent(routeTransitionSeq)) return null;
       return await this._loadFriendlyTournamentDetailState(id);
     })();
-    this.currentTournament = id;
     await this.showPage('page-tournament-detail', {
       suppressHashSync: true,
       bypassPageLock: options?.bypassPageLock,
       skipPageHistory: options?.skipPageHistory,
+      _navigationTransitionSeq: routeTransitionSeq,
     });
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showFriendlyTournamentDetail-after-showPage', 'page-tournament-detail', routeTransitionSeq);
+    }
     if (seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
+    this.currentTournament = id;
     this._renderFriendlyTournamentDetailLoadingShell(base);
 
     const state = await statePromise;
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showFriendlyTournamentDetail-state', 'page-tournament-detail', routeTransitionSeq);
+    }
     if (!state || seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
     const tournament = state.tournament;
     this._syncTournamentDetailRoute?.(id);

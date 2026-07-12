@@ -14,6 +14,7 @@ Object.assign(App, {
   _teamMemberTabByTeam: {},
   _teamTournamentTabByTeam: {},
   _teamDetailEventCreateTeamId: null,
+  _teamDetailEventCreateTransitionSeq: 0,
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 
@@ -167,8 +168,33 @@ Object.assign(App, {
     return [nodes.title, nodes.nameEn, nodes.image, nodes.body, nodes.editButton].every(Boolean) ? nodes : null;
   },
 
+  _isCurrentTeamDetailTransition(teamId, transitionSeq) {
+    const normalizedTeamId = String(teamId || '').trim();
+    const normalizedTransitionSeq = Number(transitionSeq);
+    return !!normalizedTeamId
+      && this.currentPage === 'page-team-detail'
+      && String(this._teamDetailId || '').trim() === normalizedTeamId
+      && Number.isSafeInteger(normalizedTransitionSeq)
+      && normalizedTransitionSeq > 0
+      && typeof this._isPageTransitionCurrent === 'function'
+      && this._isPageTransitionCurrent(normalizedTransitionSeq);
+  },
+
+  _refreshCurrentTeamDetail(teamId, transitionSeq, options = {}) {
+    const normalizedTransitionSeq = Number(transitionSeq);
+    if (!this._isCurrentTeamDetailTransition(teamId, normalizedTransitionSeq)) {
+      return Promise.resolve({ ok: false, reason: 'stale' });
+    }
+    return this.showTeamDetail(teamId, {
+      ...options,
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: normalizedTransitionSeq,
+    });
+  },
+
   async _refreshTeamDetailMembers(teamId) {
-    const result = await this.showTeamDetail(teamId);
+    const result = await this._refreshCurrentTeamDetail(teamId, this._activePageTransitionSeq);
     if (result?.ok) this._keepTeamMembersSectionOpen();
     return result;
   },
@@ -304,6 +330,7 @@ Object.assign(App, {
 
   async _uploadTeamAvatarFile(btn, team, file) {
     const teamId = String(team?.id || this._teamDetailId || '').trim();
+    const detailTransitionSeq = Number(this._activePageTransitionSeq);
     if (!teamId || !file) return;
     const isAllowed = typeof this._isAllowedImageFile === 'function'
       ? this._isAllowedImageFile(file)
@@ -346,7 +373,7 @@ Object.assign(App, {
         this.renderTeamList?.();
         this.renderTeamManage?.();
         this.renderAdminTeams?.();
-        await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
+        await this._refreshCurrentTeamDetail(teamId, detailTransitionSeq);
         this.showToast('\u4ff1\u6a02\u90e8\u982d\u50cf\u5df2\u66f4\u65b0');
       } catch (err) {
         console.error('[TeamDetail] avatar upload failed:', err);
@@ -425,6 +452,7 @@ Object.assign(App, {
 
   async _uploadTeamCoverFile(btn, team, file) {
     const teamId = String(team?.id || this._teamDetailId || '').trim();
+    const detailTransitionSeq = Number(this._activePageTransitionSeq);
     if (!teamId || !file) return;
     const isAllowed = typeof this._isAllowedImageFile === 'function'
       ? this._isAllowedImageFile(file)
@@ -470,7 +498,7 @@ Object.assign(App, {
         this.renderTeamList?.();
         this.renderTeamManage?.();
         this.renderAdminTeams?.();
-        await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
+        await this._refreshCurrentTeamDetail(teamId, detailTransitionSeq);
         this.showToast('俱樂部封面已更新');
       } catch (err) {
         console.error('[TeamDetail] cover upload failed:', err);
@@ -612,6 +640,7 @@ Object.assign(App, {
 
   async _saveTeamDetailSettingsPatch(updates, inputEl) {
     const teamId = this._teamDetailId;
+    const detailTransitionSeq = Number(this._activePageTransitionSeq);
     const team = teamId ? ApiService.getTeam(teamId) : null;
     if (!team) return;
     if (!this._canEditTeamByRoleOrCaptain?.(team)) {
@@ -624,8 +653,8 @@ Object.assign(App, {
       this.renderTeamList?.();
       this.renderTeamManage?.();
       this.renderAdminTeams?.();
-      await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
-      this._renderTeamDetailSettingsBody(ApiService.getTeam(teamId));
+      const refreshResult = await this._refreshCurrentTeamDetail(teamId, detailTransitionSeq);
+      if (refreshResult?.ok) this._renderTeamDetailSettingsBody(ApiService.getTeam(teamId));
       this.showToast('\u8a2d\u5b9a\u5df2\u66f4\u65b0');
     } catch (err) {
       console.error('[TeamDetail] settings update failed:', err);
@@ -771,6 +800,7 @@ Object.assign(App, {
         ? getSportKeySafe(team?.sportTag || '')
         : String(team?.sportTag || '').trim();
       this._teamDetailEventCreateTeamId = presetTeamId;
+      this._teamDetailEventCreateTransitionSeq = Number(this._activePageTransitionSeq) || 0;
       this._teamDetailEventPreset = {
         teamId: presetTeamId || teamId,
         teamName: team?.name || teamId,
@@ -817,23 +847,23 @@ Object.assign(App, {
   },
 
   async _refreshTeamDetailAfterEventSave(teamIds = []) {
-    const targetTeamId = String(this._teamDetailId || this._teamDetailEventCreateTeamId || '').trim();
+    const targetTeamId = String(this._teamDetailEventCreateTeamId || this._teamDetailId || '').trim();
+    const targetTransitionSeq = Number(this._teamDetailEventCreateTransitionSeq);
     const eventTeamIds = (Array.isArray(teamIds) ? teamIds : [teamIds])
       .map(id => String(id || '').trim())
       .filter(Boolean);
     let refreshed = false;
     try {
       if (!targetTeamId || eventTeamIds.length === 0 || !eventTeamIds.includes(targetTeamId)) return false;
-      if (this.currentPage && this.currentPage !== 'page-team-detail') return false;
-      if (typeof this.showTeamDetail !== 'function') return false;
-      await this.showTeamDetail(targetTeamId, { skipPageHistory: true, bypassPageLock: true });
-      refreshed = true;
-      return true;
+      const result = await this._refreshCurrentTeamDetail(targetTeamId, targetTransitionSeq);
+      refreshed = !!result?.ok;
+      return refreshed;
     } catch (err) {
       console.warn('[TeamDetail] refresh after event save failed:', err);
       return false;
     } finally {
       this._teamDetailEventCreateTeamId = null;
+      this._teamDetailEventCreateTransitionSeq = 0;
       if (!refreshed && this._teamDetailEventPreset) this._teamDetailEventPreset = null;
     }
   },
@@ -841,6 +871,16 @@ Object.assign(App, {
   async showTeamDetail(id, options = {}) {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showTeamDetail', teamId: id }, { suppressToast: true })) {
       return { ok: false, reason: 'auth' };
+    }
+    const inheritedRouteTransitionSeq = Number(options?._navigationTransitionSeq);
+    const isSameTeamRefresh = this.currentPage === 'page-team-detail' && this._teamDetailId === id;
+    const routeTransitionOptions = isSameTeamRefresh
+      && !(Number.isSafeInteger(inheritedRouteTransitionSeq) && inheritedRouteTransitionSeq > 0)
+      ? { ...options, _navigationTransitionSeq: this._activePageTransitionSeq }
+      : options;
+    const routeTransitionSeq = this._claimPageTransition('page-team-detail', routeTransitionOptions);
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showTeamDetail-entry', 'page-team-detail', routeTransitionSeq);
     }
     const requestSeq = ++this._teamDetailRequestSeq;
     try {
@@ -851,6 +891,9 @@ Object.assign(App, {
         if (requestSeq !== this._teamDetailRequestSeq) {
           return { ok: false, reason: 'stale' };
         }
+        if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+          return this._abortStalePageTransition('showTeamDetail-record', 'page-team-detail', routeTransitionSeq);
+        }
         if (!t) return { ok: false, reason: 'missing' };
       }
 
@@ -858,11 +901,20 @@ Object.assign(App, {
       if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
         await PageLoader.ensurePage('page-team-detail');
       }
+      if (requestSeq !== this._teamDetailRequestSeq) {
+        return { ok: false, reason: 'stale' };
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showTeamDetail-page-html', 'page-team-detail', routeTransitionSeq);
+      }
       if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
         await ScriptLoader.ensureForPage('page-team-detail');
       }
       if (requestSeq !== this._teamDetailRequestSeq) {
         return { ok: false, reason: 'stale' };
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showTeamDetail-page-ready', 'page-team-detail', routeTransitionSeq);
       }
 
       t = ApiService.getTeam(id);
@@ -877,7 +929,7 @@ Object.assign(App, {
       }
 
       // ── 先渲染內容到隱藏 DOM ──
-      this._teamDetailId = id;
+      if (this.currentPage === 'page-team-detail') this._teamDetailId = id;
       this._refreshTeamDetailEditButton(t);
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
@@ -906,9 +958,6 @@ Object.assign(App, {
       const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
       nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
-      if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
-        this._initEduClubDetailSection(id);
-      }
       this._syncTeamDetailV2RuntimeAfterBodyRender?.(id, requestSeq);
 
       // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
@@ -916,10 +965,19 @@ Object.assign(App, {
         suppressHashSync: true,
         bypassPageLock: options?.bypassPageLock,
         skipPageHistory: options?.skipPageHistory,
+        _navigationTransitionSeq: routeTransitionSeq,
       });
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        this._cleanupTeamDetailV2Runtime?.(id, requestSeq);
+        return this._abortStalePageTransition('showTeamDetail-after-showPage', 'page-team-detail', routeTransitionSeq);
+      }
       if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
         this._cleanupTeamDetailV2Runtime?.(id, requestSeq);
         return { ok: false, reason: 'stale' };
+      }
+      this._teamDetailId = id;
+      if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
+        this._initEduClubDetailSection(id);
       }
       this._setRouteUrl?.({ pageId: 'page-team-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,

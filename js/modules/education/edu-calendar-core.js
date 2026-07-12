@@ -11,6 +11,10 @@ Object.assign(App, {
   _eduCalendarRequestSeq: 0,
 
   async showEduCalendar(teamId, studentId) {
+    const routeTransitionSeq = this._claimPageTransition('page-edu-calendar');
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showEduCalendar-entry', 'page-edu-calendar', routeTransitionSeq);
+    }
     const requestSeq = ++this._eduCalendarRequestSeq;
     this._eduCalendarTeamId = teamId;
 
@@ -19,6 +23,9 @@ Object.assign(App, {
       if (curUser) {
         const students = await this._loadEduStudents(teamId);
         if (this._isEduCalendarStale(requestSeq)) return { ok: false, reason: 'stale' };
+        if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+          return this._abortStalePageTransition('showEduCalendar-students', 'page-edu-calendar', routeTransitionSeq);
+        }
         const myStudent = students.find(s =>
           s.enrollStatus === 'active' &&
           ((s.selfUid && s.selfUid === curUser.uid) || (s.parentUid && s.parentUid === curUser.uid))
@@ -28,7 +35,10 @@ Object.assign(App, {
     }
 
     this._eduCalendarStudentId = studentId;
-    await this.showPage('page-edu-calendar');
+    await this.showPage('page-edu-calendar', { _navigationTransitionSeq: routeTransitionSeq });
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showEduCalendar-after-showPage', 'page-edu-calendar', routeTransitionSeq);
+    }
     if (this._isEduCalendarStale(requestSeq, true)) return { ok: false, reason: 'stale' };
 
     const titleEl = document.getElementById('edu-calendar-title');
@@ -48,6 +58,9 @@ Object.assign(App, {
 
     try {
       const overview = await FirebaseService.getEduStudentAttendanceOverview({ teamId, studentId });
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEduCalendar-overview', 'page-edu-calendar', routeTransitionSeq);
+      }
       if (this._isEduCalendarStale(requestSeq, true)) return { ok: false, reason: 'stale' };
       this._eduAttendanceOverview = overview || null;
       const currentMonth = this._getEduAttendanceCurrentMonth();
@@ -63,6 +76,9 @@ Object.assign(App, {
       this._renderEduCalendarAll();
       return { ok: true };
     } catch (err) {
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEduCalendar-error', 'page-edu-calendar', routeTransitionSeq);
+      }
       console.error('[edu-calendar-core] overview load failed:', err);
       if (container) {
         container.innerHTML = '<div class="edu-attendance-empty edu-attendance-error"><strong>出缺席紀錄載入失敗</strong><span>請重新開啟頁面，若仍異常請聯繫俱樂部職員。</span></div>';

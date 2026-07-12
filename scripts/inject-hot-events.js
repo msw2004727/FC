@@ -116,12 +116,17 @@ function createJWT(sa) {
   return segments.join('.') + '.' + signature;
 }
 
+function decodeUtf8Chunks(chunks) {
+  return Buffer.concat(chunks.map(chunk => (Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))).toString('utf8');
+}
+
 function httpJSON(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
+      const chunks = [];
+      res.on('data', chunk => { chunks.push(chunk); });
       res.on('end', () => {
+        const data = decodeUtf8Chunks(chunks);
         try {
           resolve({ status: res.statusCode, body: data ? JSON.parse(data) : {} });
         } catch (_) {
@@ -567,6 +572,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  decodeUtf8Chunks,
   buildHomeSummary,
   isPublicActiveEvent,
   isTournamentEnded,

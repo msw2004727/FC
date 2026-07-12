@@ -53,7 +53,7 @@ function _normalizeAdminLogRoute(pageId, options, activeTab) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/core/navigation.js:23-31
+// Extracted from js/core/navigation.js:82-90
 // _getRouteFailureToast — returns toast message for route failure
 // ---------------------------------------------------------------------------
 function _getRouteFailureToast(pageId, step, err) {

@@ -1,4 +1,5 @@
 const {
+  decodeUtf8Chunks,
   buildHomeSummary,
   isPublicActiveEvent,
   isTournamentEnded,
@@ -52,5 +53,23 @@ describe("home summary boot payload", () => {
 
   test("parses slash date with time", () => {
     expect(parseDateMs("2026/05/06 12:30")).toBe(new Date(2026, 4, 6, 12, 30).getTime());
+  });
+
+  test("decodes multibyte JSON only after all HTTP chunks are joined", () => {
+    const json = '{"name":"台中星期三足球俱樂部"}';
+    const bytes = Buffer.from(json, "utf8");
+    const finalCharacter = Buffer.from("部", "utf8");
+    const splitAt = bytes.indexOf(finalCharacter);
+    const chunks = [
+      bytes.subarray(0, splitAt + 1),
+      bytes.subarray(splitAt + 1, splitAt + 2),
+      bytes.subarray(splitAt + 2),
+    ];
+
+    const decoded = decodeUtf8Chunks(chunks);
+
+    expect(decoded).toBe(json);
+    expect(JSON.parse(decoded)).toEqual({ name: "台中星期三足球俱樂部" });
+    expect(decoded).not.toContain("\uFFFD");
   });
 });

@@ -724,12 +724,6 @@ Object.assign(App, {
     if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id) return false;
 
     try {
-      if (typeof this._renderFastEventDetailShell === 'function') {
-        this._renderFastEventDetailShell(id);
-      } else {
-        this._currentDetailEventId = id;
-      }
-
       this._cleanupBeforePageSwitch?.('page-activity-detail');
       this._pushPageHistory?.('page-activity-detail', options || {});
       const activated = this._activatePage?.('page-activity-detail', {
@@ -738,6 +732,12 @@ Object.assign(App, {
         suppressHashSync: true,
       });
       if (!activated) return false;
+
+      if (typeof this._renderFastEventDetailShell === 'function') {
+        this._renderFastEventDetailShell(id);
+      } else {
+        this._currentDetailEventId = id;
+      }
 
       if (!options?.suppressHashSync && typeof this._setRouteUrl === 'function') {
         this._setRouteUrl({ pageId: 'page-activity-detail', id }, {
@@ -841,8 +841,34 @@ Object.assign(App, {
       </div>`;
   },
 
+  _isCurrentEventDetailTransition(eventId, transitionSeq) {
+    const normalizedEventId = String(eventId || '').trim();
+    const normalizedTransitionSeq = Number(transitionSeq);
+    return !!normalizedEventId
+      && this.currentPage === 'page-activity-detail'
+      && String(this._currentDetailEventId || '').trim() === normalizedEventId
+      && Number.isSafeInteger(normalizedTransitionSeq)
+      && normalizedTransitionSeq > 0
+      && typeof this._isPageTransitionCurrent === 'function'
+      && this._isPageTransitionCurrent(normalizedTransitionSeq);
+  },
+
+  _refreshCurrentEventDetail(eventId, transitionSeq, options = {}) {
+    const normalizedTransitionSeq = Number(transitionSeq);
+    if (!this._isCurrentEventDetailTransition(eventId, normalizedTransitionSeq)) {
+      return Promise.resolve({ ok: false, reason: 'stale' });
+    }
+    return this.showEventDetail(eventId, {
+      ...options,
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: normalizedTransitionSeq,
+    });
+  },
+
   async toggleEventPublicFromDetail() {
     const eventId = this._currentDetailEventId;
+    const detailTransitionSeq = Number(this._activePageTransitionSeq);
     const e = eventId ? ApiService.getEvent(eventId) : null;
     if (!e) return;
     if (typeof this._canToggleEventPublic !== 'function' || !this._canToggleEventPublic(e)) {
@@ -858,7 +884,7 @@ Object.assign(App, {
       e.isPublic = nextVal;
       await FirebaseService.updateEvent(e.id, { isPublic: nextVal });
       this.showToast(nextVal ? '已開啟活動公開' : '已關閉活動公開');
-      this.showEventDetail(e.id);
+      void this._refreshCurrentEventDetail(e.id, detailTransitionSeq);
       this.renderActivityList?.();
       this.renderHotEvents?.();
       this.renderMyActivities?.();
@@ -1050,7 +1076,15 @@ Object.assign(App, {
       }
 
       const requestSeq = ++this._eventDetailRequestSeq;
-      const routeTransitionSeq = Number(this._pageTransitionSeq) || 0;
+      const inheritedRouteTransitionSeq = Number(options?._navigationTransitionSeq);
+      const routeTransitionOptions = _isSameEventRerender
+        && !(Number.isSafeInteger(inheritedRouteTransitionSeq) && inheritedRouteTransitionSeq > 0)
+        ? { ...options, _navigationTransitionSeq: this._activePageTransitionSeq }
+        : options;
+      const routeTransitionSeq = this._claimPageTransition('page-activity-detail', routeTransitionOptions);
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEventDetail-entry', 'page-activity-detail', routeTransitionSeq);
+      }
       let detailRenderToken = null;
       // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth
       FirebaseService.ensureAuthReadyForWrite().catch(() => {});
@@ -1058,11 +1092,20 @@ Object.assign(App, {
       if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
         await PageLoader.ensurePage('page-activity-detail');
       }
+      if (requestSeq !== this._eventDetailRequestSeq) {
+        return { ok: false, reason: 'stale' };
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEventDetail-page-html', 'page-activity-detail', routeTransitionSeq);
+      }
       if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
         await ScriptLoader.ensureForPage('page-activity-detail');
       }
       if (requestSeq !== this._eventDetailRequestSeq) {
         return { ok: false, reason: 'stale' };
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEventDetail-page-ready', 'page-activity-detail', routeTransitionSeq);
       }
       // 重新取得活動資料（await 期間快取可能被刷新）
       e = ApiService.getEvent(id);
@@ -1115,9 +1158,11 @@ Object.assign(App, {
         return { ok: false, reason: 'page-not-ready' };
       }
 
-      this._currentDetailEventId = id;
-      this._currentDetailEventRecord = e;
-      this._currentDetailIsGuestView = isGuestView;
+      if (this.currentPage === 'page-activity-detail') {
+        this._currentDetailEventId = id;
+        this._currentDetailEventRecord = e;
+        this._currentDetailIsGuestView = isGuestView;
+      }
     // ── 瀏覽數：顯示當前值 + 觸發 +1（登入用戶同日去重，僅正式詳情頁，不含 guest）──
     if (!isGuestView) {
       const _vcSpan = document.getElementById('detail-view-count-num');
@@ -1504,19 +1549,28 @@ Object.assign(App, {
       // re-render 同一活動時跳過 showPage（避免跳頂）
       if (!_isReRender) {
         // stale 檢查：用戶可能在 await 期間已導航到其他頁面，不可再拉回
-        if (requestSeq !== this._eventDetailRequestSeq
-          || (Number(this._pageTransitionSeq) || 0) !== routeTransitionSeq) {
+        if (requestSeq !== this._eventDetailRequestSeq) {
           return { ok: false, reason: 'stale' };
+        }
+        if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+          return this._abortStalePageTransition('showEventDetail-before-showPage', 'page-activity-detail', routeTransitionSeq);
         }
         await this.showPage('page-activity-detail', {
           suppressHashSync: true,
           bypassPageLock: options?.bypassPageLock,
           skipPageHistory: options?.skipPageHistory,
+          _navigationTransitionSeq: routeTransitionSeq,
         });
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEventDetail-after-showPage', 'page-activity-detail', routeTransitionSeq);
       }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
+      this._currentDetailEventId = id;
+      this._currentDetailEventRecord = e;
+      this._currentDetailIsGuestView = isGuestView;
       if (_staffTeamsHydratePromise) {
         _staffTeamsHydratePromise.then(() => {
           const hydrateState = this._teamReservationStaffTeamsHydrateState;
@@ -1559,6 +1613,9 @@ Object.assign(App, {
             .catch(err => console.error('[EventDetail] detail attendance background render failed:', err));
         } else {
           await renderAttendance;
+          if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+            return this._abortStalePageTransition('showEventDetail-attendance', 'page-activity-detail', routeTransitionSeq);
+          }
           const attendanceGuard = this._isCurrentEventDetailPatch(id, requestSeq, {
             containerId: 'detail-attendance-table',
             renderToken: detailRenderToken,
@@ -1575,6 +1632,9 @@ Object.assign(App, {
       });
       if (!this._shouldUseActivityDetailOptimization('commentsNonBlocking')) {
         await commentsRender;
+        if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+          return this._abortStalePageTransition('showEventDetail-comments', 'page-activity-detail', routeTransitionSeq);
+        }
         const commentsGuard = this._isCurrentEventDetailPatch(id, requestSeq, {
           containerId: 'detail-comments-container',
           renderToken: detailRenderToken,
@@ -1582,6 +1642,9 @@ Object.assign(App, {
         if (!commentsGuard.ok) {
           return { ok: false, reason: commentsGuard.reason || 'stale' };
         }
+      }
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showEventDetail-finalize', 'page-activity-detail', routeTransitionSeq);
       }
       this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,

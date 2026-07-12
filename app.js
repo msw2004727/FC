@@ -276,6 +276,7 @@ const App = {
   _deepLinkAuthRedirecting: false,
   _pendingDeepLinkOpenKey: '',
   _pendingDeepLinkOpenPromise: null,
+  _pendingDeepLinkTransitionSeq: 0,
   _deepLinkRestFetch: null,
   _deepLinkRendered: false,
   _instantDeepLinkMode: false,
@@ -1445,7 +1446,7 @@ const App = {
       && String(this.currentTournament || '').trim() === tournamentId);
   },
 
-  _clearDeepLinkQueryParams() {
+  _clearDeepLinkQueryParams(options = {}) {
     try {
       const url = new URL(window.location.href);
       let changed = false;
@@ -1456,7 +1457,9 @@ const App = {
         changed = true;
       });
       if (changed) {
-        const state = this._buildRouteStateForCurrentPage?.() || this._buildCurrentRouteState?.() || { source: 'sportshub', pageId: this.currentPage || 'page-home' };
+        const state = options?.preserveHistoryState === true
+          ? (history.state ?? null)
+          : (this._buildRouteStateForCurrentPage?.() || this._buildCurrentRouteState?.() || { source: 'sportshub', pageId: this.currentPage || 'page-home' });
         history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
       }
     } catch (_) {}
@@ -1496,6 +1499,7 @@ const App = {
   },
 
   _completeDeepLinkSuccess() {
+    this._pendingDeepLinkTransitionSeq = 0;
     this._stopDeepLinkGuard();
     this._clearPendingDeepLink();
     this._clearDeepLinkQueryParams();
@@ -1522,7 +1526,33 @@ const App = {
     this._pendingDeepLinkOpenPromise = null;
   },
 
+  _cancelSupersededPendingDeepLink(source = 'pending-deep-link') {
+    const transitionSeq = Number(this._pendingDeepLinkTransitionSeq);
+    const hasTransition = Number.isSafeInteger(transitionSeq) && transitionSeq > 0;
+    if (!hasTransition || typeof this._isPageTransitionCurrent !== 'function'
+      || this._isPageTransitionCurrent(transitionSeq)) return false;
+    this._recordNavigationDiagnostic?.('stale-transition', {
+      source,
+      pageId: 'pending-deep-link',
+      expectedSeq: transitionSeq,
+    });
+    this._pendingDeepLinkTransitionSeq = 0;
+    this._stopDeepLinkGuard();
+    this._clearPendingDeepLink();
+    this._clearDeepLinkQueryParams({ preserveHistoryState: true });
+    this._hideDeepLinkOverlay();
+    this._bootDeepLink = null;
+    this._deepLinkAuthRedirecting = false;
+    this._pendingDeepLinkOpenKey = '';
+    this._pendingDeepLinkOpenPromise = null;
+    return true;
+  },
+
   _completeDeepLinkFallback(message, targetPage = 'page-activities') {
+    if (this._cancelSupersededPendingDeepLink('pending-deep-link-fallback')) return;
+    const transitionSeq = Number(this._pendingDeepLinkTransitionSeq);
+    const hasCurrentTransition = Number.isSafeInteger(transitionSeq) && transitionSeq > 0
+      && this._isPageTransitionCurrent?.(transitionSeq) === true;
     this._stopDeepLinkGuard();
     this._clearPendingDeepLink();
     this._clearDeepLinkQueryParams();
@@ -1533,18 +1563,29 @@ const App = {
     this._pendingDeepLinkOpenPromise = null;
     const canOpenProtected = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
-    // 2026-04-19 fix: 若用戶在 deep-link poller timeout 前已主動導航到其他頁面（例如
-    // 點擊行事曆活動進入詳情頁），不再強制切到 fallbackPage，避免把用戶從正在瀏覽的
-    // 頁面拉走。用戶回報「剛開啟網站快速點活動進詳情頁，幾秒後被拉回行事曆」即此根因。
-    const isUserOnActivePage = this.currentPage
-      && this.currentPage !== 'page-home'
-      && this.currentPage !== fallbackPage;
+    // 2026-07-12: 同時檢查尚未完成的最新頁面意圖，不能只看已啟用頁面。
+    const effectivePage = this._userIntendedPage || this.currentPage;
+    const isUserOnActivePage = !hasCurrentTransition
+      && effectivePage
+      && effectivePage !== 'page-home'
+      && effectivePage !== fallbackPage;
     if (isUserOnActivePage) {
-      console.log('[DeepLink] user navigated to', this.currentPage, '— skipping fallback to', fallbackPage);
+      console.log('[DeepLink] user intended', effectivePage, '— skipping fallback to', fallbackPage);
+      this._pendingDeepLinkTransitionSeq = 0;
       if (message) this.showToast(message);
       return;
     }
-    if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
+    this._pendingDeepLinkTransitionSeq = 0;
+    const fallbackTransitionSeq = fallbackPage
+      ? this._claimPageTransition?.(fallbackPage)
+      : 0;
+    if (fallbackPage && this.currentPage !== fallbackPage) {
+      const fallbackOptions = Number.isSafeInteger(Number(fallbackTransitionSeq))
+        && Number(fallbackTransitionSeq) > 0
+        ? { _navigationTransitionSeq: Number(fallbackTransitionSeq) }
+        : undefined;
+      this.showPage(fallbackPage, fallbackOptions);
+    }
     if (message) this.showToast(message);
   },
 
@@ -1979,12 +2020,38 @@ const App = {
 
   async _tryInstantEventDeepLink() {
     try {
+      const pending = this._getPendingDeepLink();
+      const expectedEventId = String(pending?.id || '').trim();
+      const routeTransitionSeq = Number(this._pendingDeepLinkTransitionSeq);
+      const isCurrentInstantRoute = () => {
+        const latest = this._getPendingDeepLink();
+        return expectedEventId
+          && latest?.type === 'event'
+          && String(latest.id || '').trim() === expectedEventId
+          && Number(this._pendingDeepLinkTransitionSeq) === routeTransitionSeq
+          && Number.isSafeInteger(routeTransitionSeq)
+          && routeTransitionSeq > 0
+          && this._isPageTransitionCurrent?.(routeTransitionSeq) === true;
+      };
+      if (!isCurrentInstantRoute()) {
+        this._cancelSupersededPendingDeepLink?.('instant-event-entry');
+        return false;
+      }
+
       const event = await this._deepLinkRestFetch;
       if (!event || this._deepLinkRendered) return false;
+      if (!isCurrentInstantRoute()) {
+        this._cancelSupersededPendingDeepLink?.('instant-event-record');
+        return false;
+      }
 
       // 確保 activity-detail HTML 已載入
       if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
         await PageLoader.ensurePage('page-activity-detail');
+      }
+      if (!isCurrentInstantRoute()) {
+        this._cancelSupersededPendingDeepLink?.('instant-event-page');
+        return false;
       }
 
       // 注入 cache（讓 ApiService.getEvent 找到）
@@ -1997,7 +2064,14 @@ const App = {
       // 設置 instant mode（讓 showPage 跳過 ensureCloudReady）
       this._instantDeepLinkMode = true;
       try {
-        const result = await this.showEventDetail(event.id, { allowGuest: true });
+        const result = await this.showEventDetail(event.id, {
+          allowGuest: true,
+          _navigationTransitionSeq: routeTransitionSeq,
+        });
+        if (!isCurrentInstantRoute()) {
+          this._cancelSupersededPendingDeepLink?.('instant-event-detail');
+          return false;
+        }
         if (result?.ok) {
           this._deepLinkRendered = true;
           this._instantDeepLinkEventId = event.id;
@@ -2080,6 +2154,19 @@ const App = {
   _startDeepLinkGuard() {
     const pending = this._getPendingDeepLink();
     if (!pending) return;
+    const targetPageMap = {
+      event: 'page-activity-detail',
+      team: 'page-team-detail',
+      tournament: 'page-tournament-detail',
+      profile: 'page-user-card',
+    };
+    const existingTransitionSeq = Number(this._pendingDeepLinkTransitionSeq);
+    if (!(Number.isSafeInteger(existingTransitionSeq) && existingTransitionSeq > 0)) {
+      const claimedTransitionSeq = this._claimPageTransition?.(targetPageMap[pending.type] || 'page-home');
+      this._pendingDeepLinkTransitionSeq = Number.isSafeInteger(Number(claimedTransitionSeq))
+        ? Number(claimedTransitionSeq)
+        : 0;
+    }
     this._bootDeepLink = pending;
     this._deepLinkAuthRedirecting = false;
     this._showDeepLinkOverlay(pending.type);
@@ -2125,6 +2212,11 @@ const App = {
 
       const pending = this._getPendingDeepLink();
       if (!pending) return true;
+      if (this._cancelSupersededPendingDeepLink('pending-deep-link-entry')) return true;
+      const routeTransitionSeq = Number(this._pendingDeepLinkTransitionSeq);
+      const routeTransitionOptions = Number.isSafeInteger(routeTransitionSeq) && routeTransitionSeq > 0
+        ? { _navigationTransitionSeq: routeTransitionSeq }
+        : {};
 
       // 2026-04-19 fix: 用戶在 deep-link poller 跑期間已主動進入其他活動詳情頁
       // → 放棄 pending，停止 poller，避免把用戶從自己選的活動拉到 deep-link 指定活動
@@ -2177,12 +2269,17 @@ const App = {
               console.warn('[DeepLink] direct event fetch failed:', err);
             }
           }
+          if (this._cancelSupersededPendingDeepLink('pending-event-record')) return true;
           if (!event) return false;
 
           // 未認證時啟用 instant mode，跳過 ensureCollectionsForPage 避免權限錯誤
           if (!isAuthed) this._instantDeepLinkMode = true;
           try {
-            const result = await this.showEventDetail(pending.id, { allowGuest: !isAuthed });
+            const result = await this.showEventDetail(pending.id, {
+              ...routeTransitionOptions,
+              allowGuest: !isAuthed,
+            });
+            if (this._cancelSupersededPendingDeepLink('pending-event-detail')) return true;
             if (result?.ok && this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
               this._completeDeepLinkSuccess();
               return true;
@@ -2213,11 +2310,16 @@ const App = {
               }
             }
           }
+          if (this._cancelSupersededPendingDeepLink('pending-team-record')) return true;
           if (!team) return false;
 
           if (!isAuthed) this._instantDeepLinkMode = true;
           try {
-            const result = await this.showTeamDetail(pending.id, { allowGuest: !isAuthed });
+            const result = await this.showTeamDetail(pending.id, {
+              ...routeTransitionOptions,
+              allowGuest: !isAuthed,
+            });
+            if (this._cancelSupersededPendingDeepLink('pending-team-detail')) return true;
             if (result?.ok && this.currentPage === 'page-team-detail' && this._teamDetailId === pending.id) {
               this._completeDeepLinkSuccess();
               return true;
@@ -2243,12 +2345,18 @@ const App = {
               }
             }
           }
+          if (this._cancelSupersededPendingDeepLink('pending-tournament-record')) return true;
           if (!tournament) return false;
 
           if (!isAuthed) this._instantDeepLinkMode = true;
           try {
             await ScriptLoader.ensureForPage('page-tournament-detail');
-            await this.showTournamentDetail(pending.id, { allowGuest: !isAuthed });
+            if (this._cancelSupersededPendingDeepLink('pending-tournament-script')) return true;
+            await this.showTournamentDetail(pending.id, {
+              ...routeTransitionOptions,
+              allowGuest: !isAuthed,
+            });
+            if (this._cancelSupersededPendingDeepLink('pending-tournament-detail')) return true;
             if (this.currentPage === 'page-tournament-detail' && this.currentTournament === pending.id) {
               this._completeDeepLinkSuccess();
               return true;
@@ -2266,9 +2374,16 @@ const App = {
 
           const name = user.displayName || user.name;
           if (!name) return false;
-          await this.showUserProfile(name);
-          this._completeDeepLinkSuccess();
-          return true;
+          const result = await this.showUserProfile(name, {
+            ...routeTransitionOptions,
+            uid: user.uid || user.lineUserId || pending.id,
+          });
+          if (this._cancelSupersededPendingDeepLink('pending-profile-detail')) return true;
+          if (result?.ok) {
+            this._completeDeepLinkSuccess();
+            return true;
+          }
+          return false;
         }
 
         return false;
@@ -3045,6 +3160,14 @@ const App = {
     }
   },
 
+  _shouldSkipBootRouteForNewerIntent(pageId) {
+    if (!pageId) return false;
+    const intendedPage = String(this._userIntendedPage || '').trim();
+    if (intendedPage) return intendedPage !== pageId;
+    const currentPage = String(this.currentPage || '').trim();
+    return !!(currentPage && currentPage !== 'page-home' && currentPage !== pageId);
+  },
+
   _isProtectedBootRestoreRoute(pageId) {
     if (!pageId || pageId === 'page-home' || pageId === 'page-temp-participant-report') return false;
     if (typeof this._findDrawerMenuItem === 'function') {
@@ -3094,11 +3217,9 @@ const App = {
 
     // 2026-04-19 fix + 2026-04-20 強化：若用戶已主動導航到其他頁面，取消 pending
     // 優先檢查 _userIntendedPage（showPage 入口立刻更新），解決 _activatePage async 尚未完成的 race condition
-    const effectivePage = this._userIntendedPage || this.currentPage;
-    if (effectivePage
-      && effectivePage !== 'page-home'
-      && effectivePage !== pending.pageId) {
-      console.log('[Boot] user intended page =', effectivePage, '— cancelling pending boot route:', pending.pageId);
+    if (this._shouldSkipBootRouteForNewerIntent(pending.pageId)) {
+      console.log('[Boot] user intended page =', this._userIntendedPage || this.currentPage,
+        '— cancelling pending boot route:', pending.pageId);
       this._clearPendingProtectedBootRoute();
       return false;
     }
@@ -3135,13 +3256,10 @@ const App = {
 
         // 2026-04-19 補強 + 2026-04-20 強化：await 期間用戶可能已點其他頁
         // 優先檢查 _userIntendedPage（showPage 入口立刻設，不等 _activatePage）
-        const effectivePageAfter = this._userIntendedPage || this.currentPage;
         console.log('[Boot] flush after await, intended=', this._userIntendedPage,
           'currentPage=', this.currentPage, 'target=', pageId);
-        if (effectivePageAfter
-          && effectivePageAfter !== 'page-home'
-          && effectivePageAfter !== pageId) {
-          console.log('[Boot] user intended', effectivePageAfter,
+        if (this._shouldSkipBootRouteForNewerIntent(pageId)) {
+          console.log('[Boot] user intended', this._userIntendedPage || this.currentPage,
             'during flush await — cancelling showPage to', pageId);
           this._clearPendingProtectedBootRoute();
           return false;
@@ -3319,17 +3437,25 @@ const App = {
       }
 
       // instant deep link 已渲染 → SDK ready 後背景載入完整集合 + 重新渲染
-      if (this._instantDeepLinkEventId && this.currentPage === 'page-activity-detail') {
+      if (this._instantDeepLinkEventId && this.currentPage === 'page-activity-detail'
+        && String(this._currentDetailEventId || '') === String(this._instantDeepLinkEventId)) {
         const sdkEventId = this._instantDeepLinkEventId;
+        const sdkEventTransitionSeq = Number(this._activePageTransitionSeq);
         this._instantDeepLinkEventId = null;
         void (async () => {
           try {
             const pageId = 'page-activity-detail';
+            const isSdkEventRouteCurrent = () => Number.isSafeInteger(sdkEventTransitionSeq)
+              && sdkEventTransitionSeq > 0
+              && this.currentPage === pageId
+              && String(this._currentDetailEventId || '') === String(sdkEventId)
+              && this._isPageTransitionCurrent?.(sdkEventTransitionSeq) === true;
 
             // 1. 載入靜態集合（activityRecords、userCorrections 等）
             if (typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
               await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true });
             }
+            if (!isSdkEventRouteCurrent()) return;
 
             // 2. 立即啟動 realtime listener（registrations + attendanceRecords）
             //    不走 schedulePageScopedRealtimeForPage 的 350ms 延遲
@@ -3351,6 +3477,7 @@ const App = {
                 }
               } catch (_) {}
             }
+            if (!isSdkEventRouteCurrent()) return;
 
             // 4. 等待 registrations 首次 onSnapshot（最多 3 秒）
             //    已登入才等（guest 的 listener 不會啟動）
@@ -3380,6 +3507,7 @@ const App = {
               }
             }
 
+            if (!isSdkEventRouteCurrent()) return;
             if (typeof FirebaseService !== 'undefined' && FirebaseService._startPageScopedRealtimeForPage) {
               FirebaseService._startPageScopedRealtimeForPage(pageId);
             }
@@ -3387,6 +3515,7 @@ const App = {
             if (!isGuest) {
               await new Promise(resolve => {
                 const check = () => {
+                  if (!isSdkEventRouteCurrent()) return true;
                   const event = (typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function')
                     ? ApiService.getEvent(sdkEventId)
                     : null;
@@ -3403,10 +3532,11 @@ const App = {
               });
             }
 
-            if (this.currentPage !== pageId) return;
+            if (!isSdkEventRouteCurrent() || typeof this._refreshCurrentEventDetail !== 'function') return;
 
             // 5. 重新渲染（此時 cache 已有完整資料）
-            await this.showEventDetail(sdkEventId, { allowGuest: isGuest });
+            const refreshResult = await this._refreshCurrentEventDetail(sdkEventId, sdkEventTransitionSeq, { allowGuest: isGuest });
+            if (!refreshResult?.ok) return;
             console.log('[DeepLink] SDK background refresh complete for', sdkEventId);
           } catch (err) {
             console.warn('[DeepLink] SDK background refresh failed:', err);
@@ -3929,7 +4059,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           try { _dismissBootOverlayAfterHashNav(reason || 'hash-show-done'); } catch (_) {}
         }
       };
-      if (bootPageId && (bootPageId !== App.currentPage || isPrimedBootHashShell || isPrimedBootHistoryShell)) {
+      const bootRouteSuperseded = App._shouldSkipBootRouteForNewerIntent?.(bootPageId) === true;
+      if (bootPageId && bootRouteSuperseded) {
+        console.log('[Boot] newer user intent', App._userIntendedPage, '— skipping late boot route', bootPageId);
+        dismissBootNavDone('superseded-by-user-intent');
+      } else if (bootPageId && (bootPageId !== App.currentPage || isPrimedBootHashShell || isPrimedBootHistoryShell)) {
         // 2026-04-27：navigation 完成後 dismiss boot overlay、解除「先閃首頁」
         if (!isPrimedBootHashShell && !isPrimedBootHistoryShell && App._isProtectedBootRestoreRoute(bootPageId)) {
           App._deferProtectedBootRoute(bootPageId);
@@ -4008,13 +4142,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           const requestedFallback = event.state.fallbackPageId || 'page-home';
           const isDetailPage = /-detail$/.test(requestedFallback);
           const fallback = isDetailPage ? 'page-home' : requestedFallback;
+          const transitionSeq = App._claimPageTransition(fallback);
           await App.showPage(fallback, {
             bypassPageLock: true,
             allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
+            _navigationTransitionSeq: transitionSeq,
           });
-          if (seq !== App._popstateRequestSeq) return;
+          if (seq !== App._popstateRequestSeq || !App._isPageTransitionCurrent(transitionSeq)) return;
           history.pushState({ ...event.state, fallbackPageId: fallback }, '', window.location.href);
           return;
         }
@@ -4023,12 +4159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const intent = App._resolveRouteIntent({ state: event.state });
         const targetPageId = intent.pageId;
         const targetId = intent.id;
+        const transitionSeq = App._claimPageTransition(targetPageId);
 
         const detailOptions = {
           bypassPageLock: true,
           allowGuest: true,
           skipPageHistory: true,
           suppressHashSync: true,
+          _navigationTransitionSeq: transitionSeq,
         };
 
         if (targetPageId === 'page-activity-detail' && targetId) {
@@ -4047,13 +4185,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
+            _navigationTransitionSeq: transitionSeq,
           });
         }
 
-        if (seq !== App._popstateRequestSeq) return;
+        if (seq !== App._popstateRequestSeq || !App._isPageTransitionCurrent(transitionSeq)) return;
       } catch (err) {
         console.error('[Popstate] handler error:', err);
       }
+    });
+  } catch (e) {}
+
+  // BFCache restore: keep the restored page and bottom tab aligned without forcing a reload.
+  try {
+    window.addEventListener('pageshow', (event) => {
+      if (!event.persisted) return;
+      const pageId = document.querySelector('.page.active')?.id || App.currentPage || '';
+      if (pageId) {
+        const transitionSeq = App._claimPageTransition?.(pageId);
+        App.currentPage = pageId;
+        App._userIntendedPage = pageId;
+        if (Number.isSafeInteger(Number(transitionSeq)) && Number(transitionSeq) > 0) {
+          App._activePageTransitionSeq = Number(transitionSeq);
+        }
+        App._syncBottomTabForPage?.(pageId);
+      }
+      App._recordNavigationDiagnostic?.('pageshow-bfcache', {
+        source: 'pageshow',
+        pageId,
+        persisted: true,
+      });
     });
   } catch (e) {}
   try { App._syncBootBrandToLocal?.(); } catch (e) {}

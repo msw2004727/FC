@@ -6,6 +6,65 @@ Object.assign(App, {
 
   _pageTransitionSeq: 0,
 
+  _claimPageTransition(pageId, options = {}) {
+    const inherited = Number(options?._navigationTransitionSeq);
+    const transitionSeq = Number.isSafeInteger(inherited) && inherited > 0
+      ? inherited
+      : ++this._pageTransitionSeq;
+    if (transitionSeq === this._pageTransitionSeq && pageId && !options.fromBootFlush) {
+      this._userIntendedPage = pageId;
+    }
+    return transitionSeq;
+  },
+
+  _isPageTransitionCurrent(transitionSeq) {
+    return Number(transitionSeq) === Number(this._pageTransitionSeq);
+  },
+
+  _recordNavigationDiagnostic(kind, details = {}) {
+    try {
+      const diagnostic = {
+        at: new Date().toISOString(),
+        kind: String(kind || 'navigation'),
+        source: String(details.source || ''),
+        pageId: String(details.pageId || ''),
+        currentPage: String(this.currentPage || ''),
+        expectedSeq: Number(details.expectedSeq) || 0,
+        latestSeq: Number(this._pageTransitionSeq) || 0,
+        visibility: typeof document !== 'undefined' ? String(document.visibilityState || '') : '',
+        standalone: !!(
+          (typeof window !== 'undefined'
+            && typeof window.matchMedia === 'function'
+            && window.matchMedia('(display-mode: standalone)').matches)
+          || (typeof navigator !== 'undefined' && navigator.standalone === true)
+        ),
+        persisted: details.persisted === true,
+      };
+      const current = typeof window !== 'undefined'
+        && Array.isArray(window.__toosterxNavigationDiagnostics)
+        ? window.__toosterxNavigationDiagnostics
+        : [];
+      const next = current.concat(diagnostic).slice(-20);
+      if (typeof window !== 'undefined') window.__toosterxNavigationDiagnostics = next;
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('_navigationDiagnostics', JSON.stringify(next));
+      }
+      const debugEnabled = typeof window !== 'undefined'
+        && (window._raceDebug
+          || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog')));
+      if (debugEnabled) console.log('[navigation-diagnostic]', diagnostic);
+    } catch (_) {}
+  },
+
+  _abortStalePageTransition(source, pageId, transitionSeq) {
+    this._recordNavigationDiagnostic('stale-transition', {
+      source,
+      pageId,
+      expectedSeq: transitionSeq,
+    });
+    return { ok: false, reason: 'stale_transition' };
+  },
+
   _getRouteStepTimeoutMs(pageId, step = 'page') {
     if (step === 'cloud') return Number(this._routeCloudTimeoutMs || 15000);
     return Number(this._routeStepTimeoutMs || 15000);
@@ -171,6 +230,10 @@ Object.assign(App, {
     });
     target.classList.add('active');
     this.currentPage = pageId;
+    const activationTransitionSeq = Number(options?._navigationTransitionSeq);
+    this._activePageTransitionSeq = Number.isSafeInteger(activationTransitionSeq) && activationTransitionSeq > 0
+      ? activationTransitionSeq
+      : this._pageTransitionSeq;
     this._syncBottomTabForPage?.(pageId);
 
     if (typeof FirebaseService !== 'undefined'
@@ -526,7 +589,10 @@ Object.assign(App, {
     if (!id || options.disableShellFirst) return { ok: false, reason: 'disabled' };
 
     try {
-      const transitionSeq = ++this._pageTransitionSeq;
+      const transitionSeq = this._claimPageTransition(pageId, options);
+      if (!this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('detail-shell-entry', pageId, transitionSeq);
+      }
       if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
         await this._awaitRouteStep(PageLoader.ensurePage(pageId), pageId, 'page');
       }
@@ -736,7 +802,7 @@ Object.assign(App, {
     }, delayMs);
   },
 
-  async _ensurePageEntryReady(pageId) {
+  async _ensurePageEntryReady(pageId, transitionSeq) {
     // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
     const canStale = this._getPageStrategy(pageId) === 'stale-first'
       && this._hasCachedDataForPage(pageId);
@@ -752,15 +818,24 @@ Object.assign(App, {
         console.warn(`[Navigation] cloud init failed before ${pageId}:`, err);
       }
     }
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('page-entry-cloud', pageId, transitionSeq);
+    }
 
     const fullUsersReadyPromise = !canActivateBeforeCloud
       && typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.ensureFullUsersReadyForPage === 'function'
       ? FirebaseService.ensureFullUsersReadyForPage(pageId)
       : null;
+    if (fullUsersReadyPromise && typeof fullUsersReadyPromise.catch === 'function') {
+      void fullUsersReadyPromise.catch(() => {});
+    }
 
     if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
       await PageLoader.ensurePage(pageId);
+    }
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('page-entry-html', pageId, transitionSeq);
     }
 
     if (!document.getElementById(pageId)) {
@@ -770,10 +845,16 @@ Object.assign(App, {
     if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
       await ScriptLoader.ensureForPage(pageId);
     }
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('page-entry-script', pageId, transitionSeq);
+    }
 
     if (canStale) {
       // 背景刷新：不阻塞頁面渲染
-      void this._refreshStalePage(pageId, this._pageTransitionSeq);
+      const refreshTransitionSeq = Number.isSafeInteger(Number(transitionSeq))
+        ? Number(transitionSeq)
+        : this._pageTransitionSeq;
+      void this._refreshStalePage(pageId, refreshTransitionSeq);
     } else if (!this._instantDeepLinkMode
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
@@ -783,15 +864,23 @@ Object.assign(App, {
         skipRealtimeStart: hasRealtime,
       });
     }
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('page-entry-collections', pageId, transitionSeq);
+    }
 
     if (fullUsersReadyPromise) await fullUsersReadyPromise;
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('page-entry-users', pageId, transitionSeq);
+    }
 
     if (canActivateBeforeCloud
       && !this._cloudReady
       && typeof this.ensureCloudReady === 'function') {
       void this.ensureCloudReady({ reason: `shell:${pageId}` })
         .then(() => {
-          if (this.currentPage !== pageId || typeof FirebaseService === 'undefined') return;
+          if (!this._isPageTransitionCurrent(transitionSeq)
+            || this.currentPage !== pageId
+            || typeof FirebaseService === 'undefined') return;
           if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
             void FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true }).catch(() => {});
           }
@@ -813,19 +902,32 @@ Object.assign(App, {
       return await currentMethod.apply(this, args);
     }
 
+    const routeOptions = (args[1] && typeof args[1] === 'object') ? args[1] : {};
+    const transitionSeq = this._claimPageTransition(pageId, routeOptions);
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('lazy-route-entry', pageId, transitionSeq);
+    }
+    args[1] = { ...routeOptions, _navigationTransitionSeq: transitionSeq };
+
     if (gateway && this._isFastDetailRouteMethod(methodName)) {
       const shellResult = await this._showDetailRouteShell(pageId, methodName, args);
+      if (!this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('lazy-route-shell', pageId, transitionSeq);
+      }
       if (shellResult?.ok) {
-        const options = (args[1] && typeof args[1] === 'object') ? args[1] : {};
         args[1] = {
-          ...options,
+          ...args[1],
           skipPageHistory: true,
           bypassPageLock: true,
         };
       }
     }
 
-    await this._ensurePageEntryReady(pageId);
+    const readinessResult = await this._ensurePageEntryReady(pageId, transitionSeq);
+    if (readinessResult?.reason === 'stale_transition') return readinessResult;
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('lazy-route-ready', pageId, transitionSeq);
+    }
 
     const loadedMethod = this[methodName];
     if (typeof loadedMethod !== 'function' || (gateway && loadedMethod === gateway)) {
@@ -878,11 +980,6 @@ Object.assign(App, {
     const normalizedRoute = this._normalizeAdminLogRoute(pageId, options);
     pageId = normalizedRoute.pageId;
 
-    // 2026-04-20: 用戶意圖頁面追蹤（修正「刷新後被拉回上次頁」的 race condition）
-    // 非 boot flush 自身呼叫才更新（避免 flush 的 showPage 反向設為自己的目標頁）
-    if (!options.fromBootFlush && pageId) {
-      this._userIntendedPage = pageId;
-    }
 
     // 2026-04-20：Page Lock — 防止用戶進 detail 類頁後被自動機制拉走
     // 規則：用戶近期 800ms 內有 touch/click → 視為主動導航，放行
@@ -904,6 +1001,11 @@ Object.assign(App, {
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();
       return { ok: false, reason: 'restricted' };
+    }
+
+    const transitionSeq = this._claimPageTransition(pageId, options);
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('showPage-entry', pageId, transitionSeq);
     }
 
     // v8：延遲登入——見 js/config.js AUTH_REQUIRED_PAGES
@@ -955,6 +1057,9 @@ Object.assign(App, {
             'cloud'
           );
         } catch (err) {
+          if (!this._isPageTransitionCurrent(transitionSeq)) {
+            return this._abortStalePageTransition('showPage-guard-cloud-error', pageId, transitionSeq);
+          }
           console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
           this.showToast(this._getRouteFailureToast(pageId, 'cloud', err));
           return {
@@ -963,6 +1068,9 @@ Object.assign(App, {
             step: 'cloud',
             error: err,
           };
+        }
+        if (!this._isPageTransitionCurrent(transitionSeq)) {
+          return this._abortStalePageTransition('showPage-guard-cloud', pageId, transitionSeq);
         }
         // 2026-04-20：cloud init 期間用戶可能已主動導航到其他頁面，
         // 若 currentPage 已變且不是本次目標 → 放棄，避免把用戶拉走
@@ -987,7 +1095,6 @@ Object.assign(App, {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const transitionSeq = ++this._pageTransitionSeq;
       console.log('[Nav] showPage:', pageId, 'seq=', transitionSeq, 'currentPage=', this.currentPage, 'canUseStale=', canUseStale, 'strategy=', strategy);
       if (this._shouldUseShellFirstPage(pageId, options)) {
         return await this._showPageShellFirst(pageId, transitionSeq, options);
@@ -1012,12 +1119,15 @@ Object.assign(App, {
   },
 
   async _showPageStale(pageId, transitionSeq, options) {
-    this._cleanupBeforePageSwitch(pageId);
-    this._pushPageHistory(pageId, options);
     // 確保動態腳本已載入，避免 _renderPageContent 呼叫尚未載入的函式
     if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
       await ScriptLoader.ensureForPage(pageId);
     }
+    if (!this._isPageTransitionCurrent(transitionSeq)) {
+      return this._abortStalePageTransition('stale-first-script', pageId, transitionSeq);
+    }
+    this._cleanupBeforePageSwitch(pageId);
+    this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
     if (!activated) return { ok: false, reason: 'missing_target' };
     void this._refreshStalePage(pageId, transitionSeq);
@@ -1073,9 +1183,10 @@ Object.assign(App, {
     // 避免誤擋正常的頁面切換（例如從 page-activities 切到 page-teams，
     // await 前 currentPage='page-activities'，結束後仍是 'page-activities'，不該擋）
     const _startingPage = this.currentPage;
+    let readinessResult = null;
     try {
-      await this._awaitRouteStep(
-        this._ensurePageEntryReady(pageId),
+      readinessResult = await this._awaitRouteStep(
+        this._ensurePageEntryReady(pageId, transitionSeq),
         pageId, 'page'
       );
     } catch (err) {
@@ -1086,6 +1197,7 @@ Object.assign(App, {
       return { ok: false, reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'load_failed', step: 'page', error: err };
     }
 
+    if (readinessResult?.reason === 'stale_transition') return readinessResult;
     if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
     // await 期間 currentPage 變化 = 用戶主動導航到其他頁面（例如 boot 時 showPage
     // 被用戶點擊搶先完成），放棄本次切頁。
@@ -1327,16 +1439,25 @@ Object.assign(App, {
     // 2026-04-19 UX 調整：移除返回導航的 _pendingFirstLogin 守衛，允許自由瀏覽。
     // 寫入類動作由對應函式的 _requireProfileComplete() 守衛負責攔截。
     if (this.pageHistory.length > 0) {
-      const prev = this.pageHistory.pop();
-      // 清理當前頁面的資源（監聽器、動畫等）
-      this._cleanupBeforePageSwitch(prev);
+      const prev = this.pageHistory[this.pageHistory.length - 1];
+      const transitionSeq = this._claimPageTransition(prev);
+      if (!this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('goBack-entry', prev, transitionSeq);
+      }
       if (typeof FirebaseService !== 'undefined'
         && typeof FirebaseService.ensureCollectionsForPage === 'function') {
         await FirebaseService.ensureCollectionsForPage(prev);
       }
+      if (!this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('goBack-collections', prev, transitionSeq);
+      }
+      this.pageHistory.pop();
+      // 確認仍是最新返回意圖後，才清理目前頁面並切換 DOM。
+      this._cleanupBeforePageSwitch(prev);
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(prev).classList.add('active');
       this.currentPage = prev;
+      this._activePageTransitionSeq = transitionSeq;
       if (prev === 'page-team-detail') {
         this._restoreTeamDetailV2ShellIfPresent?.(this._teamDetailId);
       }

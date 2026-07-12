@@ -1366,14 +1366,23 @@ describe('team detail club activity section', () => {
   test('refreshes current club detail after a club activity is saved', async () => {
     const app = {
       currentPage: 'page-team-detail',
+      _pageTransitionSeq: 3,
+      _activePageTransitionSeq: 3,
+      _isPageTransitionCurrent(seq) { return seq === this._pageTransitionSeq; },
     };
     loadTeamDetailCore(app);
     app._teamDetailId = 'teamA';
+    app._teamDetailEventCreateTeamId = 'teamA';
+    app._teamDetailEventCreateTransitionSeq = 3;
     app.currentPage = 'page-team-detail';
     app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
 
     await expect(app._refreshTeamDetailAfterEventSave(['teamA'])).resolves.toBe(true);
-    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', {
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: 3,
+    });
 
     app.showTeamDetail.mockClear();
     await expect(app._refreshTeamDetailAfterEventSave(['teamB'])).resolves.toBe(false);
@@ -1724,6 +1733,10 @@ describe('team detail club activity section', () => {
     });
     const uploadImage = jest.fn().mockResolvedValue('https://cdn.example/uploaded-avatar.webp');
     const app = {
+      currentPage: 'page-team-detail',
+      _pageTransitionSeq: 1,
+      _activePageTransitionSeq: 1,
+      _isPageTransitionCurrent(seq) { return seq === this._pageTransitionSeq; },
       _teamDetailId: 'teamA',
       _canEditTeamByRoleOrCaptain: () => true,
       _withButtonLoading: async (_btn, _text, fn) => fn(),
@@ -1744,6 +1757,7 @@ describe('team detail club activity section', () => {
         _uploadImage: uploadImage,
       },
     });
+    app._teamDetailId = 'teamA';
     app._readTeamAvatarFileAsDataUrl = jest.fn().mockResolvedValue('data:image/png;base64,avatar');
     app.showImageCropper = jest.fn((_src, opts) => opts.onConfirm('data:image/webp;base64,cropped-avatar'));
     app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
@@ -1759,7 +1773,11 @@ describe('team detail club activity section', () => {
     expect(uploadImage).toHaveBeenCalledWith('data:image/webp;base64,cropped-avatar', 'teams/teamA_avatar');
     expect(updateTeamAwait).toHaveBeenCalledWith('teamA', { avatarUrl: 'https://cdn.example/uploaded-avatar.webp' });
     expect(team.avatarUrl).toBe('https://cdn.example/uploaded-avatar.webp');
-    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', {
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: 1,
+    });
     expect(app.showToast).toHaveBeenCalledWith('\u4ff1\u6a02\u90e8\u982d\u50cf\u5df2\u66f4\u65b0');
   });
 
@@ -1779,6 +1797,10 @@ describe('team detail club activity section', () => {
       payload.image = payload.imageVariants.cover;
     });
     const app = {
+      currentPage: 'page-team-detail',
+      _pageTransitionSeq: 1,
+      _activePageTransitionSeq: 1,
+      _isPageTransitionCurrent(seq) { return seq === this._pageTransitionSeq; },
       _teamDetailId: 'teamA',
       _canEditTeamByRoleOrCaptain: () => true,
       _withButtonLoading: async (_btn, _text, fn) => fn(),
@@ -1799,6 +1821,7 @@ describe('team detail club activity section', () => {
         _uploadTeamImageVariants: uploadVariants,
       },
     });
+    app._teamDetailId = 'teamA';
     app._readTeamAvatarFileAsDataUrl = jest.fn().mockResolvedValue('data:image/png;base64,cover-source');
     app._getTeamImageVariantTargets = jest.fn().mockReturnValue([{ key: 'cover' }, { key: 'card' }]);
     app._openImageVariantCropSequence = jest.fn((_src, _targets, callbacks) => callbacks.onConfirm({
@@ -1828,7 +1851,11 @@ describe('team detail club activity section', () => {
       },
       image: 'https://cdn.example/team-cover.webp',
     });
-    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', {
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: 1,
+    });
     expect(app.showToast).toHaveBeenCalledWith('\u4ff1\u6a02\u90e8\u5c01\u9762\u5df2\u66f4\u65b0');
   });
 

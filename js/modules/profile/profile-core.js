@@ -346,6 +346,10 @@ Object.assign(App, {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name, uid: options.uid || '' }, { suppressToast: true })) {
       return;
     }
+    const routeTransitionSeq = this._claimPageTransition('page-user-card', options);
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showUserProfile-entry', 'page-user-card', routeTransitionSeq);
+    }
     const requestSeq = ++this._userProfileRequestSeq;
     // UID 優先查找：options.uid 存在時先用 UID 查找，找不到再 fallback 到 name
     const uidHint = options.uid || null;
@@ -357,6 +361,9 @@ Object.assign(App, {
         console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, stage: 'after-ScriptLoader' });
       }
       return { ok: false, reason: 'stale' };
+    }
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showUserProfile-script', 'page-user-card', routeTransitionSeq);
     }
     // 判斷是否為當前用戶（比對 UID / displayName / name）
     const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
@@ -380,8 +387,12 @@ Object.assign(App, {
         bypassPageLock: options?.bypassPageLock,
         skipPageHistory: options?.skipPageHistory,
         suppressHashSync: options?.suppressHashSync,
+        _navigationTransitionSeq: routeTransitionSeq,
       });
       pageShownForLoading = true;
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showUserProfile-loading-page', 'page-user-card', routeTransitionSeq);
+      }
       if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
         if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
           console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage, stage: 'after-loading-page' });
@@ -389,6 +400,9 @@ Object.assign(App, {
         return { ok: false, reason: 'stale' };
       }
       const canReadUserProfile = await this._waitForUserProfileFirestoreAuth({ timeoutMs: 8000 });
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showUserProfile-auth', 'page-user-card', routeTransitionSeq);
+      }
       if (!canReadUserProfile) {
         this.showToast?.('請先登入查看完整用戶資料');
         this._renderUserProfileUnavailable(name || uidHint, uidHint, {
@@ -397,6 +411,9 @@ Object.assign(App, {
         return { ok: false, reason: 'auth-not-ready' };
       }
       user = await this._resolveUserProfileRecord(name, uidHint);
+      if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+        return this._abortStalePageTransition('showUserProfile-record', 'page-user-card', routeTransitionSeq);
+      }
       if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
         if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
           console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage, stage: 'after-profile-fetch' });
@@ -548,6 +565,9 @@ Object.assign(App, {
       }
       return { ok: false, reason: 'stale' };
     }
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showUserProfile-before-showPage', 'page-user-card', routeTransitionSeq);
+    }
     // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
     this._ucRecordUid = isSecondaryIdentity ? null : (targetUid || null);
     if (!pageShownForLoading) {
@@ -555,12 +575,16 @@ Object.assign(App, {
         bypassPageLock: options?.bypassPageLock,
         skipPageHistory: options?.skipPageHistory,
         suppressHashSync: options?.suppressHashSync,
+        _navigationTransitionSeq: routeTransitionSeq,
       });
     } else if (targetUid) {
       this._setRouteUrl?.({ pageId: 'page-user-card', id: targetUid }, {
         replace: true,
         suppressHashSync: options?.suppressHashSync,
       });
+    }
+    if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
+      return this._abortStalePageTransition('showUserProfile-final', 'page-user-card', routeTransitionSeq);
     }
     if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {

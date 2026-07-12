@@ -339,18 +339,37 @@ Object.assign(App, {
   },
 
   async showTournamentDetail(id, options) {
-    await _tournamentFriendlyRosterLegacy.showTournamentDetail.call(this, id, options);
+    const detailResult = await _tournamentFriendlyRosterLegacy.showTournamentDetail.call(this, id, options);
+    if (detailResult?.ok === false) return detailResult;
     const tournament = this._getFriendlyTournamentState?.(id)?.tournament
       || ApiService.getFriendlyTournamentRecord?.(id)
       || ApiService.getTournament?.(id);
     const safeTournamentId = String(id || '').trim();
     if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) return;
     if (this.currentPage !== 'page-tournament-detail' || String(this.currentTournament || '') !== safeTournamentId) return;
+    const routeTransitionSeq = Number(this._activePageTransitionSeq);
+    const hasRouteTransition = Number.isSafeInteger(routeTransitionSeq) && routeTransitionSeq > 0;
+    if (hasRouteTransition && !this._isPageTransitionCurrent?.(routeTransitionSeq)) {
+      return this._abortStalePageTransition?.(
+        'showFriendlyTournamentRoster-entry',
+        'page-tournament-detail',
+        routeTransitionSeq
+      );
+    }
     await (
       this._friendlyTournamentRosterHydratePromiseById?.[safeTournamentId]
       || this._hydrateFriendlyTournamentRosterState(safeTournamentId)
     );
+    if (hasRouteTransition && !this._isPageTransitionCurrent?.(routeTransitionSeq)) {
+      return this._abortStalePageTransition?.(
+        'showFriendlyTournamentRoster-hydration',
+        'page-tournament-detail',
+        routeTransitionSeq
+      );
+    }
+    if (this.currentPage !== 'page-tournament-detail' || String(this.currentTournament || '') !== safeTournamentId) return;
     this._refreshFriendlyTournamentRosterUi(safeTournamentId);
+    return detailResult;
   },
 
   renderRegisterButton(tournament) {
