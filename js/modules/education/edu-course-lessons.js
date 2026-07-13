@@ -34,6 +34,32 @@ Object.assign(App, {
       || (teamId && this._eduCurrentTeamId && String(this._eduCurrentTeamId) !== String(teamId));
   },
 
+  _prepareEduCourseLessonsTransition(options = {}, isSameRoute = false) {
+    const inherited = Number(options?._navigationTransitionSeq);
+    const hasInherited = Number.isSafeInteger(inherited) && inherited > 0;
+    const active = Number(this._activePageTransitionSeq);
+    const routeOptions = isSameRoute && !hasInherited && Number.isSafeInteger(active) && active > 0
+      ? { ...options, _navigationTransitionSeq: active }
+      : options;
+    const transitionSeq = typeof this._claimPageTransition === 'function'
+      ? Number(this._claimPageTransition('page-edu-course-lessons', routeOptions))
+      : Number(routeOptions?._navigationTransitionSeq || 0);
+    return Number.isSafeInteger(transitionSeq) && transitionSeq > 0 ? transitionSeq : 0;
+  },
+
+  _isEduCourseLessonsTransitionCurrent(transitionSeq) {
+    return !(Number.isSafeInteger(Number(transitionSeq)) && Number(transitionSeq) > 0)
+      || typeof this._isPageTransitionCurrent !== 'function'
+      || this._isPageTransitionCurrent(Number(transitionSeq));
+  },
+
+  _abortEduCourseLessonsTransition(source, transitionSeq) {
+    if (typeof this._abortStalePageTransition === 'function') {
+      return this._abortStalePageTransition(source, 'page-edu-course-lessons', transitionSeq);
+    }
+    return { ok: false, reason: 'stale_transition', source, pageId: 'page-edu-course-lessons', transitionSeq };
+  },
+
   _findEduCoursePlan(teamId, planId) {
     return (this.getEduCoursePlans?.(teamId) || [])
       .find(plan => String(plan.id || plan._docId || '') === String(planId || '')) || null;
@@ -1078,11 +1104,23 @@ Object.assign(App, {
     return run().then(markConverted);
   },
 
-  async showCourseLessons(teamId, planId) {
+  async showCourseLessons(teamId, planId, options = {}) {
+    const previousContext = this._eduCourseLessonsContext;
+    const isSameRoute = this.currentPage === 'page-edu-course-lessons'
+      && previousContext?.mode === 'list'
+      && String(previousContext?.teamId || '') === String(teamId || '')
+      && String(previousContext?.planId || '') === String(planId || '');
+    const routeTransitionSeq = this._prepareEduCourseLessonsTransition(options, isSameRoute);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessons-entry', routeTransitionSeq);
+    }
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, mode: 'list' };
-    await this.showPage('page-edu-course-lessons');
+    await this.showPage('page-edu-course-lessons', { _navigationTransitionSeq: routeTransitionSeq });
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessons-showPage', routeTransitionSeq);
+    }
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
         console.log('[race-skip]', { fn: 'showCourseLessons', seq: requestSeq, latest: this._eduCourseLessonsRequestSeq, currentPage: this.currentPage });
@@ -1111,6 +1149,9 @@ Object.assign(App, {
     }
 
     const state = await this._loadEduCourseLessonsState(teamId, planId);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessons-state', routeTransitionSeq);
+    }
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     const plan = state.plan;
     let sessions = state.sessions;
@@ -1127,10 +1168,16 @@ Object.assign(App, {
       } catch (err) {
         console.warn('[edu-course-lessons] auto session sync failed:', err);
       }
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+        return this._abortEduCourseLessonsTransition('showCourseLessons-session-sync', routeTransitionSeq);
+      }
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     }
     sessions = this._sortCourseLessonListSessions(sessions);
     const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessons-count', routeTransitionSeq);
+    }
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     let confirmedCountBySessionId = null;
     if (plan.planType === 'weekly') {
@@ -1142,8 +1189,14 @@ Object.assign(App, {
         } catch (err) {
           console.warn('[edu-course-lessons] weekly attendance count load failed:', err);
         }
+        if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+          return this._abortEduCourseLessonsTransition('showCourseLessons-attendance', routeTransitionSeq);
+        }
         if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
       }
+    }
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessons-render', routeTransitionSeq);
     }
     container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff, currentStudentCount, planType: plan.planType, confirmedCountBySessionId });
     this._eduCourseLessonsContext = { teamId, planId, mode: 'list', plan, sessions, currentStudentCount, confirmedCountBySessionId };
@@ -1730,6 +1783,10 @@ Object.assign(App, {
   async _applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq, options = {}) {
     const container = this._getEduCourseLessonsContainer();
     if (!container || !plan) return { ok: false, reason: !container ? 'missing_container' : 'plan_not_found' };
+    const routeTransitionSeq = Number(options?.routeTransitionSeq || 0);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('applyCourseLessonRoster-entry', routeTransitionSeq);
+    }
 
     const hasServerManageFlag = rosterPayload && Object.prototype.hasOwnProperty.call(rosterPayload, 'canManageRoster');
     const canManageRoster = hasServerManageFlag ? rosterPayload.canManageRoster === true : localStaff;
@@ -1758,6 +1815,9 @@ Object.assign(App, {
           });
         } else if (localStaff && typeof this._loadCourseEnrollments === 'function') {
           const enrollments = await this._loadCourseEnrollments(teamId, planId);
+          if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+            return this._abortEduCourseLessonsTransition('applyCourseLessonRoster-enrollments', routeTransitionSeq);
+          }
           if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
           (enrollments || []).forEach((enrollment) => {
             const studentId = String(enrollment.studentId || '').trim();
@@ -1782,6 +1842,9 @@ Object.assign(App, {
       return { ok: true, closed: true };
     }
 
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('applyCourseLessonRoster-render', routeTransitionSeq);
+    }
     const planType = plan?.planType === 'weekly' ? 'weekly' : 'session';
     const attendanceByStudentId = this._getCourseLessonAttendanceMap(rosterPayload?.students || [], { planType });
     this._eduCourseLessonsContext = {
@@ -1820,7 +1883,12 @@ Object.assign(App, {
     viewerUidAtStart = this._getCourseLessonRosterViewerUid(),
     options = {},
   ) {
+    const routeTransitionSeq = Number(options?.routeTransitionSeq || 0);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-entry', routeTransitionSeq);
+    }
     const finishRefreshIndicator = (state = {}) => {
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) return;
       const ctx = this._eduCourseLessonsContext;
       if (ctx?.mode !== 'roster'
         || String(ctx.teamId || '') !== String(teamId || '')
@@ -1852,6 +1920,9 @@ Object.assign(App, {
         ? planOrState
         : Promise.resolve(planOrState);
       const [stateOrPlan, rosterPayload] = await Promise.all([statePromise, rosterPromise]);
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-data', routeTransitionSeq);
+      }
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
         const container = this._getEduCourseLessonsContainer();
         if (container && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
@@ -1894,7 +1965,19 @@ Object.assign(App, {
         }, options.perfStartedAtMs);
         return { ok: true, unchanged: true };
       }
-      const result = await this._applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq);
+      const result = await this._applyCourseLessonRosterPayload(
+        teamId,
+        planId,
+        sessionId,
+        plan,
+        rosterPayload,
+        localStaff,
+        requestSeq,
+        { routeTransitionSeq },
+      );
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-render', routeTransitionSeq);
+      }
       this._recordCourseLessonRosterPerf('fresh_overlay', {
         teamId,
         planId,
@@ -1905,6 +1988,9 @@ Object.assign(App, {
       }, options.perfStartedAtMs);
       return result;
     } catch (err) {
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-error', routeTransitionSeq);
+      }
       console.warn('[edu-course-lessons] roster background refresh failed:', err);
       const ctx = this._eduCourseLessonsContext;
       if (ctx?.mode === 'roster'
@@ -1920,6 +2006,16 @@ Object.assign(App, {
   },
 
   async showCourseLessonRoster(teamId, planId, sessionId, options = {}) {
+    const previousContext = this._eduCourseLessonsContext;
+    const isSameRoute = this.currentPage === 'page-edu-course-lessons'
+      && previousContext?.mode === 'roster'
+      && String(previousContext?.teamId || '') === String(teamId || '')
+      && String(previousContext?.planId || '') === String(planId || '')
+      && String(previousContext?.sessionId || '') === String(sessionId || '');
+    const routeTransitionSeq = this._prepareEduCourseLessonsTransition(options, isSameRoute);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessonRoster-entry', routeTransitionSeq);
+    }
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     const perfStartedAtMs = this._getCourseLessonRosterPerfNow();
     this._eduCourseRosterPerfTimeline = [];
@@ -1931,7 +2027,13 @@ Object.assign(App, {
     }, perfStartedAtMs);
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
-    await this.showPage('page-edu-course-lessons');
+    await this.showPage('page-edu-course-lessons', {
+      _navigationTransitionSeq: routeTransitionSeq,
+      bypassPageLock: options?.bypassPageLock === true,
+    });
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessonRoster-showPage', routeTransitionSeq);
+    }
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
 
     const container = this._getEduCourseLessonsContainer();
@@ -1976,6 +2078,7 @@ Object.assign(App, {
     let freshRosterApplied = false;
     const applyNamesFirstPreview = async (state, source) => {
       if (cachedRenderPayload || namesFirstPreviewRendered || freshRosterApplied) return null;
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) return null;
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return null;
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) return null;
       const statePlan = state?.plan || cachedPlanForShell;
@@ -1996,7 +2099,7 @@ Object.assign(App, {
         previewPayload,
         false,
         requestSeq,
-        { refreshPending: true },
+        { refreshPending: true, routeTransitionSeq },
       );
       if (result?.ok !== true || result.closed === true) return result;
       namesFirstPreviewRendered = true;
@@ -2019,7 +2122,7 @@ Object.assign(App, {
         cachedRenderPayload,
         localStaff,
         requestSeq,
-        { refreshPending: true, staleCached: cachedRenderPayload?.cacheMeta?.staleCached === true },
+        { refreshPending: true, staleCached: cachedRenderPayload?.cacheMeta?.staleCached === true, routeTransitionSeq },
       );
       this._recordCourseLessonRosterPerf('cache_preview', {
         teamId,
@@ -2039,7 +2142,7 @@ Object.assign(App, {
         localStaff,
         this._getCourseLessonRosterPayloadVersion(cachedPayload),
         viewerUidAtStart,
-        { forceRefresh, rosterPromise: freshRosterPromise, perfStartedAtMs },
+        { forceRefresh, rosterPromise: freshRosterPromise, perfStartedAtMs, routeTransitionSeq },
       );
       return { ...result, cached: true };
     }
@@ -2055,6 +2158,9 @@ Object.assign(App, {
         });
 
     const [lessonStateResult, freshRosterResult] = await Promise.allSettled([lessonStatePromise, freshRosterPromise]);
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessonRoster-data', routeTransitionSeq);
+    }
     const lessonState = lessonStateResult.status === 'fulfilled'
       ? lessonStateResult.value
       : { plan: cachedPlanForShell, sessions: cachedSessionsForShell || [] };
@@ -2093,10 +2199,25 @@ Object.assign(App, {
       return { ok: false, reason: 'roster_failed' };
     }
     if (namesFirstPreviewPromise) await namesFirstPreviewPromise;
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessonRoster-preview', routeTransitionSeq);
+    }
     freshRosterApplied = true;
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
     if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
-    const result = await this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
+    const result = await this._applyCourseLessonRosterPayload(
+      teamId,
+      planId,
+      sessionId,
+      lessonPlan,
+      freshRosterPayload,
+      localStaff,
+      requestSeq,
+      { routeTransitionSeq },
+    );
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('showCourseLessonRoster-render', routeTransitionSeq);
+    }
     this._recordCourseLessonRosterPerf('fresh_roster', {
       teamId,
       planId,

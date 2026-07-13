@@ -651,6 +651,39 @@
   flex-wrap: wrap;
   max-width: min(100%, 16rem);
 }
+.edu-course-lesson-share-btn {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--accent);
+  padding: 0;
+  cursor: pointer;
+  transition: border-color .16s, background .16s, color .16s, transform .16s;
+}
+.edu-course-lesson-share-btn:hover,
+.edu-course-lesson-share-btn:focus-visible {
+  border-color: rgba(13, 148, 136, .48);
+  background: rgba(13, 148, 136, .10);
+  color: var(--accent);
+  transform: translateY(-1px);
+  outline: none;
+}
+.edu-course-lesson-share-btn svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
 .edu-course-lesson-convert-event-btn {
   position: relative;
   isolation: isolate;
@@ -1005,6 +1038,12 @@
   border-radius: 8px;
   background: var(--bg-card);
   padding: .36rem .48rem;
+}
+.edu-course-roster-card-self {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.edu-course-roster-section-self .edu-course-roster-section-head strong {
+  color: var(--accent);
 }
 .edu-course-roster-card-signin { border-left: 3px solid #0f766e; }
 .edu-course-roster-card-registered { border-left: 3px solid #2563eb; }

@@ -572,6 +572,7 @@ const ScriptLoader = {
       'js/modules/education/edu-course-plan.js',
       'js/modules/education/edu-course-ui-adapter.js',
       'js/modules/education/edu-course-plan-render.js',
+      'js/modules/education/edu-course-lesson-share.js',
       'js/modules/education/edu-course-plan-attendance.js',
       'js/modules/education/edu-course-enrollment.js',
       'js/modules/education/edu-course-enrollment-render.js',

@@ -167,6 +167,25 @@ describe('global navigation transition races', () => {
     jest.restoreAllMocks();
   });
 
+  test('verified continuation bypasses detail page lock while ordinary async navigation stays blocked', async () => {
+    const App = installNavigation();
+
+    const detailResult = await App.showPage('page-team-detail');
+    expect(detailResult).toMatchObject({ ok: true, pageId: 'page-team-detail' });
+    expect(App._pageLockUntil).toBeGreaterThan(Date.now());
+
+    const blockedResult = await App.showPage('page-new');
+    expect(blockedResult).toMatchObject({ ok: false, reason: 'page_locked' });
+    expect(App.currentPage).toBe('page-team-detail');
+
+    const continuationResult = await App.showPage('page-new', {
+      _navigationTransitionSeq: App._pageTransitionSeq,
+      bypassPageLock: true,
+    });
+    expect(continuationResult).toMatchObject({ ok: true, pageId: 'page-new' });
+    expect(App.currentPage).toBe('page-new');
+  });
+
   test('a delayed goBack cannot overwrite a newer page request', async () => {
     const collectionsReady = deferred();
     const App = installNavigation();

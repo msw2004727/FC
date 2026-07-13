@@ -257,11 +257,27 @@ Object.assign(App, {
       if (routeTeamId && safeTeamId && decodeURIComponent(routeTeamId) !== safeTeamId) return null;
       const teamTab = String(params.get('teamTab') || '').trim().toLowerCase();
       const planId = String(params.get('course') || params.get('coursePlan') || params.get('plan') || '').trim();
+      const lessonId = String(params.get('lesson') || params.get('session') || '').trim();
       if (teamTab !== 'courses' && !planId) return null;
       const courseTab = String(params.get('courseTab') || '').trim().toLowerCase() === 'ended' ? 'ended' : 'active';
       const courseView = String(params.get('courseView') || params.get('view') || '').trim().toLowerCase();
-      const openDetail = courseView === 'detail' || courseView === 'info';
-      return { teamTab: 'courses', planId, courseTab, openDetail };
+      const isSafeSegment = (value) => {
+        if (typeof this._isSafeHistoryRouteSegment === 'function') return this._isSafeHistoryRouteSegment(value);
+        return /^[A-Za-z0-9_-]{3,80}$/.test(String(value || ''));
+      };
+      const openRoster = !!lessonId;
+      if (openRoster && (!planId || !isSafeSegment(planId) || !isSafeSegment(lessonId))) return null;
+      const intent = {
+        teamTab: 'courses',
+        planId,
+        courseTab,
+        openDetail: !openRoster && (courseView === 'detail' || courseView === 'info'),
+      };
+      if (openRoster) {
+        intent.openRoster = true;
+        intent.lessonId = lessonId;
+      }
+      return intent;
     } catch (_) {
       return null;
     }
@@ -280,27 +296,136 @@ Object.assign(App, {
       this._eduCoursePlanShareFocusByTeam[teamId] = {
         planId: intent.planId,
         openDetail: intent.openDetail === true,
+        openRoster: intent.openRoster === true,
+        lessonId: String(intent.lessonId || '').trim(),
         createdAt: Date.now(),
       };
     }
     return intent;
   },
 
+  _consumeEduCourseLessonShareQuery(teamId, planId, lessonId) {
+    try {
+      const url = new URL(window.location.href);
+      const routePlanId = String(url.searchParams.get('course') || url.searchParams.get('coursePlan') || url.searchParams.get('plan') || '').trim();
+      const routeLessonId = String(url.searchParams.get('lesson') || url.searchParams.get('session') || '').trim();
+      if (routePlanId && routePlanId !== String(planId || '').trim()) return false;
+      if (routeLessonId && routeLessonId !== String(lessonId || '').trim()) return false;
+      const previousUrl = url.pathname + (url.search || '') + (url.hash || '');
+      let changed = false;
+      ['teamTab', 'course', 'coursePlan', 'plan', 'courseTab', 'courseView', 'view', 'lesson', 'session'].forEach((key) => {
+        if (!url.searchParams.has(key)) return;
+        url.searchParams.delete(key);
+        changed = true;
+      });
+      if (!changed) return false;
+      const historyApi = window.history;
+      if (!historyApi || typeof historyApi.replaceState !== 'function') return false;
+      const builtState = this._buildRouteStateForCurrentPage?.('page-team-detail');
+      const safeTeamId = String(teamId || '').trim();
+      const routeState = {
+        ...(builtState && typeof builtState === 'object' ? builtState : {}),
+        source: 'sportshub',
+        pageId: 'page-team-detail',
+        ...(safeTeamId ? { id: safeTeamId } : {}),
+      };
+      historyApi.replaceState(routeState, '', url.pathname + (url.search || '') + (url.hash || ''));
+      return { previousUrl, routeState };
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _restoreEduCourseLessonShareQuery(consumption) {
+    try {
+      const previousUrl = String(consumption?.previousUrl || '').trim();
+      const historyApi = window.history;
+      if (!previousUrl || !historyApi || typeof historyApi.replaceState !== 'function') return false;
+      const routeState = consumption?.routeState && typeof consumption.routeState === 'object'
+        ? consumption.routeState
+        : { source: 'sportshub', pageId: 'page-team-detail' };
+      historyApi.replaceState(routeState, '', previousUrl);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   _applyEduCoursePlanShareFocus(teamId) {
     const pending = this._eduCoursePlanShareFocusByTeam?.[teamId];
     const planId = String(pending?.planId || '').trim();
-    if (!planId || typeof document === 'undefined') return false;
+    if (!planId) return false;
+    const schedule = (fn, delay) => {
+      if (typeof setTimeout === 'function') return setTimeout(fn, delay);
+      try { fn(); } catch (_) {}
+      return null;
+    };
+    const lessonId = String(pending?.lessonId || '').trim();
+    if (pending.openRoster === true && lessonId) {
+      if (pending.handoffInFlight === true || pending.handoffAttempted === true) return true;
+      pending.handoffAttempted = true;
+      pending.handoffInFlight = true;
+      const transitionSeq = Number(this._activePageTransitionSeq);
+      const hasTransition = Number.isSafeInteger(transitionSeq) && transitionSeq > 0;
+      const isSamePending = () => this._eduCoursePlanShareFocusByTeam?.[teamId] === pending;
+      const clearPending = () => {
+        if (isSamePending()) delete this._eduCoursePlanShareFocusByTeam[teamId];
+      };
+      const releaseForRetry = () => {
+        if (isSamePending()) pending.handoffInFlight = false;
+      };
+      const canContinueFromTeam = () => {
+        if (this.currentPage !== 'page-team-detail') return false;
+        if (this._teamDetailId && String(this._teamDetailId) !== String(teamId)) return false;
+        return !hasTransition || typeof this._isPageTransitionCurrent !== 'function'
+          || this._isPageTransitionCurrent(transitionSeq);
+      };
+      schedule(async () => {
+        if (!canContinueFromTeam()) {
+          clearPending();
+          return;
+        }
+        const consumption = this._consumeEduCourseLessonShareQuery?.(teamId, planId, lessonId);
+        try {
+          const result = this.showCourseLessonRoster?.(teamId, planId, lessonId, hasTransition
+            ? { _navigationTransitionSeq: transitionSeq, bypassPageLock: true }
+            : { bypassPageLock: true });
+          const outcome = result && typeof result.then === 'function' ? await result : result;
+          const rosterContext = this._eduCourseLessonsContext;
+          const rosterOpened = outcome?.ok === true || (this.currentPage === 'page-edu-course-lessons'
+            && rosterContext?.mode === 'roster'
+            && String(rosterContext?.teamId || '') === String(teamId)
+            && String(rosterContext?.planId || '') === String(planId)
+            && String(rosterContext?.sessionId || '') === String(lessonId));
+          if (rosterOpened) {
+            clearPending();
+            return;
+          }
+          if (canContinueFromTeam()) {
+            this._restoreEduCourseLessonShareQuery?.(consumption);
+            releaseForRetry();
+            return;
+          }
+          clearPending();
+        } catch (err) {
+          console.warn('[EduCourseShare] open roster intent failed:', err);
+          if (canContinueFromTeam()) {
+            this._restoreEduCourseLessonShareQuery?.(consumption);
+            releaseForRetry();
+            return;
+          }
+          clearPending();
+        }
+      }, 120);
+      return true;
+    }
+    if (typeof document === 'undefined') return false;
     const cards = Array.from(document.querySelectorAll?.('[data-course-plan-id]') || []);
     const card = cards.find(node => String(node.getAttribute?.('data-course-plan-id') || '') === planId);
     if (!card) return false;
     cards.forEach(node => node.classList?.remove('edu-cp-card-share-target'));
     card.classList?.add('edu-cp-card-share-target');
     delete this._eduCoursePlanShareFocusByTeam[teamId];
-    const schedule = (fn, delay) => {
-      if (typeof setTimeout === 'function') return setTimeout(fn, delay);
-      try { fn(); } catch (_) {}
-      return null;
-    };
     schedule(() => {
       try { card.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
     }, 80);

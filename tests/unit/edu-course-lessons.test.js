@@ -78,11 +78,30 @@ function loadCourseLessonsContext(overrides = {}) {
   const app = {
 
     currentPage: 'page-team-detail',
+    _pageTransitionSeq: 0,
+    _activePageTransitionSeq: 0,
     _eduCourseLessonsRequestSeq: 0,
     _courseSessionCache: overrides.courseSessionCache || {},
     _courseEnrollCache: overrides.courseEnrollCache || {},
     _eduStudentsCache: overrides.eduStudentsCache || {},
-    showPage: jest.fn(async () => { app.currentPage = 'page-edu-course-lessons'; }),
+    _claimPageTransition: jest.fn((_pageId, options = {}) => {
+      const inherited = Number(options?._navigationTransitionSeq);
+      return Number.isSafeInteger(inherited) && inherited > 0
+        ? inherited
+        : ++app._pageTransitionSeq;
+    }),
+    _isPageTransitionCurrent: jest.fn(transitionSeq => transitionSeq === app._pageTransitionSeq),
+    _abortStalePageTransition: jest.fn((source, pageId, transitionSeq) => ({
+      ok: false,
+      reason: 'stale_transition',
+      source,
+      pageId,
+      transitionSeq,
+    })),
+    showPage: jest.fn(async (_pageId, options = {}) => {
+      app.currentPage = 'page-edu-course-lessons';
+      app._activePageTransitionSeq = Number(options?._navigationTransitionSeq) || app._pageTransitionSeq;
+    }),
     _loadEduCoursePlans: jest.fn(async () => plans),
     getEduCoursePlans: jest.fn(() => plans),
     getEduStudents: jest.fn((teamId) => app._eduStudentsCache?.[teamId] || []),
@@ -192,7 +211,7 @@ describe('edu course lessons', () => {
 
     await app.showCourseLessons('teamA', 'planA');
 
-    expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons');
+    expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons', { _navigationTransitionSeq: 1 });
     expect(title.textContent).toBe('課堂列表');
     expect(container.innerHTML).toContain('暑期堂數班');
     expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>1</strong></div>');
@@ -203,6 +222,10 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('edu-course-lesson-meta-count');
     expect(container.innerHTML).toContain('2/6 人');
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
+    expect(container.innerHTML).toContain('edu-course-lesson-share-btn');
+    expect(container.innerHTML).toContain("App.shareEduCourseLesson('teamA','planA','sessionA')");
+    expect(container.innerHTML).toContain('onkeydown="event.stopPropagation()"');
+    expect(container.innerHTML).toContain('onclick="event.stopPropagation();return App.shareEduCourseLesson');
   });
 
   test('lesson list keeps scheduled lessons first then done and cancelled by nearest time', async () => {
@@ -935,6 +958,81 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('已簽到');
     expect(container.innerHTML).not.toContain('尚未填寫備註');
     expect(container.innerHTML).not.toContain('未繳費區');
+  });
+
+  test('lesson share handoff forwards the verified page-lock bypass to navigation', async () => {
+    const { app } = loadCourseLessonsContext();
+    app._pageTransitionSeq = 7;
+    app._activePageTransitionSeq = 7;
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA', {
+      _navigationTransitionSeq: 7,
+      bypassPageLock: true,
+    });
+
+    expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons', {
+      _navigationTransitionSeq: 7,
+      bypassPageLock: true,
+    });
+  });
+
+  test('fresh owned roster cards are stable-pinned and marked', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      rosterPayload: {
+        rosterPublic: true,
+        session: { id: 'sessionA', title: 'Session A', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+        students: [
+          { studentId: 'other1', displayName: 'Other One', attendanceKind: null, canSelfLeave: false },
+          { studentId: 'mine1', displayName: 'Owned One', attendanceKind: null, canSelfLeave: true },
+          { studentId: 'mine2', displayName: 'Owned Two', attendanceKind: null, canSelfLeave: true },
+          { studentId: 'other2', displayName: 'Other Two', attendanceKind: null, canSelfLeave: false },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(html.indexOf('Owned One')).toBeLessThan(html.indexOf('Owned Two'));
+    expect(html.indexOf('Owned Two')).toBeLessThan(html.indexOf('Other One'));
+    expect(html.indexOf('Other One')).toBeLessThan(html.indexOf('Other Two'));
+    expect((html.match(/edu-course-roster-card-self/g) || [])).toHaveLength(2);
+    expect(cssSource).toContain('.edu-course-roster-card-self');
+  });
+
+  test('staff owned unpaid card stays above paid and unpaid sections without duplication', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      enrollments: [
+        { id: 'enr-paid', studentId: 'paid-other', status: 'approved', paidAt: '2099-06-01' },
+        { id: 'enr-owned', studentId: 'owned-unpaid', status: 'approved', paidAt: null },
+        { id: 'enr-unpaid', studentId: 'other-unpaid', status: 'approved', paidAt: null },
+      ],
+      rosterPayload: {
+        rosterPublic: true,
+        session: { id: 'sessionA', title: 'Session A', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+        students: [
+          { studentId: 'paid-other', displayName: 'Paid Other', attendanceKind: null, canSelfLeave: false },
+          { studentId: 'owned-unpaid', displayName: 'Owned Unpaid', attendanceKind: null, canSelfLeave: true },
+          { studentId: 'other-unpaid', displayName: 'Other Unpaid', attendanceKind: null, canSelfLeave: false },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    const selfSection = html.indexOf('edu-course-roster-section-self');
+    const mainSection = html.indexOf('edu-course-roster-section-main');
+    const unpaidSection = html.indexOf('edu-course-roster-section-unpaid');
+    expect(selfSection).toBeGreaterThanOrEqual(0);
+    expect(selfSection).toBeLessThan(mainSection);
+    expect(mainSection).toBeLessThan(unpaidSection);
+    expect((html.match(/edu-course-roster-card-self/g) || [])).toHaveLength(1);
+    expect(html.slice(unpaidSection)).not.toContain('Owned Unpaid');
+    const ownedCardStart = html.indexOf('edu-course-roster-card-self');
+    const ownedNameStart = html.indexOf('Owned Unpaid');
+    expect(html.slice(ownedCardStart, ownedNameStart)).toContain('edu-course-roster-card-unpaid');
   });
 
   test('roster loading shell renders a stable back-to-lessons label', () => {

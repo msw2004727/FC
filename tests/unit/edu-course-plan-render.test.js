@@ -595,6 +595,16 @@ describe('edu course plan render', () => {
     context.window.location.href = 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended';
     expect(app._getEduCoursePlanShareIntent('teamA'))
       .toEqual({ teamTab: 'courses', planId: 'planA', courseTab: 'ended', openDetail: false });
+    context.window.location.href = 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended&courseView=roster&lesson=sessionA';
+    expect(app._getEduCoursePlanShareIntent('teamA'))
+      .toEqual({
+        teamTab: 'courses',
+        planId: 'planA',
+        courseTab: 'ended',
+        openDetail: false,
+        openRoster: true,
+        lessonId: 'sessionA',
+      });
   });
 
   test('course plan share detail intent opens the detail overlay after render', async () => {
@@ -676,6 +686,132 @@ describe('edu course plan render', () => {
     expect(app.showEduCoursePlanDetail).toHaveBeenCalledWith('teamA', 'planA');
     expect(cardById.get('planA').classList.add).toHaveBeenCalledWith('edu-cp-card-share-target');
     expect(cardById.get('planA').scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' });
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
+  });
+
+  test('course lesson share intent continues to roster with the active transition', async () => {
+    const replaceState = jest.fn();
+    const app = {
+      _eduCoursePlanTabByTeam: {},
+      currentPage: 'page-team-detail',
+      _teamDetailId: 'teamA',
+      _activePageTransitionSeq: 9,
+      _isPageTransitionCurrent: jest.fn(value => value === 9),
+      _buildRouteStateForCurrentPage: jest.fn(() => ({ source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' })),
+      showCourseLessonRoster: jest.fn(async () => ({ ok: true })),
+    };
+    const context = {
+      App: app,
+      ApiService: {},
+      document: { querySelectorAll: jest.fn(() => []) },
+      window: {
+        location: { href: 'https://miniapp.line.me/demo?team=teamA&teamTab=courses&course=planA&courseTab=active&courseView=roster&lesson=sessionA' },
+        history: { state: { source: 'sportshub' }, replaceState },
+      },
+      setTimeout: (fn) => { fn(); return 0; },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+      Array,
+      URL,
+      URLSearchParams,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    const intent = app._primeEduCoursePlanShareIntent('teamA');
+    const applied = app._applyEduCoursePlanShareFocus('teamA');
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(intent).toMatchObject({ planId: 'planA', lessonId: 'sessionA', openRoster: true });
+    expect(applied).toBe(true);
+    expect(app.showCourseLessonRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', {
+      _navigationTransitionSeq: 9,
+      bypassPageLock: true,
+    });
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/demo?team=teamA',
+    );
+  });
+
+  test('course lesson share handoff restores its query and intent after a transient route failure', async () => {
+    const replaceState = jest.fn();
+    const app = {
+      _eduCoursePlanTabByTeam: {},
+      currentPage: 'page-team-detail',
+      _teamDetailId: 'teamA',
+      _activePageTransitionSeq: 11,
+      _isPageTransitionCurrent: jest.fn(value => value === 11),
+      _buildRouteStateForCurrentPage: jest.fn(() => ({ source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' })),
+      showCourseLessonRoster: jest.fn(async () => ({ ok: false, reason: 'load_failed' })),
+    };
+    const originalUrl = '/demo?team=teamA&teamTab=courses&course=planA&courseTab=active&courseView=roster&lesson=sessionA';
+    const context = {
+      App: app,
+      ApiService: {},
+      document: { querySelectorAll: jest.fn(() => []) },
+      window: {
+        location: { href: 'https://miniapp.line.me' + originalUrl },
+        history: { state: { source: 'sportshub' }, replaceState },
+      },
+      setTimeout: (fn) => { fn(); return 0; },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+      Array,
+      URL,
+      URLSearchParams,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    app._primeEduCoursePlanShareIntent('teamA');
+    expect(app._applyEduCoursePlanShareFocus('teamA')).toBe(true);
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(1);
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toMatchObject({
+      planId: 'planA',
+      lessonId: 'sessionA',
+      openRoster: true,
+      handoffAttempted: true,
+      handoffInFlight: false,
+    });
+    expect(replaceState).toHaveBeenNthCalledWith(
+      1,
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/demo?team=teamA',
+    );
+    expect(replaceState).toHaveBeenNthCalledWith(
+      2,
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      originalUrl,
+    );
+
+    expect(app._applyEduCoursePlanShareFocus('teamA')).toBe(true);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(1);
+    expect(replaceState).toHaveBeenCalledTimes(2);
+
+    app._primeEduCoursePlanShareIntent('teamA');
+    app.showCourseLessonRoster.mockResolvedValueOnce({ ok: true });
+    expect(app._applyEduCoursePlanShareFocus('teamA')).toBe(true);
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(2);
     expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
   });
 

@@ -140,6 +140,7 @@ Object.assign(App, {
       const capacity = session.capacity ? '/' + session.capacity : '';
       const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
       const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
+      const lessonTitle = session.title || session.topic || session.focus || '未命名課堂';
       const statusKey = String(session.status || status.cls || '').trim().toLowerCase();
       const canConvertToEvent = context.isStaff === true
         && context.planType === 'weekly'
@@ -160,12 +161,16 @@ Object.assign(App, {
           + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>'
         + '</button>'
         : '';
+      const shareBtn = '<button type="button" class="edu-course-lesson-share-btn" aria-label="分享' + escapeHTML(lessonTitle) + '" title="分享課堂名單" onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.shareEduCourseLesson(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')">'
+        + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M16 6l-4-4-4 4"></path><path d="M12 2v14"></path></svg>'
+        + '</button>';
       return '<article class="edu-course-lesson-card edu-course-lesson-card-' + escapeHTML(status.cls) + '" role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')}">'
         + '<div class="edu-course-lesson-index"><strong>' + (index + 1) + '</strong></div>'
         + '<div class="edu-course-lesson-main">'
           + '<div class="edu-course-lesson-head">'
-            + '<h3>' + escapeHTML(session.title || session.topic || session.focus || '未命名課堂') + '</h3>'
+            + '<h3>' + escapeHTML(lessonTitle) + '</h3>'
             + '<div class="edu-course-lesson-head-actions">'
+              + shareBtn
               + convertEventBtn
               + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
             + '</div>'
@@ -222,9 +227,14 @@ Object.assign(App, {
         ? this._getCourseLessonRosterStudentId(student)
         : String(student?.studentId || student?.id || student?._docId || '').trim()
     );
+    const ownedStudents = [];
     const paidStudents = [];
     const unpaidStudents = [];
     students.forEach((student) => {
+      if (student?.canSelfLeave === true) {
+        ownedStudents.push(student);
+        return;
+      }
       const studentId = getRosterStudentId(student);
       if (shouldSplitUnpaid && (!studentId || paidByStudentId[studentId] !== true)) unpaidStudents.push(student);
       else paidStudents.push(student);
@@ -234,6 +244,7 @@ Object.assign(App, {
       const index = rosterRowIndex++;
       const name = student.displayName || '學員';
       const studentId = getRosterStudentId(student);
+      const owned = student.canSelfLeave === true;
       const rawDraftKind = isRosterPreview
         ? 'pending'
         : (manageMode
@@ -295,7 +306,7 @@ Object.assign(App, {
       const paymentBadgeHtml = unpaid
         ? '<span class="edu-course-roster-payment edu-course-roster-payment-unpaid">未繳費</span>'
         : '';
-      return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + (unpaid ? ' edu-course-roster-card-unpaid' : '') + '">'
+      return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + (owned ? ' edu-course-roster-card-self' : '') + (unpaid ? ' edu-course-roster-card-unpaid' : '') + '">'
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
             + studentPill
@@ -306,6 +317,11 @@ Object.assign(App, {
         + '<div class="edu-course-roster-side">' + manageHtml + '</div>'
       + '</article>';
     };
+    const ownedRows = ownedStudents.map((student) => {
+      const studentId = getRosterStudentId(student);
+      const unpaid = shouldSplitUnpaid && (!studentId || paidByStudentId[studentId] !== true);
+      return renderRosterCard(student, unpaid);
+    }).join('');
     const paidRows = paidStudents.map(student => renderRosterCard(student, false)).join('');
     const unpaidRows = unpaidStudents.map(student => renderRosterCard(student, true)).join('');
     const emptyRosterHtml = '<div class="edu-course-lessons-empty"><strong>尚未安排學員</strong><span>職員可在課堂編輯中指定本堂學員。</span></div>';
@@ -317,9 +333,10 @@ Object.assign(App, {
         + '</div>';
     };
     const rosterListHtml = shouldSplitUnpaid
-      ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
+      ? renderRosterSection('我的資料', ownedStudents, ownedRows, 'self')
+        + renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
         + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
-      : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
+      : '<div class="edu-course-roster-list">' + (ownedRows + paidRows || emptyRosterHtml) + '</div>';
     const refreshPendingHtml = context.refreshPending === true && context.refreshError !== true
       ? '<div class="edu-course-roster-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>&#27491;&#22312;&#26356;&#26032;&#31805;&#21040;&#33287;&#20633;&#35387;...</span></div>'
       : '';

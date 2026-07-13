@@ -689,6 +689,68 @@ describe('async route entry transition guards', () => {
     expect(team.avatarUrl).toBe('https://cdn.example/avatar.webp');
   });
 
+  test('course lesson roster cannot render after a newer navigation starts', async () => {
+    document.body.innerHTML = '<h1 id="edu-course-lessons-title"></h1><div id="edu-course-lessons-page"></div>';
+    const lessonStateReady = deferred();
+    const rosterReady = deferred();
+    let App;
+    App = installModule('js/modules/education/edu-course-lessons.js', {
+      firebase: {
+        listEduCoursePublicRoster: jest.fn(() => rosterReady.promise),
+      },
+      after: {
+        showPage: jest.fn(async (pageId, options = {}) => {
+          App.currentPage = pageId;
+          App._activePageTransitionSeq = Number(options?._navigationTransitionSeq) || App._pageTransitionSeq;
+          return { ok: true, pageId };
+        }),
+        _loadEduCourseLessonsState: jest.fn(() => lessonStateReady.promise),
+        _renderCourseLessonsLoading: textValue => '<div>' + textValue + '</div>',
+        isEduClubStaff: () => false,
+      },
+    });
+
+    const rosterPromise = App.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (FirebaseService.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    App._claimPageTransition('page-home');
+    App.currentPage = 'page-home';
+    lessonStateReady.resolve({ plan: { id: 'planA', planType: 'session' }, sessions: [] });
+    rosterReady.resolve({
+      rosterPublic: true,
+      session: { id: 'sessionA', title: 'Fresh Session' },
+      students: [{ studentId: 'studentA', displayName: 'Fresh Student' }],
+    });
+
+    const result = await rosterPromise;
+
+    expect(result).toMatchObject({ ok: false, reason: 'stale_transition' });
+    expect(App._abortStalePageTransition).toHaveBeenCalled();
+    expect(App.currentPage).toBe('page-home');
+    expect(document.getElementById('edu-course-lessons-page').innerHTML).not.toContain('Fresh Student');
+  });
+
+  test('same course lesson roster refresh cannot reclaim a newer pending navigation', async () => {
+    const App = installModule('js/modules/education/edu-course-lessons.js', {
+      firebase: {
+        listEduCoursePublicRoster: jest.fn(),
+      },
+      after: {
+        currentPage: 'page-edu-course-lessons',
+        _eduCourseLessonsContext: { teamId: 'teamA', planId: 'planA', sessionId: 'sessionA', mode: 'roster' },
+        _activePageTransitionSeq: 7,
+        _pageTransitionSeq: 8,
+      },
+    });
+
+    const result = await App.showCourseLessonRoster('teamA', 'planA', 'sessionA', { forceRefresh: true });
+
+    expect(result).toMatchObject({ ok: false, reason: 'stale_transition', transitionSeq: 7 });
+    expect(App.showPage).not.toHaveBeenCalled();
+    expect(FirebaseService.listEduCoursePublicRoster).not.toHaveBeenCalled();
+  });
+
   test('education detail initializes only after the team page owns the transition', async () => {
     document.body.innerHTML = '<h1 id="team-title"></h1><div id="team-name-en"></div><div id="team-image"></div><div id="team-body"></div>';
     const team = { id: 'tm_edu', name: 'Education team', teamExp: 0, wins: 0, draws: 0, losses: 0 };

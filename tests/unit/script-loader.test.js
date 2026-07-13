@@ -510,6 +510,15 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
     expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail', 'education']);
   });
 
+  test('education loads lesson share before lesson renderer and controller', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    const group = SL._groups.education;
+    const shareIndex = group.indexOf('js/modules/education/edu-course-lesson-share.js');
+    expect(shareIndex).toBeGreaterThan(group.indexOf('js/modules/education/edu-course-plan-render.js'));
+    expect(shareIndex).toBeLessThan(group.indexOf('js/modules/education/edu-course-lessons-render.js'));
+    expect(shareIndex).toBeLessThan(group.indexOf('js/modules/education/edu-course-lessons.js'));
+  });
+
   test('aux on-demand flag off keeps detail attendance/profile/achievement in the detail page load', () => {
     const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: false });
     expect(SL._resolvePageGroups('page-activity-detail')).toEqual([
