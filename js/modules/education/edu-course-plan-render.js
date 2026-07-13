@@ -247,25 +247,77 @@ Object.assign(App, {
     this.showToast?.(copyOk ? '課程連結已複製到剪貼簿' : '複製失敗，請手動複製');
   },
 
+  _parseEduCourseLessonRoute(pathname, options = {}) {
+    try {
+      const rawSegments = String(pathname || '/').split('/').filter(Boolean);
+      const suffixOffset = rawSegments.length - 6;
+      if (suffixOffset < 0 || suffixOffset > 1) return null;
+      if (suffixOffset === 1 && options.allowPrefix !== true) return null;
+      const segments = rawSegments.slice(suffixOffset);
+      if (segments[0] !== 'teams' || segments[2] !== 'courses' || segments[4] !== 'lessons') {
+        return null;
+      }
+      const decodeSafe = (raw) => {
+        const encoded = String(raw || '');
+        if (!encoded || /%2f|%5c/i.test(encoded)) return '';
+        try {
+          const decoded = decodeURIComponent(encoded);
+          const safe = typeof this._isSafeHistoryRouteSegment === 'function'
+            ? this._isSafeHistoryRouteSegment(decoded)
+            : /^[A-Za-z0-9_-]{3,80}$/.test(decoded);
+          return safe ? decoded : '';
+        } catch (_) {
+          return '';
+        }
+      };
+      if (suffixOffset === 1 && !decodeSafe(rawSegments[0])) return null;
+      const teamId = decodeSafe(segments[1]);
+      const planId = decodeSafe(segments[3]);
+      const lessonId = decodeSafe(segments[5]);
+      if (!teamId || !planId || !lessonId) return null;
+      return { teamId, planId, lessonId };
+    } catch (_) {
+      return null;
+    }
+  },
+
   _getEduCoursePlanShareIntent(teamId) {
     try {
       const url = new URL(window.location.href);
       const params = url.searchParams;
-      const routeTeamId = String(params.get('team') || '').trim()
-        || String((url.pathname.match(/\/teams\/([^/?#]+)/) || [])[1] || '').trim();
       const safeTeamId = String(teamId || '').trim();
-      if (routeTeamId && safeTeamId && decodeURIComponent(routeTeamId) !== safeTeamId) return null;
-      const teamTab = String(params.get('teamTab') || '').trim().toLowerCase();
-      const planId = String(params.get('course') || params.get('coursePlan') || params.get('plan') || '').trim();
-      const lessonId = String(params.get('lesson') || params.get('session') || '').trim();
-      if (teamTab !== 'courses' && !planId) return null;
-      const courseTab = String(params.get('courseTab') || '').trim().toLowerCase() === 'ended' ? 'ended' : 'active';
-      const courseView = String(params.get('courseView') || params.get('view') || '').trim().toLowerCase();
+      const allowPrefix = /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || ''));
+      const canonicalRoute = this._parseEduCourseLessonRoute?.(url.pathname, { allowPrefix });
       const isSafeSegment = (value) => {
         if (typeof this._isSafeHistoryRouteSegment === 'function') return this._isSafeHistoryRouteSegment(value);
         return /^[A-Za-z0-9_-]{3,80}$/.test(String(value || ''));
       };
-      const openRoster = !!lessonId;
+      let routeTeamId = String(canonicalRoute?.teamId || params.get('team') || '').trim();
+      if (!routeTeamId) {
+        const teamPathMatch = url.pathname.match(/^\/teams\/([^/?#]+)\/?$/);
+        if (teamPathMatch && !/%2f|%5c/i.test(teamPathMatch[1])) {
+          try { routeTeamId = decodeURIComponent(teamPathMatch[1]); } catch (_) { routeTeamId = ''; }
+        }
+      }
+      if (routeTeamId && (!isSafeSegment(routeTeamId) || routeTeamId !== safeTeamId)) return null;
+      const teamTab = String(params.get('teamTab') || '').trim().toLowerCase();
+      const planId = String(
+        canonicalRoute?.planId
+        || params.get('course')
+        || params.get('coursePlan')
+        || params.get('plan')
+        || ''
+      ).trim();
+      const lessonId = String(
+        canonicalRoute?.lessonId
+        || params.get('lesson')
+        || params.get('session')
+        || ''
+      ).trim();
+      if (!canonicalRoute && teamTab !== 'courses' && !planId) return null;
+      const courseTab = String(params.get('courseTab') || '').trim().toLowerCase() === 'ended' ? 'ended' : 'active';
+      const courseView = String(params.get('courseView') || params.get('view') || '').trim().toLowerCase();
+      const openRoster = !!canonicalRoute || !!lessonId;
       if (openRoster && (!planId || !isSafeSegment(planId) || !isSafeSegment(lessonId))) return null;
       const intent = {
         teamTab: 'courses',
@@ -283,7 +335,7 @@ Object.assign(App, {
     }
   },
 
-  _primeEduCoursePlanShareIntent(teamId) {
+  _primeEduCoursePlanShareIntent(teamId, routeOptions = {}) {
     const intent = this._getEduCoursePlanShareIntent?.(teamId);
     if (!intent) return null;
     this._teamDetailTabByTeam = this._teamDetailTabByTeam || {};
@@ -298,39 +350,149 @@ Object.assign(App, {
         openDetail: intent.openDetail === true,
         openRoster: intent.openRoster === true,
         lessonId: String(intent.lessonId || '').trim(),
+        skipPageHistory: routeOptions.skipPageHistory === true,
+        suppressHashSync: routeOptions.suppressHashSync === true,
+        _navigationTransitionSeq: Number(routeOptions._navigationTransitionSeq) || 0,
         createdAt: Date.now(),
       };
     }
     return intent;
   },
 
+  _buildEduCourseLessonCanonicalPath(teamId, planId, lessonId, urlLike) {
+    const values = [teamId, planId, lessonId].map(value => String(value || '').trim());
+    const isSafe = (value) => {
+      if (typeof this._isSafeHistoryRouteSegment === 'function') {
+        return this._isSafeHistoryRouteSegment(value);
+      }
+      return /^[A-Za-z0-9_-]{3,80}$/.test(value);
+    };
+    if (!values.every(isSafe)) return '';
+
+    const routePath = typeof this._buildEduCourseLessonRoutePath === 'function'
+      ? this._buildEduCourseLessonRoutePath(values[0], values[1], values[2])
+      : '/teams/' + encodeURIComponent(values[0])
+        + '/courses/' + encodeURIComponent(values[1])
+        + '/lessons/' + encodeURIComponent(values[2]);
+    if (!routePath) return '';
+
+    try {
+      const url = urlLike && urlLike.searchParams
+        ? urlLike
+        : new URL(String(urlLike || window.location.href));
+      const isLineMiniAppHost = /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || ''));
+      const currentRoute = this._parseEduCourseLessonRoute?.(url.pathname, {
+        allowPrefix: isLineMiniAppHost,
+      });
+      if (currentRoute
+        && currentRoute.teamId === values[0]
+        && currentRoute.planId === values[1]
+        && currentRoute.lessonId === values[2]) {
+        return String(url.pathname || '/').replace(/\/+$/, '') || '/';
+      }
+      if (!isLineMiniAppHost) return routePath;
+
+      let prefix = String(url.pathname || '/').replace(/\/+$/, '');
+      const teamDetailSuffix = '/teams/' + encodeURIComponent(values[0]);
+      if (prefix.endsWith(teamDetailSuffix)) {
+        prefix = prefix.slice(0, -teamDetailSuffix.length);
+      }
+      if (!prefix || prefix === '/') return routePath;
+      const prefixSegments = prefix.split('/').filter(Boolean);
+      if (prefixSegments.length !== 1 || /%2f|%5c/i.test(prefixSegments[0])) return routePath;
+      try {
+        const prefixId = decodeURIComponent(prefixSegments[0]);
+        return isSafe(prefixId) ? '/' + encodeURIComponent(prefixId) + routePath : routePath;
+      } catch (_) {
+        return routePath;
+      }
+    } catch (_) {
+      return routePath;
+    }
+  },
+
   _consumeEduCourseLessonShareQuery(teamId, planId, lessonId) {
     try {
       const url = new URL(window.location.href);
-      const routePlanId = String(url.searchParams.get('course') || url.searchParams.get('coursePlan') || url.searchParams.get('plan') || '').trim();
-      const routeLessonId = String(url.searchParams.get('lesson') || url.searchParams.get('session') || '').trim();
-      if (routePlanId && routePlanId !== String(planId || '').trim()) return false;
-      if (routeLessonId && routeLessonId !== String(lessonId || '').trim()) return false;
+      const expectedTeamId = String(teamId || '').trim();
+      const expectedPlanId = String(planId || '').trim();
+      const expectedLessonId = String(lessonId || '').trim();
+      const isSafe = (value) => {
+        if (typeof this._isSafeHistoryRouteSegment === 'function') {
+          return this._isSafeHistoryRouteSegment(value);
+        }
+        return /^[A-Za-z0-9_-]{3,80}$/.test(String(value || ''));
+      };
+      if (![expectedTeamId, expectedPlanId, expectedLessonId].every(isSafe)) return false;
+
+      const allowPrefix = /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || ''));
+      const canonicalRoute = this._parseEduCourseLessonRoute?.(url.pathname, { allowPrefix });
+      const routePlanId = String(
+        canonicalRoute?.planId
+        || url.searchParams.get('course')
+        || url.searchParams.get('coursePlan')
+        || url.searchParams.get('plan')
+        || ''
+      ).trim();
+      const routeLessonId = String(
+        canonicalRoute?.lessonId
+        || url.searchParams.get('lesson')
+        || url.searchParams.get('session')
+        || ''
+      ).trim();
+      if (!routePlanId || !routeLessonId) return false;
+      if (routePlanId !== expectedPlanId || routeLessonId !== expectedLessonId) return false;
+
+      let routeTeamId = String(canonicalRoute?.teamId || url.searchParams.get('team') || '').trim();
+      if (!routeTeamId) {
+        const teamPathMatch = url.pathname.match(/^\/teams\/([^/?#]+)\/?$/);
+        if (teamPathMatch && !/%2f|%5c/i.test(teamPathMatch[1])) {
+          try { routeTeamId = decodeURIComponent(teamPathMatch[1]); } catch (_) { routeTeamId = ''; }
+        }
+      }
+      if (!isSafe(routeTeamId) || routeTeamId !== expectedTeamId) return false;
+
       const previousUrl = url.pathname + (url.search || '') + (url.hash || '');
-      let changed = false;
-      ['teamTab', 'course', 'coursePlan', 'plan', 'courseTab', 'courseView', 'view', 'lesson', 'session'].forEach((key) => {
-        if (!url.searchParams.has(key)) return;
-        url.searchParams.delete(key);
-        changed = true;
-      });
-      if (!changed) return false;
       const historyApi = window.history;
-      if (!historyApi || typeof historyApi.replaceState !== 'function') return false;
+      const previousState = historyApi?.state;
+      const canonicalPath = this._buildEduCourseLessonCanonicalPath?.(
+        expectedTeamId,
+        expectedPlanId,
+        expectedLessonId,
+        url,
+      );
+      if (!canonicalPath) return false;
+      url.pathname = canonicalPath;
+
+      const courseTab = String(url.searchParams.get('courseTab') || '').trim().toLowerCase() === 'ended'
+        ? 'ended'
+        : 'active';
+      ['teamTab', 'team', 'course', 'coursePlan', 'plan', 'courseView', 'view', 'lesson', 'session'].forEach((key) => {
+        url.searchParams.delete(key);
+      });
+      url.searchParams.set('courseTab', courseTab);
+      if (/^#page-/.test(url.hash || '')) url.hash = '';
+
       const builtState = this._buildRouteStateForCurrentPage?.('page-team-detail');
-      const safeTeamId = String(teamId || '').trim();
       const routeState = {
         ...(builtState && typeof builtState === 'object' ? builtState : {}),
         source: 'sportshub',
         pageId: 'page-team-detail',
-        ...(safeTeamId ? { id: safeTeamId } : {}),
+        id: expectedTeamId,
       };
-      historyApi.replaceState(routeState, '', url.pathname + (url.search || '') + (url.hash || ''));
-      return { previousUrl, routeState };
+      const canonicalUrl = url.pathname + (url.search || '') + (url.hash || '');
+      const changed = canonicalUrl !== previousUrl;
+      if (changed) {
+        if (!historyApi || typeof historyApi.replaceState !== 'function') return false;
+        historyApi.replaceState(routeState, '', canonicalUrl);
+      }
+      return {
+        previousUrl,
+        previousState,
+        routeState,
+        canonicalUrl,
+        changed,
+      };
     } catch (_) {
       return false;
     }
@@ -338,13 +500,26 @@ Object.assign(App, {
 
   _restoreEduCourseLessonShareQuery(consumption) {
     try {
+      if (!consumption || consumption.changed === false) return !!consumption;
       const previousUrl = String(consumption?.previousUrl || '').trim();
       const historyApi = window.history;
       if (!previousUrl || !historyApi || typeof historyApi.replaceState !== 'function') return false;
-      const routeState = consumption?.routeState && typeof consumption.routeState === 'object'
-        ? consumption.routeState
-        : { source: 'sportshub', pageId: 'page-team-detail' };
-      historyApi.replaceState(routeState, '', previousUrl);
+      const candidateState = Object.prototype.hasOwnProperty.call(consumption, 'previousState')
+        ? consumption.previousState
+        : null;
+      const candidatePageId = String(candidateState?.pageId || '').trim();
+      const candidateNeedsId = ['page-activity-detail', 'page-team-detail', 'page-tournament-detail', 'page-user-card']
+        .includes(candidatePageId);
+      const candidateIsComplete = candidateState
+        && typeof candidateState === 'object'
+        && candidateState.source === 'sportshub'
+        && candidatePageId
+        && (!candidateNeedsId || String(candidateState.id || '').trim());
+      const previousState = candidateIsComplete ? candidateState
+        : (consumption?.routeState && typeof consumption.routeState === 'object'
+          ? consumption.routeState
+          : { source: 'sportshub', pageId: 'page-team-detail' });
+      historyApi.replaceState(previousState, '', previousUrl);
       return true;
     } catch (_) {
       return false;
@@ -365,14 +540,20 @@ Object.assign(App, {
       if (pending.handoffInFlight === true || pending.handoffAttempted === true) return true;
       pending.handoffAttempted = true;
       pending.handoffInFlight = true;
-      const transitionSeq = Number(this._activePageTransitionSeq);
+      const inheritedTransitionSeq = Number(pending._navigationTransitionSeq);
+      const activeTransitionSeq = Number(this._activePageTransitionSeq);
+      const transitionSeq = Number.isSafeInteger(inheritedTransitionSeq) && inheritedTransitionSeq > 0
+        ? inheritedTransitionSeq : activeTransitionSeq;
       const hasTransition = Number.isSafeInteger(transitionSeq) && transitionSeq > 0;
       const isSamePending = () => this._eduCoursePlanShareFocusByTeam?.[teamId] === pending;
       const clearPending = () => {
         if (isSamePending()) delete this._eduCoursePlanShareFocusByTeam[teamId];
       };
       const releaseForRetry = () => {
-        if (isSamePending()) pending.handoffInFlight = false;
+        if (isSamePending()) {
+          pending.handoffInFlight = false;
+          pending.handoffAttempted = false;
+        }
       };
       const canContinueFromTeam = () => {
         if (this.currentPage !== 'page-team-detail') return false;
@@ -387,9 +568,14 @@ Object.assign(App, {
         }
         const consumption = this._consumeEduCourseLessonShareQuery?.(teamId, planId, lessonId);
         try {
-          const result = this.showCourseLessonRoster?.(teamId, planId, lessonId, hasTransition
-            ? { _navigationTransitionSeq: transitionSeq, bypassPageLock: true }
-            : { bypassPageLock: true });
+          const rosterOptions = {
+            bypassPageLock: true,
+            preserveRouteUrl: true,
+            skipPageHistory: pending.skipPageHistory === true,
+            suppressHashSync: true,
+          };
+          if (hasTransition) rosterOptions._navigationTransitionSeq = transitionSeq;
+          const result = this.showCourseLessonRoster?.(teamId, planId, lessonId, rosterOptions);
           const outcome = result && typeof result.then === 'function' ? await result : result;
           const rosterContext = this._eduCourseLessonsContext;
           const rosterOpened = outcome?.ok === true || (this.currentPage === 'page-edu-course-lessons'

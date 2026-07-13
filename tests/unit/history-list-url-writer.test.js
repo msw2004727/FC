@@ -75,6 +75,7 @@ describe('history URL writer phase 4/5/6 contract', () => {
     }
     expect(eventDetailSource).toContain("this._setRouteUrl?.({ pageId: 'page-activity-detail', id }");
     expect(teamDetailSource).toContain("this._setRouteUrl?.({ pageId: 'page-team-detail', id }");
+    expect(teamDetailSource).toMatch(/_primeEduCoursePlanShareIntent\?\.\(id,\s*\{\s*\.\.\.options,\s*_navigationTransitionSeq:\s*routeTransitionSeq/);
   });
 
   test('LIFF path writing remains disabled; popstate takeover is now enabled (Phase 6)', () => {

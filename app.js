@@ -2483,6 +2483,7 @@ const App = {
       if (!flags.parseRead || !window.HistoryRouteAdapter?.parseCurrentLocation) return null;
       return window.HistoryRouteAdapter.parseCurrentLocation(window.location, {
         usersPathEnabled: !!flags.usersPathEnabled,
+        allowCourseLessonPrefix: /^(?:miniapp|liff)\.line\.me$/i.test(String(window.location?.hostname || '')),
       });
     } catch (_) {
       return null;
@@ -2625,7 +2626,10 @@ const App = {
     if (window.HistoryRouteAdapter && typeof window.HistoryRouteAdapter.parseHistoryRoute === 'function') {
       const parsed = window.HistoryRouteAdapter.parseHistoryRoute(
         loc.pathname,
-        { usersPathEnabled: !!flags.usersPathEnabled }
+        {
+          usersPathEnabled: !!flags.usersPathEnabled,
+          allowCourseLessonPrefix: /^(?:miniapp|liff)\.line\.me$/i.test(String(loc.hostname || '')),
+        }
       );
       if (parsed && parsed.pageId && parsed.pageId !== 'page-home') {
         return { pageId: parsed.pageId, id: parsed.id || null };
@@ -2755,6 +2759,92 @@ const App = {
     }
   },
 
+  _shouldPreserveEduCourseLessonRouteUrl(pageId, detailId, urlLike) {
+    if (pageId !== 'page-team-detail') return false;
+    const expectedTeamId = String(detailId || '').trim();
+    if (!expectedTeamId || !this._isSafeHistoryRouteSegment?.(expectedTeamId)) return false;
+
+    try {
+      const url = urlLike && urlLike.searchParams
+        ? urlLike
+        : new URL(String(urlLike || window.location.href));
+      const isSafe = value => this._isSafeHistoryRouteSegment?.(String(value || '').trim()) === true;
+      const decodeSafe = (raw) => {
+        const encoded = String(raw || '');
+        if (!encoded || /%2f|%5c/i.test(encoded)) return '';
+        try {
+          const decoded = decodeURIComponent(encoded);
+          return isSafe(decoded) ? decoded : '';
+        } catch (_) {
+          return '';
+        }
+      };
+      const segments = String(url.pathname || '/').split('/').filter(Boolean);
+      const suffixOffset = segments.length - 6;
+      const allowPrefixedLiffPath = suffixOffset === 1
+        && /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || ''))
+        && !!decodeSafe(segments[0]);
+      if (suffixOffset === 0 || allowPrefixedLiffPath) {
+        const suffix = segments.slice(suffixOffset);
+        if (suffix[0] === 'teams' && suffix[2] === 'courses' && suffix[4] === 'lessons') {
+          const routeTeamId = decodeSafe(suffix[1]);
+          const routePlanId = decodeSafe(suffix[3]);
+          const routeLessonId = decodeSafe(suffix[5]);
+          if (routeTeamId === expectedTeamId && routePlanId && routeLessonId) return true;
+        }
+      }
+
+      const routePlanId = String(
+        url.searchParams.get('course')
+        || url.searchParams.get('coursePlan')
+        || url.searchParams.get('plan')
+        || ''
+      ).trim();
+      const routeLessonId = String(
+        url.searchParams.get('lesson')
+        || url.searchParams.get('session')
+        || ''
+      ).trim();
+      if (!isSafe(routePlanId) || !isSafe(routeLessonId)) return false;
+
+      let routeTeamId = String(url.searchParams.get('team') || '').trim();
+      if (!routeTeamId && segments.length === 2 && segments[0] === 'teams') {
+        routeTeamId = decodeSafe(segments[1]);
+      }
+      return isSafe(routeTeamId) && routeTeamId === expectedTeamId;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _getEduCourseLessonParentRoutePath(detailId, urlLike) {
+    const expectedTeamId = String(detailId || '').trim();
+    if (!expectedTeamId || !this._isSafeHistoryRouteSegment?.(expectedTeamId)) return '';
+    try {
+      const url = urlLike && urlLike.searchParams
+        ? urlLike
+        : new URL(String(urlLike || window.location.href));
+      const segments = String(url.pathname || '/').split('/').filter(Boolean);
+      const suffixOffset = segments.length - 6;
+      const isLineMiniAppHost = /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || ''));
+      if (suffixOffset < 0 || suffixOffset > 1) return '';
+      if (suffixOffset === 1 && !isLineMiniAppHost) return '';
+      const suffix = segments.slice(suffixOffset);
+      if (suffix[0] !== 'teams' || suffix[2] !== 'courses' || suffix[4] !== 'lessons') {
+        return '';
+      }
+      if (!this._shouldPreserveEduCourseLessonRouteUrl?.(
+        'page-team-detail',
+        expectedTeamId,
+        url,
+      )) return '';
+      const prefix = suffixOffset > 0 ? segments.slice(0, suffixOffset) : [];
+      return '/' + [...prefix, 'teams', encodeURIComponent(expectedTeamId)].join('/');
+    } catch (_) {
+      return '';
+    }
+  },
+
   _setRouteUrl(routeOrPageId, options = {}) {
     const pageId = typeof routeOrPageId === 'string'
       ? routeOrPageId
@@ -2770,6 +2860,14 @@ const App = {
       const url = new URL(window.location.href);
       const pathWritesDisabled = this._shouldDisableHistoryPathWrite(flags);
       const detailId = this._getExplicitDetailRouteId(routeOrPageId);
+      const nestedParentPath = pageId === 'page-team-detail' && options.collapseNestedRoute
+        ? this._getEduCourseLessonParentRoutePath?.(detailId, url)
+        : '';
+      if (nestedParentPath && history?.replaceState) {
+        if (url.pathname === nestedParentPath && !url.search && !url.hash) return true;
+        history.replaceState({ source: 'sportshub', pageId, id: detailId }, '', nestedParentPath);
+        return true;
+      }
       const detailPath = flags.writeDetailPaths && !pathWritesDisabled
         ? this._getDetailRoutePath(pageId, detailId)
         : '';
@@ -2777,6 +2875,22 @@ const App = {
         ? this._getListRoutePath(pageId)
         : '';
 
+      if (!options.collapseNestedRoute
+        && this._shouldPreserveEduCourseLessonRouteUrl?.(pageId, detailId, url)) {
+        const existingState = history?.state;
+        const stateMatchesRoute = existingState
+          && existingState.source === 'sportshub'
+          && existingState.pageId === pageId
+          && String(existingState.id || '').trim() === detailId;
+        if (!stateMatchesRoute && history?.replaceState) {
+          history.replaceState(
+            { source: 'sportshub', pageId, id: detailId },
+            '',
+            url.pathname + (url.search || '') + (url.hash || ''),
+          );
+        }
+        return true;
+      }
       if (!detailPath && this._isCurrentHistoryRouteForPage(pageId)) return true;
 
       if (detailPath && (history?.pushState || history?.replaceState)) {

@@ -934,7 +934,10 @@ Object.assign(App, {
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
       const staffIdentity = this._getTeamStaffIdentity(t);
-      this._primeEduCoursePlanShareIntent?.(id);
+      this._primeEduCoursePlanShareIntent?.(id, {
+        ...options,
+        _navigationTransitionSeq: routeTransitionSeq,
+      });
       nodes.title.textContent = t.name;
       nodes.nameEn.textContent = t.nameEn || '';
 

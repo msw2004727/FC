@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260713';
+const CACHE_NAME       = 'sporthub-0.20260714';
 const PRECACHE_VERSION = CACHE_NAME.replace('sporthub-', '');
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 300;
@@ -55,6 +55,22 @@ function isSpaNavigationPath(pathname) {
   const path = stripTrailingSlash(pathname);
   if (SPA_LIST_PATHS.has(path)) return true;
   const segments = path.split('/').filter(Boolean);
+  if (
+    segments.length === 6
+    && segments[0] === 'teams'
+    && segments[2] === 'courses'
+    && segments[4] === 'lessons'
+  ) {
+    return [segments[1], segments[3], segments[5]].every((segment) => {
+      if (/%2f|%5c/i.test(segment)) return false;
+      try {
+        const decoded = decodeURIComponent(segment);
+        return SPA_SAFE_SEGMENT_RE.test(decoded) && !decoded.includes('/') && !decoded.includes('\\');
+      } catch (_) {
+        return false;
+      }
+    });
+  }
   if (segments.length !== 2 || !SPA_DETAIL_ROOTS.has(segments[0])) return false;
   if (/%2f|%5c/i.test(segments[1])) return false;
   try {

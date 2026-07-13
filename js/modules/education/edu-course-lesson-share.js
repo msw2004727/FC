@@ -3,6 +3,20 @@
    ================================================ */
 
 Object.assign(App, {
+  _buildEduCourseLessonRoutePath(teamId, planId, sessionId) {
+    const values = [teamId, planId, sessionId].map(value => String(value || '').trim());
+    const isSafeSegment = (value) => {
+      if (typeof this._isSafeHistoryRouteSegment === 'function') {
+        return this._isSafeHistoryRouteSegment(value);
+      }
+      return /^[A-Za-z0-9_-]{3,80}$/.test(value);
+    };
+    if (!values.every(isSafeSegment)) return '';
+    return '/teams/' + encodeURIComponent(values[0])
+      + '/courses/' + encodeURIComponent(values[1])
+      + '/lessons/' + encodeURIComponent(values[2]);
+  },
+
   _buildEduCourseLessonShareQuery(teamId, planId, sessionId, options = {}) {
     const params = new URLSearchParams();
     params.set('teamTab', 'courses');
@@ -15,21 +29,31 @@ Object.assign(App, {
   },
 
   _buildEduCourseLessonMiniAppShareUrl(teamId, planId, sessionId, options = {}) {
+    const routePath = this._buildEduCourseLessonRoutePath?.(teamId, planId, sessionId);
+    if (!routePath) return '';
     const base = typeof MINI_APP_BASE_URL !== 'undefined' ? MINI_APP_BASE_URL : 'https://toosterx.com';
-    const query = this._buildEduCourseLessonShareQuery(teamId, planId, sessionId, {
-      ...options,
-      includeTeam: true,
-    });
-    return base + '?' + query;
+    try {
+      const url = new URL(base);
+      url.pathname = url.pathname.replace(/\/+$/, '') + routePath;
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('courseTab', options.courseTab === 'ended' ? 'ended' : 'active');
+      return url.toString();
+    } catch (_) {
+      return '';
+    }
   },
 
   _buildEduCourseLessonWebShareUrl(teamId, planId, sessionId, options = {}) {
-    const safeTeamId = encodeURIComponent(String(teamId || '').trim());
-    const query = this._buildEduCourseLessonShareQuery(teamId, planId, sessionId, {
-      ...options,
-      includeTeam: false,
-    });
-    return 'https://toosterx.com/teams/' + safeTeamId + '?' + query;
+    const routePath = this._buildEduCourseLessonRoutePath?.(teamId, planId, sessionId);
+    if (!routePath) return '';
+    try {
+      const url = new URL(routePath, 'https://toosterx.com');
+      url.searchParams.set('courseTab', options.courseTab === 'ended' ? 'ended' : 'active');
+      return url.toString();
+    } catch (_) {
+      return '';
+    }
   },
 
   _findEduCourseLessonShareData(teamId, planId, sessionId) {
@@ -191,6 +215,10 @@ Object.assign(App, {
       : (this._eduCoursePlanTabByTeam?.[teamId] === 'ended' ? 'ended' : 'active');
     const liffUrl = this._buildEduCourseLessonMiniAppShareUrl(teamId, planId, sessionId, { courseTab });
     const webUrl = this._buildEduCourseLessonWebShareUrl(teamId, planId, sessionId, { courseTab });
+    if (!liffUrl || !webUrl) {
+      this.showToast?.('\u5206\u4eab\u9023\u7d50\u7121\u6548\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u8ab2\u5802\u540d\u55ae');
+      return false;
+    }
     const altText = this._buildEduCourseLessonShareAltText(team, plan, session, liffUrl);
     const canPicker = typeof this._canUseShareTargetPicker === 'function'
       ? await this._canUseShareTargetPicker()

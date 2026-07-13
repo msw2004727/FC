@@ -4,6 +4,9 @@
  * Source file: js/line-auth.js
  */
 
+const fs = require('fs');
+const path = require('path');
+
 // ---------------------------------------------------------------------------
 // Extracted from js/line-auth.js:100-119
 // _withTimeout — wraps a promise with a timeout
@@ -46,6 +49,33 @@ function _buildLoginRedirectUri(currentHref, origin) {
   _getLiffParamsToClean(url.searchParams).forEach(p => url.searchParams.delete(p));
   const redirectUri = url.toString();
   return redirectUri === base ? null : redirectUri;
+}
+
+function _loadLineAuthRuntime(href, options = {}) {
+  const source = fs.readFileSync(path.join(__dirname, '../../js/line-auth.js'), 'utf8');
+  const parsed = new URL(href);
+  const replaceState = options.replaceState || jest.fn();
+  const liff = options.liff || { init: jest.fn(async () => true) };
+  const window = {
+    location: {
+      href,
+      pathname: parsed.pathname,
+      search: parsed.search,
+      hash: parsed.hash,
+      hostname: parsed.hostname,
+    },
+    history: {
+      state: Object.prototype.hasOwnProperty.call(options, 'state') ? options.state : null,
+      replaceState,
+    },
+    HistoryRouteAdapter: require('../../js/core/history-route-adapter.js'),
+    HISTORY_ROUTE_FLAGS: { usersPathEnabled: false },
+  };
+  // eslint-disable-next-line no-new-func
+  const lineAuth = new Function('window', 'URL', 'liff', 'LINE_CONFIG', 'App', source + '\nreturn LineAuth;')(
+    window, URL, liff, { LIFF_ID: 'test-liff-id' }, options.app
+  );
+  return { lineAuth, liff, replaceState, window };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +229,137 @@ describe('_buildLoginRedirectUri (line-auth.js login redirect contract)', () => 
   test('removes LIFF OAuth params while keeping app route params', () => {
     expect(_buildLoginRedirectUri('https://toosterx.com/events/ce_1?code=abc&state=xyz&foo=bar#page-activity-detail', 'https://toosterx.com'))
       .toBe('https://toosterx.com/events/ce_1?foo=bar#page-activity-detail');
+  });
+
+  test('actual URL cleanup preserves a canonical lesson path and non-LIFF parameters', () => {
+    const { lineAuth, replaceState } = _loadLineAuthRuntime(
+      'https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA'
+      + '?courseTab=ended&code=oauth-code&keep=1&state=oauth-state#page-team-detail'
+    );
+
+    lineAuth._cleanUrl();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/teams/teamA/courses/planA/lessons/sessionA?courseTab=ended&keep=1#page-team-detail'
+    );
+  });
+
+  test('actual URL cleanup replaces a complete detail state that mismatches the canonical lesson path', () => {
+    const { lineAuth, replaceState } = _loadLineAuthRuntime(
+      'https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA'
+      + '?courseTab=active&code=oauth-code&state=oauth-state',
+      {
+        state: {
+          source: 'sportshub',
+          pageId: 'page-team-detail',
+          id: 'wrongTeam',
+          marker: 'stale',
+        },
+      }
+    );
+
+    lineAuth._cleanUrl();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/teams/teamA/courses/planA/lessons/sessionA?courseTab=active'
+    );
+  });
+
+  test('actual URL cleanup replaces mismatched state for a prefixed Mini App lesson path', () => {
+    const app = {
+      _resolveRouteIntent: jest.fn(() => ({ pageId: 'page-home', id: null })),
+    };
+    const { lineAuth, replaceState } = _loadLineAuthRuntime(
+      'https://miniapp.line.me/demo/teams/teamA/courses/planA/lessons/sessionA'
+      + '?courseTab=active&code=oauth-code&state=oauth-state',
+      {
+        state: {
+          source: 'sportshub',
+          pageId: 'page-team-detail',
+          id: 'wrongTeam',
+          marker: 'stale',
+        },
+        app,
+      }
+    );
+
+    lineAuth._cleanUrl();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=active'
+    );
+  });
+
+  test('actual URL cleanup rebuilds incomplete state through the central route resolver', () => {
+    const app = {
+      _resolveRouteIntent: jest.fn(() => ({ pageId: 'page-teams', id: null })),
+    };
+    const { lineAuth, replaceState } = _loadLineAuthRuntime(
+      'https://toosterx.com/?code=oauth-code&state=oauth-state#page-teams',
+      { state: { source: 'sportshub' }, app }
+    );
+
+    lineAuth._cleanUrl();
+
+    expect(app._resolveRouteIntent).toHaveBeenCalledWith({
+      skipState: true,
+      loc: expect.any(URL),
+    });
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-teams' },
+      '',
+      '/#page-teams'
+    );
+  });
+
+  test('actual URL cleanup does not write a detail state without its id', () => {
+    const app = {
+      _resolveRouteIntent: jest.fn(() => ({ pageId: 'page-team-detail', id: null })),
+    };
+    const { lineAuth, replaceState } = _loadLineAuthRuntime(
+      'https://toosterx.com/?code=oauth-code&state=oauth-state#page-team-detail',
+      { state: { source: 'sportshub', pageId: 'page-team-detail' }, app }
+    );
+
+    lineAuth._cleanUrl();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-home' },
+      '',
+      '/#page-team-detail'
+    );
+  });
+
+  test('actual init waits for liff.init before cleaning OAuth params and preserves route state', async () => {
+    const existingState = {
+      source: 'sportshub',
+      pageId: 'page-team-detail',
+      id: 'teamA',
+      marker: 'keep',
+    };
+    const { lineAuth, liff, replaceState } = _loadLineAuthRuntime(
+      'https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA'
+      + '?courseTab=active&code=oauth-code&state=oauth-state',
+      { state: existingState }
+    );
+
+    await lineAuth.initSDK();
+
+    expect(liff.init).toHaveBeenCalledWith({ liffId: 'test-liff-id' });
+    expect(liff.init.mock.invocationCallOrder[0]).toBeLessThan(
+      replaceState.mock.invocationCallOrder[0]
+    );
+    expect(replaceState).toHaveBeenCalledWith(
+      existingState,
+      '',
+      '/teams/teamA/courses/planA/lessons/sessionA?courseTab=active'
+    );
   });
 });
 

@@ -1438,8 +1438,18 @@ Object.assign(App, {
     }
     // 2026-04-19 UX 調整：移除返回導航的 _pendingFirstLogin 守衛，允許自由瀏覽。
     // 寫入類動作由對應函式的 _requireProfileComplete() 守衛負責攔截。
-    if (this.pageHistory.length > 0) {
-      const prev = this.pageHistory[this.pageHistory.length - 1];
+    const rosterContext = this.currentPage === 'page-edu-course-lessons'
+      && this._eduCourseLessonsContext?.mode === 'roster'
+      ? this._eduCourseLessonsContext
+      : null;
+    const rosterParentTeamId = String(rosterContext?.teamId || '').trim();
+    const hasRosterParent = !!rosterParentTeamId
+      && (typeof this._isSafeHistoryRouteSegment === 'function'
+        ? this._isSafeHistoryRouteSegment(rosterParentTeamId)
+        : /^[A-Za-z0-9_-]{3,80}$/.test(rosterParentTeamId));
+    if (hasRosterParent) this._teamDetailId = rosterParentTeamId;
+    if (this.pageHistory.length > 0 || hasRosterParent) {
+      const prev = hasRosterParent ? 'page-team-detail' : this.pageHistory[this.pageHistory.length - 1];
       const transitionSeq = this._claimPageTransition(prev);
       if (!this._isPageTransitionCurrent(transitionSeq)) {
         return this._abortStalePageTransition('goBack-entry', prev, transitionSeq);
@@ -1451,7 +1461,9 @@ Object.assign(App, {
       if (!this._isPageTransitionCurrent(transitionSeq)) {
         return this._abortStalePageTransition('goBack-collections', prev, transitionSeq);
       }
-      this.pageHistory.pop();
+      if (!hasRosterParent || this.pageHistory[this.pageHistory.length - 1] === prev) {
+        this.pageHistory.pop();
+      }
       // 確認仍是最新返回意圖後，才清理目前頁面並切換 DOM。
       this._cleanupBeforePageSwitch(prev);
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1466,9 +1478,16 @@ Object.assign(App, {
         FirebaseService.finalizePageScopedRealtimeForPage(prev);
       }
       // 同步 URL hash(Phase 6 Commit A:改 push → replace,避免 browser history 隨 goBack 持續膨脹)
-      if (location.hash !== '#' + prev) {
+      const returningToTeamDetail = prev === 'page-team-detail' && !!this._teamDetailId;
+      if (returningToTeamDetail || location.hash !== '#' + prev) {
         if (typeof this._setRouteUrl === 'function') {
-          this._setRouteUrl(prev, { mode: 'replace' });
+          const routeTarget = returningToTeamDetail
+            ? { pageId: prev, id: this._teamDetailId }
+            : prev;
+          this._setRouteUrl(routeTarget, {
+            mode: 'replace',
+            collapseNestedRoute: returningToTeamDetail,
+          });
         } else {
           history.replaceState({ source: 'sportshub', pageId: prev }, '', '#' + prev);
         }

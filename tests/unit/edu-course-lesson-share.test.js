@@ -65,22 +65,22 @@ function loadLessonShare(overrides = {}) {
 }
 
 describe('edu course lesson share', () => {
-  test('builds encoded Mini App and web roster URLs', () => {
+  test('builds canonical Mini App and web roster URLs', () => {
     const { app } = loadLessonShare();
 
-    const mini = new URL(app._buildEduCourseLessonMiniAppShareUrl('team A', 'plan/A', 'session?A', { courseTab: 'ended' }));
-    const web = new URL(app._buildEduCourseLessonWebShareUrl('team A', 'plan/A', 'session?A', { courseTab: 'ended' }));
+    const mini = new URL(app._buildEduCourseLessonMiniAppShareUrl('team_A', 'plan-A', 'session_A', { courseTab: 'ended' }));
+    const web = new URL(app._buildEduCourseLessonWebShareUrl('team_A', 'plan-A', 'session_A', { courseTab: 'ended' }));
 
-    expect(mini.origin + mini.pathname).toBe('https://miniapp.line.me/demo');
-    expect(mini.searchParams.get('team')).toBe('team A');
-    expect(mini.searchParams.get('teamTab')).toBe('courses');
-    expect(mini.searchParams.get('course')).toBe('plan/A');
-    expect(mini.searchParams.get('lesson')).toBe('session?A');
-    expect(mini.searchParams.get('courseView')).toBe('roster');
+    expect(mini.origin + mini.pathname).toBe('https://miniapp.line.me/demo/teams/team_A/courses/plan-A/lessons/session_A');
+    expect(mini.searchParams.get('team')).toBeNull();
+    expect(mini.searchParams.get('course')).toBeNull();
+    expect(mini.searchParams.get('lesson')).toBeNull();
     expect(mini.searchParams.get('courseTab')).toBe('ended');
-    expect(web.pathname).toBe('/teams/team%20A');
+    expect(web.pathname).toBe('/teams/team_A/courses/plan-A/lessons/session_A');
     expect(web.searchParams.get('team')).toBeNull();
-    expect(web.searchParams.get('lesson')).toBe('session?A');
+    expect(web.searchParams.get('lesson')).toBeNull();
+    expect(web.searchParams.get('courseTab')).toBe('ended');
+    expect(app._buildEduCourseLessonWebShareUrl('team A', 'planA', 'sessionA')).toBe('');
   });
 
   test('shares a Flex card whose action opens the exact lesson roster', async () => {
@@ -93,9 +93,9 @@ describe('edu course lesson share', () => {
     expect(message.type).toBe('flex');
     expect(message.altText).toContain('Lesson One');
     const actionUrl = new URL(message.contents.footer.contents[0].action.uri);
-    expect(actionUrl.searchParams.get('team')).toBe('teamA');
-    expect(actionUrl.searchParams.get('course')).toBe('planA');
-    expect(actionUrl.searchParams.get('lesson')).toBe('sessionA');
+    expect(actionUrl.pathname).toBe('/demo/teams/teamA/courses/planA/lessons/sessionA');
+    expect(actionUrl.searchParams.get('courseTab')).toBe('active');
+    expect(actionUrl.searchParams.get('lesson')).toBeNull();
     expect(message.contents.footer.contents[0].action.label).toBe('查看課堂名單');
   });
 
@@ -114,7 +114,7 @@ describe('edu course lesson share', () => {
 
     expect(copyToClipboard).toHaveBeenCalledTimes(1);
     const copiedText = copyToClipboard.mock.calls[0][0];
-    expect(copiedText).toContain('https://toosterx.com/teams/teamA?');
-    expect(copiedText).toContain('lesson=sessionA');
+    expect(copiedText).toContain('https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA');
+    expect(copiedText).toContain('courseTab=active');
   });
 });

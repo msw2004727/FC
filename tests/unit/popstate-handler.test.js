@@ -188,6 +188,22 @@ describe('Phase 6 — _resolveRouteIntent (Codex 第十五輪 共用 helper)', (
     expect(r.id).toBe('ce_test_123');
   });
 
+  test('Mini App prefixed lesson path resolves only on an approved LINE host', () => {
+    const App = installApp();
+    const path = '/demo/teams/teamA/courses/planA/lessons/sessionA';
+    const miniAppResult = App._resolveRouteIntent({
+      state: null,
+      loc: new URL('https://miniapp.line.me' + path),
+    });
+    const webResult = App._resolveRouteIntent({
+      state: null,
+      loc: new URL('https://toosterx.com' + path),
+    });
+
+    expect(miniAppResult).toEqual({ pageId: 'page-team-detail', id: 'teamA' });
+    expect(webResult).toEqual({ pageId: 'page-home', id: null });
+  });
+
   test('hash fallback:state=null + URL=/#page-teams', () => {
     const App = installApp();
     setLocation('/', '', '#page-teams');
@@ -410,7 +426,8 @@ describe('Phase 6 — popstate handler source-level contract', () => {
 
   test('goBack 用 replace 模式 (Commit A-1)', () => {
     const navSource = readProjectFile('js/core/navigation.js');
-    expect(navSource).toMatch(/this\._setRouteUrl\(prev,\s*\{ mode:\s*'replace'\s*\}\)/);
+    expect(navSource).toMatch(/const routeTarget = returningToTeamDetail[\s\S]*?\? \{ pageId: prev, id: this\._teamDetailId \}[\s\S]*?: prev/);
+    expect(navSource).toMatch(/this\._setRouteUrl\(routeTarget,\s*\{\s*mode:\s*'replace',\s*collapseNestedRoute:\s*returningToTeamDetail,/);
   });
 
   test('_setRouteUrl hash fallback 帶完整 state (Commit A-3)', () => {

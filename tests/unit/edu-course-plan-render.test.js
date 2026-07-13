@@ -605,6 +605,43 @@ describe('edu course plan render', () => {
         openRoster: true,
         lessonId: 'sessionA',
       });
+    context.window.location.href = 'https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA?courseTab=ended';
+    expect(app._getEduCoursePlanShareIntent('teamA'))
+      .toEqual({
+        teamTab: 'courses',
+        planId: 'planA',
+        courseTab: 'ended',
+        openDetail: false,
+        openRoster: true,
+        lessonId: 'sessionA',
+      });
+    context.window.location.href = 'https://miniapp.line.me/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=ended';
+    expect(app._getEduCoursePlanShareIntent('teamA'))
+      .toEqual({
+        teamTab: 'courses',
+        planId: 'planA',
+        courseTab: 'ended',
+        openDetail: false,
+        openRoster: true,
+        lessonId: 'sessionA',
+      });
+    context.window.location.href = 'https://miniapp.line.me/a/b/teams/teamA/courses/planA/lessons/sessionA?courseTab=ended';
+    expect(app._getEduCoursePlanShareIntent('teamA')).toBeNull();
+    context.window.location.href = 'https://miniapp.line.me/demo%2Fextra/teams/teamA/courses/planA/lessons/sessionA?courseTab=ended';
+    expect(app._getEduCoursePlanShareIntent('teamA')).toBeNull();
+    expect(app._buildEduCourseLessonCanonicalPath(
+      'teamA',
+      'planA',
+      'sessionA',
+      new URL('https://miniapp.line.me/demo/teams/teamA')
+    )).toBe('/demo/teams/teamA/courses/planA/lessons/sessionA');
+    expect(app._buildEduCourseLessonCanonicalPath(
+      'teamA',
+      'planA',
+      'sessionA',
+      new URL('https://miniapp.line.me/a/b/teams/teamA')
+    )).toBe('/teams/teamA/courses/planA/lessons/sessionA');
+    expect(app._getEduCoursePlanShareIntent('teamB')).toBeNull();
   });
 
   test('course plan share detail intent opens the detail overlay after render', async () => {
@@ -705,7 +742,7 @@ describe('edu course plan render', () => {
       ApiService: {},
       document: { querySelectorAll: jest.fn(() => []) },
       window: {
-        location: { href: 'https://miniapp.line.me/demo?team=teamA&teamTab=courses&course=planA&courseTab=active&courseView=roster&lesson=sessionA' },
+        location: { href: 'https://miniapp.line.me/demo?team=teamA&teamTab=courses&course=planA&courseTab=active&courseView=roster&lesson=sessionA&keep=1' },
         history: { state: { source: 'sportshub' }, replaceState },
       },
       setTimeout: (fn) => { fn(); return 0; },
@@ -723,7 +760,11 @@ describe('edu course plan render', () => {
     };
     vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
 
-    const intent = app._primeEduCoursePlanShareIntent('teamA');
+    const intent = app._primeEduCoursePlanShareIntent('teamA', {
+      skipPageHistory: true,
+      suppressHashSync: true,
+      _navigationTransitionSeq: 9,
+    });
     const applied = app._applyEduCoursePlanShareFocus('teamA');
     await new Promise(resolve => setImmediate(resolve));
 
@@ -732,12 +773,15 @@ describe('edu course plan render', () => {
     expect(app.showCourseLessonRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', {
       _navigationTransitionSeq: 9,
       bypassPageLock: true,
+      preserveRouteUrl: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
     });
     expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
     expect(replaceState).toHaveBeenCalledWith(
       { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
       '',
-      '/demo?team=teamA',
+      '/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=active&keep=1',
     );
   });
 
@@ -759,7 +803,7 @@ describe('edu course plan render', () => {
       document: { querySelectorAll: jest.fn(() => []) },
       window: {
         location: { href: 'https://miniapp.line.me' + originalUrl },
-        history: { state: { source: 'sportshub' }, replaceState },
+        history: { state: { source: 'sportshub', pageId: 'page-team-detail' }, replaceState },
       },
       setTimeout: (fn) => { fn(); return 0; },
       escapeHTML,
@@ -785,14 +829,14 @@ describe('edu course plan render', () => {
       planId: 'planA',
       lessonId: 'sessionA',
       openRoster: true,
-      handoffAttempted: true,
+      handoffAttempted: false,
       handoffInFlight: false,
     });
     expect(replaceState).toHaveBeenNthCalledWith(
       1,
       { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
       '',
-      '/demo?team=teamA',
+      '/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=active',
     );
     expect(replaceState).toHaveBeenNthCalledWith(
       2,
@@ -803,15 +847,18 @@ describe('edu course plan render', () => {
 
     expect(app._applyEduCoursePlanShareFocus('teamA')).toBe(true);
     await new Promise(resolve => setImmediate(resolve));
-    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(1);
-    expect(replaceState).toHaveBeenCalledTimes(2);
+    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(2);
+    expect(replaceState).toHaveBeenCalledTimes(4);
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toMatchObject({
+      handoffAttempted: false,
+      handoffInFlight: false,
+    });
 
-    app._primeEduCoursePlanShareIntent('teamA');
     app.showCourseLessonRoster.mockResolvedValueOnce({ ok: true });
     expect(app._applyEduCoursePlanShareFocus('teamA')).toBe(true);
     await new Promise(resolve => setImmediate(resolve));
 
-    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(2);
+    expect(app.showCourseLessonRoster).toHaveBeenCalledTimes(3);
     expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
   });
 

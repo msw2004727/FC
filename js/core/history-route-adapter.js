@@ -60,6 +60,31 @@
     return out;
   }
 
+  function parseCourseLessonRoute(rawSegments) {
+    if (rawSegments.length !== 6) return null;
+    if (rawSegments.some(hasUnsafeEncodedSlash)) return null;
+    if (rawSegments[0] !== 'teams' || rawSegments[2] !== 'courses' || rawSegments[4] !== 'lessons') {
+      return null;
+    }
+
+    var teamId = decodeSegment(rawSegments[1]);
+    var coursePlanId = decodeSegment(rawSegments[3]);
+    var lessonId = decodeSegment(rawSegments[5]);
+    if (![teamId, coursePlanId, lessonId].every(isSafeSegment)) return null;
+
+    var out = routeResult(DETAIL_ROUTES.teams, teamId);
+    out.teamId = teamId;
+    out.coursePlanId = coursePlanId;
+    out.lessonId = lessonId;
+    out.courseView = 'roster';
+    out.legacyEquivalent = '?team=' + encodeURIComponent(teamId)
+      + '&teamTab=courses'
+      + '&course=' + encodeURIComponent(coursePlanId)
+      + '&courseView=roster'
+      + '&lesson=' + encodeURIComponent(lessonId);
+    return out;
+  }
+
   function parseHistoryRoute(pathname, options) {
     var opts = options || {};
     var path = normalizePathname(pathname);
@@ -68,8 +93,16 @@
     }
 
     var rawSegments = path.split('/').filter(Boolean);
-    if (rawSegments.length < 1 || rawSegments.length > 2) return null;
     if (rawSegments.some(hasUnsafeEncodedSlash)) return null;
+    if (rawSegments.length === 6) {
+      return parseCourseLessonRoute(rawSegments);
+    }
+    if (opts.allowCourseLessonPrefix && rawSegments.length === 7) {
+      var prefix = decodeSegment(rawSegments[0]);
+      if (!isSafeSegment(prefix)) return null;
+      return parseCourseLessonRoute(rawSegments.slice(1));
+    }
+    if (rawSegments.length < 1 || rawSegments.length > 2) return null;
 
     var first = decodeSegment(rawSegments[0]);
     if (!first) return null;

@@ -2005,6 +2005,52 @@ Object.assign(App, {
     }
   },
 
+  _isCurrentEduCourseLessonCanonicalRoute(teamId, planId, sessionId) {
+    if (typeof window === 'undefined' || !window.location) return false;
+    try {
+      const href = String(window.location.href || '');
+      const parsedUrl = href ? new URL(href) : null;
+      const pathname = String(window.location.pathname || parsedUrl?.pathname || '/');
+      const hostname = String(window.location.hostname || parsedUrl?.hostname || '');
+      const allowPrefix = /^(?:miniapp|liff)\.line\.me$/i.test(hostname);
+      const expected = [teamId, planId, sessionId].map(value => String(value || '').trim());
+      let route = typeof this._parseEduCourseLessonRoute === 'function'
+        ? this._parseEduCourseLessonRoute(pathname, { allowPrefix })
+        : null;
+      if (!route) {
+        const rawSegments = pathname.split('/').filter(Boolean);
+        const suffixOffset = rawSegments.length - 6;
+        if (suffixOffset < 0 || suffixOffset > 1) return false;
+        if (suffixOffset === 1 && !allowPrefix) return false;
+        const segments = rawSegments.slice(suffixOffset);
+        if (segments[0] !== 'teams' || segments[2] !== 'courses' || segments[4] !== 'lessons') {
+          return false;
+        }
+        const decodeSafe = (raw) => {
+          const encoded = String(raw || '');
+          if (!encoded || /%2f|%5c/i.test(encoded)) return '';
+          try {
+            const decoded = decodeURIComponent(encoded);
+            return /^[A-Za-z0-9_-]{3,80}$/.test(decoded) ? decoded : '';
+          } catch (_) {
+            return '';
+          }
+        };
+        if (suffixOffset === 1 && !decodeSafe(rawSegments[0])) return false;
+        route = {
+          teamId: decodeSafe(segments[1]),
+          planId: decodeSafe(segments[3]),
+          lessonId: decodeSafe(segments[5]),
+        };
+      }
+      return route.teamId === expected[0]
+        && route.planId === expected[1]
+        && route.lessonId === expected[2];
+    } catch (_) {
+      return false;
+    }
+  },
+
   async showCourseLessonRoster(teamId, planId, sessionId, options = {}) {
     const previousContext = this._eduCourseLessonsContext;
     const isSameRoute = this.currentPage === 'page-edu-course-lessons'
@@ -2027,9 +2073,15 @@ Object.assign(App, {
     }, perfStartedAtMs);
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
+    const preserveRouteUrl = options?.preserveRouteUrl === true
+      || this._isCurrentEduCourseLessonCanonicalRoute?.(teamId, planId, sessionId) === true;
     await this.showPage('page-edu-course-lessons', {
       _navigationTransitionSeq: routeTransitionSeq,
       bypassPageLock: options?.bypassPageLock === true,
+      ...(options?.skipPageHistory === true ? { skipPageHistory: true } : {}),
+      ...((preserveRouteUrl || options?.suppressHashSync === true)
+        ? { suppressHashSync: true }
+        : {}),
     });
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-showPage', routeTransitionSeq);

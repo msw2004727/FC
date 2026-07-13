@@ -108,6 +108,17 @@ function getSpaRouteKind(pathname) {
   const path = stripTrailingSlash(pathname);
   if (LIST_SPA_PATHS.has(path)) return "list";
   const segments = path.split("/").filter(Boolean);
+  if (
+    segments.length === 6
+    && segments[0] === "teams"
+    && segments[2] === "courses"
+    && segments[4] === "lessons"
+    && isSafeRouteSegment(segments[1])
+    && isSafeRouteSegment(segments[3])
+    && isSafeRouteSegment(segments[5])
+  ) {
+    return "courseLesson";
+  }
   if (segments.length !== 2) return "";
   if (!DETAIL_SPA_ROOTS.has(segments[0])) return "";
   return isSafeRouteSegment(segments[1]) ? "detail" : "";

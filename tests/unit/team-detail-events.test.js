@@ -1187,7 +1187,7 @@ describe('team detail club activity section', () => {
 
   test('team detail primes course share intent before rendering the v2 shell', () => {
     const detailSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail.js'), 'utf8');
-    const primeIndex = detailSource.indexOf('this._primeEduCoursePlanShareIntent?.(id);');
+    const primeIndex = detailSource.indexOf('this._primeEduCoursePlanShareIntent?.(id, {');
     const renderIndex = detailSource.indexOf('nodes.body.innerHTML = this._buildTeamDetailBodyHtml');
     const focusIndex = detailSource.indexOf('this._applyEduCoursePlanShareFocus?.(id);');
 
@@ -1196,6 +1196,7 @@ describe('team detail club activity section', () => {
     expect(focusIndex).toBeGreaterThan(-1);
     expect(primeIndex).toBeLessThan(renderIndex);
     expect(focusIndex).toBeGreaterThan(renderIndex);
+    expect(detailSource).toMatch(/_primeEduCoursePlanShareIntent\?\.\(id,\s*\{[\s\S]*?_navigationTransitionSeq:\s*routeTransitionSeq/);
   });
 
   test('team detail v2 course cards only open details through explicit actions', () => {

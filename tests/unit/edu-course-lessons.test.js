@@ -189,6 +189,7 @@ function loadCourseLessonsContext(overrides = {}) {
       }),
     },
     localStorage: localStorageMock,
+    ...(overrides.window ? { window: overrides.window, URL } : {}),
   };
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
   vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
@@ -968,11 +969,69 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA', {
       _navigationTransitionSeq: 7,
       bypassPageLock: true,
+      preserveRouteUrl: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
     });
 
     expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons', {
       _navigationTransitionSeq: 7,
       bypassPageLock: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
+    });
+  });
+
+  test('canonical roster retries preserve the nested lesson URL automatically', async () => {
+    const href = 'https://toosterx.com/teams/teamA/courses/planA/lessons/sessionA?courseTab=active';
+    const { app } = loadCourseLessonsContext({
+      window: {
+        location: {
+          href,
+          pathname: '/teams/teamA/courses/planA/lessons/sessionA',
+          hostname: 'toosterx.com',
+        },
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA', { forceRefresh: true });
+
+    expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons', {
+      _navigationTransitionSeq: 1,
+      bypassPageLock: false,
+      suppressHashSync: true,
+    });
+  });
+
+  test('canonical roster detection rejects extra and unsafe Mini App prefixes', () => {
+    const validHref = 'https://miniapp.line.me/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=active';
+    const valid = loadCourseLessonsContext({
+      window: {
+        location: {
+          href: validHref,
+          pathname: '/demo/teams/teamA/courses/planA/lessons/sessionA',
+          hostname: 'miniapp.line.me',
+        },
+      },
+    });
+    expect(valid.app._isCurrentEduCourseLessonCanonicalRoute('teamA', 'planA', 'sessionA')).toBe(true);
+
+    const invalidPaths = [
+      '/a/b/teams/teamA/courses/planA/lessons/sessionA',
+      '/demo%2Fextra/teams/teamA/courses/planA/lessons/sessionA',
+      '/demo%5Cextra/teams/teamA/courses/planA/lessons/sessionA',
+    ];
+    invalidPaths.forEach((pathname) => {
+      const invalid = loadCourseLessonsContext({
+        window: {
+          location: {
+            href: 'https://miniapp.line.me' + pathname + '?courseTab=active',
+            pathname,
+            hostname: 'miniapp.line.me',
+          },
+        },
+      });
+      expect(invalid.app._isCurrentEduCourseLessonCanonicalRoute('teamA', 'planA', 'sessionA')).toBe(false);
     });
   });
 

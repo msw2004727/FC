@@ -43,11 +43,57 @@ describe('history-route-adapter parseHistoryRoute', () => {
     });
   });
 
+  test('parses canonical course lesson roster routes as team details', () => {
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/planA/lessons/sessionA')).toMatchObject({
+      source: 'history',
+      kind: 'teamDetail',
+      pageId: 'page-team-detail',
+      id: 'teamA',
+      teamId: 'teamA',
+      coursePlanId: 'planA',
+      lessonId: 'sessionA',
+      courseView: 'roster',
+    });
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/planA/lessons/sessionA/')).toMatchObject({
+      id: 'teamA',
+      coursePlanId: 'planA',
+      lessonId: 'sessionA',
+    });
+  });
+
+  test('accepts one safe Mini App prefix only when explicitly enabled', () => {
+    const prefixed = '/demo/teams/teamA/courses/planA/lessons/sessionA';
+
+    expect(adapter.parseHistoryRoute(prefixed)).toBeNull();
+    expect(adapter.parseHistoryRoute(prefixed, {
+      allowCourseLessonPrefix: true,
+    })).toMatchObject({
+      kind: 'teamDetail',
+      pageId: 'page-team-detail',
+      id: 'teamA',
+      coursePlanId: 'planA',
+      lessonId: 'sessionA',
+    });
+    expect(adapter.parseHistoryRoute(
+      '/demo/extra/teams/teamA/courses/planA/lessons/sessionA',
+      { allowCourseLessonPrefix: true }
+    )).toBeNull();
+    expect(adapter.parseHistoryRoute(
+      '/de%2Fmo/teams/teamA/courses/planA/lessons/sessionA',
+      { allowCourseLessonPrefix: true }
+    )).toBeNull();
+  });
+
   test('rejects unsafe or unsupported paths', () => {
     expect(adapter.parseHistoryRoute('/events/a')).toBeNull();
     expect(adapter.parseHistoryRoute('/events/../../x')).toBeNull();
     expect(adapter.parseHistoryRoute('/events/ce_%2Fbad')).toBeNull();
     expect(adapter.parseHistoryRoute('/events/ce_test/more')).toBeNull();
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/planA/lessons')).toBeNull();
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/planA/lessons/sessionA/more')).toBeNull();
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/plan%2Fbad/lessons/sessionA')).toBeNull();
+    expect(adapter.parseHistoryRoute('/teams/teamA/courses/planA/lessons/session%5Cbad')).toBeNull();
+    expect(adapter.parseHistoryRoute('/t%65ams/teamA/courses/planA/lessons/sessionA')).toBeNull();
     expect(adapter.parseHistoryRoute('/css/base.css')).toBeNull();
     expect(adapter.parseHistoryRoute('/random-unknown-path')).toBeNull();
   });

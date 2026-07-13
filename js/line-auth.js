@@ -27,7 +27,62 @@ const LineAuth = {
       }
     });
     if (dirty) {
-      window.history.replaceState({}, '', url.pathname + (url.search || '') + (url.hash || ''));
+      let routeState = window.history.state;
+      const detailPages = new Set([
+        'page-activity-detail',
+        'page-team-detail',
+        'page-tournament-detail',
+        'page-user-card',
+      ]);
+      const flags = window.HISTORY_ROUTE_FLAGS && typeof window.HISTORY_ROUTE_FLAGS === 'object'
+        ? window.HISTORY_ROUTE_FLAGS
+        : {};
+      let route = null;
+      try {
+        if (typeof App !== 'undefined' && typeof App._resolveRouteIntent === 'function') {
+          route = App._resolveRouteIntent({ skipState: true, loc: url });
+        }
+      } catch (_) {}
+      const historyRoute = window.HistoryRouteAdapter?.parseHistoryRoute?.(url.pathname, {
+        usersPathEnabled: !!flags.usersPathEnabled,
+        allowCourseLessonPrefix: /^(?:miniapp|liff)\.line\.me$/i.test(String(url.hostname || '')),
+      });
+      if (!route || (
+        route.pageId === 'page-home'
+        && historyRoute?.pageId
+        && historyRoute.pageId !== 'page-home'
+      )) {
+        route = historyRoute;
+      }
+      const routePageId = String(route?.pageId || 'page-home').trim() || 'page-home';
+      const routeId = String(route?.id || '').trim();
+      const routeIsExplicit = routePageId !== 'page-home' || url.hash === '#page-home';
+      const hasCompleteRouteState = routeState
+        && typeof routeState === 'object'
+        && routeState.source === 'sportshub'
+        && typeof routeState.pageId === 'string'
+        && routeState.pageId
+        && (!detailPages.has(routeState.pageId) || String(routeState.id || '').trim());
+      const routeStateMatchesUrl = hasCompleteRouteState
+        && (!routeIsExplicit || (
+          routeState.pageId === routePageId
+          && (!routeId || String(routeState.id || '').trim() === routeId)
+        ));
+      if (!routeStateMatchesUrl) {
+        const routeIsComplete = !detailPages.has(routePageId) || !!routeId;
+        routeState = routeIsComplete
+          ? {
+              source: 'sportshub',
+              pageId: routePageId,
+              ...(routeId ? { id: routeId } : {}),
+            }
+          : { source: 'sportshub', pageId: 'page-home' };
+      }
+      window.history.replaceState(
+        routeState,
+        '',
+        url.pathname + (url.search || '') + (url.hash || ''),
+      );
     }
   },
 
