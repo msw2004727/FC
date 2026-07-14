@@ -21,6 +21,7 @@ Object.assign(App, {
   _eduCourseRosterViewerRetryLimit: 1,
   _eduCourseRosterPerfTimeline: [],
   _eduCourseRosterLastPerf: null,
+  _eduCourseRosterRestoredTransitionSeq: 0,
 
   _getEduCourseLessonsContainer() {
     return document.getElementById('edu-course-lessons-page');
@@ -61,6 +62,102 @@ Object.assign(App, {
       return this._abortStalePageTransition(source, 'page-edu-course-lessons', transitionSeq);
     }
     return { ok: false, reason: 'stale_transition', source, pageId: 'page-edu-course-lessons', transitionSeq };
+  },
+
+  _getCourseLessonRosterRestoreCandidate(transitionSeq, options = {}) {
+    const normalizedTransitionSeq = Number(transitionSeq);
+    if (!Number.isSafeInteger(normalizedTransitionSeq) || normalizedTransitionSeq <= 0) return null;
+    const activeTransitionSeq = Number(this._activePageTransitionSeq);
+    const latestTransitionSeq = Number(this._pageTransitionSeq);
+    const isActiveTransition = activeTransitionSeq === normalizedTransitionSeq;
+    const isPendingSamePageTransition = options.allowPendingActivation === true
+      && latestTransitionSeq === normalizedTransitionSeq
+      && latestTransitionSeq > activeTransitionSeq;
+    if (this.currentPage !== 'page-edu-course-lessons'
+      || this._userIntendedPage !== 'page-edu-course-lessons'
+      || (!isActiveTransition && !isPendingSamePageTransition)
+      || !this._isEduCourseLessonsTransitionCurrent(normalizedTransitionSeq)) {
+      return null;
+    }
+
+    const context = this._eduCourseLessonsContext;
+    const teamId = String(context?.teamId || '').trim();
+    const planId = String(context?.planId || '').trim();
+    const sessionId = String(context?.sessionId || '').trim();
+    if (context?.mode !== 'roster' || !teamId || !planId || !sessionId) return null;
+
+    const container = this._getEduCourseLessonsContainer();
+    const html = String(container?.innerHTML || '');
+    const blockingLoading = html.includes('edu-course-lessons-loading')
+      || html.includes('edu-course-roster-shell-loading');
+    const pendingPreview = context.refreshPending === true
+      && context.refreshError !== true
+      && (context.rosterPayload?.cacheMeta?.preview === true || context.staleCached === true)
+      && html.includes('edu-course-roster-refresh-status');
+    if (!container || (!blockingLoading && !pendingPreview)) return null;
+
+    return {
+      transitionSeq: normalizedTransitionSeq,
+      teamId,
+      planId,
+      sessionId,
+      pendingActivation: isPendingSamePageTransition,
+    };
+  },
+
+  _resumeCourseLessonRosterAfterBFCache(transitionSeq, options = {}) {
+    const candidate = this._getCourseLessonRosterRestoreCandidate(transitionSeq, options);
+    if (!candidate) return { ok: false, reason: 'not_applicable' };
+    if (Number(this._eduCourseRosterRestoredTransitionSeq) === candidate.transitionSeq) {
+      return { ok: false, reason: 'deduped' };
+    }
+    this._eduCourseRosterRestoredTransitionSeq = candidate.transitionSeq;
+    return this.showCourseLessonRoster(candidate.teamId, candidate.planId, candidate.sessionId, {
+      _navigationTransitionSeq: candidate.transitionSeq,
+      bypassPageLock: true,
+      preserveRouteUrl: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
+      _restoredPageReady: true,
+      _allowPendingPageActivation: candidate.pendingActivation === true,
+    });
+  },
+
+  _tryResumeCourseLessonRosterForCurrentTransition(requestSeq, staleTransitionSeq, source = '') {
+    const normalizedRequestSeq = Number(requestSeq);
+    if (!Number.isSafeInteger(normalizedRequestSeq)
+      || normalizedRequestSeq !== Number(this._eduCourseLessonsRequestSeq)
+      || this._isEduCourseLessonsTransitionCurrent(staleTransitionSeq)) {
+      return false;
+    }
+    const activeTransitionSeq = Number(this._activePageTransitionSeq);
+    let candidate = this._getCourseLessonRosterRestoreCandidate(activeTransitionSeq);
+    if (!candidate) {
+      candidate = this._getCourseLessonRosterRestoreCandidate(
+        Number(this._pageTransitionSeq),
+        { allowPendingActivation: true },
+      );
+    }
+    if (!candidate) return false;
+
+    this._recordNavigationDiagnostic?.('course-roster-transition-recovery', {
+      source: String(source || 'course-roster'),
+      pageId: 'page-edu-course-lessons',
+      expectedSeq: Number(staleTransitionSeq) || 0,
+    });
+    try {
+      void Promise.resolve(
+        this._resumeCourseLessonRosterAfterBFCache(candidate.transitionSeq, {
+          allowPendingActivation: candidate.pendingActivation === true,
+        })
+      ).catch((err) => {
+        console.warn('[edu-course-lessons] transition recovery failed:', err);
+      });
+      return true;
+    } catch (err) {
+      console.warn('[edu-course-lessons] transition recovery failed:', err);
+      return false;
+    }
   },
 
   _findEduCoursePlan(teamId, planId) {
@@ -1967,8 +2064,16 @@ Object.assign(App, {
     options = {},
   ) {
     const routeTransitionSeq = Number(options?.routeTransitionSeq || 0);
+    const abortStaleRefresh = (source) => {
+      this._tryResumeCourseLessonRosterForCurrentTransition(
+        requestSeq,
+        routeTransitionSeq,
+        source,
+      );
+      return this._abortEduCourseLessonsTransition(source, routeTransitionSeq);
+    };
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
-      return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-entry', routeTransitionSeq);
+      return abortStaleRefresh('refreshCourseLessonRoster-entry');
     }
     const finishRefreshIndicator = (state = {}) => {
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) return;
@@ -2010,7 +2115,7 @@ Object.assign(App, {
         : Promise.resolve(planOrState);
       const [stateOrPlan, rosterPayload] = await Promise.all([statePromise, rosterPromise]);
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
-        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-data', routeTransitionSeq);
+        return abortStaleRefresh('refreshCourseLessonRoster-data');
       }
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
@@ -2068,7 +2173,7 @@ Object.assign(App, {
         { routeTransitionSeq },
       );
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
-        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-render', routeTransitionSeq);
+        return abortStaleRefresh('refreshCourseLessonRoster-render');
       }
       this._recordCourseLessonRosterPerf('fresh_overlay', {
         teamId,
@@ -2081,7 +2186,7 @@ Object.assign(App, {
       return result;
     } catch (err) {
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
-        return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-error', routeTransitionSeq);
+        return abortStaleRefresh('refreshCourseLessonRoster-error');
       }
       console.warn('[edu-course-lessons] roster background refresh failed:', err);
       const ctx = this._eduCourseLessonsContext;
@@ -2150,9 +2255,30 @@ Object.assign(App, {
       && String(previousContext?.teamId || '') === String(teamId || '')
       && String(previousContext?.planId || '') === String(planId || '')
       && String(previousContext?.sessionId || '') === String(sessionId || '');
-    const routeTransitionSeq = this._prepareEduCourseLessonsTransition(options, isSameRoute);
+    const restoreRequested = options?._restoredPageReady === true;
+    const inheritedRestoreTransitionSeq = Number(options?._navigationTransitionSeq);
+    const hasInheritedRestoreTransition = Number.isSafeInteger(inheritedRestoreTransitionSeq)
+      && inheritedRestoreTransitionSeq > 0;
+    if (restoreRequested && !hasInheritedRestoreTransition) {
+      return { ok: false, reason: 'restore_not_current' };
+    }
+    const routeTransitionSeq = restoreRequested
+      ? inheritedRestoreTransitionSeq
+      : this._prepareEduCourseLessonsTransition(options, isSameRoute);
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-entry', routeTransitionSeq);
+    }
+    const restoreCandidate = restoreRequested
+      ? this._getCourseLessonRosterRestoreCandidate(routeTransitionSeq, {
+        allowPendingActivation: options?._allowPendingPageActivation === true,
+      })
+      : null;
+    const restoredPageReady = isSameRoute
+      && restoreCandidate?.teamId === String(teamId || '').trim()
+      && restoreCandidate?.planId === String(planId || '').trim()
+      && restoreCandidate?.sessionId === String(sessionId || '').trim();
+    if (restoreRequested && !restoredPageReady) {
+      return { ok: false, reason: 'restore_not_current' };
     }
     const perfStartedAtMs = this._getCourseLessonRosterPerfNow();
     this._eduCourseRosterPerfTimeline = [];
@@ -2187,14 +2313,16 @@ Object.assign(App, {
     if (this.currentPage === 'page-edu-course-lessons') rosterContainer = this._getEduCourseLessonsContainer();
     const preserveRouteUrl = options?.preserveRouteUrl === true
       || this._isCurrentEduCourseLessonCanonicalRoute?.(teamId, planId, sessionId) === true;
-    await this.showPage('page-edu-course-lessons', {
-      _navigationTransitionSeq: routeTransitionSeq,
-      bypassPageLock: options?.bypassPageLock === true,
-      ...(options?.skipPageHistory === true ? { skipPageHistory: true } : {}),
-      ...((preserveRouteUrl || options?.suppressHashSync === true)
-        ? { suppressHashSync: true }
-        : {}),
-    });
+    if (!restoredPageReady) {
+      await this.showPage('page-edu-course-lessons', {
+        _navigationTransitionSeq: routeTransitionSeq,
+        bypassPageLock: options?.bypassPageLock === true,
+        ...(options?.skipPageHistory === true ? { skipPageHistory: true } : {}),
+        ...((preserveRouteUrl || options?.suppressHashSync === true)
+          ? { suppressHashSync: true }
+          : {}),
+      });
+    }
     if (this.currentPage === 'page-edu-course-lessons') {
       const visibleContainer = this._getEduCourseLessonsContainer();
       if (visibleContainer) rosterContainer = visibleContainer;
@@ -2454,8 +2582,17 @@ Object.assign(App, {
       return { ok: false, reason: 'roster_flow_failed' };
     } finally {
       const currentContainer = this._getEduCourseLessonsContainer();
-      if (ownsRosterLoad(currentContainer, true)
-        && hasBlockingRosterLoading(currentContainer)) {
+      const ownsCurrentRosterLoad = ownsRosterLoad(currentContainer, true);
+      const ownsBlockingRosterLoading = ownsCurrentRosterLoad
+        && hasBlockingRosterLoading(currentContainer);
+      const resumed = ownsCurrentRosterLoad
+        ? this._tryResumeCourseLessonRosterForCurrentTransition(
+          requestSeq,
+          routeTransitionSeq,
+          'showCourseLessonRoster-finally',
+        )
+        : false;
+      if (ownsBlockingRosterLoading && !resumed) {
         currentContainer.innerHTML = this._renderCourseLessonRosterLoadFailure(
           teamId,
           planId,

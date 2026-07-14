@@ -263,7 +263,7 @@ Object.assign(App, {
           + (draftKind === 'signin'
             ? ''
             : '<button type="button" class="outline-btn small edu-roster-self-register-btn" onclick="return App.showCourseLessonSelfRegisterDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'registered' ? 'leave' : 'registered') + '\',this)">'
-              + (draftKind === 'registered' ? '\u53d6\u6d88\u5831\u540d' : '\u5831\u540d')
+              + (draftKind === 'registered' ? '\u53d6\u6d88\u5831\u540d' : '\u6211\u8981\u5831\u540d')
               + '</button>')
         + '</div>'
         : '';

@@ -194,6 +194,55 @@ describe('course lesson deep-link navigation contract', () => {
     expect(runtime.history.pushState).not.toHaveBeenCalled();
   });
 
+  test('late roster page URL writer preserves the exact canonical URL and parent route state', () => {
+    const runtime = createRuntime(canonical);
+    runtime.history.state = { source: 'sportshub', pageId: 'page-edu-course-lessons', id: '' };
+    const app = createApp(runtime);
+    app._eduCourseLessonsContext = {
+      mode: 'roster',
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+    };
+
+    expect(app._setRouteUrl('page-edu-course-lessons')).toBe(true);
+    expect(runtime.history.pushState).not.toHaveBeenCalled();
+    expect(runtime.history.replaceState).toHaveBeenCalledWith(
+      { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+      '',
+      '/teams/teamA/courses/planA/lessons/sessionA?courseTab=active',
+    );
+  });
+
+  test.each([
+    [
+      'list mode',
+      { mode: 'list', teamId: 'teamA', planId: 'planA', sessionId: 'sessionA' },
+    ],
+    [
+      'different team',
+      { mode: 'roster', teamId: 'teamB', planId: 'planA', sessionId: 'sessionA' },
+    ],
+    [
+      'different course',
+      { mode: 'roster', teamId: 'teamA', planId: 'planB', sessionId: 'sessionA' },
+    ],
+    [
+      'different lesson',
+      { mode: 'roster', teamId: 'teamA', planId: 'planA', sessionId: 'sessionB' },
+    ],
+  ])('roster page URL preservation rejects %s', (_label, context) => {
+    const runtime = createRuntime(canonical);
+    const app = createApp(runtime);
+    app._eduCourseLessonsContext = context;
+
+    expect(app._shouldPreserveEduCourseLessonRouteUrl(
+      'page-edu-course-lessons',
+      '',
+      new URL(canonical),
+    )).toBe(false);
+  });
+
   test('explicit parent collapse works with LIFF path writes disabled and keeps its Mini App prefix', () => {
     const runtime = createRuntime(
       'https://miniapp.line.me/demo/teams/teamA/courses/planA/lessons/sessionA?courseTab=active'

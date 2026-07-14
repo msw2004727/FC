@@ -14,6 +14,10 @@ const appSource = fs.readFileSync(
   path.join(__dirname, '../../app.js'),
   'utf8'
 );
+const planRenderSource = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/education/edu-course-plan-render.js'),
+  'utf8'
+);
 const cssSource = fs.readFileSync(
   path.join(__dirname, '../../css/education.css'),
   'utf8'
@@ -244,6 +248,7 @@ function loadCourseLessonsContext(overrides = {}) {
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
   vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
   return {
+    context,
     app: context.App,
     firebase: context.FirebaseService,
     container,
@@ -1751,10 +1756,50 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Fresh Student');
   });
 
-  test('real BFCache pageshow cannot leave the same roster DOM in blocking loading after API settle', async () => {
-    const roster = deferred();
+  test('real BFCache pageshow recovers the same roster with the new transition owner', async () => {
+    const staleRoster = deferred();
     const { app, container, firebase } = loadCourseLessonsContext();
-    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => roster.promise);
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('Recovered Roster Student', 'bfcache-recovery'));
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    expect(container.innerHTML).toMatch(/edu-course-(?:lessons-loading|roster-shell-loading)/);
+    expect(app.showPage).toHaveBeenCalledTimes(1);
+
+    const pageshowHandler = extractPageshowHandler(app, {
+      querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
+    });
+    pageshowHandler({ persisted: true });
+    expect(app._claimPageTransition).toHaveBeenCalledWith('page-edu-course-lessons');
+
+    await flushPromises(24);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenLastCalledWith('teamA', 'planA', 'sessionA');
+    expect(app.showPage).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).toContain('Recovered Roster Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+
+    staleRoster.resolve(createRosterPayload('Should Not Render From Stale Transition', 'stale-bfcache'));
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    await flushPromises();
+
+    expect(container.innerHTML).toContain('Recovered Roster Student');
+    expect(container.innerHTML).not.toContain('Should Not Render From Stale Transition');
+    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
+    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+  });
+
+  test('orphaned same-roster load recovers under the current active transition without pageshow', async () => {
+    const staleRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('Recovered Cold Route Student', 'cold-route-recovery'));
 
     const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
     while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
@@ -1762,35 +1807,500 @@ describe('edu course lessons', () => {
     }
     expect(container.innerHTML).toMatch(/edu-course-(?:lessons-loading|roster-shell-loading)/);
 
+    app._pageTransitionSeq = 2;
+    app._activePageTransitionSeq = 2;
+    app._userIntendedPage = 'page-edu-course-lessons';
+    staleRoster.resolve(createRosterPayload('Stale Cold Route Student', 'stale-cold-route'));
+
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('Recovered Cold Route Student');
+    expect(container.innerHTML).not.toContain('Stale Cold Route Student');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+  });
+
+  test('orphaned roster adopts the latest same-page transition before activation', async () => {
+    const staleRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('Recovered Pending Transition Student', 'pending-recovery'));
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    expect(app._activePageTransitionSeq).toBe(1);
+    expect(app._claimPageTransition).toHaveBeenCalledTimes(1);
+
+    app._pageTransitionSeq = 2;
+    app._userIntendedPage = 'page-edu-course-lessons';
+    staleRoster.resolve(createRosterPayload('Stale Pending Transition Student', 'stale-pending'));
+
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(app._claimPageTransition).toHaveBeenCalledTimes(1);
+    expect(app.showPage).toHaveBeenCalledTimes(1);
+    expect(app._activePageTransitionSeq).toBe(1);
+    expect(container.innerHTML).toContain('Recovered Pending Transition Student');
+    expect(container.innerHTML).not.toContain('Stale Pending Transition Student');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+  });
+
+  test.each([
+    [
+      'a lesson list context',
+      (app) => {
+        app._eduCourseLessonsContext = {
+          teamId: 'teamA',
+          planId: 'planA',
+          mode: 'list',
+        };
+      },
+    ],
+    [
+      'a newer different-roster request owner',
+      (app) => {
+        app._eduCourseLessonsRequestSeq = 2;
+        app._eduCourseLessonsContext = {
+          teamId: 'teamA',
+          planId: 'planA',
+          sessionId: 'sessionB',
+          mode: 'roster',
+        };
+      },
+    ],
+    [
+      'a different-page intent',
+      (app) => {
+        app._userIntendedPage = 'page-home';
+      },
+    ],
+  ])('pending roster recovery ignores %s without claiming navigation', async (_label, arrange) => {
+    const { app, container, firebase } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._userIntendedPage = 'page-edu-course-lessons';
+    app._pageTransitionSeq = 2;
+    app._activePageTransitionSeq = 1;
+    app._eduCourseLessonsRequestSeq = 1;
+    app._eduCourseLessonsContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      mode: 'roster',
+    };
+    container.innerHTML = '<div class="edu-course-lessons-loading">Loading</div>';
+    arrange(app);
+
+    expect(app._tryResumeCourseLessonRosterForCurrentTransition(1, 1, 'pending-negative')).toBe(false);
+    await flushPromises(12);
+
+    expect(firebase.listEduCoursePublicRoster).not.toHaveBeenCalled();
+    expect(app._claimPageTransition).not.toHaveBeenCalled();
+    expect(app.showPage).not.toHaveBeenCalled();
+  });
+
+  test('same-roster transition recovery stops writing after the user leaves the roster', async () => {
+    const staleRoster = deferred();
+    const recoveredRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockImplementationOnce(() => recoveredRoster.promise);
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+
+    app._pageTransitionSeq = 2;
+    app._activePageTransitionSeq = 2;
+    app._userIntendedPage = 'page-edu-course-lessons';
+    staleRoster.resolve(createRosterPayload('Stale Before Leave Student', 'stale-before-leave'));
+
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    while (firebase.listEduCoursePublicRoster.mock.calls.length < 2) {
+      await Promise.resolve();
+    }
+
+    app.currentPage = 'page-home';
+    app._userIntendedPage = 'page-home';
+    app._pageTransitionSeq = 3;
+    app._activePageTransitionSeq = 3;
+    container.innerHTML = '<div id="home-after-roster">Home</div>';
+    recoveredRoster.resolve(createRosterPayload('Recovered After Leave Student', 'recovered-after-leave'));
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('home-after-roster');
+    expect(container.innerHTML).not.toContain('Stale Before Leave Student');
+    expect(container.innerHTML).not.toContain('Recovered After Leave Student');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+  });
+
+  test('real BFCache pageshow isolates a rejected roster recovery hook', async () => {
+    const { app } = loadCourseLessonsContext();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    app.currentPage = 'page-edu-course-lessons';
+    app._resumeCourseLessonRosterAfterBFCache = jest.fn(() => Promise.reject(new Error('recovery failed')));
+
+    try {
+      const pageshowHandler = extractPageshowHandler(app, {
+        querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
+      });
+      pageshowHandler({ persisted: true });
+      await flushPromises(12);
+
+      expect(app._resumeCourseLessonRosterAfterBFCache).toHaveBeenCalledWith(1);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test.each([
+    [
+      'newer different-page',
+      'page-home',
+      {
+        teamId: 'teamA',
+        planId: 'planA',
+        sessionId: 'sessionA',
+        mode: 'roster',
+      },
+    ],
+    [
+      'same-page lesson list',
+      'page-edu-course-lessons',
+      {
+        teamId: 'teamA',
+        planId: 'planA',
+        mode: 'list',
+      },
+    ],
+    [
+      'same-page different lesson roster',
+      'page-edu-course-lessons',
+      {
+        teamId: 'teamA',
+        planId: 'planA',
+        sessionId: 'sessionB',
+        mode: 'roster',
+      },
+    ],
+    [
+      'same-page same lesson roster',
+      'page-edu-course-lessons',
+      {
+        teamId: 'teamA',
+        planId: 'planA',
+        sessionId: 'sessionA',
+        mode: 'roster',
+      },
+    ],
+  ])('real BFCache pageshow preserves a pending %s transition', async (
+    _label,
+    intendedPage,
+    pendingContext,
+  ) => {
+    const { app, container, firebase } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._userIntendedPage = intendedPage;
+    app._pageTransitionSeq = 9;
+    app._activePageTransitionSeq = 8;
+    app._eduCourseLessonsContext = { ...pendingContext };
+    container.innerHTML = '<div class="edu-course-lessons-loading">Loading</div>';
+    const resumeSpy = jest.spyOn(app, '_resumeCourseLessonRosterAfterBFCache');
+    const pageshowHandler = extractPageshowHandler(app, {
+      querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
+    });
+
+    pageshowHandler({ persisted: true });
+    await flushPromises(12);
+
+    expect(app._claimPageTransition).not.toHaveBeenCalled();
+    expect(resumeSpy).not.toHaveBeenCalled();
+    expect(app._pageTransitionSeq).toBe(9);
+    expect(app._activePageTransitionSeq).toBe(8);
+    expect(app._userIntendedPage).toBe(intendedPage);
+    expect(app._eduCourseLessonsContext).toEqual(pendingContext);
+    expect(firebase.listEduCoursePublicRoster).not.toHaveBeenCalled();
+  });
+
+  test('BFCache roster recovery ignores terminal, error, non-roster, and superseded states', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._userIntendedPage = 'page-edu-course-lessons';
+    app._pageTransitionSeq = 7;
+    app._activePageTransitionSeq = 7;
+    app._eduCourseLessonsContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      mode: 'roster',
+      refreshPending: false,
+    };
+
+    container.innerHTML = '<div class="edu-course-roster-shell">Finished roster</div>';
+    await Promise.resolve(app._resumeCourseLessonRosterAfterBFCache(7));
+
+    app._eduCourseLessonsContext.refreshPending = true;
+    app._eduCourseLessonsContext.refreshError = true;
+    container.innerHTML = '<div class="edu-course-roster-refresh-status">Failed refresh</div>';
+    await Promise.resolve(app._resumeCourseLessonRosterAfterBFCache(7));
+
+    app._eduCourseLessonsContext.refreshError = false;
+    app._eduCourseLessonsContext.mode = 'list';
+    container.innerHTML = '<div class="edu-course-lessons-loading">Loading</div>';
+    await Promise.resolve(app._resumeCourseLessonRosterAfterBFCache(7));
+
+    app._eduCourseLessonsContext.mode = 'roster';
+    app.currentPage = 'page-home';
+    container.innerHTML = '<div class="edu-course-lessons-loading">Loading</div>';
+    await Promise.resolve(app._resumeCourseLessonRosterAfterBFCache(7));
+
+    app.currentPage = 'page-edu-course-lessons';
+    app._pageTransitionSeq = 8;
+    await Promise.resolve(app._resumeCourseLessonRosterAfterBFCache(7));
+
+    expect(firebase.listEduCoursePublicRoster).not.toHaveBeenCalled();
+    expect(app.showPage).not.toHaveBeenCalled();
+  });
+
+  test('BFCache roster recovery deduplicates the same restore transition', async () => {
+    const roster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._userIntendedPage = 'page-edu-course-lessons';
+    app._pageTransitionSeq = 12;
+    app._activePageTransitionSeq = 12;
+    app._eduCourseLessonsContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      mode: 'roster',
+    };
+    container.innerHTML = '<div class="edu-course-lessons-loading">Loading</div>';
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => roster.promise);
+
+    const first = app._resumeCourseLessonRosterAfterBFCache(12);
+    const duplicate = app._resumeCourseLessonRosterAfterBFCache(12);
+    await flushPromises(12);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(1);
+    expect(app.showPage).not.toHaveBeenCalled();
+
+    roster.resolve(createRosterPayload('Deduplicated Recovery Student', 'deduplicated-recovery'));
+    await Promise.all([Promise.resolve(first), Promise.resolve(duplicate)]);
+
+    expect(container.innerHTML).toContain('Deduplicated Recovery Student');
+  });
+
+  test('BFCache roster recovery resumes a pending names-first preview', async () => {
+    const staleRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext({
+      eduStudentsCache: {
+        teamA: [
+          { id: 'stu1', displayName: 'Preview Student One' },
+          { id: 'stu2', displayName: 'Preview Student Two' },
+        ],
+      },
+    });
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('Fresh Names First Student', 'names-first-recovery'));
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    await flushPromises(20);
+
+    expect(container.innerHTML).toContain('Preview Student One');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+    expect(app._eduCourseLessonsContext.refreshPending).toBe(true);
+
     const pageshowHandler = extractPageshowHandler(app, {
       querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
     });
     pageshowHandler({ persisted: true });
-    expect(app._claimPageTransition).toHaveBeenLastCalledWith('page-edu-course-lessons');
+    await flushPromises(30);
 
-    roster.resolve({
-      rosterPublic: true,
-      cacheMeta: { payloadVersion: 'after-bfcache', cacheTtlMs: 30000 },
-      session: {
-        id: 'sessionA',
-        title: 'After BFCache',
-        date: '2099-06-02',
-        startTime: '10:00',
-        endTime: '11:30',
-        status: 'scheduled',
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(app.showPage).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).toContain('Fresh Names First Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+    expect(container.innerHTML).toContain('App.showCourseLessons');
+
+    staleRoster.resolve(createRosterPayload('Stale Names First Student', 'stale-names-first'));
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    await flushPromises();
+
+    expect(container.innerHTML).toContain('Fresh Names First Student');
+    expect(container.innerHTML).not.toContain('Stale Names First Student');
+  });
+
+  test('orphaned names-first preview recovers under the current roster transition without pageshow', async () => {
+    const staleRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext({
+      eduStudentsCache: {
+        teamA: [
+          { id: 'stu1', displayName: 'Cold Preview Student One' },
+          { id: 'stu2', displayName: 'Cold Preview Student Two' },
+        ],
       },
-      students: [{
-        studentId: 'stu1',
-        displayName: 'Should Not Render From Stale Transition',
-        attendanceKind: null,
-      }],
     });
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('Fresh Cold Names Student', 'fresh-cold-names'));
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    await flushPromises(20);
+
+    expect(container.innerHTML).toContain('Cold Preview Student One');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+    expect(app._eduCourseLessonsContext.refreshPending).toBe(true);
+
+    app._pageTransitionSeq = 2;
+    app._activePageTransitionSeq = 2;
+    app._userIntendedPage = 'page-edu-course-lessons';
+    staleRoster.resolve(createRosterPayload('Stale Cold Names Student', 'stale-cold-names'));
 
     await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
-    expect(container.innerHTML).not.toContain('Should Not Render From Stale Transition');
-    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
-    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
-    expect(container.innerHTML).toContain('primary-btn small');
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(app.showPage).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).toContain('Fresh Cold Names Student');
+    expect(container.innerHTML).not.toContain('Stale Cold Names Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+  });
+
+  test('BFCache roster recovery replaces a stale cached background refresh owner', async () => {
+    const staleRefresh = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext({
+      rosterPayload: createRosterPayload('Cached Preview Student', 'cached-preview'),
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRefresh.promise)
+      .mockResolvedValueOnce(createRosterPayload('Fresh Cached Recovery Student', 'cached-recovery'));
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: true,
+      cached: true,
+    });
+    expect(container.innerHTML).toContain('Cached Preview Student');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+    expect(app._eduCourseLessonsContext.refreshPending).toBe(true);
+    expect(app.showPage).toHaveBeenCalledTimes(2);
+
+    const pageshowHandler = extractPageshowHandler(app, {
+      querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
+    });
+    pageshowHandler({ persisted: true });
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(3);
+    expect(app.showPage).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('Fresh Cached Recovery Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+    expect(container.innerHTML).toContain('App.showCourseLessons');
+
+    staleRefresh.resolve(createRosterPayload('Stale Background Student', 'stale-background'));
+    await flushPromises(20);
+
+    expect(container.innerHTML).toContain('Fresh Cached Recovery Student');
+    expect(container.innerHTML).not.toContain('Stale Background Student');
+  });
+
+  test('orphaned cached refresh recovers under the current roster transition without pageshow', async () => {
+    const staleRefresh = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext({
+      rosterPayload: createRosterPayload('Cached Cold Route Student', 'cached-cold-route'),
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => staleRefresh.promise)
+      .mockResolvedValueOnce(createRosterPayload('Fresh Cold Route Preview Student', 'fresh-cold-preview'));
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: true,
+      cached: true,
+    });
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('Cached Cold Route Student');
+    expect(container.innerHTML).toContain('edu-course-roster-refresh-status');
+
+    app._pageTransitionSeq = 2;
+    app._activePageTransitionSeq = 2;
+    app._userIntendedPage = 'page-edu-course-lessons';
+    staleRefresh.resolve(createRosterPayload('Stale Cold Route Preview Student', 'stale-cold-preview'));
+    await flushPromises(30);
+
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(3);
+    expect(app.showPage).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('Fresh Cold Route Preview Student');
+    expect(container.innerHTML).not.toContain('Stale Cold Route Preview Student');
+    expect(container.innerHTML).not.toContain('edu-course-roster-refresh-status');
+  });
+
+  test('canonical course lesson intent reaches the real roster controller and DOM', async () => {
+    const replaceState = jest.fn();
+    const pathname = '/teams/teamA/courses/planA/lessons/sessionA';
+    const { app, container, context, firebase } = loadCourseLessonsContext({
+      window: {
+        location: {
+          href: 'https://toosterx.com' + pathname + '?courseTab=active',
+          pathname,
+          hostname: 'toosterx.com',
+        },
+        history: {
+          state: { source: 'sportshub', pageId: 'page-team-detail', id: 'teamA' },
+          replaceState,
+        },
+      },
+    });
+    context.setTimeout = (fn) => {
+      fn();
+      return 0;
+    };
+    app.currentPage = 'page-team-detail';
+    app._userIntendedPage = 'page-team-detail';
+    app._teamDetailId = 'teamA';
+    app._pageTransitionSeq = 9;
+    app._activePageTransitionSeq = 9;
+    app._buildRouteStateForCurrentPage = jest.fn(() => ({
+      source: 'sportshub',
+      pageId: 'page-team-detail',
+      id: 'teamA',
+    }));
+    vm.runInNewContext(planRenderSource, context, { filename: 'edu-course-plan-render.js' });
+
+    const intent = app._primeEduCoursePlanShareIntent('teamA', {
+      skipPageHistory: true,
+      suppressHashSync: true,
+      _navigationTransitionSeq: 9,
+    });
+    const applied = app._applyEduCoursePlanShareFocus('teamA');
+    await flushPromises(30);
+
+    expect(intent).toMatchObject({ planId: 'planA', lessonId: 'sessionA', openRoster: true });
+    expect(applied).toBe(true);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
+    expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons', {
+      _navigationTransitionSeq: 9,
+      bypassPageLock: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
+    });
+    expect(container.innerHTML).toContain('小明');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+    expect(app._eduCoursePlanShareFocusByTeam.teamA).toBeUndefined();
+    expect(replaceState).not.toHaveBeenCalled();
   });
 
   test('renderer exception after payload assignment settles to a visible retry', async () => {
@@ -2594,8 +3104,8 @@ describe('edu course lessons', () => {
 
     expect(container.innerHTML).toContain('\u8acb\u5047');
     expect(container.innerHTML).toContain('edu-course-roster-status-leave');
-    expect(container.innerHTML).toContain('App.showCourseLessonSelfRegisterDialog');
-    expect(container.innerHTML).toContain('\u5831\u540d');
+    expect(container.innerHTML).toContain("App.showCourseLessonSelfRegisterDialog('stu2','registered',this)");
+    expect(container.innerHTML).toMatch(/edu-roster-self-register-btn[^>]*>\u6211\u8981\u5831\u540d<\/button>/);
     expect(container.innerHTML).not.toContain('App.showCourseLessonSelfLeaveDialog');
 
     app.showCourseLessonRoster = jest.fn(async () => ({ ok: true }));

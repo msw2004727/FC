@@ -2760,9 +2760,21 @@ const App = {
   },
 
   _shouldPreserveEduCourseLessonRouteUrl(pageId, detailId, urlLike) {
-    if (pageId !== 'page-team-detail') return false;
-    const expectedTeamId = String(detailId || '').trim();
+    const rosterContext = this._eduCourseLessonsContext;
+    const isRosterPage = pageId === 'page-edu-course-lessons'
+      && rosterContext?.mode === 'roster';
+    if (pageId !== 'page-team-detail' && !isRosterPage) return false;
+    const expectedTeamId = String(
+      isRosterPage ? rosterContext?.teamId : detailId
+    ).trim();
     if (!expectedTeamId || !this._isSafeHistoryRouteSegment?.(expectedTeamId)) return false;
+    const expectedPlanId = isRosterPage ? String(rosterContext?.planId || '').trim() : '';
+    const expectedLessonId = isRosterPage ? String(rosterContext?.sessionId || '').trim() : '';
+    if (isRosterPage
+      && (!this._isSafeHistoryRouteSegment?.(expectedPlanId)
+        || !this._isSafeHistoryRouteSegment?.(expectedLessonId))) {
+      return false;
+    }
 
     try {
       const url = urlLike && urlLike.searchParams
@@ -2790,9 +2802,14 @@ const App = {
           const routeTeamId = decodeSafe(suffix[1]);
           const routePlanId = decodeSafe(suffix[3]);
           const routeLessonId = decodeSafe(suffix[5]);
-          if (routeTeamId === expectedTeamId && routePlanId && routeLessonId) return true;
+          if (routeTeamId === expectedTeamId && routePlanId && routeLessonId) {
+            return !isRosterPage
+              || (routePlanId === expectedPlanId && routeLessonId === expectedLessonId);
+          }
         }
       }
+
+      if (isRosterPage) return false;
 
       const routePlanId = String(
         url.searchParams.get('course')
@@ -2875,16 +2892,23 @@ const App = {
         ? this._getListRoutePath(pageId)
         : '';
 
-      if (!options.collapseNestedRoute
-        && this._shouldPreserveEduCourseLessonRouteUrl?.(pageId, detailId, url)) {
+      const preservesLessonRoute = !options.collapseNestedRoute
+        && this._shouldPreserveEduCourseLessonRouteUrl?.(pageId, detailId, url);
+      if (preservesLessonRoute) {
+        const preservedStatePageId = pageId === 'page-edu-course-lessons'
+          ? 'page-team-detail'
+          : pageId;
+        const preservedStateDetailId = pageId === 'page-edu-course-lessons'
+          ? String(this._eduCourseLessonsContext?.teamId || '').trim()
+          : detailId;
         const existingState = history?.state;
         const stateMatchesRoute = existingState
           && existingState.source === 'sportshub'
-          && existingState.pageId === pageId
-          && String(existingState.id || '').trim() === detailId;
+          && existingState.pageId === preservedStatePageId
+          && String(existingState.id || '').trim() === preservedStateDetailId;
         if (!stateMatchesRoute && history?.replaceState) {
           history.replaceState(
-            { source: 'sportshub', pageId, id: detailId },
+            { source: 'sportshub', pageId: preservedStatePageId, id: preservedStateDetailId },
             '',
             url.pathname + (url.search || '') + (url.hash || ''),
           );
@@ -4315,7 +4339,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('pageshow', (event) => {
       if (!event.persisted) return;
       const pageId = document.querySelector('.page.active')?.id || App.currentPage || '';
-      if (pageId) {
+      const latestTransitionSeq = Number(App._pageTransitionSeq);
+      const activeTransitionSeq = Number(App._activePageTransitionSeq);
+      const hasPendingPageTransition = !!(
+        pageId
+        && Number.isSafeInteger(latestTransitionSeq)
+        && Number.isSafeInteger(activeTransitionSeq)
+        && latestTransitionSeq > activeTransitionSeq
+      );
+      if (pageId && !hasPendingPageTransition) {
         const transitionSeq = App._claimPageTransition?.(pageId);
         App.currentPage = pageId;
         App._userIntendedPage = pageId;
@@ -4323,12 +4355,29 @@ document.addEventListener('DOMContentLoaded', async () => {
           App._activePageTransitionSeq = Number(transitionSeq);
         }
         App._syncBottomTabForPage?.(pageId);
+        if (pageId === 'page-edu-course-lessons'
+          && typeof App._resumeCourseLessonRosterAfterBFCache === 'function') {
+          try {
+            void Promise.resolve(
+              App._resumeCourseLessonRosterAfterBFCache(transitionSeq)
+            ).catch((err) => {
+              console.warn('[BFCache] roster recovery failed:', err);
+            });
+          } catch (err) {
+            console.warn('[BFCache] roster recovery failed:', err);
+          }
+        }
       }
-      App._recordNavigationDiagnostic?.('pageshow-bfcache', {
-        source: 'pageshow',
-        pageId,
-        persisted: true,
-      });
+      App._recordNavigationDiagnostic?.(
+        hasPendingPageTransition
+          ? 'pageshow-bfcache-skipped-pending-transition'
+          : 'pageshow-bfcache',
+        {
+          source: 'pageshow',
+          pageId,
+          persisted: true,
+        }
+      );
     });
   } catch (e) {}
   try { App._syncBootBrandToLocal?.(); } catch (e) {}
