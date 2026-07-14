@@ -10,6 +10,10 @@ const controllerSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-lessons.js'),
   'utf8'
 );
+const appSource = fs.readFileSync(
+  path.join(__dirname, '../../app.js'),
+  'utf8'
+);
 const cssSource = fs.readFileSync(
   path.join(__dirname, '../../css/education.css'),
   'utf8'
@@ -28,6 +32,51 @@ async function flushPromises(times = 8) {
   for (let index = 0; index < times; index += 1) {
     await Promise.resolve();
   }
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function extractPageshowHandler(App, documentMock) {
+  const marker = "window.addEventListener('pageshow', (event) => {";
+  const start = appSource.indexOf(marker);
+  const bodyStart = start + marker.length;
+  const end = appSource.indexOf('\n    });\n  } catch (e) {}', bodyStart);
+  if (start < 0 || end < 0) throw new Error('Unable to extract pageshow handler');
+  const body = appSource.slice(bodyStart, end);
+  const factory = new Function(
+    'App',
+    'document',
+    'return function pageshowHandler(event) {' + body + '\n};'
+  );
+  return factory(App, documentMock);
+}
+
+function createRosterPayload(displayName, payloadVersion = 'test-version') {
+  return {
+    rosterPublic: true,
+    cacheMeta: { payloadVersion, cacheTtlMs: 30000 },
+    session: {
+      id: 'sessionA',
+      title: 'Test Session',
+      date: '2099-06-02',
+      startTime: '10:00',
+      endTime: '11:30',
+      status: 'scheduled',
+    },
+    students: [{
+      studentId: 'stu1',
+      displayName,
+      attendanceKind: null,
+    }],
+  };
 }
 
 function loadCourseLessonsContext(overrides = {}) {
@@ -1700,6 +1749,156 @@ describe('edu course lessons', () => {
       { forceRefresh: true },
     );
     expect(container.innerHTML).toContain('Fresh Student');
+  });
+
+  test('real BFCache pageshow cannot leave the same roster DOM in blocking loading after API settle', async () => {
+    const roster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => roster.promise);
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    expect(container.innerHTML).toMatch(/edu-course-(?:lessons-loading|roster-shell-loading)/);
+
+    const pageshowHandler = extractPageshowHandler(app, {
+      querySelector: jest.fn(() => ({ id: 'page-edu-course-lessons' })),
+    });
+    pageshowHandler({ persisted: true });
+    expect(app._claimPageTransition).toHaveBeenLastCalledWith('page-edu-course-lessons');
+
+    roster.resolve({
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'after-bfcache', cacheTtlMs: 30000 },
+      session: {
+        id: 'sessionA',
+        title: 'After BFCache',
+        date: '2099-06-02',
+        startTime: '10:00',
+        endTime: '11:30',
+        status: 'scheduled',
+      },
+      students: [{
+        studentId: 'stu1',
+        displayName: 'Should Not Render From Stale Transition',
+        attendanceKind: null,
+      }],
+    });
+
+    await expect(load).resolves.toMatchObject({ ok: false, reason: 'stale_transition' });
+    expect(container.innerHTML).not.toContain('Should Not Render From Stale Transition');
+    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
+    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
+    expect(container.innerHTML).toContain('primary-btn small');
+  });
+
+  test('renderer exception after payload assignment settles to a visible retry', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const { app, container } = loadCourseLessonsContext({
+      rosterPayload: createRosterPayload('Renderer Exception Student', 'renderer-exception'),
+    });
+    jest.spyOn(app, '_renderCourseLessonRosterFromContext').mockImplementation(() => {
+      throw new Error('renderer exploded');
+    });
+
+    try {
+      await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+        ok: false,
+        reason: 'roster_flow_failed',
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(app._eduCourseLessonsContext.rosterPayload).toBeTruthy();
+    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
+    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
+    expect(container.innerHTML).toContain('primary-btn small');
+  });
+
+  test('viewer-change delegate rejection is caught after the delegated promise settles', async () => {
+    const roster = deferred();
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const { app, container, firebase, authState } = loadCourseLessonsContext({ authUid: 'uidA' });
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => roster.promise);
+    app._handleCourseLessonRosterViewerChange = jest.fn(() => Promise.reject(new Error('viewer retry failed')));
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    authState.uid = 'uidB';
+    roster.resolve(createRosterPayload('Stale Viewer Student', 'viewer-rejection'));
+
+    try {
+      await expect(load).resolves.toMatchObject({ ok: false, reason: 'roster_flow_failed' });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(app._handleCourseLessonRosterViewerChange).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).not.toContain('Stale Viewer Student');
+    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
+    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
+    expect(container.innerHTML).toContain('primary-btn small');
+  });
+
+  test('older roster finalizer cannot overwrite a newer successful request', async () => {
+    const firstRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => firstRoster.promise)
+      .mockResolvedValueOnce(createRosterPayload('New Owner Student', 'new-owner'));
+
+    const firstLoad = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(container.innerHTML).toContain('New Owner Student');
+
+    firstRoster.resolve(createRosterPayload('Old Owner Student', 'old-owner'));
+    await expect(firstLoad).resolves.toMatchObject({ ok: false, reason: 'stale' });
+
+    expect(container.innerHTML).toContain('New Owner Student');
+    expect(container.innerHTML).not.toContain('Old Owner Student');
+    expect(container.innerHTML).not.toContain('&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;');
+  });
+
+  test('new same-roster request terminalizes inherited loading when it fails before its spinner', async () => {
+    const firstRoster = deferred();
+    const { app, container, firebase } = loadCourseLessonsContext();
+    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => firstRoster.promise);
+
+    const firstLoad = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+    expect(container.innerHTML).toMatch(/edu-course-(?:lessons-loading|roster-shell-loading)/);
+
+    app.showPage.mockImplementationOnce(async (_pageId, options = {}) => {
+      app.currentPage = 'page-edu-course-lessons';
+      app._activePageTransitionSeq = Number(options?._navigationTransitionSeq) || app._pageTransitionSeq;
+      app._pageTransitionSeq += 1;
+    });
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: false,
+      reason: 'stale_transition',
+    });
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).not.toContain('edu-course-lessons-loading');
+    expect(container.innerHTML).not.toContain('edu-course-roster-shell-loading');
+    expect(container.innerHTML).toContain('primary-btn small');
+
+    firstRoster.resolve(createRosterPayload('Superseded Owner Student', 'superseded-owner'));
+    await expect(firstLoad).resolves.toMatchObject({ ok: false });
+    expect(container.innerHTML).not.toContain('Superseded Owner Student');
+    expect(container.innerHTML).toContain('primary-btn small');
   });
 
   test('retries roster once when auth viewer changes during load', async () => {

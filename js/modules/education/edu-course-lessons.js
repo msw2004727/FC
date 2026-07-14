@@ -2154,7 +2154,6 @@ Object.assign(App, {
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-entry', routeTransitionSeq);
     }
-    const requestSeq = ++this._eduCourseLessonsRequestSeq;
     const perfStartedAtMs = this._getCourseLessonRosterPerfNow();
     this._eduCourseRosterPerfTimeline = [];
     this._recordCourseLessonRosterPerf('start', {
@@ -2163,8 +2162,29 @@ Object.assign(App, {
       sessionId,
       forceRefresh: options?.forceRefresh === true,
     }, perfStartedAtMs);
+    const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
+    let rosterContainer = null;
+    const ownsRosterLoad = (candidate, allowAdopt = false) => {
+      const ctx = this._eduCourseLessonsContext;
+      const ownsContext = requestSeq === this._eduCourseLessonsRequestSeq
+        && this.currentPage === 'page-edu-course-lessons'
+        && ctx?.mode === 'roster'
+        && String(ctx?.teamId || '') === String(teamId || '')
+        && String(ctx?.planId || '') === String(planId || '')
+        && String(ctx?.sessionId || '') === String(sessionId || '');
+      if (!ownsContext || !candidate) return false;
+      if (!rosterContainer && allowAdopt) rosterContainer = candidate;
+      return candidate === rosterContainer;
+    };
+    const hasBlockingRosterLoading = candidate => {
+      const html = String(candidate?.innerHTML || '');
+      return html.includes('edu-course-lessons-loading')
+        || html.includes('edu-course-roster-shell-loading');
+    };
+    try {
+    if (this.currentPage === 'page-edu-course-lessons') rosterContainer = this._getEduCourseLessonsContainer();
     const preserveRouteUrl = options?.preserveRouteUrl === true
       || this._isCurrentEduCourseLessonCanonicalRoute?.(teamId, planId, sessionId) === true;
     await this.showPage('page-edu-course-lessons', {
@@ -2175,6 +2195,10 @@ Object.assign(App, {
         ? { suppressHashSync: true }
         : {}),
     });
+    if (this.currentPage === 'page-edu-course-lessons') {
+      const visibleContainer = this._getEduCourseLessonsContainer();
+      if (visibleContainer) rosterContainer = visibleContainer;
+    }
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-showPage', routeTransitionSeq);
     }
@@ -2182,6 +2206,7 @@ Object.assign(App, {
 
     const container = this._getEduCourseLessonsContainer();
     if (!container) return { ok: false, reason: 'missing_container' };
+    rosterContainer = container;
     this._setEduCourseLessonsTitle('課堂名單');
     container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
     this._recordCourseLessonRosterPerf('skeleton', { teamId, planId, sessionId }, perfStartedAtMs);
@@ -2342,7 +2367,7 @@ Object.assign(App, {
     const freshRosterPayload = freshRosterResult.status === 'fulfilled' ? freshRosterResult.value : null;
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-      return this._handleCourseLessonRosterViewerChange(
+      return await this._handleCourseLessonRosterViewerChange(
         teamId,
         planId,
         sessionId,
@@ -2386,7 +2411,7 @@ Object.assign(App, {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-preview', routeTransitionSeq);
     }
     if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-      return this._handleCourseLessonRosterViewerChange(
+      return await this._handleCourseLessonRosterViewerChange(
         teamId,
         planId,
         sessionId,
@@ -2419,5 +2444,24 @@ Object.assign(App, {
       studentCount: Array.isArray(freshRosterPayload?.students) ? freshRosterPayload.students.length : 0,
     }, perfStartedAtMs);
     return result;
+    } catch (err) {
+      console.error('[edu-course-lessons] roster flow failed:', {
+        stage: 'showCourseLessonRoster',
+        reason: err?.code || err?.message || 'unknown',
+        requestSeq,
+        routeTransitionSeq,
+      });
+      return { ok: false, reason: 'roster_flow_failed' };
+    } finally {
+      const currentContainer = this._getEduCourseLessonsContainer();
+      if (ownsRosterLoad(currentContainer, true)
+        && hasBlockingRosterLoading(currentContainer)) {
+        currentContainer.innerHTML = this._renderCourseLessonRosterLoadFailure(
+          teamId,
+          planId,
+          sessionId,
+        );
+      }
+    }
   },
 });
