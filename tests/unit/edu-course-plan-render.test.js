@@ -34,6 +34,7 @@ async function renderPlans(plans, isStaff = true, selectedTab = 'active', overri
     _courseEnrollCache: overrides.courseEnrollCache || {},
     _courseEnrollSummaryCache: overrides.courseEnrollSummaryCache || {},
     _eduCoursePlanTabByTeam: selectedTab === 'ended' ? { teamA: 'ended' } : {},
+    _eduCoursePlanNextLessonRegisteredByKey: overrides.nextLessonRegisteredByKey || {},
     isEduClubStaff: jest.fn(() => isStaff),
     _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
     _getCourseEnrollCacheKey: overrides.getCourseEnrollCacheKey || jest.fn(() => null),
@@ -329,17 +330,25 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
     expect(cssSource).toContain('.edu-cp-top-badges');
     expect(cssSource).toContain('.edu-cp-next-lesson-action');
+    expect(cssSource).toContain('.edu-cp-next-lesson-action-with-button');
     expect(cssSource).toContain('.edu-cp-next-lesson-badge');
-    expect(cssSource).toContain('[data-theme="light"] .edu-cp-next-lesson-badge');
-    expect(cssSource).toContain('[data-theme="dark"] .edu-cp-next-lesson-badge');
     expect(cssSource).toContain('background: linear-gradient(135deg, #facc15 0%, #fef3c7 42%, #f59e0b 100%);');
     expect(cssSource).toContain('@keyframes edu-cp-next-lesson-shine');
     expect(cssSource).toContain('@media (prefers-reduced-motion: reduce)');
     expect(cssSource).toContain('font-size: .74rem;');
+    expect(cssSource).toMatch(/\.edu-cp-top-badges\s*\{[^}]*position: relative;[^}]*grid-column: 2;[^}]*grid-row: 1;/s);
+    expect(cssSource).toMatch(/\.edu-cp-compact-main\s*\{[^}]*grid-column: 1;[^}]*grid-row: 1 \/ span 2;/s);
+    expect(cssSource).toMatch(/\.edu-cp-card-actions\s*\{[^}]*grid-column: 2;[^}]*grid-row: 2;/s);
+    expect(cssSource).toMatch(/\.edu-cp-next-lesson-action\s*\{[^}]*pointer-events: none;/s);
+    expect(cssSource).toMatch(/\.edu-cp-next-lesson-action-with-button::before\s*\{[^}]*pointer-events: none;/s);
+    expect(cssSource).toMatch(/\.edu-cp-next-lesson-register-btn\s*\{[^}]*pointer-events: auto;/s);
+    expect(cssSource).toMatch(/\.edu-cp-next-lesson-register-btn > span\s*\{[^}]*z-index: 1;/s);
+    expect(cssSource).toMatch(/\.edu-cp-next-lesson-register-btn::after\s*\{[^}]*pointer-events: none;/s);
+    expect(cssSource).not.toMatch(/\.edu-cp-compact-title\s*\{[^}]*padding-right:/s);
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row\s*\{[^}]*flex-direction: row;[^}]*justify-content: space-between;/s);
     expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row \.toggle-switch\s*\{[^}]*align-self: flex-start;/s);
-    expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-top-badges\s*\{[^}]*position: relative;[^}]*grid-column: 1 \/ -1;/s);
-    expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-compact-title,[\s\S]*padding-right: 0;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-course-card\.edu-cp-card-compact\s*\{[^}]*display: flex;[^}]*flex-direction: column;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-top-badges\s*\{[^}]*align-self: flex-end;/s);
     expect(cssSource).toMatch(/@media \(max-width: 420px\)\s*\{[\s\S]*\.edu-cp-card-actions\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
     expect(cssSource).toMatch(/@media \(max-width: 360px\)\s*\{[\s\S]*\.edu-cp-card-actions\s*\{[^}]*grid-template-columns: 1fr;/s);
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-card-hidden-badge');
@@ -2332,11 +2341,43 @@ describe('edu course plan render', () => {
       }]),
     });
 
-    expect(html).toContain('下堂課');
-    expect(html).toContain('edu-cp-next-lesson-action');
+    expect(html).toContain('下堂課7/09');
+    expect(html).toContain('edu-cp-next-lesson-action-with-button');
     expect(html).toContain('edu-cp-next-lesson-register-btn');
-    expect(html).toContain('立即報名7/09的課程');
+    expect(html).toContain('<span>點擊報名</span>');
+    expect(html).not.toContain('立即報名7/09的課程');
     expect(html).toContain("App.showCoursePlanNextLessonRegisterDialog('teamA','weeklyPlan','sess1',this)");
+  });
+
+  test('registered weekly course card keeps full next lesson date', async () => {
+    const html = await renderPlans([
+      {
+        id: 'weeklyPlan',
+        name: 'Registered weekly plan',
+        planType: 'weekly',
+        startDate: '2099-07-01',
+        endDate: '2099-08-31',
+        allowSignup: false,
+        _enrollments: [{ studentId: 'stu1', status: 'approved' }],
+      },
+    ], false, 'active', {
+      todayStr: () => '2099-07-01',
+      eduStudents: [{ id: 'stu1', name: 'Student 1', enrollStatus: 'active', selfUid: 'viewer' }],
+      nextLessonRegisteredByKey: { 'viewer|teamA|weeklyPlan|sess1': true },
+      loadCourseSessions: jest.fn(async () => [{
+        id: 'sess1',
+        date: '2099-07-09',
+        startTime: '19:00',
+        endTime: '20:30',
+        status: 'scheduled',
+      }]),
+    });
+
+    expect(html).toContain('下堂課7/09');
+    expect(html).toContain('edu-cp-next-lesson-action-with-button');
+    expect(html).toContain('edu-cp-next-lesson-register-btn is-registered');
+    expect(html).toContain('>已報名</button>');
+    expect(html).not.toContain('點擊報名');
   });
 
   test('enrolled weekly private roster course card hides next lesson registration button', async () => {
@@ -2379,7 +2420,7 @@ describe('edu course plan render', () => {
       querySelectorAll: jest.fn(() => [{ value: 'stu1' }]),
     };
     const sourceButton = {
-      textContent: '立即報名7/09的課程',
+      textContent: '點擊報名',
       disabled: false,
       setAttribute: jest.fn(),
       classList: { add: jest.fn() },

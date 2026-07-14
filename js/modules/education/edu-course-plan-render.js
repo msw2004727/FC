@@ -1429,18 +1429,16 @@ Object.assign(App, {
       const nextLessonEntry = nextLessonEntries[planKey] || null;
       const nextLessonSession = nextLessonEntry?.session || null;
       const nextLessonSessionId = String(nextLessonSession?.id || nextLessonSession?._docId || '').trim();
-      const nextLessonDateLabel = String(nextLessonLabel || '').replace(/^下堂課\s*/, '').trim();
       const nextLessonRegistered = nextLessonSessionId && this._isCoursePlanNextLessonRegistered?.(teamId, planKey, nextLessonSessionId);
       const canRegisterNextLesson = !isStaff && p.planType === 'weekly' && !planEnded && p.rosterPublic !== false && hasApprovedEnrollment && !!nextLessonSessionId && this._isCoursePlanNextLessonSessionRegisterable(nextLessonSession, { today });
-      const nextLessonBadgeLabel = canRegisterNextLesson && !nextLessonRegistered ? '下堂課' : nextLessonLabel;
-      const nextLessonBadge = nextLessonBadgeLabel ? '<span class="edu-cp-next-lesson-badge">' + escapeHTML(nextLessonBadgeLabel) + '</span>' : '';
+      const nextLessonBadge = nextLessonLabel ? '<span class="edu-cp-next-lesson-badge">' + escapeHTML(nextLessonLabel) + '</span>' : '';
       const lessonRegisterBtn = canRegisterNextLesson
         ? (nextLessonRegistered
           ? '<button type="button" class="edu-cp-next-lesson-register-btn is-registered" disabled aria-disabled="true">已報名</button>'
-          : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planKey) + '\',\'' + jsArg(nextLessonSessionId) + '\',this)">立即報名' + escapeHTML(nextLessonDateLabel || '這堂課') + '的課程</button>')
+          : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planKey) + '\',\'' + jsArg(nextLessonSessionId) + '\',this)"><span>點擊報名</span></button>')
         : '';
       const nextLessonActionHtml = nextLessonBadge || lessonRegisterBtn
-        ? '<div class="edu-cp-next-lesson-action">' + nextLessonBadge + lessonRegisterBtn + '</div>'
+        ? '<div class="edu-cp-next-lesson-action' + (lessonRegisterBtn ? ' edu-cp-next-lesson-action-with-button' : '') + '">' + nextLessonBadge + lessonRegisterBtn + '</div>'
         : '';
       const topBadgeHtml = nextLessonActionHtml || hiddenBadge
         ? '<div class="edu-cp-top-badges">' + nextLessonActionHtml + hiddenBadge + '</div>'
