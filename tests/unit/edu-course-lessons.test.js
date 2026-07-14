@@ -178,6 +178,7 @@ function loadCourseLessonsContext(overrides = {}) {
     escapeHTML,
     console,
     Promise,
+    _withSportHubTimeout: overrides.withSportHubTimeout || (promise => Promise.resolve(promise)),
     Date,
     String,
     Number,
@@ -1701,7 +1702,7 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('Fresh Student');
   });
 
-  test('discard roster response when auth viewer changes during load', async () => {
+  test('retries roster once when auth viewer changes during load', async () => {
     let resolveFirst;
     const firstPromise = new Promise(resolve => { resolveFirst = resolve; });
     const firstPayload = {
@@ -1717,7 +1718,9 @@ describe('edu course lessons', () => {
       students: [{ studentId: 'stu1', displayName: 'Viewer B Student', canSelfLeave: false }],
     };
     const { app, container, firebase, authState } = loadCourseLessonsContext({ authUid: 'uidA' });
-    firebase.listEduCoursePublicRoster.mockImplementationOnce(() => firstPromise);
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => firstPromise)
+      .mockResolvedValueOnce(secondPayload);
 
     const firstLoad = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
     while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) {
@@ -1726,18 +1729,115 @@ describe('edu course lessons', () => {
     authState.uid = 'uidB';
     resolveFirst(firstPayload);
 
-    await expect(firstLoad).resolves.toMatchObject({ ok: false, reason: 'viewer_changed' });
-    expect(container.innerHTML).not.toContain('Viewer A Student');
-
-    firebase.listEduCoursePublicRoster.mockResolvedValueOnce(secondPayload);
-    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
-
+    await expect(firstLoad).resolves.toMatchObject({ ok: true });
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenLastCalledWith(
+      'teamA',
+      'planA',
+      'sessionA',
+      { forceRefresh: true },
+    );
     expect(container.innerHTML).toContain('Viewer B Student');
     expect(container.innerHTML).not.toContain('Viewer A Student');
   });
 
-  test('clears cached roster preview when auth viewer changes before background refresh finishes', async () => {
+  test('stops viewer-change retries with a visible retry action', async () => {
+    let resolveFirst;
+    let resolveSecond;
+    const firstPromise = new Promise(resolve => { resolveFirst = resolve; });
+    const secondPromise = new Promise(resolve => { resolveSecond = resolve; });
+    const payload = {
+      rosterPublic: true,
+      session: { id: 'sessionA', title: 'Session', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Stale Viewer Student' }],
+    };
+    const { app, container, firebase, authState } = loadCourseLessonsContext({ authUid: 'uidA' });
+    firebase.listEduCoursePublicRoster
+      .mockImplementationOnce(() => firstPromise)
+      .mockImplementationOnce(() => secondPromise);
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    while (firebase.listEduCoursePublicRoster.mock.calls.length === 0) await Promise.resolve();
+    authState.uid = 'uidB';
+    resolveFirst(payload);
+    while (firebase.listEduCoursePublicRoster.mock.calls.length < 2) await Promise.resolve();
+    authState.uid = 'uidC';
+    resolveSecond(payload);
+
+    await expect(load).resolves.toMatchObject({
+      ok: false,
+      reason: 'viewer_changed',
+      retryExhausted: true,
+    });
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(container.innerHTML).toContain('primary-btn small');
+    expect(container.innerHTML).not.toContain('Stale Viewer Student');
+    expect(container.innerHTML).not.toContain('edu-loading');
+  });
+
+  test('renders fresh roster without waiting for stalled lesson state when the plan is cached', async () => {
+    const { app, container } = loadCourseLessonsContext();
+    app._loadEduCourseLessonsState = jest.fn(() => new Promise(() => {}));
+    let settled = false;
+
+    const load = app.showCourseLessonRoster('teamA', 'planA', 'sessionA').then((result) => {
+      settled = true;
+      return result;
+    });
+    await flushPromises(20);
+
+    expect(settled).toBe(true);
+    await expect(load).resolves.toMatchObject({ ok: true });
+    expect(container.innerHTML).toContain('edu-course-roster');
+    expect(container.innerHTML).not.toContain('edu-loading');
+  });
+
+  test('turns a roster request timeout into a visible retry action', async () => {
+    const timeoutError = Object.assign(new Error('timeout'), { code: 'COURSE_LESSON_ROSTER_TIMEOUT' });
+    const withSportHubTimeout = jest.fn((promise, _timeoutMs, code) => (
+      code === 'COURSE_LESSON_ROSTER_TIMEOUT' ? Promise.reject(timeoutError) : Promise.resolve(promise)
+    ));
+    const { app, container } = loadCourseLessonsContext({ withSportHubTimeout });
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: false,
+      reason: 'roster_failed',
+    });
+
+    expect(withSportHubTimeout).toHaveBeenCalledWith(
+      expect.any(Promise),
+      35000,
+      'COURSE_LESSON_ROSTER_TIMEOUT',
+      'Course lesson roster request timed out',
+    );
+    expect(container.innerHTML).toContain('primary-btn small');
+    expect(container.innerHTML).not.toContain('edu-loading');
+  });
+
+  test('turns a lesson state timeout without cached plan into a visible retry action', async () => {
+    const timeoutError = Object.assign(new Error('timeout'), { code: 'COURSE_LESSON_STATE_TIMEOUT' });
+    const withSportHubTimeout = jest.fn((promise, _timeoutMs, code) => (
+      code === 'COURSE_LESSON_STATE_TIMEOUT' ? Promise.reject(timeoutError) : Promise.resolve(promise)
+    ));
+    const { app, container } = loadCourseLessonsContext({ plans: [], withSportHubTimeout });
+
+    await expect(app.showCourseLessonRoster('teamA', 'planA', 'sessionA')).resolves.toMatchObject({
+      ok: false,
+      reason: 'state_failed',
+    });
+
+    expect(withSportHubTimeout).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      15000,
+      'COURSE_LESSON_STATE_TIMEOUT',
+      'Course lesson state request timed out',
+    );
+    expect(container.innerHTML).toContain('primary-btn small');
+    expect(container.innerHTML).not.toContain('edu-loading');
+  });
+
+  test('retries cached roster refresh when auth viewer changes before it finishes', async () => {
     let resolveState;
     let resolveRefresh;
     const statePromise = new Promise(resolve => { resolveState = resolve; });
@@ -1766,6 +1866,12 @@ describe('edu course lessons', () => {
     await expect(secondLoad).resolves.toMatchObject({ ok: true, cached: true });
     expect(container.innerHTML).toContain('Viewer A Cached');
 
+    firebase.listEduCoursePublicRoster.mockResolvedValueOnce({
+      rosterPublic: true,
+      cacheMeta: { payloadVersion: 'b-fresh-viewer', cacheTtlMs: 30000 },
+      session: { id: 'sessionA', title: 'Fresh', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
+      students: [{ studentId: 'stu1', displayName: 'Viewer B Fresh', canSelfLeave: false }],
+    });
     authState.uid = 'uidB';
     resolveState(await originalLoadState('teamA', 'planA'));
     resolveRefresh({
@@ -1774,11 +1880,36 @@ describe('edu course lessons', () => {
       session: { id: 'sessionA', title: 'Stale', date: '2099-06-02', startTime: '10:00', endTime: '11:30', status: 'scheduled' },
       students: [{ studentId: 'stu1', displayName: 'Stale Viewer A', canSelfLeave: true, selfUid: 'uidA' }],
     });
-    await flushPromises();
+    await flushPromises(20);
 
-    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(2);
+    expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledTimes(3);
+    expect(container.innerHTML).toContain('Viewer B Fresh');
     expect(container.innerHTML).not.toContain('Viewer A Cached');
     expect(container.innerHTML).not.toContain('Stale Viewer A');
+  });
+
+  test('stale background roster work cannot retry after the auth viewer changes', async () => {
+    const { app, authState } = loadCourseLessonsContext({ authUid: 'uidA' });
+    app.currentPage = 'page-edu-course-lessons';
+    app._eduCurrentTeamId = 'teamA';
+    app._eduCourseLessonsRequestSeq = 2;
+    app._eduCourseLessonsContext = { teamId: 'teamA', planId: 'planA', sessionId: 'sessionA', mode: 'roster' };
+    const showRoster = jest.spyOn(app, 'showCourseLessonRoster').mockResolvedValue({ ok: true });
+    authState.uid = 'uidB';
+
+    const result = await app._refreshCourseLessonRosterInBackground(
+      1,
+      'teamA',
+      'planA',
+      'sessionA',
+      app._findEduCoursePlan('teamA', 'planA'),
+      false,
+      '',
+      'uidA',
+    );
+
+    expect(result).toMatchObject({ ok: false, reason: 'stale' });
+    expect(showRoster).not.toHaveBeenCalled();
   });
 
   test('staff roster separates unpaid students from paid lesson roster', async () => {

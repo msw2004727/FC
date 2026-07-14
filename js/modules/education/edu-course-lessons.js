@@ -16,6 +16,9 @@ Object.assign(App, {
   _eduCourseRosterPersistentSchemaVersion: 1,
   _eduCourseRosterPersistentPublicTtlMs: 10 * 60 * 1000,
   _eduCourseRosterPersistentMaxEntries: 16,
+  _eduCourseRosterStateTimeoutMs: 15000,
+  _eduCourseRosterRequestTimeoutMs: 35000,
+  _eduCourseRosterViewerRetryLimit: 1,
   _eduCourseRosterPerfTimeline: [],
   _eduCourseRosterLastPerf: null,
 
@@ -76,6 +79,86 @@ Object.assign(App, {
     } catch (_) {
       return 'guest';
     }
+  },
+
+  _withCourseLessonRosterTimeout(promise, timeoutMs, code, message) {
+    if (typeof _withSportHubTimeout === 'function') {
+      return _withSportHubTimeout(promise, timeoutMs, code, message);
+    }
+    const normalizedTimeoutMs = Number(timeoutMs || 0);
+    if (!Number.isFinite(normalizedTimeoutMs) || normalizedTimeoutMs <= 0) {
+      return Promise.resolve(promise);
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const error = new Error(message || 'Course lesson roster request timed out');
+        error.code = code || 'COURSE_LESSON_ROSTER_TIMEOUT';
+        reject(error);
+      }, normalizedTimeoutMs);
+      Promise.resolve(promise).then(
+        value => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        err => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  },
+
+  _renderCourseLessonRosterLoadFailure(teamId, planId, sessionId, message = '') {
+    const jsTeamId = this._eduCourseLessonsJsArg?.(teamId) || String(teamId || '');
+    const jsPlanId = this._eduCourseLessonsJsArg?.(planId) || String(planId || '');
+    const jsSessionId = this._eduCourseLessonsJsArg?.(sessionId) || String(sessionId || '');
+    const detail = message || '&#35531;&#30906;&#35469;&#32178;&#36335;&#29376;&#24907;&#24460;&#20877;&#35430;';
+    return '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>' + detail + '</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
+  },
+
+  async _handleCourseLessonRosterViewerChange(teamId, planId, sessionId, routeTransitionSeq, options = {}) {
+    if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+      return this._abortEduCourseLessonsTransition('courseLessonRoster-viewer-change', routeTransitionSeq);
+    }
+    const ctx = this._eduCourseLessonsContext;
+    const stillOnRoster = this.currentPage === 'page-edu-course-lessons'
+      && ctx?.mode === 'roster'
+      && String(ctx.teamId || '') === String(teamId || '')
+      && String(ctx.planId || '') === String(planId || '')
+      && String(ctx.sessionId || '') === String(sessionId || '');
+    if (!stillOnRoster) return { ok: false, reason: 'stale' };
+
+    const retryCount = Math.max(0, Number(options?._viewerChangeRetryCount) || 0);
+    const retryLimit = Math.max(0, Number(this._eduCourseRosterViewerRetryLimit) || 0);
+    if (retryCount < retryLimit) {
+      this._recordCourseLessonRosterPerf('viewer_retry', {
+        teamId,
+        planId,
+        sessionId,
+        retryCount: retryCount + 1,
+      }, options?.perfStartedAtMs);
+      return this.showCourseLessonRoster(teamId, planId, sessionId, {
+        ...options,
+        forceRefresh: true,
+        bypassPageLock: true,
+        preserveRouteUrl: true,
+        skipPageHistory: true,
+        suppressHashSync: true,
+        _navigationTransitionSeq: routeTransitionSeq,
+        _viewerChangeRetryCount: retryCount + 1,
+      });
+    }
+
+    const container = this._getEduCourseLessonsContainer();
+    if (container) {
+      container.innerHTML = this._renderCourseLessonRosterLoadFailure(
+        teamId,
+        planId,
+        sessionId,
+        '&#30331;&#20837;&#29376;&#24907;&#24050;&#26356;&#26032;&#65292;&#35531;&#37325;&#26032;&#36617;&#20837;&#21517;&#21934;',
+      );
+    }
+    return { ok: false, reason: 'viewer_changed', retryExhausted: true };
   },
 
   _getCourseLessonRosterPerfNow() {
@@ -1915,7 +1998,13 @@ Object.assign(App, {
       }
     };
     try {
-      const rosterPromise = options.rosterPromise || FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+      const rosterRequest = options.rosterPromise || FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+      const rosterPromise = this._withCourseLessonRosterTimeout(
+        rosterRequest,
+        this._eduCourseRosterRequestTimeoutMs,
+        'COURSE_LESSON_ROSTER_TIMEOUT',
+        'Course lesson roster request timed out',
+      );
       const statePromise = planOrState && typeof planOrState.then === 'function'
         ? planOrState
         : Promise.resolve(planOrState);
@@ -1923,12 +2012,15 @@ Object.assign(App, {
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
         return this._abortEduCourseLessonsTransition('refreshCourseLessonRoster-data', routeTransitionSeq);
       }
+      if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-        const container = this._getEduCourseLessonsContainer();
-        if (container && !this._isEduCourseLessonsStale(requestSeq, teamId)) {
-          container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
-        }
-        return { ok: false, reason: 'viewer_changed' };
+        return this._handleCourseLessonRosterViewerChange(
+          teamId,
+          planId,
+          sessionId,
+          routeTransitionSeq,
+          options,
+        );
       }
       this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, rosterPayload, viewerUidAtStart);
       if (options.forceRefresh === true) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
@@ -2122,10 +2214,22 @@ Object.assign(App, {
       includeStaffFields: cachedSource === 'memory' && localStaff && cacheScope === 'staff',
     });
     const cachedPlan = cachedRenderPayload ? (cachedPlanForShell || this._findEduCoursePlan(teamId, planId)) : null;
-    const lessonStatePromise = this._loadEduCourseLessonsState(teamId, planId);
-    const freshRosterPromise = forceRefresh
+    const lessonStatePromise = this._withCourseLessonRosterTimeout(
+      this._loadEduCourseLessonsState(teamId, planId),
+      this._eduCourseRosterStateTimeoutMs,
+      'COURSE_LESSON_STATE_TIMEOUT',
+      'Course lesson state request timed out',
+    );
+    void lessonStatePromise.catch(() => {});
+    const freshRosterRequest = forceRefresh
       ? FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
       : FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+    const freshRosterPromise = this._withCourseLessonRosterTimeout(
+      freshRosterRequest,
+      this._eduCourseRosterRequestTimeoutMs,
+      'COURSE_LESSON_ROSTER_TIMEOUT',
+      'Course lesson roster request timed out',
+    );
     let namesFirstPreviewRendered = false;
     let freshRosterApplied = false;
     const applyNamesFirstPreview = async (state, source) => {
@@ -2190,11 +2294,17 @@ Object.assign(App, {
         teamId,
         planId,
         sessionId,
-        lessonStatePromise,
+        cachedPlan || lessonStatePromise,
         localStaff,
         this._getCourseLessonRosterPayloadVersion(cachedPayload),
         viewerUidAtStart,
-        { forceRefresh, rosterPromise: freshRosterPromise, perfStartedAtMs, routeTransitionSeq },
+        {
+          forceRefresh,
+          rosterPromise: freshRosterPromise,
+          perfStartedAtMs,
+          routeTransitionSeq,
+          _viewerChangeRetryCount: options?._viewerChangeRetryCount,
+        },
       );
       return { ...result, cached: true };
     }
@@ -2209,7 +2319,17 @@ Object.assign(App, {
           return null;
         });
 
-    const [lessonStateResult, freshRosterResult] = await Promise.allSettled([lessonStatePromise, freshRosterPromise]);
+    let lessonStateResult;
+    let freshRosterResult;
+    if (cachedPlanForShell) {
+      [freshRosterResult] = await Promise.allSettled([freshRosterPromise]);
+      lessonStateResult = {
+        status: 'fulfilled',
+        value: { plan: cachedPlanForShell, sessions: cachedSessionsForShell || [] },
+      };
+    } else {
+      [lessonStateResult, freshRosterResult] = await Promise.allSettled([lessonStatePromise, freshRosterPromise]);
+    }
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-data', routeTransitionSeq);
     }
@@ -2222,11 +2342,25 @@ Object.assign(App, {
     const freshRosterPayload = freshRosterResult.status === 'fulfilled' ? freshRosterResult.value : null;
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-      container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
-      return { ok: false, reason: 'viewer_changed' };
+      return this._handleCourseLessonRosterViewerChange(
+        teamId,
+        planId,
+        sessionId,
+        routeTransitionSeq,
+        { ...options, perfStartedAtMs },
+      );
     }
     const lessonPlan = lessonState.plan;
     if (!lessonPlan) {
+      if (lessonStateResult.status === 'rejected') {
+        container.innerHTML = this._renderCourseLessonRosterLoadFailure(
+          teamId,
+          planId,
+          sessionId,
+          '&#35506;&#22530;&#36039;&#26009;&#36617;&#20837;&#22833;&#25943;&#65292;&#35531;&#37325;&#35430;',
+        );
+        return { ok: false, reason: 'state_failed' };
+      }
       container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
       return { ok: false, reason: 'plan_not_found' };
     }
@@ -2244,15 +2378,21 @@ Object.assign(App, {
         this._renderCourseLessonRosterFromContext?.();
         return { ok: false, reason: 'roster_failed', preview: true };
       }
-      const jsTeamId = this._eduCourseLessonsJsArg?.(teamId) || String(teamId || '');
-      const jsPlanId = this._eduCourseLessonsJsArg?.(planId) || String(planId || '');
-      const jsSessionId = this._eduCourseLessonsJsArg?.(sessionId) || String(sessionId || '');
-      container.innerHTML = '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>&#35531;&#30906;&#35469;&#32178;&#36335;&#29376;&#24907;&#24460;&#20877;&#35430;</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
+      container.innerHTML = this._renderCourseLessonRosterLoadFailure(teamId, planId, sessionId);
       return { ok: false, reason: 'roster_failed' };
     }
-    if (namesFirstPreviewPromise) await namesFirstPreviewPromise;
+    if (namesFirstPreviewPromise && !cachedPlanForShell) await namesFirstPreviewPromise;
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessonRoster-preview', routeTransitionSeq);
+    }
+    if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+      return this._handleCourseLessonRosterViewerChange(
+        teamId,
+        planId,
+        sessionId,
+        routeTransitionSeq,
+        { ...options, perfStartedAtMs },
+      );
     }
     freshRosterApplied = true;
     this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
