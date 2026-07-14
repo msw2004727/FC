@@ -1035,7 +1035,7 @@ describe('edu course lessons', () => {
     });
   });
 
-  test('fresh owned roster cards are stable-pinned and marked', async () => {
+  test('fresh owned roster cards are stable-pinned with a theme-aware background tint', async () => {
     const { app, container } = loadCourseLessonsContext({
       rosterPayload: {
         rosterPublic: true,
@@ -1056,7 +1056,18 @@ describe('edu course lessons', () => {
     expect(html.indexOf('Owned Two')).toBeLessThan(html.indexOf('Other One'));
     expect(html.indexOf('Other One')).toBeLessThan(html.indexOf('Other Two'));
     expect((html.match(/edu-course-roster-card-self/g) || [])).toHaveLength(2);
-    expect(cssSource).toContain('.edu-course-roster-card-self');
+    const selfCardRule = cssSource.match(/(?:^|\n)\.edu-course-roster-card-self\s*\{([^}]*)\}/s)?.[1] || '';
+    const darkSelfCardRule = cssSource.match(/\[data-theme="dark"\]\s+\.edu-course-roster-card-self\s*\{([^}]*)\}/s)?.[1] || '';
+    expect(selfCardRule).toContain('background:');
+    expect(selfCardRule).toContain('var(--accent-bg');
+    expect(selfCardRule).toContain('var(--bg-card)');
+    expect(selfCardRule).not.toMatch(/box-shadow|outline|border/);
+    expect(darkSelfCardRule).toContain('background:');
+    expect(darkSelfCardRule).toContain('var(--accent-bg)');
+    expect(cssSource.indexOf('.edu-course-roster-card-self {'))
+      .toBeGreaterThan(cssSource.indexOf('.edu-course-roster-card-unpaid {'));
+    expect(cssSource.indexOf('[data-theme="dark"] .edu-course-roster-card-self {'))
+      .toBeGreaterThan(cssSource.indexOf('[data-theme="dark"] .edu-course-roster-card-unpaid {'));
   });
 
   test('staff owned unpaid card stays above paid and unpaid sections without duplication', async () => {

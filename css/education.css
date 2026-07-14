@@ -1039,9 +1039,6 @@
   background: var(--bg-card);
   padding: .36rem .48rem;
 }
-.edu-course-roster-card-self {
-  box-shadow: 0 0 0 2px var(--accent);
-}
 .edu-course-roster-section-self .edu-course-roster-section-head strong {
   color: var(--accent);
 }
@@ -1051,6 +1048,11 @@
 .edu-course-roster-card-unpaid {
   border-left: 3px solid #dc2626;
   background: rgba(255, 247, 247, .96);
+}
+.edu-course-roster-card-self {
+  background:
+    linear-gradient(var(--accent-bg, rgba(13, 148, 136, .1)), var(--accent-bg, rgba(13, 148, 136, .1))),
+    var(--bg-card);
 }
 .edu-course-roster-refresh-alert {
   display: flex;
@@ -1467,6 +1469,11 @@
 }
 [data-theme="dark"] .edu-course-roster-card-unpaid {
   background: rgba(127, 29, 29, .12);
+}
+[data-theme="dark"] .edu-course-roster-card-self {
+  background:
+    linear-gradient(var(--accent-bg), var(--accent-bg)),
+    var(--bg-card);
 }
 [data-theme="dark"] .edu-course-roster-refresh-alert {
   border-color: rgba(251, 191, 36, .28);
