@@ -33,6 +33,23 @@ async function openActivityRuntime(page, capabilities = DEFAULT_USER_ACTIVITY_CA
 }
 
 test.describe('Activity permission runtime', () => {
+  test('activity list create CTA opens the type sheet after fresh capability validation', async ({ page }) => {
+    await openActivityRuntime(page);
+
+    await page.evaluate(() => {
+      App.hasPermission = code => code === 'event.create';
+      App._hasActivityManageEntry = () => true;
+      App._ensureActivityRoleCapabilitiesReady = async () => ['roleActivityCapabilities'];
+      App._refreshActivityCreateButton?.();
+    });
+
+    const createButton = page.locator('#activity-create-btn');
+    await expect(createButton).toBeVisible();
+    await createButton.click();
+
+    await expect(page.locator('#create-event-type-sheet')).toBeVisible({ timeout: 10000 });
+  });
+
   test('basic user can create basic activity but add-ons show upsell toast', async ({ page }) => {
     await openActivityRuntime(page);
 

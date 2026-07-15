@@ -119,7 +119,9 @@ describe('team loading performance contract', () => {
     const formGroup = source.match(/teamForm:\s*\[([\s\S]*?)\],\s*team:/);
 
     expect(source).toContain("'page-teams':              ['teamList']");
-    expect(source).toContain("'page-team-detail':        ['teamList', 'teamDetail', 'education']");
+    expect(source).toContain("'page-team-detail':        ['teamList', 'teamDetail']");
+    expect(source).not.toContain("'page-team-detail':        ['teamList', 'teamDetail', 'education']");
+    expect(readProjectFile('js/modules/team/team-detail.js')).toContain("ScriptLoader.ensureGroup('education')");
     expect(source).toContain("'page-team-manage':        ['teamList', 'teamForm']");
     expect(listGroup).not.toBeNull();
     expect(detailGroup).not.toBeNull();
@@ -150,10 +152,17 @@ describe('team loading performance contract', () => {
     const styleSource = readProjectFile('css/team.css');
 
     expect(renderSource).toContain('onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)"');
-    expect(renderSource).toContain('_markTeamCardPending?.(cardEl, safeTeamId)');
-    expect(renderSource).toContain('return await this.showTeamDetail(safeTeamId, options)');
+    expect(renderSource).toContain('_teamCardPendingDelayMs: 150');
+    expect(renderSource).toContain('this._isTeamCardOpenFlightReusable(activeFlight, safeTeamId)');
+    expect(renderSource).toContain('return await activeFlight.promise');
+    expect(renderSource).toContain('this.showTeamDetail(safeTeamId, options)');
     expect(renderSource).toContain('finally');
-    expect(renderSource).toContain('_clearTeamCardPending?.(cardEl, 650)');
+    expect(renderSource).toContain('_clearTeamCardPending?.(flight.cardEl, token)');
+    expect(renderSource).toContain('this._clearTeamCardPendings?.(container)');
+    expect(renderSource).toContain('this._invalidateTeamCardOpenFlight?.(\'team-list-render\')');
+    const pendingRule = styleSource.match(/\.tc-card\.is-pending\s*\{([\s\S]*?)\}/);
+    expect(pendingRule).not.toBeNull();
+    expect(pendingRule[1]).not.toContain('pointer-events: none');
     expect(styleSource).toContain('linear-gradient(90deg, var(--primary), #60a5fa)');
   });
 

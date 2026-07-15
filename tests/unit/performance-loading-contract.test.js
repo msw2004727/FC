@@ -34,7 +34,8 @@ describe('startup performance guardrails', () => {
     }, 0);
 
     expect(scripts.length).toBeLessThanOrEqual(54);
-    expect(rawBytes).toBeLessThanOrEqual(1_500_000);
+    // Reload/lazy-load recovery guards add a small reviewed boot cost.
+    expect(rawBytes).toBeLessThanOrEqual(1_525_000);
   });
 
   test('public activity list uses list-only scripts and data', () => {
@@ -104,6 +105,10 @@ describe('startup performance guardrails', () => {
     expect(sw).toContain('event.waitUntil(imageResponse.then(() => imageCacheUpdate)');
     expect(sw).toContain('IMAGE_CACHE_TRIM_INTERVAL');
     expect(sw).toContain('caches.open(IMAGE_CACHE_NAME).then(cache => trimImageCache(cache))');
+    expect(sw).toContain('cleanupLegacyRuntimeCaches()');
+    expect(sw).toContain('isLegacyRuntimeCacheName');
+    expect(sw).toContain("url.pathname.endsWith('.html')");
+    expect(sw).toContain('const cached = await cache.match(event.request)');
 
     const assetBlock = sw.match(/const STATIC_ASSETS\s*=\s*\[([\s\S]*?)\];/);
     expect(assetBlock).not.toBeNull();

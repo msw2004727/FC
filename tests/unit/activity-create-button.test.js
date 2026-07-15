@@ -14,6 +14,9 @@ describe('activity create button', () => {
     const activityCss = readProjectFile('css/activity.css');
 
     expect(activityHtml).toContain('id="activity-create-btn"');
+    expect(activityHtml.match(/typeof App\.openActivityCreateEvent==='function'/g) || []).toHaveLength(2);
+    expect(activityHtml.match(/ScriptLoader\.ensureGroup\('activity'\)/g) || []).toHaveLength(2);
+    expect(activityHtml).not.toContain('onclick="App.openCreateEventModal()"');
     expect(activityHtml).toContain('aria-label="＋我要開團"');
     expect(activityHtml).toContain('<path d="M12 5v14"></path>');
     expect(activityHtml).toContain('<path d="M5 12h14"></path>');
@@ -66,9 +69,10 @@ describe('activity create button', () => {
     const helpersSource = readProjectFile('js/modules/event/event-list-helpers.js');
     const configSource = readProjectFile('js/config.js');
 
-    expect(createSource).toContain('async openCreateEventModal()');
-    expect(createSource).toContain('await this._ensureActivityRoleCapabilitiesReady?.({ force: true });');
-    expect(helpersSource).toContain('ensureRoleActivityCapabilitiesReady');
+    expect(createSource).toContain('async openCreateEventModal(options = {})');
+    expect(createSource).toContain('_ensureFreshActivityRoleCapabilitiesForCreate');
+    expect(createSource).toContain("'activity-role-capability-timeout'");
+    expect(helpersSource).toContain('return await FirebaseService.ensureRoleActivityCapabilitiesReady(options);');
     expect(configSource).toMatch(/'page-activities':\s*\{[^}]*roleActivityCapabilities/);
   });
 
@@ -87,7 +91,7 @@ describe('activity create button', () => {
     expect(listSource).toContain("...document.querySelectorAll('.home-create-event-btn')");
     expect(listSource).toContain("button.dataset.profileIncomplete = '1';");
     expect(listSource).toContain("button.setAttribute('aria-disabled', profileLocked ? 'true' : 'false');");
-    expect(createSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
+    expect(createSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return false;');
     expect(homeSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
     expect(homeSource).toContain("const showOptions = { disableShellFirst: true };");
     expect(bannerSource).toContain('this._refreshActivityCreateButton?.();');
@@ -102,10 +106,10 @@ describe('activity create button', () => {
     const createSource = readProjectFile('js/modules/event/event-create.js');
 
     expect(createSource).toContain('const isEditSubmit = !!this._editEventId;');
-    expect(createSource).toContain('startEarlyEditSubmitBusy();');
+    expect(createSource).toContain('startEarlySubmitBusy();');
     expect(createSource).toContain("submitBtn.textContent = this._editEventId ? '儲存中' : '建立中...';");
     expect(createSource).toContain("this.showToast('系統已在處理中');");
-    expect(createSource).toContain('stopEarlyEditSubmitBusy();');
+    expect(createSource).toContain('stopEarlySubmitBusy();');
   });
 
   test('activity form title switches between create and edit modes', () => {

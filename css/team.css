@@ -124,8 +124,7 @@
 @keyframes tc-attention-spin { to { transform: rotate(360deg); } }
 /* §8.2D Loading progress bar */
 .tc-card.is-pending {
-  cursor: wait;
-  pointer-events: none;
+  cursor: progress;
   transform: none;
   box-shadow: 0 14px 34px rgba(15, 23, 42, .16);
 }

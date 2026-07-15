@@ -11,6 +11,10 @@ const navigationSource = fs.readFileSync(
   'utf8'
 );
 const appSource = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+const teamDetailSource = fs.readFileSync(
+  path.join(ROOT, 'js/modules/team/team-detail.js'),
+  'utf8'
+);
 
 function deferred() {
   let resolve;
@@ -28,6 +32,7 @@ function setupPages(activePage = 'page-current') {
     'page-old',
     'page-new',
     'page-home',
+    'page-teams',
     'page-team-detail',
   ].map(pageId => (
     `<section id="${pageId}" class="page${pageId === activePage ? ' active' : ''}"></section>`
@@ -289,13 +294,107 @@ describe('global navigation transition races', () => {
       App.currentPage = 'page-team-detail';
       return { ok: true };
     });
-    App.showTeamDetail = loadedHandler;
+    App._showTeamDetailLoaded = loadedHandler;
     entryReady.resolve();
     const result = await routePromise;
 
     expect(result).toMatchObject({ ok: false, reason: 'stale_transition' });
     expect(loadedHandler).not.toHaveBeenCalled();
     expect(App.currentPage).toBe('page-new');
+  });
+
+  test('new navigation captures an old team module handler from the public slot', async () => {
+    const App = installNavigation();
+    const gateway = App.showTeamDetail;
+    const oldLoadedHandler = jest.fn(async (teamId, options) => ({
+      ok: true,
+      teamId,
+      options,
+    }));
+    App._showDetailRouteShell = jest.fn(async () => ({
+      ok: true,
+      pageId: 'page-team-detail',
+      shellFirst: true,
+    }));
+    App._ensurePageEntryReady = jest.fn(async () => {
+      App.showTeamDetail = oldLoadedHandler;
+      return { ok: true };
+    });
+
+    const result = await App.showTeamDetail('team-old', { allowGuest: true });
+
+    expect(result).toMatchObject({ ok: true, teamId: 'team-old' });
+    expect(oldLoadedHandler).toHaveBeenCalledWith(
+      'team-old',
+      expect.objectContaining({
+        allowGuest: true,
+        bypassPageLock: true,
+        skipPageHistory: true,
+        _navigationTransitionSeq: expect.any(Number),
+      })
+    );
+    expect(App._showTeamDetailLoaded).toBe(oldLoadedHandler);
+    expect(App.showTeamDetail).toBe(gateway);
+  });
+
+  test('new navigation and new team module keep the public gateway stable', async () => {
+    const App = installNavigation();
+    const gateway = App.showTeamDetail;
+
+    eval(teamDetailSource);
+
+    expect(App.showTeamDetail).toBe(gateway);
+    expect(App._showTeamDetailLoaded).toEqual(expect.any(Function));
+
+    const newLoadedHandler = jest.fn(async teamId => ({ ok: true, teamId }));
+    App._showTeamDetailLoaded = newLoadedHandler;
+    App._showDetailRouteShell = jest.fn(async () => ({
+      ok: true,
+      pageId: 'page-team-detail',
+      shellFirst: true,
+    }));
+    App._ensurePageEntryReady = jest.fn(async () => ({ ok: true }));
+
+    await expect(
+      App.showTeamDetail('team-new', { allowGuest: true })
+    ).resolves.toMatchObject({ ok: true, teamId: 'team-new' });
+    expect(newLoadedHandler).toHaveBeenCalledTimes(1);
+    expect(App.showTeamDetail).toBe(gateway);
+  });
+
+  test('a stale Team A rejection cannot overwrite a newer Team B on the same detail page', async () => {
+    const teamAReady = deferred();
+    const teamAStarted = deferred();
+    const App = installNavigation();
+    App._showDetailRouteShell = jest.fn(async () => ({
+      ok: true,
+      pageId: 'page-team-detail',
+      shellFirst: true,
+    }));
+    App._ensurePageEntryReady = jest.fn(async () => ({ ok: true }));
+    App._renderLazyRouteFailure = jest.fn();
+    App._showTeamDetailLoaded = jest.fn((teamId) => {
+      if (teamId === 'teamA') {
+        teamAStarted.resolve();
+        return teamAReady.promise;
+      }
+      App.currentPage = 'page-team-detail';
+      App._teamDetailId = teamId;
+      return Promise.resolve({ ok: true, teamId });
+    });
+
+    const teamAPromise = App.showTeamDetail('teamA', { allowGuest: true });
+    await teamAStarted.promise;
+    const teamBResult = await App.showTeamDetail('teamB', { allowGuest: true });
+    teamAReady.reject(new Error('stale Team A failed'));
+    const teamAResult = await teamAPromise;
+
+    expect(teamBResult).toMatchObject({ ok: true, teamId: 'teamB' });
+    expect(teamAResult).toMatchObject({ ok: false, reason: 'stale_transition' });
+    expect(App.currentPage).toBe('page-team-detail');
+    expect(App._teamDetailId).toBe('teamB');
+    expect(App._renderLazyRouteFailure).not.toHaveBeenCalled();
+    expect(App.showToast).not.toHaveBeenCalled();
   });
 
   test('a stale PWA sentinel handler cannot re-push history over a newer route', async () => {
@@ -394,5 +493,60 @@ describe('global navigation transition races', () => {
       'pageshow-bfcache',
       expect.objectContaining({ pageId: 'page-new', persisted: true })
     );
+  });
+
+  test('persisted pageshow clears pending feedback on the restored team list', () => {
+    setupPages('page-teams');
+    document.getElementById('page-teams').innerHTML = '<div id="team-list"></div>';
+    const teamList = document.getElementById('team-list');
+    const App = {
+      currentPage: 'page-teams',
+      _pageTransitionSeq: 4,
+      _activePageTransitionSeq: 4,
+      _invalidateTeamCardOpenFlight: jest.fn(),
+      _clearTeamCardPendings: jest.fn(),
+      _syncBottomTabForPage: jest.fn(),
+      _recordNavigationDiagnostic: jest.fn(),
+      _claimPageTransition: jest.fn(function claimPageTransition() {
+        this._pageTransitionSeq += 1;
+        return this._pageTransitionSeq;
+      }),
+    };
+    const handler = extractPageshowHandler(App);
+
+    handler({ persisted: false });
+    expect(App._invalidateTeamCardOpenFlight).not.toHaveBeenCalled();
+    expect(App._clearTeamCardPendings).not.toHaveBeenCalled();
+
+    handler({ persisted: true });
+    expect(App._invalidateTeamCardOpenFlight).toHaveBeenCalledWith('bfcache-restore');
+    expect(App._clearTeamCardPendings).toHaveBeenCalledTimes(1);
+    expect(App._clearTeamCardPendings).toHaveBeenCalledWith(teamList);
+  });
+
+  test('persisted pageshow cancels an orphaned activity-create entry', () => {
+    setupPages('page-activities');
+    const App = {
+      currentPage: 'page-activities',
+      _pageTransitionSeq: 3,
+      _activePageTransitionSeq: 3,
+      _cancelActivityCreateEntry: jest.fn(),
+      _cancelActivityCreateCompatEntry: jest.fn(),
+      _syncBottomTabForPage: jest.fn(),
+      _recordNavigationDiagnostic: jest.fn(),
+      _claimPageTransition: jest.fn(function claimPageTransition() {
+        this._pageTransitionSeq += 1;
+        return this._pageTransitionSeq;
+      }),
+    };
+    const handler = extractPageshowHandler(App);
+
+    handler({ persisted: false });
+    expect(App._cancelActivityCreateEntry).not.toHaveBeenCalled();
+    expect(App._cancelActivityCreateCompatEntry).not.toHaveBeenCalled();
+
+    handler({ persisted: true });
+    expect(App._cancelActivityCreateEntry).toHaveBeenCalledWith('bfcache-restore');
+    expect(App._cancelActivityCreateCompatEntry).toHaveBeenCalledWith('bfcache-restore');
   });
 });

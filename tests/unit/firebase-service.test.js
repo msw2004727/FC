@@ -8,6 +8,10 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const TEAM_DETAIL_SOURCE = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/team/team-detail.js'),
+  'utf8'
+);
 
 function loadFirebaseServiceWithStorage(initialStorage = {}) {
   const storage = new Map(Object.entries(initialStorage));
@@ -1094,6 +1098,207 @@ describe('route-scoped users and manual attendance realtime', () => {
       expect.objectContaining({ uid: 'member-1', name: 'Member', _docId: 'member-1' }),
     ]);
     expect(FirebaseService._usersSnapshotReady).toBe(true);
+    expect(FirebaseService._renderAfterUsersHydrated).toHaveBeenCalledTimes(1);
+
+    emitSnapshot({
+      metadata: { fromCache: false },
+      docs: [{ id: 'member-2', data: () => ({ uid: 'member-2', displayName: 'Member 2' }) }],
+    });
+    expect(FirebaseService._renderAfterUsersHydrated).toHaveBeenCalledTimes(1);
+  });
+
+  test('team users hydration refreshes only the current team and transition', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.App = {};
+    sandbox.ApiService = {};
+    vm.runInContext(TEAM_DETAIL_SOURCE, sandbox, {
+      filename: 'js/modules/team/team-detail.js',
+    });
+    const App = sandbox.App;
+    App.currentPage = 'page-team-detail';
+    App._teamDetailId = 'teamA';
+    App._activePageTransitionSeq = 7;
+    App._pageTransitionSeq = 7;
+    App._isPageTransitionCurrent = function isPageTransitionCurrent(transitionSeq) {
+      return Number(transitionSeq) === Number(this._pageTransitionSeq);
+    };
+    App.showTeamDetail = jest.fn(async teamId => ({ ok: true, teamId }));
+
+    FirebaseService._renderAfterUsersHydrated();
+    await Promise.resolve();
+
+    expect(App.showTeamDetail).toHaveBeenCalledWith(
+      'teamA',
+      expect.objectContaining({
+        allowGuest: true,
+        usersHydrationRefresh: true,
+        skipPageHistory: true,
+        bypassPageLock: true,
+        _navigationTransitionSeq: 7,
+      }),
+    );
+
+    App.showTeamDetail.mockClear();
+    App._pageTransitionSeq = 8;
+    FirebaseService._renderAfterUsersHydrated();
+    await Promise.resolve();
+    expect(App.showTeamDetail).not.toHaveBeenCalled();
+
+    App._activePageTransitionSeq = 8;
+    App._teamDetailId = 'teamB';
+    await expect(
+      App._refreshCurrentTeamDetail('teamA', 8, { usersHydrationRefresh: true })
+    ).resolves.toMatchObject({ ok: false, reason: 'stale' });
+    expect(App.showTeamDetail).not.toHaveBeenCalled();
+  });
+
+  test.each(['_onTeamsUpdated', '_onRolePermissionsUpdated'])(
+    '%s cannot refresh team A after a newer navigation intent has claimed the transition',
+    async callbackName => {
+      const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+      sandbox.App = {};
+      sandbox.ApiService = {};
+      vm.runInContext(TEAM_DETAIL_SOURCE, sandbox, {
+        filename: 'js/modules/team/team-detail.js',
+      });
+      const App = sandbox.App;
+      App.currentPage = 'page-team-detail';
+      App._teamDetailId = 'teamA';
+      App._activePageTransitionSeq = 10;
+      App._pageTransitionSeq = 11;
+      App._isPageTransitionCurrent = transitionSeq => Number(transitionSeq) === App._pageTransitionSeq;
+      App.showTeamDetail = jest.fn((teamId, options = {}) => {
+        if (!options._navigationTransitionSeq) App._pageTransitionSeq += 1;
+        return Promise.resolve({ ok: true, teamId });
+      });
+
+      FirebaseService[callbackName]();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(App.showTeamDetail).not.toHaveBeenCalled();
+      expect(App._pageTransitionSeq).toBe(11);
+    }
+  );
+
+  test.each(['_onTeamsUpdated', '_onRolePermissionsUpdated'])(
+    '%s refreshes the active team with its inherited transition and never claims a new one',
+    async callbackName => {
+      const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+      sandbox.App = {};
+      sandbox.ApiService = {};
+      vm.runInContext(TEAM_DETAIL_SOURCE, sandbox, {
+        filename: 'js/modules/team/team-detail.js',
+      });
+      const App = sandbox.App;
+      App.currentPage = 'page-team-detail';
+      App._teamDetailId = 'teamA';
+      App._activePageTransitionSeq = 10;
+      App._pageTransitionSeq = 10;
+      App._isPageTransitionCurrent = transitionSeq => Number(transitionSeq) === App._pageTransitionSeq;
+      App.showTeamDetail = jest.fn((teamId, options = {}) => {
+        if (!options._navigationTransitionSeq) App._pageTransitionSeq += 1;
+        return Promise.resolve({ ok: true, teamId });
+      });
+
+      FirebaseService[callbackName]();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(App.showTeamDetail).toHaveBeenCalledWith(
+        'teamA',
+        expect.objectContaining({
+          skipPageHistory: true,
+          bypassPageLock: true,
+          _navigationTransitionSeq: 10,
+        })
+      );
+      expect(App._pageTransitionSeq).toBe(10);
+    }
+  );
+
+  test('mixed-runtime team refresh fallback remains bound to the active transition', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.App = {
+      currentPage: 'page-team-detail',
+      _teamDetailId: 'teamA',
+      _activePageTransitionSeq: 6,
+      _pageTransitionSeq: 6,
+      showTeamDetail: jest.fn((teamId, options = {}) => {
+        if (!options._navigationTransitionSeq) sandbox.App._pageTransitionSeq += 1;
+        return Promise.resolve({ ok: true, teamId });
+      }),
+    };
+
+    FirebaseService._onTeamsUpdated();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sandbox.App.showTeamDetail).toHaveBeenCalledWith(
+      'teamA',
+      expect.objectContaining({ _navigationTransitionSeq: 6 })
+    );
+    expect(sandbox.App._pageTransitionSeq).toBe(6);
+  });
+
+  test('role-permission event refresh also reuses the active transition', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.App = {
+      currentPage: 'page-activity-detail',
+      _currentDetailEventId: 'eventA',
+      _activePageTransitionSeq: 3,
+      _pageTransitionSeq: 3,
+      _refreshCurrentEventDetail: jest.fn(async () => ({ ok: true })),
+    };
+
+    FirebaseService._onRolePermissionsUpdated();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sandbox.App._refreshCurrentEventDetail).toHaveBeenCalledWith(
+      'eventA',
+      3,
+      expect.objectContaining({ _navigationTransitionSeq: 3 })
+    );
+    expect(sandbox.App._pageTransitionSeq).toBe(3);
+  });
+
+  test('detail scroll restore revalidates transition ownership inside the animation frame', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    const animationFrames = [];
+    sandbox.window = {
+      scrollY: 320,
+      pageYOffset: 320,
+      scrollTo: jest.fn(),
+    };
+    sandbox.requestAnimationFrame = jest.fn(callback => {
+      animationFrames.push(callback);
+    });
+    sandbox.App = {
+      currentPage: 'page-team-detail',
+      _teamDetailId: 'teamA',
+      _activePageTransitionSeq: 6,
+      _pageTransitionSeq: 6,
+      _refreshCurrentTeamDetail: jest.fn(async () => ({ ok: true })),
+    };
+
+    await FirebaseService._refreshVisibleDetailWithoutNavigationClaim('team', 'teams-snapshot');
+    expect(animationFrames).toHaveLength(1);
+
+    sandbox.App.currentPage = 'page-home';
+    sandbox.App._pageTransitionSeq = 7;
+    animationFrames.shift()();
+    expect(sandbox.window.scrollTo).not.toHaveBeenCalled();
+
+    sandbox.App.currentPage = 'page-team-detail';
+    sandbox.App._teamDetailId = 'teamA';
+    sandbox.App._activePageTransitionSeq = 8;
+    sandbox.App._pageTransitionSeq = 8;
+    await FirebaseService._refreshVisibleDetailWithoutNavigationClaim('team', 'teams-snapshot');
+    expect(animationFrames).toHaveLength(1);
+
+    animationFrames.shift()();
+    expect(sandbox.window.scrollTo).toHaveBeenCalledWith(0, 320);
   });
 
   test('empty Firestore cache snapshot preserves a usable persisted users directory', async () => {

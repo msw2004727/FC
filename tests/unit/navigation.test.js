@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ---------------------------------------------------------------------------
-// Extracted from js/core/navigation.js:71-73
+// Extracted from js/core/navigation.js:147-149
 // _getPageStrategy — returns strategy or default
 // ---------------------------------------------------------------------------
 function _getPageStrategy(pageId, PAGE_STRATEGY) {

@@ -2,6 +2,12 @@
    SportHub — Navigation, Drawer, Modal
    ================================================ */
 
+App._lazyRoutePreexistingMethods = App._lazyRoutePreexistingMethods || {};
+if (typeof App.showTeamDetail === 'function'
+  && App.showTeamDetail !== App._lazyRouteGateways?.showTeamDetail) {
+  App._lazyRoutePreexistingMethods.showTeamDetail = App.showTeamDetail;
+}
+
 Object.assign(App, {
 
   _pageTransitionSeq: 0,
@@ -538,7 +544,25 @@ Object.assign(App, {
     }
   },
 
+  _beginSwLazyContinuation() {
+    this._swLazyContinuationsPending = Math.max(
+      0,
+      Number(this._swLazyContinuationsPending || 0)
+    ) + 1;
+  },
+
+  _endSwLazyContinuation(source = 'lazy-continuation-complete') {
+    this._swLazyContinuationsPending = Math.max(
+      0,
+      Number(this._swLazyContinuationsPending || 0) - 1
+    );
+    if (this._swLazyContinuationsPending === 0) {
+      this._maybeRunDeferredSwReload?.(source);
+    }
+  },
+
   async _continueShellFirstPage(pageId, transitionSeq) {
+    this._beginSwLazyContinuation();
     try {
       if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
         await ScriptLoader.ensureForPage(pageId);
@@ -573,6 +597,8 @@ Object.assign(App, {
     } catch (err) {
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
       console.warn(`[Navigation] shell-first continuation failed for ${pageId}:`, err);
+    } finally {
+      this._endSwLazyContinuation('shell-continuation-complete');
     }
   },
 
@@ -803,8 +829,9 @@ Object.assign(App, {
   },
 
   async _ensurePageEntryReady(pageId, transitionSeq) {
-    // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
-    const canStale = this._getPageStrategy(pageId) === 'stale-first'
+    // stale-first / stale-confirm 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
+    const pageStrategy = this._getPageStrategy(pageId);
+    const canStale = (pageStrategy === 'stale-first' || pageStrategy === 'stale-confirm')
       && this._hasCachedDataForPage(pageId);
     const canActivateBeforeCloud = this._canActivateBeforeCloud(pageId);
 
@@ -822,7 +849,8 @@ Object.assign(App, {
       return this._abortStalePageTransition('page-entry-cloud', pageId, transitionSeq);
     }
 
-    const fullUsersReadyPromise = !canActivateBeforeCloud
+    const fullUsersReadyPromise = !canStale
+      && !canActivateBeforeCloud
       && typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.ensureFullUsersReadyForPage === 'function'
       ? FirebaseService.ensureFullUsersReadyForPage(pageId)
@@ -894,47 +922,138 @@ Object.assign(App, {
     }
   },
 
-  async _invokeLazyRouteMethod(pageId, methodName, args = []) {
-    const gateway = this._lazyRouteGateways && this._lazyRouteGateways[methodName];
-    const currentMethod = this[methodName];
+  _renderLazyRouteFailure(pageId, methodName, args = [], reason = 'load_failed') {
+    if (this.currentPage !== pageId) return false;
+    const bodyId = {
+      'page-activity-detail': 'detail-body',
+      'page-team-detail': 'team-detail-body',
+      'page-tournament-detail': 'tournament-content',
+    }[pageId];
+    const body = bodyId ? document.getElementById(bodyId) : null;
+    if (!body) return false;
 
-    if (typeof currentMethod === 'function' && (!gateway || currentMethod !== gateway)) {
-      return await currentMethod.apply(this, args);
-    }
+    const label = pageId === 'page-team-detail'
+      ? '俱樂部資料'
+      : (pageId === 'page-activity-detail' ? '活動資料' : '賽事資料');
+    const message = reason === 'missing'
+      ? `${label}不存在或已下架。`
+      : `${label}載入失敗，請檢查網路後重試。`;
+    body.innerHTML = '<div class="detail-section lazy-route-error" role="alert">'
+      + '<strong>' + message + '</strong>'
+      + '<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem">'
+      + '<button type="button" class="primary-btn small" data-lazy-route-retry>重新載入</button>'
+      + '<button type="button" class="outline-btn small" data-lazy-route-back>返回</button>'
+      + '</div></div>';
 
-    const routeOptions = (args[1] && typeof args[1] === 'object') ? args[1] : {};
-    const transitionSeq = this._claimPageTransition(pageId, routeOptions);
-    if (!this._isPageTransitionCurrent(transitionSeq)) {
-      return this._abortStalePageTransition('lazy-route-entry', pageId, transitionSeq);
-    }
-    args[1] = { ...routeOptions, _navigationTransitionSeq: transitionSeq };
+    body.querySelector('[data-lazy-route-retry]')?.addEventListener('click', () => {
+      const retryOptions = {
+        ...((args[1] && typeof args[1] === 'object') ? args[1] : {}),
+        bypassPageLock: true,
+        skipPageHistory: true,
+      };
+      delete retryOptions._navigationTransitionSeq;
+      const retryMethod = this._lazyRouteGateways?.[methodName] || this[methodName];
+      if (typeof retryMethod === 'function') {
+        void retryMethod.call(this, args[0], retryOptions);
+      }
+    });
+    body.querySelector('[data-lazy-route-back]')?.addEventListener('click', () => {
+      if (typeof this.goBack === 'function') this.goBack();
+      else void this.showPage?.('page-home', { bypassPageLock: true });
+    });
+    return true;
+  },
 
-    if (gateway && this._isFastDetailRouteMethod(methodName)) {
-      const shellResult = await this._showDetailRouteShell(pageId, methodName, args);
+  _reconcileLazyRouteGateways() {
+    const mappings = this._lazyRouteLoadedMethodNames || {};
+    Object.entries(mappings).forEach(([methodName, loadedMethodName]) => {
+      const gateway = this._lazyRouteGateways?.[methodName];
+      if (typeof gateway !== 'function') return;
+      const currentMethod = this[methodName];
+      if (currentMethod === gateway) return;
+      if (typeof this[loadedMethodName] !== 'function'
+        && typeof currentMethod === 'function') {
+        this[loadedMethodName] = currentMethod;
+      }
+      this[methodName] = gateway;
+    });
+  },
+
+  async _invokeLazyRouteMethod(pageId, methodName, args = [], loadedMethodName = '') {
+    this._beginSwLazyContinuation();
+    let shellResult = null;
+    let transitionSeq = 0;
+    try {
+      const gateway = this._lazyRouteGateways && this._lazyRouteGateways[methodName];
+      const currentMethod = this[methodName];
+      const stableLoadedMethodName = String(loadedMethodName || '').trim();
+
+      if (!stableLoadedMethodName
+        && typeof currentMethod === 'function'
+        && (!gateway || currentMethod !== gateway)) {
+        return await currentMethod.apply(this, args);
+      }
+
+      const routeOptions = (args[1] && typeof args[1] === 'object') ? args[1] : {};
+      transitionSeq = this._claimPageTransition(pageId, routeOptions);
       if (!this._isPageTransitionCurrent(transitionSeq)) {
-        return this._abortStalePageTransition('lazy-route-shell', pageId, transitionSeq);
+        return this._abortStalePageTransition('lazy-route-entry', pageId, transitionSeq);
       }
-      if (shellResult?.ok) {
-        args[1] = {
-          ...args[1],
-          skipPageHistory: true,
-          bypassPageLock: true,
-        };
+      args[1] = { ...routeOptions, _navigationTransitionSeq: transitionSeq };
+
+      if (gateway && this._isFastDetailRouteMethod(methodName)) {
+        shellResult = await this._showDetailRouteShell(pageId, methodName, args);
+        if (!this._isPageTransitionCurrent(transitionSeq)) {
+          return this._abortStalePageTransition('lazy-route-shell', pageId, transitionSeq);
+        }
+        if (shellResult?.ok) {
+          args[1] = {
+            ...args[1],
+            skipPageHistory: true,
+            bypassPageLock: true,
+          };
+        }
       }
-    }
 
-    const readinessResult = await this._ensurePageEntryReady(pageId, transitionSeq);
-    if (readinessResult?.reason === 'stale_transition') return readinessResult;
-    if (!this._isPageTransitionCurrent(transitionSeq)) {
-      return this._abortStalePageTransition('lazy-route-ready', pageId, transitionSeq);
-    }
+      const readinessResult = await this._awaitRouteStep(
+        this._ensurePageEntryReady(pageId, transitionSeq),
+        pageId,
+        'page'
+      );
+      if (readinessResult?.reason === 'stale_transition') return readinessResult;
+      if (!this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('lazy-route-ready', pageId, transitionSeq);
+      }
 
-    const loadedMethod = this[methodName];
-    if (typeof loadedMethod !== 'function' || (gateway && loadedMethod === gateway)) {
-      throw new Error(`Route method unavailable: ${methodName}`);
-    }
+      this._reconcileLazyRouteGateways();
+      const loadedMethod = this[stableLoadedMethodName || methodName];
+      if (typeof loadedMethod !== 'function'
+        || (!stableLoadedMethodName && gateway && loadedMethod === gateway)) {
+        throw new Error(`Route method unavailable: ${stableLoadedMethodName || methodName}`);
+      }
 
-    return await loadedMethod.apply(this, args);
+      const result = await loadedMethod.apply(this, args);
+      if (shellResult?.ok
+        && result?.ok === false
+        && this._isPageTransitionCurrent(transitionSeq)
+        && ['error', 'page-not-ready', 'missing', 'load_failed', 'route_timeout'].includes(result.reason)) {
+        this._renderLazyRouteFailure(pageId, methodName, args, result.reason);
+      }
+      return result;
+    } catch (err) {
+      if (transitionSeq && !this._isPageTransitionCurrent(transitionSeq)) {
+        return this._abortStalePageTransition('lazy-route-error', pageId, transitionSeq);
+      }
+      const reason = err?.code === 'route-step-timeout' || err?.code === 'script-load-timeout'
+        ? 'route_timeout'
+        : 'load_failed';
+      console.warn(`[Navigation] lazy route failed for ${methodName}:`, err);
+      this._renderLazyRouteFailure(pageId, methodName, args, reason);
+      this.showToast?.(this._getRouteFailureToast(pageId, 'page', err));
+      return { ok: false, reason, step: 'page', error: err };
+    } finally {
+      this._endSwLazyContinuation('lazy-route-complete');
+    }
   },
 
   async showEventDetail(id, options = {}) {
@@ -947,7 +1066,12 @@ Object.assign(App, {
     })) {
       return { ok: false, reason: 'auth' };
     }
-    return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id, options]);
+    return await this._invokeLazyRouteMethod(
+      'page-team-detail',
+      'showTeamDetail',
+      [id, options],
+      '_showTeamDetailLoaded'
+    );
   },
 
   async showTournamentDetail(id, options = {}) {
@@ -1220,6 +1344,10 @@ Object.assign(App, {
   },
 
   _cleanupBeforePageSwitch(pageId) {
+    if (this.currentPage && this.currentPage !== pageId) {
+      this._cancelActivityCreateEntry?.('page-switch');
+      this._cancelActivityCreateCompatEntry?.('page-switch');
+    }
     // 清除待執行的 snapshot 背景渲染 timer，防止切頁後舊頁面渲染仍觸發
     if (typeof FirebaseService !== 'undefined') clearTimeout(FirebaseService._snapshotRenderTimer);
     if (pageId === 'page-activities') {
@@ -1264,6 +1392,7 @@ Object.assign(App, {
       this._cleanupEduListeners?.();
     }
     if (this.currentPage === 'page-teams' && pageId !== 'page-teams') {
+      this._invalidateTeamCardOpenFlight?.('leave-team-list');
       this._stopEduTeamsListener?.();
     }
   },
@@ -1750,3 +1879,14 @@ App._lazyRouteGateways = Object.assign({}, App._lazyRouteGateways, {
   showTeamDetail: App.showTeamDetail,
   showTournamentDetail: App.showTournamentDetail,
 });
+App._lazyRouteLoadedMethodNames = Object.assign({}, App._lazyRouteLoadedMethodNames, {
+  showTeamDetail: '_showTeamDetailLoaded',
+});
+const preexistingTeamDetailMethod = App._lazyRoutePreexistingMethods?.showTeamDetail;
+if (typeof App._showTeamDetailLoaded !== 'function'
+  && typeof preexistingTeamDetailMethod === 'function'
+  && preexistingTeamDetailMethod !== App._lazyRouteGateways.showTeamDetail) {
+  App._showTeamDetailLoaded = preexistingTeamDetailMethod;
+}
+delete App._lazyRoutePreexistingMethods?.showTeamDetail;
+App._reconcileLazyRouteGateways();

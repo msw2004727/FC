@@ -401,12 +401,14 @@ function loadRealScriptLoader({
   auxOnDemand = true,
   performanceFlags = {},
   immediateTimers = false,
+  documentOverrides = {},
 } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../../js/core/script-loader.js'), 'utf8');
   let SL = null;
   const context = {
     console,
     setTimeout: immediateTimers ? ((fn) => { fn(); return 0; }) : setTimeout,
+    clearTimeout,
     CACHE_VERSION: 'test',
     PERFORMANCE_FLAGS: performanceFlags,
     shouldUseActivityDetailOptimization: (k) => {
@@ -419,6 +421,11 @@ function loadRealScriptLoader({
       querySelectorAll: () => [],
       createElement: () => ({}),
       head: { appendChild: () => {} },
+      ...documentOverrides,
+      head: {
+        appendChild: () => {},
+        ...(documentOverrides.head || {}),
+      },
     },
     __EXPORT__: (x) => { SL = x; },
   };
@@ -428,7 +435,44 @@ function loadRealScriptLoader({
   return SL;
 }
 
-describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）', () => {
+describe('dynamic script timeout recovery', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('a hung script rejects, clears pending state, and can be retried', async () => {
+    jest.useFakeTimers();
+    const appended = [];
+    const SL = loadRealScriptLoader({
+      documentOverrides: {
+        createElement: () => ({ remove: jest.fn() }),
+        head: { appendChild: script => appended.push(script) },
+      },
+    });
+    SL._getLoadTimeoutMs = () => 50;
+
+    const first = SL._load('js/hung.js');
+    const rejection = expect(first).rejects.toMatchObject({
+      code: 'script-load-timeout',
+      src: 'js/hung.js',
+    });
+    expect(SL.hasPendingLoads()).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(50);
+    await rejection;
+    expect(appended[0].remove).toHaveBeenCalledTimes(1);
+    expect(SL.hasPendingLoads()).toBe(false);
+
+    const retry = SL._load('js/hung.js');
+    expect(appended).toHaveLength(2);
+    appended[1].onload();
+    await expect(retry).resolves.toBeUndefined();
+    expect(SL._loaded['js/hung.js']).toBe(true);
+    expect(SL.hasPendingLoads()).toBe(false);
+  });
+});
+
+describe('detailCoreSplit — 延後群組一致性（真實群組定義）', () => {
   const SL = loadRealScriptLoader();
   const a = SL._groups.activity;
   const core = SL._groups.activityDetailCore;
@@ -436,11 +480,13 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
   const create = SL._groups.activityCreate;
   const manage = SL._groups.activityManage;
 
-  test('聯集 = activity、互不重疊（檔案級三分拆）', () => {
+  test('聯集 = activity，僅 create-options 為明確共享依賴', () => {
     const union = [...core, ...attendance, ...create, ...manage];
-    expect(union.length).toBe(a.length);
-    expect(new Set(union).size).toBe(union.length);
-    expect([...union].sort()).toEqual([...a].sort());
+    const unique = new Set(union);
+    const duplicates = [...unique].filter(file => union.filter(item => item === file).length > 1);
+    expect(unique.size).toBe(a.length);
+    expect([...unique].sort()).toEqual([...a].sort());
+    expect(duplicates).toEqual(['js/modules/event/event-create-options.js']);
   });
 
   test('保持原 activity group 內的相對順序', () => {
@@ -470,13 +516,13 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
     });
   });
 
-  test('延後群組內容正確（create 11 檔 / manage 5 檔）', () => {
-    expect(create).toHaveLength(11);
+  test('延後群組內容正確（create 12 檔，含共享 options / manage 5 檔）', () => {
+    expect(create).toHaveLength(12);
     expect(attendance).toHaveLength(3);
     expect(manage).toHaveLength(5);
     expect(create).toContain('js/modules/event/event-create.js');
     expect(create).toContain('js/modules/event/event-location-draft.js');
-    expect(create).not.toContain('js/modules/event/event-create-options.js');
+    expect(create).toContain('js/modules/event/event-create-options.js');
     expect(manage).toEqual([
       'js/modules/event/event-manage-instant-save.js',
       'js/modules/event/event-manage-confirm.js',
@@ -507,7 +553,7 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
     expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activityDetailCore']);
     expect(SL._resolvePageGroups('page-activities')).toEqual(['activityList']);
     expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
-    expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail', 'education']);
+    expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail']);
   });
 
   test('education loads lesson share before lesson renderer and controller', () => {
@@ -698,5 +744,43 @@ describe('parallelGroupPreload — loadGroup 平行預載 flag', () => {
     SL._preloadFiles = (srcs) => preloaded.push(...srcs);
     await SL.loadGroup(['x.js']);
     expect(preloaded).toEqual([]);
+  });
+});
+
+describe('ensureGroup — single-flight and retry recovery', () => {
+  test('concurrent callers share one group flight and pending state clears on success', async () => {
+    const SL = loadRealScriptLoader();
+    let resolveLoad;
+    SL.loadGroup = jest.fn(() => new Promise(resolve => {
+      resolveLoad = resolve;
+    }));
+
+    const first = SL.ensureGroup('activityCreate');
+    const second = SL.ensureGroup('activityCreate');
+
+    expect(SL.loadGroup).toHaveBeenCalledTimes(1);
+    expect(SL.loadGroup).toHaveBeenCalledWith(SL._groups.activityCreate);
+    expect(SL.hasPendingLoads()).toBe(true);
+
+    resolveLoad();
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+    expect(SL.hasPendingLoads()).toBe(false);
+    expect(SL._groupLoading.activityCreate).toBeUndefined();
+  });
+
+  test('a rejected group flight clears its lock so the same group can retry immediately', async () => {
+    const SL = loadRealScriptLoader();
+    const loadError = new Error('activity create group failed');
+    SL.loadGroup = jest.fn()
+      .mockRejectedValueOnce(loadError)
+      .mockResolvedValueOnce(undefined);
+
+    await expect(SL.ensureGroup('activityCreate')).rejects.toBe(loadError);
+    expect(SL.hasPendingLoads()).toBe(false);
+    expect(SL._groupLoading.activityCreate).toBeUndefined();
+
+    await expect(SL.ensureGroup('activityCreate')).resolves.toBeUndefined();
+    expect(SL.loadGroup).toHaveBeenCalledTimes(2);
+    expect(SL.hasPendingLoads()).toBe(false);
   });
 });

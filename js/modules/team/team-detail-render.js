@@ -906,6 +906,17 @@ Object.assign(App, {
 
   _buildTeamEducationSection(t) {
     if (!t) return '';
+    if (typeof this._initEduClubDetailSection !== 'function'
+      || typeof this._renderEduTabContent !== 'function') {
+      return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section"'
+        + ' aria-busy="true" aria-live="polite">'
+        + '<div class="td-card-title td-card-title-row"><span>俱樂部課程</span></div>'
+        + '<div class="reg-loading">課程功能載入中...</div>'
+        + '<div class="reg-loading-skeleton" aria-hidden="true">'
+        + '<div class="reg-loading-skeleton-row"></div>'
+        + '<div class="reg-loading-skeleton-row"></div>'
+        + '</div></div>';
+    }
     return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section">' +
       '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u8ab2\u7a0b</span></div>' +
       '<div class="edu-tab-row td-edu-tab-row">' +

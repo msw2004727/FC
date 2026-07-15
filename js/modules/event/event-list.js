@@ -45,6 +45,156 @@ Object.assign(App, {
     return true;
   },
 
+  _activityCreateEntryTimeoutMs: 20000,
+  _activityCreateEntryPromise: null,
+  _activityCreateEntryContext: null,
+  _activityCreateEntryButtonStates: null,
+  _activityCreateEntrySeq: 0,
+
+  _setActivityCreateEntryBusy() {
+    return ['activity-create-btn', 'my-activity-create-btn']
+      .map(id => document.getElementById(id))
+      .filter(Boolean)
+      .map(button => {
+        const state = {
+          button,
+          disabled: !!button.disabled,
+          ariaBusy: button.getAttribute('aria-busy'),
+        };
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        return state;
+      });
+  },
+
+  _restoreActivityCreateEntryBusy(states = []) {
+    states.forEach(state => {
+      const button = state?.button;
+      if (!button) return;
+      button.disabled = !!state.disabled;
+      if (state.ariaBusy == null) button.removeAttribute('aria-busy');
+      else button.setAttribute('aria-busy', state.ariaBusy);
+    });
+  },
+
+  async _waitForActivityCreateEntry(
+    promise,
+    timeoutMs = this._activityCreateEntryTimeoutMs,
+    cancelPromise = null
+  ) {
+    const safeTimeoutMs = Math.max(1, Number(timeoutMs) || 20000);
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error('Activity create entry timeout');
+        err.code = 'activity-create-entry-timeout';
+        reject(err);
+      }, safeTimeoutMs);
+    });
+    try {
+      const candidates = [promise, timeout];
+      if (cancelPromise && typeof cancelPromise.then === 'function') candidates.push(cancelPromise);
+      return await Promise.race(candidates);
+    } finally {
+      if (timer != null) clearTimeout(timer);
+    }
+  },
+
+  _isActivityCreateEntryCurrent(context) {
+    if (!context || Number(context.requestSeq) !== Number(this._activityCreateEntrySeq)) return false;
+    if (context.pageId && this.currentPage !== context.pageId) return false;
+    if (Number.isSafeInteger(context.transitionSeq)
+      && Number(context.transitionSeq) !== Number(this._pageTransitionSeq)) return false;
+    return true;
+  },
+
+  _cancelActivityCreateEntry(reason = 'page-context-changed') {
+    const entryPromise = this._activityCreateEntryPromise;
+    const context = this._activityCreateEntryContext;
+    const states = this._activityCreateEntryButtonStates || [];
+    if (!entryPromise && !context && states.length === 0) return false;
+
+    this._activityCreateEntrySeq += 1;
+    if (context) context.cancelledReason = reason;
+    this._activityCreateEntryPromise = null;
+    this._activityCreateEntryContext = null;
+    this._activityCreateEntryButtonStates = null;
+    this._restoreActivityCreateEntryBusy(states);
+    context?.cancel?.(false);
+    return true;
+  },
+
+  async _runActivityCreateEntry(context) {
+    try {
+      if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+        throw new Error('Activity create loader unavailable');
+      }
+      await this._waitForActivityCreateEntry(
+        ScriptLoader.ensureGroup('activityCreate'),
+        this._activityCreateEntryTimeoutMs,
+        context?.cancelPromise
+      );
+      if (!this._isActivityCreateEntryCurrent(context)) return false;
+      if (typeof this.openCreateEventModal !== 'function') {
+        throw new Error('Activity create module unavailable');
+      }
+      return await this.openCreateEventModal({
+        entryGuard: () => this._isActivityCreateEntryCurrent(context),
+      });
+    } catch (err) {
+      if (!this._isActivityCreateEntryCurrent(context)) return false;
+      console.error('[ActivityCreateEntry] open failed:', err);
+      this.showToast?.(
+        err?.code === 'activity-create-entry-timeout'
+          ? '活動建立功能載入逾時，請檢查網路後再試'
+          : '活動建立功能載入失敗，請稍後再試'
+      );
+      return false;
+    }
+  },
+
+  async openActivityCreateEvent() {
+    if (this._activityCreateEntryPromise
+      && this._isActivityCreateEntryCurrent(this._activityCreateEntryContext)) {
+      return await this._activityCreateEntryPromise;
+    }
+    if (this._activityCreateEntryPromise || this._activityCreateEntryContext) {
+      this._cancelActivityCreateEntry('stale-entry-retry');
+    }
+    let cancelEntry = null;
+    const cancelPromise = new Promise(resolve => {
+      cancelEntry = resolve;
+    });
+    const context = {
+      requestSeq: ++this._activityCreateEntrySeq,
+      pageId: this.currentPage || '',
+      transitionSeq: Number.isSafeInteger(this._pageTransitionSeq)
+        ? this._pageTransitionSeq
+        : null,
+      cancel: cancelEntry,
+      cancelPromise,
+    };
+    if (!this._activityCreateEntryButtonStates) {
+      this._activityCreateEntryButtonStates = this._setActivityCreateEntryBusy();
+    }
+    this._beginSwLazyContinuation?.();
+    const workPromise = this._runActivityCreateEntry(context);
+    const entryPromise = Promise.race([workPromise, cancelPromise]);
+    this._activityCreateEntryPromise = entryPromise;
+    this._activityCreateEntryContext = context;
+    try {
+      return await entryPromise;
+    } finally {
+      this._endSwLazyContinuation?.('activity-create-entry-complete');
+      if (this._activityCreateEntryPromise === entryPromise) {
+        this._activityCreateEntryPromise = null;
+        this._activityCreateEntryContext = null;
+        this._restoreActivityCreateEntryBusy(this._activityCreateEntryButtonStates || []);
+        this._activityCreateEntryButtonStates = null;
+      }
+    }
+  },
+
   _refreshActivityCreateButton() {
     const canCreate = this._canCreateActivityByPermission();
     const profileLocked = canCreate && this._isActivityCreateProfileLocked();

@@ -157,6 +157,11 @@ describe('team detail club activity section', () => {
     };
   }
 
+  function markEducationRuntimeReady(app) {
+    app._initEduClubDetailSection = jest.fn();
+    app._renderEduTabContent = jest.fn();
+  }
+
   test('renders only future team-only events for the club and limits the first view to 10', () => {
     const clubEvents = Array.from({ length: 12 }, (_, idx) => ({
       id: `e${String(idx + 1).padStart(2, '0')}`,
@@ -312,7 +317,12 @@ describe('team detail club activity section', () => {
     expect(app._isTeamDetailSectionVisible({ id: 'teamB', type: 'education' }, 'courses')).toBe(true);
     expect(app._isTeamDetailSectionVisible({ id: 'teamC', type: 'leisure' }, 'courses')).toBe(false);
     expect(app._isTeamDetailSectionVisible({ id: 'teamD', type: 'none' }, 'courses')).toBe(false);
-    expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
+    const deferredHtml = app._buildTeamEducationSection({ id: 'teamB', type: 'education' });
+    expect(deferredHtml).toContain('id="edu-detail-section"');
+    expect(deferredHtml).toContain('課程功能載入中');
+    expect(deferredHtml).not.toContain('data-edutab');
+
+    markEducationRuntimeReady(app);
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('俱樂部課程');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('data-edutab="student"');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('待審核');
@@ -330,6 +340,7 @@ describe('team detail club activity section', () => {
       ],
     });
     loadTeamDetailRender(app, []);
+    markEducationRuntimeReady(app);
 
     const html = app._buildTeamEducationSection({ id: 'teamA' });
     expect(html).toContain('data-edutab="pending"');
@@ -348,6 +359,7 @@ describe('team detail club activity section', () => {
       ],
     });
     loadTeamDetailRender(app, []);
+    markEducationRuntimeReady(app);
 
     const html = app._buildTeamEducationSection({ id: 'teamA' });
     expect(html).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"');
@@ -1467,6 +1479,7 @@ describe('team detail club activity section', () => {
       },
     });
     app._resolveEventCoverImage = jest.fn().mockResolvedValue('cover-url');
+    app._ensureFreshActivityRoleCapabilitiesForCreate = jest.fn().mockResolvedValue(true);
 
     await app.handleCreateEvent();
 

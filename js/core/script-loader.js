@@ -9,6 +9,7 @@ const ScriptLoader = {
 
   _loaded: {},
   _loading: {},
+  _groupLoading: {},
   _domPrimed: false,
   _manualOnlyGroups: {
     activityMap: true,
@@ -21,6 +22,21 @@ const ScriptLoader = {
     activityDetailAttendance: true,
     activityCreate: true,
     activityManage: true,
+  },
+
+  _getLoadTimeoutMs() {
+    try {
+      const configured = Number(typeof App !== 'undefined' ? App._scriptLoadTimeoutMs : 0);
+      if (Number.isFinite(configured) && configured >= 1000) return configured;
+    } catch (_) {}
+    return 18000;
+  },
+
+  _createLoadError(src, code, message) {
+    const err = new Error(message || ('Failed: ' + src));
+    err.code = code;
+    err.src = src;
+    return err;
   },
 
   _normalizeLocalSrc(src) {
@@ -49,15 +65,66 @@ const ScriptLoader = {
     if (this._loaded[src]) return Promise.resolve();
     if (this._loading[src]) return this._loading[src];
 
-    this._loading[src] = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = src + '?v=' + CACHE_VERSION;
-      s.async = false;
-      s.onload = () => { this._loaded[src] = true; delete this._loading[src]; resolve(); };
-      s.onerror = () => { delete this._loading[src]; reject(new Error('Failed: ' + src)); };
-      document.head.appendChild(s);
+    let resolvePending;
+    let rejectPending;
+    const pending = new Promise((resolve, reject) => {
+      resolvePending = resolve;
+      rejectPending = reject;
     });
-    return this._loading[src];
+    this._loading[src] = pending;
+
+    const s = document.createElement('script');
+    let settled = false;
+    let timeoutId = null;
+    const finish = (ok, err = null) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId != null) clearTimeout(timeoutId);
+      s.onload = null;
+      s.onerror = null;
+      delete this._loading[src];
+      if (ok) {
+        this._loaded[src] = true;
+        try {
+          if (typeof App !== 'undefined') App._reconcileLazyRouteGateways?.();
+        } catch (reconcileErr) {
+          console.warn('[ScriptLoader] lazy route gateway reconcile failed:', reconcileErr);
+        }
+        resolvePending();
+        return;
+      }
+      try { s.remove?.(); } catch (_) {}
+      rejectPending(err || this._createLoadError(src, 'script-load-failed'));
+    };
+
+    s.src = src + '?v=' + CACHE_VERSION;
+    s.async = false;
+    s.onload = () => finish(true);
+    s.onerror = () => finish(false, this._createLoadError(
+      src,
+      'script-load-failed',
+      'Script load failed: ' + src
+    ));
+    timeoutId = setTimeout(() => finish(false, this._createLoadError(
+      src,
+      'script-load-timeout',
+      'Script load timed out: ' + src
+    )), this._getLoadTimeoutMs());
+    try {
+      document.head.appendChild(s);
+    } catch (err) {
+      finish(false, this._createLoadError(
+        src,
+        'script-load-failed',
+        err?.message || ('Script append failed: ' + src)
+      ));
+    }
+    return pending;
+  },
+
+  hasPendingLoads() {
+    return Object.keys(this._loading || {}).length > 0
+      || Object.keys(this._groupLoading || {}).length > 0;
   },
 
   /**
@@ -194,7 +261,8 @@ const ScriptLoader = {
       'js/modules/registration-audit.js',
     ],
     // === detailCoreSplit（Wave 2 拆包）====================================
-    // 以下三組為既有 activity group 的「檔案級」三分拆（聯集=activity、互不重疊、保持原相對順序）。
+    // 以下群組為既有 activity group 的「檔案級」拆分；create-options 是詳情首屏與建立表單的共享依賴。
+    // 聯集=activity，除上述共享依賴外互不重疊，並保持原相對順序。
     // 僅 page-activity-detail 在 detailCoreSplit 開啟時改用 activityDetailCore；
     // page-activities 使用 list-only activityList；page-my-activities 保留完整 activity 管理功能。
     // 修改 activity group 內容時，必須同步維護這三組（tests/unit/script-loader.test.js 有分拆一致性測試把關）。
@@ -232,6 +300,7 @@ const ScriptLoader = {
       'js/modules/event/event-create-input-history.js',
       'js/modules/event/event-create-sport-picker.js',
       'js/modules/event/event-create-delegates.js',
+      'js/modules/event/event-create-options.js',
       'js/modules/event/event-create-team-picker.js',
       'js/modules/event/event-location-draft.js',
       'js/modules/event/event-create-view-model.js',
@@ -604,7 +673,7 @@ const ScriptLoader = {
     'page-activity-detail':    ['activity', 'achievement', 'profileCard'],
     'page-my-activities':      ['activity'],
     'page-teams':              ['teamList'],
-    'page-team-detail':        ['teamList', 'teamDetail', 'education'],
+    'page-team-detail':        ['teamList', 'teamDetail'],
     'page-team-manage':        ['teamList', 'teamForm'],
     'page-profile':            ['profile'],
     'page-qrcode':             ['profile', 'profileCard'],
@@ -746,7 +815,17 @@ const ScriptLoader = {
     this._primeLoadedFromDom();
     const scripts = this._groups[groupName] || [];
     if (scripts.length === 0) return;
-    await this.loadGroup(scripts);
+    if (this._groupLoading[groupName]) return await this._groupLoading[groupName];
+
+    const groupPromise = this.loadGroup(scripts);
+    this._groupLoading[groupName] = groupPromise;
+    try {
+      return await groupPromise;
+    } finally {
+      if (this._groupLoading[groupName] === groupPromise) {
+        delete this._groupLoading[groupName];
+      }
+    }
   },
 
   /** 檢查頁面所需腳本是否全部已載入（同步；與 ensureForPage 共用同一套 split 映射） */

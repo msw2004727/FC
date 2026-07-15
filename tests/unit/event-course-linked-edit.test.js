@@ -123,6 +123,7 @@ describe('course-linked activity edit guard', () => {
     };
     const { App, courseEvent } = loadEventCreateModule({ elements });
     App._submitCourseLinkedEventVisibilityEdit = jest.fn().mockResolvedValue(true);
+    App._ensureFreshActivityRoleCapabilitiesForCreate = jest.fn().mockResolvedValue(true);
     App._getEventSocialLinksFormData = jest.fn(() => {
       throw new Error('locked social link validation should be skipped');
     });

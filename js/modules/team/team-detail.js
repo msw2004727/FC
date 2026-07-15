@@ -15,8 +15,110 @@ Object.assign(App, {
   _teamTournamentTabByTeam: {},
   _teamDetailEventCreateTeamId: null,
   _teamDetailEventCreateTransitionSeq: 0,
+  _teamDetailEducationLoadPromise: null,
+  _teamDetailEducationRouteIntent: null,
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
+
+  _isCurrentTeamDetailEducationRequest(teamId, requestSeq = 0) {
+    const normalizedTeamId = String(teamId || '').trim();
+    return !!normalizedTeamId
+      && this.currentPage === 'page-team-detail'
+      && String(this._teamDetailId || '').trim() === normalizedTeamId
+      && (!requestSeq || Number(requestSeq) === Number(this._teamDetailRequestSeq));
+  },
+
+  _replaceDeferredTeamEducationSection(teamId) {
+    const team = ApiService.getTeam?.(teamId);
+    const section = typeof document !== 'undefined'
+      ? document.getElementById('edu-detail-section')
+      : null;
+    if (!team || !section) return false;
+    if (section.querySelector?.('#edu-detail-tab-content')) return true;
+    if (typeof this._buildTeamEducationSection !== 'function') return false;
+
+    const template = document.createElement('template');
+    template.innerHTML = this._buildTeamEducationSection(team).trim();
+    const readySection = template.content.firstElementChild;
+    if (!readySection) return false;
+    section.replaceWith(readySection);
+    return true;
+  },
+
+  _renderTeamDetailEducationLoadError(teamId) {
+    if (!this._isCurrentTeamDetailEducationRequest(teamId)) return false;
+    const section = document.getElementById('edu-detail-section');
+    if (!section) return false;
+    section.setAttribute('aria-busy', 'false');
+    section.innerHTML = '<div class="td-card-title td-card-title-row"><span>俱樂部課程</span></div>'
+      + '<div class="reg-loading" role="alert"><strong>課程功能載入失敗</strong>'
+      + '<div style="margin-top:.75rem"><button type="button" class="outline-btn small"'
+      + ' data-team-education-retry>重新載入</button></div></div>';
+    section.querySelector('[data-team-education-retry]')?.addEventListener('click', () => {
+      void this.retryTeamDetailEducation(teamId);
+    });
+    return true;
+  },
+
+  _hydrateDeferredTeamEducation(teamId, options = {}) {
+    if (!this._isCurrentTeamDetailEducationRequest(teamId, options.requestSeq)) return false;
+    const intent = this._teamDetailEducationRouteIntent;
+    if (intent && String(intent.teamId || '') === String(teamId || '')) {
+      this._primeEduCoursePlanShareIntent?.(teamId, intent.options || {});
+    }
+    if (!this._replaceDeferredTeamEducationSection(teamId)) return false;
+    this._initEduClubDetailSection?.(teamId);
+    this._applyEduCoursePlanShareFocus?.(teamId);
+    if (this._teamDetailEducationRouteIntent === intent) {
+      this._teamDetailEducationRouteIntent = null;
+    }
+    return true;
+  },
+
+  async _ensureTeamDetailEducationReady(teamId, options = {}) {
+    if (!this._isCurrentTeamDetailEducationRequest(teamId, options.requestSeq)) return false;
+    if (typeof this._initEduClubDetailSection === 'function'
+      && typeof this._renderEduTabContent === 'function') {
+      return this._hydrateDeferredTeamEducation(teamId, options);
+    }
+    if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+      this._renderTeamDetailEducationLoadError(teamId);
+      if (options.userInitiated) this.showToast?.('課程功能載入失敗，請稍後再試');
+      return false;
+    }
+
+    let loadPromise = this._teamDetailEducationLoadPromise;
+    if (!loadPromise) {
+      loadPromise = ScriptLoader.ensureGroup('education');
+      this._teamDetailEducationLoadPromise = loadPromise;
+    }
+    try {
+      await loadPromise;
+      return this._hydrateDeferredTeamEducation(teamId, options);
+    } catch (err) {
+      console.warn('[TeamDetail] education scripts failed to load:', err);
+      this._renderTeamDetailEducationLoadError(teamId);
+      if (options.userInitiated) {
+        this.showToast?.(
+          err?.code === 'script-load-timeout'
+            ? '課程功能載入逾時，請檢查網路後再試'
+            : '課程功能載入失敗，請稍後再試'
+        );
+      }
+      return false;
+    } finally {
+      if (this._teamDetailEducationLoadPromise === loadPromise) {
+        this._teamDetailEducationLoadPromise = null;
+      }
+    }
+  },
+
+  retryTeamDetailEducation(teamId = this._teamDetailId) {
+    return this._ensureTeamDetailEducationReady(teamId, {
+      requestSeq: this._teamDetailRequestSeq,
+      userInitiated: true,
+    });
+  },
 
   _teamLeaderTag(name) {
     return '<span class="user-capsule uc-team-leader" data-no-translate onclick="App.showUserProfile(\'' + escapeHTML(name) + '\')" title="\u7403\u968a\u9818\u968a">' + escapeHTML(name) + '</span>';
@@ -868,7 +970,7 @@ Object.assign(App, {
     }
   },
 
-  async showTeamDetail(id, options = {}) {
+  async _showTeamDetailLoaded(id, options = {}) {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showTeamDetail', teamId: id }, { suppressToast: true })) {
       return { ok: false, reason: 'auth' };
     }
@@ -887,7 +989,10 @@ Object.assign(App, {
       let t = ApiService.getTeam(id);
       if (!t) {
         // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
-        t = await ApiService.getTeamAsync(id);
+        const teamRequest = ApiService.getTeamAsync(id);
+        t = typeof this._awaitRouteStep === 'function'
+          ? await this._awaitRouteStep(teamRequest, 'page-team-detail', 'cloud')
+          : await teamRequest;
         if (requestSeq !== this._teamDetailRequestSeq) {
           return { ok: false, reason: 'stale' };
         }
@@ -934,6 +1039,13 @@ Object.assign(App, {
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
       const staffIdentity = this._getTeamStaffIdentity(t);
+      this._teamDetailEducationRouteIntent = {
+        teamId: id,
+        options: {
+          ...options,
+          _navigationTransitionSeq: routeTransitionSeq,
+        },
+      };
       this._primeEduCoursePlanShareIntent?.(id, {
         ...options,
         _navigationTransitionSeq: routeTransitionSeq,
@@ -979,8 +1091,11 @@ Object.assign(App, {
         return { ok: false, reason: 'stale' };
       }
       this._teamDetailId = id;
-      if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
-        this._initEduClubDetailSection(id);
+      if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false) {
+        void this._ensureTeamDetailEducationReady(id, {
+          requestSeq,
+          routeTransitionSeq,
+        });
       }
       this._setRouteUrl?.({ pageId: 'page-team-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
@@ -1953,3 +2068,9 @@ Object.assign(App, {
   },
 
 });
+
+if (App._lazyRouteLoadedMethodNames?.showTeamDetail !== '_showTeamDetailLoaded') {
+  App.showTeamDetail = function showTeamDetailCompat(id, options = {}) {
+    return this._showTeamDetailLoaded(id, options);
+  };
+}

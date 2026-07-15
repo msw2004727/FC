@@ -6,12 +6,43 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260714e';
+const CACHE_NAME       = 'sporthub-0.20260715b';
 const PRECACHE_VERSION = CACHE_NAME.replace('sporthub-', '');
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
+const RUNTIME_CACHE_NAME_RE = /^sporthub-\d+\.\d{8}[a-z0-9._-]*$/i;
+const RETAIN_PREVIOUS_RUNTIME_CACHES = 1;
 const MAX_IMAGE_CACHE  = 300;
 const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const IMAGE_CACHE_TRIM_INTERVAL = 20;
+
+function isLegacyRuntimeCacheName(name) {
+  return typeof name === 'string'
+    && RUNTIME_CACHE_NAME_RE.test(name)
+    && name !== CACHE_NAME
+    && name !== IMAGE_CACHE_NAME;
+}
+
+function selectObsoleteRuntimeCaches(cacheNames, retainCount = RETAIN_PREVIOUS_RUNTIME_CACHES) {
+  const legacy = (Array.isArray(cacheNames) ? cacheNames : [])
+    .filter(isLegacyRuntimeCacheName)
+    .sort()
+    .reverse();
+  return legacy.slice(Math.max(0, Number(retainCount) || 0));
+}
+
+async function cleanupLegacyRuntimeCaches(maxAttempts = 2, retainCount = RETAIN_PREVIOUS_RUNTIME_CACHES) {
+  let stale = [];
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    stale = selectObsoleteRuntimeCaches(await caches.keys(), retainCount);
+    if (stale.length === 0) return [];
+    await Promise.allSettled(stale.map(name => caches.delete(name)));
+  }
+  stale = selectObsoleteRuntimeCaches(await caches.keys(), retainCount);
+  if (stale.length > 0) {
+    console.warn('[SW] Obsolete runtime caches remain:', stale.join(', '));
+  }
+  return stale;
+}
 
 function withPrecacheVersion(asset) {
   const separator = asset.includes('?') ? '&' : '?';
@@ -91,6 +122,12 @@ function isVersionedStaticRequest(url) {
     && VERSIONED_STATIC_RE.test(url.pathname);
 }
 
+function isForeignAppVersionRequest(url) {
+  return isVersionedStaticRequest(url)
+    && /\.(?:css|js)$/i.test(url.pathname)
+    && String(url.searchParams.get('v') || '') !== PRECACHE_VERSION;
+}
+
 // ─── 圖片快取工具函式 ───
 
 /**
@@ -155,19 +192,17 @@ self.addEventListener('install', (event) => {
 // ─── Activate：清除舊快取（保留 IMAGE_CACHE_NAME）───
 self.addEventListener('activate', (event) => {
   const navigationPreloadReady = self.registration.navigationPreload?.enable?.() ?? Promise.resolve();
+  const cleanupReady = cleanupLegacyRuntimeCaches().catch((err) => {
+    console.warn('[SW] legacy cache cleanup failed:', err?.message || err);
+    return [];
+  });
 
   event.waitUntil(
     Promise.all([
       navigationPreloadReady.catch((err) => {
         console.warn('[SW] navigation preload enable failed:', err?.message || err);
       }),
-      caches.keys().then((keys) => {
-        return Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME && key !== IMAGE_CACHE_NAME)
-            .map((key) => caches.delete(key))
-        );
-      }).then(() => self.clients.claim()),
+      cleanupReady.then(() => self.clients.claim()),
       caches.open(IMAGE_CACHE_NAME).then(cache => trimImageCache(cache)),
     ])
   );
@@ -270,8 +305,22 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === location.origin) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(event.request);
+        const versionedRequest = isVersionedStaticRequest(url);
+        const cached = versionedRequest
+          ? await caches.match(event.request)
+          : await cache.match(event.request);
         if (cached) return cached;
+
+        if (isForeignAppVersionRequest(url)) {
+          return new Response('', {
+            status: 409,
+            statusText: 'App version cache miss',
+            headers: {
+              'Cache-Control': 'no-store, max-age=0',
+              'X-SportHub-Version-Miss': '1',
+            },
+          });
+        }
 
         try {
           const response = await fetch(event.request);

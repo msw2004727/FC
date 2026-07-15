@@ -90,6 +90,7 @@ test.describe('phase 9 home layout smoke', () => {
       App.currentRole = 'user';
       App.hasPermission = code => code === 'event.create';
       App._hasActivityManageEntry = () => true;
+      App._ensureActivityRoleCapabilitiesReady = async () => ['roleActivityCapabilities'];
       App._refreshActivityCreateButton?.();
       document.querySelectorAll('.home-create-event-btn').forEach(button => {
         button.style.display = 'inline-flex';

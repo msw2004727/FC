@@ -3,6 +3,14 @@
    ================================================ */
 
 Object.assign(App, {
+  _closeEduCourseSessionForm() {
+    const overlay = document.querySelector('.edu-session-form-overlay');
+    if (!overlay) return false;
+    overlay.remove();
+    this._maybeRunDeferredSwReload?.('edu-session-form-close');
+    return true;
+  },
+
   async openCourseSessionForm(teamId, planId, sessionId) {
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     const sessions = await this._loadCourseSessions(teamId, planId);
@@ -41,7 +49,9 @@ Object.assign(App, {
 
     const overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay edu-session-form-overlay';
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = (e) => {
+      if (e.target === overlay) this._closeEduCourseSessionForm();
+    };
     overlay.innerHTML = '<div class="edu-info-dialog edu-session-form-dialog">'
       + '<div class="edu-info-dialog-title">' + (session ? '編輯課堂' : '新增課堂') + '</div>'
       + '<div class="ce-row edu-session-template-panel">'
@@ -74,6 +84,9 @@ Object.assign(App, {
       + '</div>'
     + '</div>';
     document.body.appendChild(overlay);
+    overlay.querySelector('.modal-actions .outline-btn')?.addEventListener('click', () => {
+      this._maybeRunDeferredSwReload?.('edu-session-form-cancel');
+    });
     this._bindCourseSessionStudentAvatarFallbacks(overlay);
     this._renderCourseSessionAssistantCoachTags();
     this.previewCourseSessionContact?.('manager');
@@ -379,6 +392,7 @@ Object.assign(App, {
       } catch (refreshErr) {
         console.warn('[handleSaveCourseSession] course lessons refresh failed:', refreshErr);
       }
+      this._maybeRunDeferredSwReload?.('edu-session-save-complete');
     } catch (err) {
       console.error('[handleSaveCourseSession]', err);
       const code = String(err?.code || '');

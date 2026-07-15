@@ -57,16 +57,95 @@ Object.assign(App, {
       </div>`;
   },
 
+  _isTeamCardOpenFlightReusable(flight, teamId) {
+    if (!flight?.promise || flight.invalidated || flight.teamId !== teamId) return false;
+
+    const currentTransitionSeq = Number(this._pageTransitionSeq);
+    const navigationTransitionSeq = Number(flight.navigationTransitionSeq);
+    if (Number.isSafeInteger(navigationTransitionSeq) && navigationTransitionSeq > 0
+      && Number.isSafeInteger(currentTransitionSeq)) {
+      return navigationTransitionSeq === currentTransitionSeq;
+    }
+
+    if (flight.originPageId && this.currentPage !== flight.originPageId) return false;
+    const originTransitionSeq = Number(flight.originTransitionSeq);
+    if (Number.isSafeInteger(originTransitionSeq) && originTransitionSeq > 0
+      && Number.isSafeInteger(currentTransitionSeq)) {
+      return originTransitionSeq === currentTransitionSeq;
+    }
+    return true;
+  },
+
+  _invalidateTeamCardOpenFlight(reason = 'page-context-changed') {
+    const flight = this._teamCardOpenFlight;
+    if (!flight) return false;
+    flight.invalidated = true;
+    flight.invalidatedReason = reason;
+    this._teamCardOpenFlight = null;
+    this._clearTeamCardPending?.(flight.cardEl, flight.token);
+    return true;
+  },
+
   async openTeamDetailFromCard(cardEl, teamId, options = {}) {
-    const safeTeamId = teamId || cardEl?.dataset?.teamId || '';
+    const safeTeamId = String(teamId || cardEl?.dataset?.teamId || '').trim();
     if (!safeTeamId) return { ok: false, reason: 'missing-id' };
-    this._markTeamCardPending?.(cardEl, safeTeamId);
+
+    const activeFlight = this._teamCardOpenFlight;
+    if (this._isTeamCardOpenFlightReusable(activeFlight, safeTeamId)) {
+      if (activeFlight.cardEl !== cardEl) {
+        this._clearTeamCardPending?.(activeFlight.cardEl, activeFlight.token);
+        activeFlight.cardEl = cardEl;
+      }
+      this._markTeamCardPending?.(cardEl, safeTeamId, {
+        token: activeFlight.token,
+        immediate: true,
+      });
+      return await activeFlight.promise;
+    }
+
+    if (activeFlight?.cardEl) {
+      this._clearTeamCardPending?.(activeFlight.cardEl, activeFlight.token);
+    }
+
+    const token = ++this._teamCardOpenSeq;
+    const flight = {
+      token,
+      teamId: safeTeamId,
+      cardEl,
+      originPageId: this.currentPage || '',
+      originTransitionSeq: Number(this._pageTransitionSeq),
+      navigationTransitionSeq: 0,
+      invalidated: false,
+      promise: null,
+    };
+    this._teamCardOpenFlight = flight;
+    this._markTeamCardPending?.(cardEl, safeTeamId, { token });
+
+    const openPromise = Promise.resolve()
+      .then(() => {
+        const routePromise = this.showTeamDetail(safeTeamId, options);
+        const claimedTransitionSeq = Number(this._pageTransitionSeq);
+        if (!flight.invalidated
+          && Number.isSafeInteger(claimedTransitionSeq)
+          && claimedTransitionSeq > 0) {
+          flight.navigationTransitionSeq = claimedTransitionSeq;
+        }
+        return routePromise;
+      });
+    flight.promise = openPromise;
     try {
-      return await this.showTeamDetail(safeTeamId, options);
+      return await openPromise;
     } catch (err) {
-      throw err;
+      if (this._teamCardOpenFlight === flight) {
+        console.error('[TeamCard] detail navigation failed:', err);
+        this.showToast?.('俱樂部頁面載入失敗，請稍後再試');
+      }
+      return { ok: false, reason: 'route-error', error: err };
     } finally {
-      this._clearTeamCardPending?.(cardEl, 650);
+      this._clearTeamCardPending?.(flight.cardEl, token);
+      if (this._teamCardOpenFlight === flight) {
+        this._teamCardOpenFlight = null;
+      }
     }
   },
 
@@ -75,6 +154,10 @@ Object.assign(App, {
   renderTeamList() {
     const container = document.getElementById('team-list');
     if (!container) return;
+    // 列表重建代表舊 card/page context 已失效；底層 promise 可收尾，但不可攔住新點擊。
+    this._invalidateTeamCardOpenFlight?.('team-list-render');
+    // bfcache / fingerprint fast path 會沿用既有 DOM，先同步清掉上次導航殘留狀態。
+    this._clearTeamCardPendings?.(container);
     this._initTeamListSportFilter?.();
     this._syncTeamFilterPanelState?.();
     this._refreshTeamCreateButtons();
@@ -285,14 +368,31 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  §8.2D Loading Progress Bar
   // ══════════════════════════════════
+  _teamCardOpenSeq: 0,
+  _teamCardOpenFlight: null,
   _teamCardLoadingState: null,
+  _teamCardPendingDelayMs: 150,
 
-  _markTeamCardPending(cardEl, teamId) {
-    if (!cardEl || !cardEl.classList) return;
+  _showTeamCardPending(state) {
+    if (!state || this._teamCardLoadingState !== state) return;
+    var cardEl = state.cardEl;
+    if (!cardEl || !cardEl.classList || cardEl.isConnected === false) {
+      this._clearTeamCardPending?.(cardEl, state.token);
+      return;
+    }
+
+    clearTimeout(state.delayTimer);
+    state.delayTimer = null;
+    if (state.visible) return;
+
+    state.visible = true;
+    state.startedAt = Date.now();
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
-    // Inject the progress bar into the media area so status rails stay untouched.
-    var imgArea = cardEl.querySelector('.tc-card-media') || cardEl.querySelector('[style*="aspect-ratio"]') || cardEl.querySelector('.tc-img-placeholder');
+
+    var imgArea = cardEl.querySelector('.tc-card-media')
+      || cardEl.querySelector('[style*="aspect-ratio"]')
+      || cardEl.querySelector('.tc-img-placeholder');
     if (imgArea && !imgArea.querySelector('.tc-loading-bar')) {
       var bar = document.createElement('div');
       bar.className = 'tc-loading-bar';
@@ -301,63 +401,97 @@ Object.assign(App, {
       bar.appendChild(fill);
       imgArea.appendChild(bar);
     }
+
     if (!cardEl.querySelector('.tc-loading-panel')) {
       var panel = document.createElement('div');
       panel.className = 'tc-loading-panel';
-      panel.innerHTML = '<span class="tc-loading-spinner" aria-hidden="true"></span>' +
-        '<span class="tc-loading-copy"><strong>資料更新中</strong><span>正在整理俱樂部最新內容</span></span>';
+      panel.innerHTML = '<span class="tc-loading-spinner" aria-hidden="true"></span>'
+        + '<span class="tc-loading-copy"><strong>資料更新中</strong>'
+        + '<span>正在整理俱樂部最新內容</span></span>';
       cardEl.appendChild(panel);
     }
-    // Start simulated progress
-    var loadingTeamId = teamId || cardEl.dataset?.teamId || '';
-    if (!this._teamCardLoadingState || this._teamCardLoadingState.teamId !== loadingTeamId) {
-      clearInterval(this._teamCardLoadingState?.interval);
-      var state = { teamId: loadingTeamId, cardEl: cardEl, progress: 0, startedAt: Date.now(), interval: null };
-      state.interval = setInterval(function () {
-        var p = state.progress;
-        var inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
-        state.progress = Math.min(p + inc, 85);
-        if (cardEl) {
-          var f = cardEl.querySelector('.tc-loading-fill');
-          if (f) f.style.width = state.progress + '%';
-        }
-      }, 100);
-      this._teamCardLoadingState = state;
-    }
+
+    state.interval = setInterval(function () {
+      var p = state.progress;
+      var inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
+      state.progress = Math.min(p + inc, 85);
+      var fill = cardEl.querySelector('.tc-loading-fill');
+      if (fill) fill.style.width = state.progress + '%';
+    }, 100);
   },
 
-  _clearTeamCardPending(cardEl, minVisibleMs) {
-    var state = this._teamCardLoadingState;
-    var ownsState = !!state && (!state.cardEl || state.cardEl === cardEl);
-    if (ownsState) {
-      clearInterval(state.interval);
-      state.interval = null;
+  _markTeamCardPending(cardEl, teamId, options = {}) {
+    if (!cardEl || !cardEl.classList) return;
+
+    var token = Number(options.token) || ++this._teamCardOpenSeq;
+    var existing = this._teamCardLoadingState;
+    if (existing && existing.cardEl === cardEl && existing.token === token) {
+      if (options.immediate) this._showTeamCardPending(existing);
+      return;
     }
-    var elapsed = ownsState ? Date.now() - state.startedAt : 0;
-    var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
+    if (existing) {
+      this._clearTeamCardPending(existing.cardEl, existing.token);
+    }
+
+    var state = {
+      token,
+      teamId: teamId || cardEl.dataset?.teamId || '',
+      cardEl,
+      progress: 0,
+      startedAt: 0,
+      delayTimer: null,
+      interval: null,
+      visible: false,
+    };
+    cardEl.dataset.teamLoadingToken = String(token);
+    this._teamCardLoadingState = state;
+
+    if (options.immediate) {
+      this._showTeamCardPending(state);
+      return;
+    }
     var self = this;
-    setTimeout(function () {
-      if (!cardEl) {
-        if (ownsState && self._teamCardLoadingState === state) self._teamCardLoadingState = null;
-        return;
-      }
-      var fill = cardEl.querySelector('.tc-loading-fill');
-      if (fill) fill.style.width = '100%';
-      setTimeout(function () {
-        if (cardEl) cardEl.classList.add('is-loaded');
-        setTimeout(function () {
-          if (cardEl) {
-            cardEl.classList.remove('is-pending', 'is-loaded');
-            cardEl.removeAttribute('aria-busy');
-            var bar = cardEl.querySelector('.tc-loading-bar');
-            if (bar) bar.remove();
-            var panel = cardEl.querySelector('.tc-loading-panel');
-            if (panel) panel.remove();
-          }
-          if (ownsState && self._teamCardLoadingState === state) self._teamCardLoadingState = null;
-        }, 400);
-      }, 350);
-    }, waitMs);
+    state.delayTimer = setTimeout(function () {
+      self._showTeamCardPending(state);
+    }, Math.max(0, Number(this._teamCardPendingDelayMs) || 150));
+  },
+
+  _clearTeamCardPending(cardEl, token) {
+    var state = this._teamCardLoadingState;
+    var safeToken = Number(token) || 0;
+    var cardToken = Number(cardEl?.dataset?.teamLoadingToken) || 0;
+    if (safeToken && cardToken && safeToken !== cardToken) return false;
+
+    var ownsState = !!state
+      && state.cardEl === cardEl
+      && (!safeToken || state.token === safeToken);
+    if (ownsState) {
+      clearTimeout(state.delayTimer);
+      clearInterval(state.interval);
+      state.delayTimer = null;
+      state.interval = null;
+      this._teamCardLoadingState = null;
+    }
+    if (!cardEl || !cardEl.classList) return ownsState;
+
+    cardEl.classList.remove('is-pending', 'is-loaded');
+    cardEl.removeAttribute('aria-busy');
+    delete cardEl.dataset.teamLoadingToken;
+    cardEl.querySelector('.tc-loading-bar')?.remove();
+    cardEl.querySelector('.tc-loading-panel')?.remove();
+    return true;
+  },
+
+  _clearTeamCardPendings(container) {
+    var scope = container && typeof container.querySelectorAll === 'function'
+      ? container
+      : document;
+    var cards = Array.from(scope.querySelectorAll(
+      '.tc-card.is-pending, .tc-card[aria-busy="true"], .tc-card[data-team-loading-token]'
+    ));
+    var activeCard = this._teamCardLoadingState?.cardEl;
+    if (activeCard && !cards.includes(activeCard)) cards.push(activeCard);
+    cards.forEach(card => this._clearTeamCardPending(card));
   },
 
 });

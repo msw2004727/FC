@@ -96,6 +96,29 @@ describe('async route entry transition guards', () => {
     jest.restoreAllMocks();
   });
 
+  test('real page-switch cleanup releases activity entry ownership and stale team-card flight', () => {
+    const cancelActivityCreateEntry = jest.fn();
+    const cancelActivityCreateCompatEntry = jest.fn();
+    const invalidateTeamCardOpenFlight = jest.fn();
+    const stopEduTeamsListener = jest.fn();
+    const App = installModule('js/core/navigation.js', {
+      before: {
+        currentPage: 'page-teams',
+        _cancelActivityCreateEntry: cancelActivityCreateEntry,
+        _cancelActivityCreateCompatEntry: cancelActivityCreateCompatEntry,
+        _invalidateTeamCardOpenFlight: invalidateTeamCardOpenFlight,
+        _stopEduTeamsListener: stopEduTeamsListener,
+      },
+    });
+
+    App._cleanupBeforePageSwitch('page-home');
+
+    expect(cancelActivityCreateEntry).toHaveBeenCalledWith('page-switch');
+    expect(cancelActivityCreateCompatEntry).toHaveBeenCalledWith('page-switch');
+    expect(invalidateTeamCardOpenFlight).toHaveBeenCalledWith('leave-team-list');
+    expect(stopEduTeamsListener).toHaveBeenCalledTimes(1);
+  });
+
   test('event detail does not activate its shell after a newer navigation', async () => {
     const scriptsReady = deferred();
     const event = { id: 'ce_test', type: 'play', title: 'Test event' };
@@ -187,6 +210,28 @@ describe('async route entry transition guards', () => {
     expect(PageLoader.ensurePage).not.toHaveBeenCalled();
     expect(ScriptLoader.ensureForPage).not.toHaveBeenCalled();
   });
+
+  test('new team module exposes its loaded handler when old navigation has no stable mapping', async () => {
+    const oldNavigationGateway = jest.fn(async () => ({ ok: false, reason: 'old-gateway' }));
+    const App = installModule('js/modules/team/team-detail.js', {
+      before: {
+        showTeamDetail: oldNavigationGateway,
+      },
+    });
+    const loadedHandler = jest.fn(async (teamId, options) => ({
+      ok: true,
+      teamId,
+      options,
+    }));
+    App._showTeamDetailLoaded = loadedHandler;
+
+    const result = await App.showTeamDetail('tm_mixed', { allowGuest: true });
+
+    expect(result).toMatchObject({ ok: true, teamId: 'tm_mixed' });
+    expect(loadedHandler).toHaveBeenCalledWith('tm_mixed', { allowGuest: true });
+    expect(oldNavigationGateway).not.toHaveBeenCalled();
+  });
+
   test('team detail stops before scripts when HTML finishes after newer navigation', async () => {
     const pageReady = deferred();
     const team = { id: 'tm_html', name: 'HTML team' };
@@ -778,10 +823,11 @@ describe('async route entry transition guards', () => {
         _canManageTeamMembers: () => false,
         _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
         _getTeamRank: () => ({ color: '', rank: '' }),
-        _buildTeamDetailBodyHtml: () => '',
+        _buildTeamDetailBodyHtml: () => '<section id="edu-detail-section"><div id="edu-detail-tab-content"></div></section>',
         _setTeamDetailV2ShellActive: jest.fn(),
         _isTeamDetailSectionVisible: () => true,
         _initEduClubDetailSection: jest.fn(),
+        _renderEduTabContent: jest.fn(),
         _syncTeamDetailV2RuntimeAfterBodyRender: jest.fn(),
         _cleanupTeamDetailV2Runtime: jest.fn(),
       },
@@ -792,5 +838,51 @@ describe('async route entry transition guards', () => {
     expect(result).toMatchObject({ ok: true, reason: 'ok' });
     expect(App._teamDetailId).toBe(team.id);
     expect(App._initEduClubDetailSection).toHaveBeenCalledWith(team.id);
+  });
+
+  test('team detail resolves while deferred education scripts are still loading', async () => {
+    document.body.innerHTML = '<h1 id="team-title"></h1><div id="team-name-en"></div><div id="team-image"></div><div id="team-body"></div>';
+    const team = { id: 'tm_deferred', name: 'Deferred team', teamExp: 0, wins: 0, draws: 0, losses: 0 };
+    const educationReady = deferred();
+    const ensureGroup = jest.fn(() => educationReady.promise);
+    let App;
+    App = installModule('js/modules/team/team-detail.js', {
+      api: {
+        getTeam: () => team,
+        getTeamAsync: jest.fn(),
+      },
+      scriptLoader: { ensureGroup },
+      after: {
+        showPage: jest.fn(async pageId => {
+          App.currentPage = pageId;
+          App._activePageTransitionSeq = App._pageTransitionSeq;
+          return { ok: true, pageId };
+        }),
+        _teamMemberEditModeByTeam: {},
+        _recordTeamDetailView: jest.fn(),
+        _getTeamDetailNodes: () => ({
+          title: document.getElementById('team-title'),
+          nameEn: document.getElementById('team-name-en'),
+          image: document.getElementById('team-image'),
+          body: document.getElementById('team-body'),
+        }),
+        _refreshTeamDetailEditButton: jest.fn(),
+        _canManageTeamMembers: () => false,
+        _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
+        _getTeamRank: () => ({ color: '', rank: '' }),
+        _buildTeamDetailBodyHtml: () => '<section id="edu-detail-section"><div class="reg-loading">課程功能載入中</div></section>',
+        _setTeamDetailV2ShellActive: jest.fn(),
+        _isTeamDetailSectionVisible: () => true,
+        _syncTeamDetailV2RuntimeAfterBodyRender: jest.fn(),
+        _cleanupTeamDetailV2Runtime: jest.fn(),
+      },
+    });
+
+    const result = await App.showTeamDetail(team.id, { allowGuest: true });
+
+    expect(result).toMatchObject({ ok: true, reason: 'ok' });
+    expect(App.currentPage).toBe('page-team-detail');
+    expect(ensureGroup).toHaveBeenCalledWith('education');
+    expect(document.querySelector('#edu-detail-section .reg-loading')).not.toBeNull();
   });
 });

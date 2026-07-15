@@ -44,7 +44,7 @@ function loadApp(html = '<!doctype html><body><div id="toast"></div></body>') {
     filename: 'app.js',
     timeout: 1000,
   });
-  return { App: sandbox.__App, window: dom.window, document };
+  return { App: sandbox.__App, window: dom.window, document, sandbox };
 }
 
 describe('Service Worker reload gate helper', () => {
@@ -60,7 +60,7 @@ describe('Service Worker reload gate helper', () => {
     });
   });
 
-  test('initializing and just-cleared states block without prompting', () => {
+  test('initializing and bounded version-transition states block without prompting', () => {
     const { App, window } = loadApp();
     App.currentPage = 'page-home';
 
@@ -72,12 +72,45 @@ describe('Service Worker reload gate helper', () => {
     });
 
     window._appInitializing = false;
-    window._swJustCleared = true;
+    window._swVersionTransition = {
+      to: 'test',
+      startedAt: Date.now(),
+      expiresAt: Date.now() + 1000,
+    };
     expect(App._isSafeToAutoReload()).toMatchObject({
       safe: false,
-      reason: 'just-cleared',
+      reason: 'version-transition',
       canPrompt: false,
     });
+
+    window._swVersionTransition.expiresAt = Date.now() - 1;
+    expect(App._isSafeToAutoReload()).toEqual({
+      safe: true,
+      reason: 'safe',
+      canPrompt: false,
+    });
+    expect(window._swVersionTransition).toBeUndefined();
+  });
+
+  test('script loads and lazy route continuations participate in the reload gate', () => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-home';
+    window.ScriptLoader = { hasPendingLoads: jest.fn(() => true) };
+
+    expect(App._isSafeToAutoReload()).toMatchObject({
+      safe: false,
+      reason: 'script-loader-pending',
+    });
+
+    window.ScriptLoader.hasPendingLoads.mockReturnValue(false);
+    App._swLazyContinuationsPending = 1;
+    expect(App._isSafeToAutoReload()).toMatchObject({
+      safe: false,
+      reason: 'lazy-continuation-pending',
+    });
+
+    App._swLazyContinuationsPending = 0;
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: true, reason: 'safe' });
   });
 
   test('open modal and image cropper block auto reload', () => {
@@ -155,6 +188,130 @@ describe('Service Worker reload gate helper', () => {
       deferred: true,
       reason: 'write-pending',
     });
+  });
+
+  test('bounded wait can recover from a stuck script load but still uses one reload attempt', () => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-home';
+    window.ScriptLoader = { hasPendingLoads: jest.fn(() => true) };
+    window._swReloadDeferred = true;
+    window._swReloadDeferredAt = Date.now() - App._swReloadMaxWaitMs;
+    App._performServiceWorkerReload = jest.fn();
+
+    const result = App._maybeRunDeferredSwReload('bounded-wait', { maxWaitElapsed: true });
+
+    expect(result).toEqual({ reloaded: true, reason: 'safe' });
+    expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(window.sessionStorage.getItem('_sporthubSwReloadOnce'))).toMatchObject({
+      version: 'test',
+    });
+  });
+
+  test.each([
+    ['deep-link promise', (App) => { App._pendingDeepLinkOpenPromise = {}; }],
+    ['protected boot promise', (App) => { App._pendingProtectedBootRoutePromise = {}; }],
+    ['boot history navigation', (_App, window) => { window._bootHistoryNavPending = true; }],
+  ])('bounded max-wait can ignore stuck route-pending state from %s', (_label, arrangePending) => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-home';
+    arrangePending(App, window);
+    window._swReloadDeferred = true;
+    window._swReloadDeferredAt = Date.now() - App._swReloadMaxWaitMs;
+    App._performServiceWorkerReload = jest.fn();
+
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'route-pending' });
+
+    const result = App._maybeRunDeferredSwReload('bounded-wait', { maxWaitElapsed: true });
+
+    expect(result).toEqual({ reloaded: true, reason: 'safe' });
+    expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
+  });
+
+  test('deep-link completion clears pending state and retries deferred reload', () => {
+    jest.useFakeTimers();
+    try {
+      const { App, document } = loadApp(
+        '<!doctype html><body><div id=toast></div><div id=page-activity-detail></div></body>'
+      );
+      const target = document.getElementById('page-activity-detail');
+      Object.defineProperty(target, 'offsetHeight', { configurable: true, value: 10 });
+      App._pendingDeepLinkOpenPromise = {};
+      App._maybeRunDeferredSwReload = jest.fn();
+
+      App._completeDeepLinkSuccess();
+
+      expect(App._pendingDeepLinkOpenPromise).toBeNull();
+      expect(App._maybeRunDeferredSwReload).toHaveBeenCalledWith('deep-link-complete');
+      jest.runOnlyPendingTimers();
+      expect(App._maybeRunDeferredSwReload).toHaveBeenCalledWith('deep-link-clear');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('protected boot completion clears its promise before retrying deferred reload', () => {
+    const { App } = loadApp();
+    App._pendingProtectedBootRoute = { pageId: 'page-game' };
+    App._pendingProtectedBootRoutePromise = {};
+    App._maybeRunDeferredSwReload = jest.fn();
+
+    App._clearPendingProtectedBootRoute();
+
+    expect(App._pendingProtectedBootRoute).toBeNull();
+    expect(App._pendingProtectedBootRoutePromise).toBeNull();
+    expect(App._maybeRunDeferredSwReload).toHaveBeenCalledWith('protected-boot-route-clear');
+  });
+
+  test('activity type sheet and education session overlay retry after custom overlay close', () => {
+    const { App, document, sandbox } = loadApp();
+    App._maybeRunDeferredSwReload = jest.fn();
+    App._canCreateBasicActivity = jest.fn(() => true);
+    App._canCreateExternalActivity = jest.fn(() => false);
+    vm.runInContext(readProjectFile('js/modules/event/event-create.js'), sandbox, {
+      filename: 'event-create.js',
+      timeout: 1000,
+    });
+
+    App._showCreateEventTypeSheet();
+    document.querySelector('#cets-cancel').click();
+
+    expect(document.getElementById('create-event-type-sheet')).toBeNull();
+    expect(App._maybeRunDeferredSwReload).toHaveBeenCalledWith('activity-create-type-sheet-close');
+
+    vm.runInContext(readProjectFile('js/modules/education/edu-course-session-form.js'), sandbox, {
+      filename: 'edu-course-session-form.js',
+      timeout: 1000,
+    });
+    const educationOverlay = document.createElement('div');
+    educationOverlay.className = 'edu-session-form-overlay';
+    document.body.appendChild(educationOverlay);
+
+    expect(App._closeEduCourseSessionForm()).toBe(true);
+    expect(document.querySelector('.edu-session-form-overlay')).toBeNull();
+    expect(App._maybeRunDeferredSwReload).toHaveBeenCalledWith('edu-session-form-close');
+  });
+
+  test('reload-once marker prevents a controllerchange reload loop', () => {
+    const { App, window } = loadApp();
+    App._performServiceWorkerReload = jest.fn();
+    window.sessionStorage.setItem('_sporthubSwReloadOnce', JSON.stringify({
+      version: 'test',
+      at: Date.now(),
+    }));
+
+    expect(App._reloadForServiceWorkerUpdate()).toEqual({
+      reloaded: false,
+      deferred: false,
+      reason: 'reload-already-attempted',
+    });
+    expect(App._performServiceWorkerReload).not.toHaveBeenCalled();
+
+    window.sessionStorage.setItem('_sporthubSwReloadOnce', JSON.stringify({
+      version: 'test',
+      at: Date.now() - App._swReloadOnceTtlMs - 1,
+    }));
+    expect(App._reloadForServiceWorkerUpdate()).toEqual({ reloaded: true, reason: 'safe' });
+    expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
   });
 
   test('later button clears prompt flag so the prompt can be shown again', () => {
@@ -239,7 +396,8 @@ function flushMicrotasks() {
 }
 
 describe('Cache version bootstrap behavior', () => {
-  test('ordinary version change preserves SW, caches and display cache while setting the crossover flag', () => {
+  test('ordinary version change preserves SW, caches and display cache while setting a bounded transition', () => {
+    const startedAt = Date.now();
     const ctx = runCacheVersionBootstrap({
       initialStorage: {
         sporthub_cache_ver: '0.old',
@@ -249,7 +407,14 @@ describe('Cache version bootstrap behavior', () => {
       },
     });
 
-    expect(ctx._swJustCleared).toBe(true);
+    expect(ctx._swVersionTransition).toMatchObject({
+      from: '0.old',
+      to: ctx.version,
+    });
+    expect(ctx._swVersionTransition.startedAt).toBeGreaterThanOrEqual(startedAt);
+    expect(ctx._swVersionTransition.expiresAt).toBeGreaterThan(ctx._swVersionTransition.startedAt);
+    expect(JSON.parse(ctx.sessionStorage.getItem('_sporthubSwVersionTransition')))
+      .toEqual(ctx._swVersionTransition);
     expect(ctx.caches.keys).not.toHaveBeenCalled();
     expect(ctx.caches.delete).not.toHaveBeenCalled();
     expect(ctx.navigator.serviceWorker.getRegistrations).not.toHaveBeenCalled();
@@ -295,9 +460,57 @@ describe('Service Worker reload gate source wiring', () => {
   test('controllerchange delegates to App helper with legacy fallback', () => {
     const source = readProjectFile('index.html');
     expect(source).toContain("navigator.serviceWorker.addEventListener('controllerchange'");
-    expect(source).toContain("window.App._handleSwControllerChange()");
-    expect(source).toContain("!window._swReloading && !window._appInitializing && !window._swJustCleared");
+    expect(source).toContain("typeof App !== 'undefined'");
+    expect(source).toContain('App._handleSwControllerChange()');
+    expect(source).not.toContain('window.App._handleSwControllerChange()');
+    expect(source).toContain("sessionStorage.getItem('_sporthubSwReloadOnce')");
+    expect(source).toContain("navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })");
+    expect(source).toContain('registerSportHubSw();');
     expect(source).toContain("_maybeRunDeferredSwReload('user-click', { force: true })");
+  });
+
+  test('controllerchange reaches a same-global lexical const App instead of legacy reload', () => {
+    const source = readProjectFile('index.html');
+    const match = source.match(
+      /<!-- Service Worker Registration \+ 版本更新 -->\s*<script>\s*([\s\S]*?)\s*<\/script>/
+    );
+    expect(match).toBeTruthy();
+
+    const listeners = {};
+    const handleControllerChange = jest.fn();
+    const serviceWorker = {
+      addEventListener: jest.fn((type, handler) => { listeners[type] = handler; }),
+      register: jest.fn(() => Promise.resolve()),
+    };
+    const sandbox = {
+      navigator: { serviceWorker },
+      location: { reload: jest.fn() },
+      localStorage: createLocalStorageLike({ sporthub_cache_ver: 'test' }),
+      sessionStorage: createLocalStorageLike(),
+      console,
+      setTimeout,
+      clearTimeout,
+      handleControllerChange,
+    };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(
+      'const App = { _handleSwControllerChange: handleControllerChange };',
+      sandbox,
+      { filename: 'app lexical binding', timeout: 1000 }
+    );
+    expect(Object.prototype.hasOwnProperty.call(sandbox, 'App')).toBe(false);
+
+    vm.runInContext(match[1], sandbox, {
+      filename: 'index.html service worker registration',
+      timeout: 1000,
+    });
+    listeners.controllerchange();
+
+    expect(handleControllerChange).toHaveBeenCalledTimes(1);
+    expect(sandbox.location.reload).not.toHaveBeenCalled();
+    expect(serviceWorker.register).toHaveBeenCalledWith('./sw.js', { updateViaCache: 'none' });
   });
 
   test('deferred reload is retried after route, modal, scanner and cropper completion', () => {
@@ -305,6 +518,10 @@ describe('Service Worker reload gate source wiring', () => {
     expect(readProjectFile('js/core/navigation.js')).toContain("_maybeRunDeferredSwReload?.('modal-close')");
     expect(readProjectFile('js/modules/scan/scan-camera.js')).toContain("_maybeRunDeferredSwReload?.('scanner-stop')");
     expect(readProjectFile('js/modules/image-cropper.js')).toContain("_maybeRunDeferredSwReload?.('image-cropper-close')");
+    expect(readProjectFile('app.js')).toContain("_maybeRunDeferredSwReload?.('deep-link-complete')");
+    expect(readProjectFile('app.js')).toContain("_maybeRunDeferredSwReload?.('protected-boot-route-clear')");
+    expect(readProjectFile('js/modules/event/event-create.js')).toContain("_maybeRunDeferredSwReload?.(trigger)");
+    expect(readProjectFile('js/modules/education/edu-course-session-form.js')).toContain("_maybeRunDeferredSwReload?.('edu-session-form-close')");
   });
 
   test('inline runtime mirrors app.js after adding the reload gate', () => {
@@ -314,6 +531,6 @@ describe('Service Worker reload gate source wiring', () => {
 
     expect(match).toBeTruthy();
     expect(match[1].trim()).toBe(appSource);
-    expect(match[1]).toContain('_isSafeToAutoReload()');
+    expect(match[1]).toContain('_isSafeToAutoReload(options = {})');
   });
 });

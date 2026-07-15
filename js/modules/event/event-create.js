@@ -596,17 +596,177 @@ Object.assign(App, {
     this._updateCreateTimeSummary();
   },
 
-  async openCreateEventModal() {
-    // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
-    if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
-    await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
-    if (!this._canCreateActivityByPermission?.()) {
-      this.showToast('權限不足：需要建立活動權限');
-      return;
+  _activityCreateOptionsPromise: null,
+  _activityCreateOptionsTimeoutMs: 12000,
+  _activityRoleCapabilityRefreshPromise: null,
+  _activityRoleCapabilityRefreshTimeoutMs: 8000,
+
+  async _waitForActivityCreateDependency(promise, timeoutMs, code, message) {
+    const safeTimeoutMs = Math.max(1, Number(timeoutMs) || 12000);
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(message || code || 'Activity create dependency timeout');
+        err.code = code || 'activity-create-dependency-timeout';
+        reject(err);
+      }, safeTimeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (timer != null) clearTimeout(timer);
     }
-    if (this._requireActivityCreateProfileComplete?.()) return;
-    // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
-    this._showCreateEventTypeSheet();
+  },
+
+  _getActivityCreateOptionMethodNames() {
+    return [
+      '_setEventFeeFormState',
+      '_setEventRegOpenTimeValue',
+      '_setGenderRestrictionState',
+      '_setPrivateEventState',
+      'bindEventFeeToggle',
+      'bindGenderRestrictionToggle',
+      'bindPrivateEventToggle',
+    ];
+  },
+
+  _hasActivityCreateOptionsReady() {
+    return this._getActivityCreateOptionMethodNames()
+      .every(name => typeof this[name] === 'function');
+  },
+
+  async _ensureActivityCreateOptionsReady() {
+    if (this._hasActivityCreateOptionsReady()) return true;
+    if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.loadGroup !== 'function') {
+      throw new Error('Activity create options loader unavailable');
+    }
+
+    let loadPromise = this._activityCreateOptionsPromise;
+    if (!loadPromise) {
+      loadPromise = ScriptLoader.loadGroup(['js/modules/event/event-create-options.js']);
+      this._activityCreateOptionsPromise = loadPromise;
+      void Promise.resolve(loadPromise)
+        .catch(() => {})
+        .finally(() => {
+          if (this._activityCreateOptionsPromise === loadPromise) {
+            this._activityCreateOptionsPromise = null;
+          }
+        });
+    }
+
+    try {
+      await this._waitForActivityCreateDependency(
+        loadPromise,
+        this._activityCreateOptionsTimeoutMs,
+        'activity-create-options-timeout',
+        'Activity create options timeout'
+      );
+    } catch (err) {
+      if (err?.code === 'activity-create-options-timeout'
+        && this._activityCreateOptionsPromise === loadPromise) {
+        this._activityCreateOptionsPromise = null;
+      }
+      throw err;
+    }
+    if (!this._hasActivityCreateOptionsReady()) {
+      const err = new Error('Activity create options incomplete');
+      err.code = 'activity-create-options-incomplete';
+      throw err;
+    }
+    return true;
+  },
+
+  async _ensureFreshActivityRoleCapabilitiesForCreate(options = {}) {
+    const canContinue = () => typeof options.entryGuard !== 'function' || options.entryGuard();
+    const roleKey = this._getCurrentActivityRoleKey?.();
+    if (!roleKey) {
+      if (canContinue()) this.showToast?.('權限資料更新失敗，請稍後再試');
+      return false;
+    }
+    if (roleKey !== 'user') return true;
+    if (typeof this._ensureActivityRoleCapabilitiesReady !== 'function') {
+      if (canContinue()) this.showToast?.('權限資料更新失敗，請稍後再試');
+      return false;
+    }
+
+    let refreshPromise = this._activityRoleCapabilityRefreshPromise;
+    if (!refreshPromise) {
+      refreshPromise = this._ensureActivityRoleCapabilitiesReady({ force: true });
+      this._activityRoleCapabilityRefreshPromise = refreshPromise;
+      void Promise.resolve(refreshPromise)
+        .catch(() => {})
+        .finally(() => {
+          if (this._activityRoleCapabilityRefreshPromise === refreshPromise) {
+            this._activityRoleCapabilityRefreshPromise = null;
+          }
+        });
+    }
+
+    try {
+      const loaded = await this._waitForActivityCreateDependency(
+        refreshPromise,
+        this._activityRoleCapabilityRefreshTimeoutMs,
+        'activity-role-capability-timeout',
+        'Activity role capability timeout'
+      );
+      if (!Array.isArray(loaded) || !loaded.includes('roleActivityCapabilities')) {
+        if (canContinue()) this.showToast?.('權限資料更新失敗，請稍後再試');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      if (err?.code === 'activity-role-capability-timeout'
+        && this._activityRoleCapabilityRefreshPromise === refreshPromise) {
+        this._activityRoleCapabilityRefreshPromise = null;
+      }
+      console.error('[EventCreate] capability refresh failed:', err);
+      if (canContinue()) {
+        this.showToast?.(
+          err?.code === 'activity-role-capability-timeout'
+            ? '權限資料載入逾時，請檢查網路後再試'
+            : '權限資料更新失敗，請稍後再試'
+        );
+      }
+      return false;
+    }
+  },
+
+  async openCreateEventModal(options = {}) {
+    const canContinue = () => typeof options.entryGuard !== 'function' || options.entryGuard();
+    if (!canContinue()) return false;
+    this._beginSwLazyContinuation?.();
+    try {
+      // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
+      if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return false;
+      try {
+        await this._ensureActivityCreateOptionsReady();
+      } catch (err) {
+        if (!canContinue()) return false;
+        console.error('[EventCreate] options load failed:', err);
+        this.showToast?.(
+          err?.code === 'activity-create-options-timeout'
+            ? '活動建立功能載入逾時，請檢查網路後再試'
+            : '活動建立功能載入失敗，請稍後再試'
+        );
+        return false;
+      }
+      if (!canContinue()) return false;
+      if (!await this._ensureFreshActivityRoleCapabilitiesForCreate({
+        entryGuard: options.entryGuard,
+      })) return false;
+      if (!canContinue()) return false;
+      if (!this._canCreateActivityByPermission?.()) {
+        this.showToast('權限不足：需要建立活動權限');
+        return false;
+      }
+      if (this._requireActivityCreateProfileComplete?.()) return false;
+      if (!canContinue()) return false;
+      // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
+      this._showCreateEventTypeSheet();
+      return true;
+    } finally {
+      this._endSwLazyContinuation?.('activity-create-modal-ready');
+    }
   },
 
   _showCreateEventTypeSheet() {
@@ -622,7 +782,13 @@ Object.assign(App, {
     const overlay = document.createElement('div');
     overlay.id = 'create-event-type-sheet';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center';
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
+    const closeSheet = (trigger = 'activity-create-type-sheet-close') => {
+      overlay.remove();
+      this._maybeRunDeferredSwReload?.(trigger);
+    };
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay) closeSheet();
+    });
 
     const sheet = document.createElement('div');
     sheet.style.cssText = 'background:var(--bg-card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:440px;padding:1rem 1rem .6rem;animation:slideUp .25s ease-out';
@@ -651,11 +817,12 @@ Object.assign(App, {
     customBtn?.addEventListener('click', () => {
       overlay.remove();
       this._openCreateCustomEventModal();
+      this._maybeRunDeferredSwReload?.('activity-create-custom-modal-open');
     });
     externalBtn?.addEventListener('click', () => {
       this.showToast('功能尚未開放');
     });
-    sheet.querySelector('#cets-cancel').addEventListener('click', () => overlay.remove());
+    sheet.querySelector('#cets-cancel').addEventListener('click', () => closeSheet());
   },
 
   _openCreateCustomEventModal() {
@@ -746,22 +913,23 @@ Object.assign(App, {
       return;
     }
     const isEditSubmit = !!this._editEventId;
-    let earlyEditSubmitBusy = false;
-    const startEarlyEditSubmitBusy = () => {
-      if (!isEditSubmit || earlyEditSubmitBusy) return;
-      earlyEditSubmitBusy = true;
+    let earlySubmitBusy = false;
+    const startEarlySubmitBusy = () => {
+      if (earlySubmitBusy) return;
+      earlySubmitBusy = true;
       this._eventSubmitInFlight = true;
       this._setCreateEventSubmitting?.(true);
     };
-    const stopEarlyEditSubmitBusy = () => {
-      if (!earlyEditSubmitBusy) return;
-      earlyEditSubmitBusy = false;
+    const stopEarlySubmitBusy = () => {
+      if (!earlySubmitBusy) return;
+      earlySubmitBusy = false;
       this._eventSubmitInFlight = false;
       this._setCreateEventSubmitting?.(false);
     };
-    startEarlyEditSubmitBusy();
+    startEarlySubmitBusy();
     try {
-    await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
+    if (!await this._ensureFreshActivityRoleCapabilitiesForCreate()) return;
+    if (!isEditSubmit) stopEarlySubmitBusy();
     const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
     const isCourseLinkedEdit = !!(this._editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
     const canSubmitActivity = isCourseLinkedEdit
@@ -1217,7 +1385,7 @@ Object.assign(App, {
     }
     this._initSportTagPicker('');
     } finally {
-      stopEarlyEditSubmitBusy();
+      stopEarlySubmitBusy();
     }
   },
 

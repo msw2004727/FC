@@ -316,15 +316,15 @@ Object.assign(App, {
   },
 
   async _ensureActivityRoleCapabilitiesReady(options = {}) {
-    if (this._getCurrentActivityRoleKey?.() !== 'user') return;
-    if (typeof FirebaseService === 'undefined') return;
+    if (this._getCurrentActivityRoleKey?.() !== 'user') return [];
+    if (typeof FirebaseService === 'undefined') return [];
     if (typeof FirebaseService.ensureRoleActivityCapabilitiesReady === 'function') {
-      await FirebaseService.ensureRoleActivityCapabilitiesReady(options);
-      return;
+      return await FirebaseService.ensureRoleActivityCapabilitiesReady(options);
     }
     if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
-      await FirebaseService.ensureStaticCollectionsLoaded(['roleActivityCapabilities']);
+      return await FirebaseService.ensureStaticCollectionsLoaded(['roleActivityCapabilities']);
     }
+    return [];
   },
 
   _canManageDelegatedActivity(e) {

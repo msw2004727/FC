@@ -1134,6 +1134,18 @@ const FirebaseService = {
     if (typeof App === 'undefined') return;
     const pageId = App.currentPage;
     if (pageId === 'page-teams') App.renderTeamList?.();
+    else if (pageId === 'page-team-detail' && App._teamDetailId) {
+      const teamId = String(App._teamDetailId);
+      const transitionSeq = Number(App._activePageTransitionSeq);
+      void Promise.resolve(
+        App._refreshCurrentTeamDetail?.(teamId, transitionSeq, {
+          allowGuest: true,
+          usersHydrationRefresh: true,
+        })
+      ).catch((err) => {
+        console.warn('[FirebaseService] team detail users hydration refresh failed:', err);
+      });
+    }
     else if (pageId === 'page-messages') App.renderMessageList?.();
     else if (pageId === 'page-my-activities') App.renderMyActivities?.();
     else if (pageId === 'page-admin-users') App.filterAdminUsers?.();
@@ -2119,13 +2131,11 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-my-activities') {
         App.renderMyActivities?.();
       } else if (App.currentPage === 'page-activity-detail' && App._currentDetailEventId) {
-        App.showEventDetail?.(App._currentDetailEventId);
+        void this._refreshVisibleDetailWithoutNavigationClaim('event', 'role-permissions');
       } else if (App.currentPage === 'page-scan') {
         App.renderScanPage?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
-        var _tdS = window.scrollY || window.pageYOffset || 0;
-        App.showTeamDetail?.(App._teamDetailId);
-        if (_tdS > 0) requestAnimationFrame(function() { window.scrollTo(0, _tdS); });
+        void this._refreshVisibleDetailWithoutNavigationClaim('team', 'role-permissions');
       } else if (App.currentPage === 'page-admin-roles') {
         App.renderRoleHierarchy?.();
         if (App._permSelectedRole) App.renderPermissions?.(App._permSelectedRole);
@@ -2148,13 +2158,76 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-team-manage') {
         App.renderTeamManage?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
-        var _tdS2 = window.scrollY || window.pageYOffset || 0;
-        App.showTeamDetail?.(App._teamDetailId);
-        if (_tdS2 > 0) requestAnimationFrame(function() { window.scrollTo(0, _tdS2); });
+        void this._refreshVisibleDetailWithoutNavigationClaim('team', 'teams-snapshot');
       }
     } catch (err) {
       console.warn('[FirebaseService] teams UI refresh failed:', err);
     }
+  },
+
+  _refreshVisibleDetailWithoutNavigationClaim(kind, reason = 'snapshot') {
+    if (typeof App === 'undefined') return Promise.resolve({ ok: false, reason: 'app-unavailable' });
+    const isTeam = kind === 'team';
+    const pageId = isTeam ? 'page-team-detail' : 'page-activity-detail';
+    const detailId = String((isTeam ? App._teamDetailId : App._currentDetailEventId) || '').trim();
+    const transitionSeq = Number(App._activePageTransitionSeq);
+    const latestTransitionSeq = Number(App._pageTransitionSeq);
+    if (App.currentPage !== pageId || !detailId
+      || !Number.isSafeInteger(transitionSeq) || transitionSeq <= 0
+      || (Number.isSafeInteger(latestTransitionSeq) && latestTransitionSeq !== transitionSeq)) {
+      return Promise.resolve({ ok: false, reason: 'stale' });
+    }
+
+    const scrollTop = typeof window !== 'undefined'
+      ? Number(window.scrollY || window.pageYOffset || 0)
+      : 0;
+    const refreshMethod = isTeam ? '_refreshCurrentTeamDetail' : '_refreshCurrentEventDetail';
+    const routeMethod = isTeam ? 'showTeamDetail' : 'showEventDetail';
+    const refreshOptions = {
+      snapshotRefresh: reason,
+      skipPageHistory: true,
+      bypassPageLock: true,
+      _navigationTransitionSeq: transitionSeq,
+    };
+
+    let refreshResult;
+    try {
+      if (typeof App[refreshMethod] === 'function') {
+        refreshResult = App[refreshMethod](detailId, transitionSeq, refreshOptions);
+      } else if (typeof App[routeMethod] === 'function') {
+        // Mixed-runtime fallback is still bound to the active transition and can never claim a new one.
+        refreshResult = App[routeMethod](detailId, refreshOptions);
+      } else {
+        return Promise.resolve({ ok: false, reason: 'route-unavailable' });
+      }
+    } catch (err) {
+      console.warn(`[FirebaseService] ${kind} detail ${reason} refresh failed:`, err);
+      return Promise.resolve({ ok: false, reason: 'refresh-failed', error: err });
+    }
+
+    return Promise.resolve(refreshResult).then(result => {
+      const stillOwnsPage = () => {
+        const currentDetailId = String((isTeam ? App._teamDetailId : App._currentDetailEventId) || '').trim();
+        return App.currentPage === pageId
+          && currentDetailId === detailId
+          && Number(App._activePageTransitionSeq) === transitionSeq
+          && Number(App._pageTransitionSeq) === transitionSeq;
+      };
+      if (scrollTop > 0 && stillOwnsPage() && result?.ok !== false
+        && typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        // requestAnimationFrame runs after this promise callback. Recheck ownership there too,
+        // otherwise a navigation claimed in-between can receive the previous detail's scroll.
+        const restoreScroll = () => {
+          if (stillOwnsPage()) window.scrollTo(0, scrollTop);
+        };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restoreScroll);
+        else restoreScroll();
+      }
+      return result;
+    }).catch(err => {
+      console.warn(`[FirebaseService] ${kind} detail ${reason} refresh failed:`, err);
+      return { ok: false, reason: 'refresh-failed', error: err };
+    });
   },
 
   _mergeRealtimeEventSlices(shouldRefreshUI = false, options = {}) {
