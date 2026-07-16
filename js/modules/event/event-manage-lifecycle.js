@@ -130,6 +130,7 @@ Object.assign(App, {
     // 委託人預填
     this._delegates = Array.isArray(e.delegates) ? [...e.delegates] : [];
     this._initDelegateSearch();
+    void this._refreshTeamOnlyDirectoryIfOpen?.();
     // 分隊設定還原
     this._tsSetFormData?.(e.teamSplit || null);
     // 社群連結還原

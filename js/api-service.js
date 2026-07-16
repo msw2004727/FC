@@ -1038,7 +1038,40 @@ const ApiService = {
   //  Teams（俱樂部）
   // ════════════════════════════════
 
+  _teamsReadyPromise: null,
+
+  async ensureTeamsReady(options = {}) {
+    if (this._teamsReadyPromise) return this._teamsReadyPromise;
+
+    const loadPromise = (async () => {
+      try {
+        if (typeof FirebaseService.ensureTeamDirectoryReady === 'function') {
+          return await FirebaseService.ensureTeamDirectoryReady(options);
+        }
+        if (typeof FirebaseService.ensureStaticCollectionsLoaded !== 'function') {
+          return (this.getTeams?.() || []).length > 0;
+        }
+        const loaded = await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
+        return Array.isArray(loaded) && loaded.includes('teams');
+      } catch (err) {
+        console.warn('[ApiService] teams on-demand load failed:', err);
+        return false;
+      }
+    })();
+
+    this._teamsReadyPromise = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (this._teamsReadyPromise === loadPromise) this._teamsReadyPromise = null;
+    }
+  },
+
   getTeams()        { return this._src('teams'); },
+  getTeamDirectory() {
+    if (typeof FirebaseService.getTeamDirectory === 'function') return FirebaseService.getTeamDirectory();
+    return this.getTeams();
+  },
   getTeam(id)       { return this._findById('teams', id); },
   async getTeamAsync(id) {
     const cached = this._findById('teams', id);
@@ -1214,6 +1247,17 @@ const ApiService = {
   // ════════════════════════════════
 
   getAdminUsers() { return this._src('adminUsers'); },
+  async ensureAdminUsersReady(options = {}) {
+    if (typeof FirebaseService.ensureAdminUsersReady !== 'function') {
+      return (this.getAdminUsers?.() || []).length > 0;
+    }
+    try {
+      return await FirebaseService.ensureAdminUsersReady(options);
+    } catch (err) {
+      console.warn('[ApiService] admin users on-demand load failed:', err);
+      return false;
+    }
+  },
   async getUserPermissionGrant(uid) {
     return FirebaseService.getUserPermissionGrant(uid);
   },

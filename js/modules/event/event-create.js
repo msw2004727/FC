@@ -893,6 +893,7 @@ Object.assign(App, {
     this._clearCourseLinkedEditLockState?.();
     this.showModal('create-event-modal');
     this._initDelegateSearch();
+    void this._refreshTeamOnlyDirectoryIfOpen?.();
     this._renderHistoryChips('ce-location', 'ce-location');
     this._renderHistoryChips('ce-fee', 'ce-fee');
     this._renderHistoryChips('ce-max', 'ce-max');

@@ -22,6 +22,7 @@ Object.assign(App, {
       removeMethod: '_removeTournamentRefereeHead',
     },
   },
+  _tournamentPersonSearchSeq: Object.create(null),
 
   _getTournamentPersonPickerConfig(kind) {
     return this._tournamentPersonPickerConfig[kind] || this._tournamentPersonPickerConfig.delegate;
@@ -33,6 +34,7 @@ Object.assign(App, {
     const input = document.getElementById(`${p}-${cfg.suffix}-search`);
     const dropdown = document.getElementById(`${p}-${cfg.suffix}-dropdown`);
     if (!input || !dropdown) return;
+    void ApiService.ensureAdminUsersReady?.();
 
     const boundKey = `${p}:${cfg.suffix}`;
     if (this._tournamentFormState.personSearchBound[boundKey]) {
@@ -44,24 +46,35 @@ Object.assign(App, {
 
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      if (q.length < 1) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
-      this._searchTournamentPeople(q, kind, p);
+      if (q.length < 1) {
+        this._tournamentPersonSearchSeq[boundKey] = (this._tournamentPersonSearchSeq[boundKey] || 0) + 1;
+        dropdown.classList.remove('open');
+        dropdown.innerHTML = '';
+        return;
+      }
+      void this._searchTournamentPeople(q, kind, p);
     });
     input.addEventListener('blur', () => {
-      setTimeout(() => { dropdown.classList.remove('open'); }, 200);
+      setTimeout(() => {
+        this._tournamentPersonSearchSeq[boundKey] = (this._tournamentPersonSearchSeq[boundKey] || 0) + 1;
+        dropdown.classList.remove('open');
+      }, 200);
     });
     input.addEventListener('focus', () => {
       const q = input.value.trim();
-      if (q.length >= 1) this._searchTournamentPeople(q, kind, p);
+      if (q.length >= 1) void this._searchTournamentPeople(q, kind, p);
     });
 
     this._renderTournamentPersonTags(kind, p);
     this._updateTournamentPersonInput(kind, p);
   },
 
-  _searchTournamentPeople(query, kind, prefix) {
+  async _searchTournamentPeople(query, kind, prefix, options = {}) {
     const p = prefix || 'tf';
     const cfg = this._getTournamentPersonPickerConfig(kind);
+    const boundKey = `${p}:${cfg.suffix}`;
+    const requestSeq = Number(options.requestSeq) || ((this._tournamentPersonSearchSeq[boundKey] || 0) + 1);
+    this._tournamentPersonSearchSeq[boundKey] = requestSeq;
     const dropdown = document.getElementById(`${p}-${cfg.suffix}-dropdown`);
     if (!dropdown) return;
     const q = query.toLowerCase();
@@ -69,12 +82,16 @@ Object.assign(App, {
     const selectedUids = selected.map(item => item.uid);
 
     const allUsers = ApiService.getAdminUsers?.() || [];
+    const hasCachedUsers = allUsers.length > 0;
     const results = allUsers.filter(u => {
       if (selectedUids.includes(u.uid)) return false;
       return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
     }).slice(0, 5);
 
-    if (results.length === 0) {
+    if (results.length === 0 && options.skipRefresh !== true) {
+      dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u8f09\u5165\u7528\u6236\u8cc7\u6599\u2026</div>';
+      if (hasCachedUsers) dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u6b63\u5728\u66f4\u65b0\u7528\u6236\u8cc7\u6599\u2026</div>';
+    } else if (results.length === 0) {
       dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的用戶</div>';
     } else {
       const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
@@ -93,11 +110,41 @@ Object.assign(App, {
           ev.preventDefault();
           this._addTournamentPerson(kind, item.dataset.uid, item.dataset.name, p);
           document.getElementById(`${p}-${cfg.suffix}-search`).value = '';
+          this._tournamentPersonSearchSeq[boundKey] = requestSeq + 1;
           dropdown.classList.remove('open');
         });
       });
     }
     dropdown.classList.add('open');
+    if (options.skipRefresh === true) return;
+
+    let directoryReady = allUsers.length > 0;
+    try {
+      if (typeof ApiService.ensureAdminUsersReady === 'function') {
+        directoryReady = await ApiService.ensureAdminUsersReady();
+      }
+    } catch (err) {
+      console.warn('[Tournament] people directory load failed:', err);
+      directoryReady = false;
+    }
+
+    const input = document.getElementById(`${p}-${cfg.suffix}-search`);
+    const modal = document.getElementById('tournament-form-modal');
+    if (requestSeq !== this._tournamentPersonSearchSeq[boundKey]
+      || String(input?.value || '').trim().toLowerCase() !== q
+      || !modal?.classList.contains('open')) return;
+
+    const refreshedUsers = ApiService.getAdminUsers?.() || [];
+    const hasRefreshedMatch = refreshedUsers.some(u => {
+      if (selectedUids.includes(u.uid)) return false;
+      return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
+    });
+    if (!directoryReady && !hasRefreshedMatch) {
+      dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u7528\u6236\u8cc7\u6599\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u91cd\u8a66</div>';
+      dropdown.classList.add('open');
+      return;
+    }
+    return this._searchTournamentPeople(query, kind, p, { skipRefresh: true, requestSeq });
   },
 
   _addTournamentPerson(kind, uid, name, prefix) {

@@ -190,6 +190,8 @@ const FirebaseService = {
 
   _listeners: [],
   _usersUnsub: null,
+  _adminUsersLoadPromise: null,
+  _adminUsersLoadUid: '',
   _userListener: null,
   _identityPrivateListener: null,
   _identityPrivateListenerUid: '',
@@ -216,6 +218,9 @@ const FirebaseService = {
   _terminalPreviewLimit: 50,
   _terminalHistoryLimit: 10,
   _teamSlices: { active: [], injected: [] },       // Phase 2B：active=onSnapshot, injected=fetchIfMissing 注入（防洗掉）
+  _teamDirectoryCache: [],
+  _teamDirectoryHasSnapshot: false,
+  _teamDirectoryLoadPromise: null,
   _tournamentSlices: { active: [], injected: [] },
   _teamLastDoc: null,
   _teamAllLoaded: false,
@@ -1117,6 +1122,117 @@ const FirebaseService = {
     }
   },
 
+  getTeamDirectory() {
+    if (this._teamDirectoryHasSnapshot) return this._teamDirectoryCache;
+    return Array.isArray(this._cache.teams) ? this._cache.teams : [];
+  },
+
+  async ensureTeamDirectoryReady(options = {}) {
+    if (!this._initialized || typeof db === 'undefined' || !db) return false;
+    if (options.force !== true
+      && this._teamDirectoryHasSnapshot
+      && !this._shouldReloadCollection('teamDirectory')) return true;
+    if (this._teamDirectoryLoadPromise) return this._teamDirectoryLoadPromise;
+
+    const loadPromise = (async () => {
+      try {
+        const snapshot = await db.collection('teams').get();
+        if (!this._initialized) return false;
+        const fromCache = snapshot.metadata?.fromCache === true;
+
+        const snapshotTeams = snapshot.docs.map(doc => {
+          const data = doc.data() || {};
+          return { ...data, id: data.id || doc.id, _docId: doc.id };
+        });
+        if (fromCache) {
+          const mergedTeams = new Map(
+            this.getTeamDirectory().map(team => [String(team?.id || team?._docId || ''), team])
+          );
+          snapshotTeams.forEach(team => {
+            mergedTeams.set(String(team.id || team._docId || ''), team);
+          });
+          this._teamDirectoryCache = Array.from(mergedTeams.values());
+          this._teamDirectoryHasSnapshot = this._teamDirectoryHasSnapshot || this._teamDirectoryCache.length > 0;
+        } else {
+          this._teamDirectoryCache = snapshotTeams;
+          this._teamDirectoryHasSnapshot = true;
+          this._markCollectionsLoaded(['teamDirectory']);
+        }
+        return !fromCache;
+      } catch (err) {
+        console.warn('[FirebaseService] team directory on-demand load failed:', err);
+        return false;
+      }
+    })();
+
+    this._teamDirectoryLoadPromise = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (this._teamDirectoryLoadPromise === loadPromise) {
+        this._teamDirectoryLoadPromise = null;
+      }
+    }
+  },
+
+  async ensureAdminUsersReady(options = {}) {
+    if (!this._initialized) return false;
+    const getAuthUser = () => (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!getAuthUser() && typeof this._ensureAuth === 'function') {
+      const authed = await this._ensureAuth();
+      if (!authed) return false;
+    }
+
+    const requestUid = String(getAuthUser()?.uid || '').trim();
+    if (!requestUid || typeof db === 'undefined' || !db) return false;
+    if (options.force !== true && !this._shouldReloadCollection('adminUsers')) return true;
+    if (this._adminUsersLoadPromise && this._adminUsersLoadUid === requestUid) {
+      return this._adminUsersLoadPromise;
+    }
+
+    const loadPromise = (async () => {
+      try {
+        const snapshot = await db.collection('users').get();
+        const currentUid = String(getAuthUser()?.uid || '').trim();
+        if (!this._initialized || currentUid !== requestUid) return false;
+        const fromCache = snapshot.metadata?.fromCache === true;
+
+        const snapshotUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+        if (fromCache) {
+          const mergedUsers = new Map(
+            (this._cache.adminUsers || []).map(user => [String(user?.uid || user?._docId || ''), user])
+          );
+          snapshotUsers.forEach(user => {
+            mergedUsers.set(String(user.uid || user._docId || ''), user);
+          });
+          this._cache.adminUsers = Array.from(mergedUsers.values());
+        } else {
+          this._cache.adminUsers = snapshotUsers;
+        }
+        this._syncCurrentUserFromUsersSnapshot();
+        if (!fromCache) {
+          this._markCollectionsLoaded(['adminUsers']);
+        }
+        this._debouncedPersistCache();
+        return !fromCache;
+      } catch (err) {
+        console.warn('[FirebaseService] admin users on-demand load failed:', err);
+        return false;
+      }
+    })();
+
+    this._adminUsersLoadPromise = loadPromise;
+    this._adminUsersLoadUid = requestUid;
+    try {
+      return await loadPromise;
+    } finally {
+      if (this._adminUsersLoadPromise === loadPromise) {
+        this._adminUsersLoadPromise = null;
+        this._adminUsersLoadUid = '';
+      }
+    }
+  },
+
   _syncUsersListenerForPage(pageId) {
     if (!auth?.currentUser) {
       this._stopUsersListener();
@@ -1161,6 +1277,8 @@ const FirebaseService = {
   },
 
   _staticReloadMaxAgeMs: {
+    adminUsers: 5 * 60 * 1000,
+    teamDirectory: 5 * 60 * 1000,
     events: 60 * 1000,           // 60 秒 — 報名中活動需較新資料
     teams: 5 * 60 * 1000,       // 5 分鐘 — 俱樂部變動頻率低
     tournaments: 5 * 60 * 1000, // 5 分鐘
@@ -3353,6 +3471,7 @@ const FirebaseService = {
             if (canHydratePage) {
               this._cache.adminUsers = snapshotUsers;
               this._syncCurrentUserFromUsersSnapshot();
+              if (!fromCache) this._markCollectionsLoaded(['adminUsers']);
               this._debouncedPersistCache();
             }
 
@@ -3768,6 +3887,9 @@ const FirebaseService = {
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
     this._postInitWarmupPromise = null;
+    this._teamDirectoryCache = [];
+    this._teamDirectoryHasSnapshot = false;
+    this._teamDirectoryLoadPromise = null;
     this._cancelAllDeferredPageScopedRealtimeStarts();
 
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
@@ -5150,6 +5272,11 @@ const FirebaseService = {
     this._authPromise = null;
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
+    this._adminUsersLoadPromise = null;
+    this._adminUsersLoadUid = '';
+    this._teamDirectoryCache = [];
+    this._teamDirectoryHasSnapshot = false;
+    this._teamDirectoryLoadPromise = null;
     // RC4：清除重連 timer + 計數
     Object.values(this._reconnectTimers).forEach(id => clearTimeout(id));
     this._reconnectTimers = {};

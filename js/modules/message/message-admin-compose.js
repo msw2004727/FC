@@ -38,6 +38,7 @@ Object.assign(App, {
   hideMsgCompose() {
     const el = document.getElementById('msg-compose');
     if (el) el.style.display = 'none';
+    this._msgTeamSearchSeq += 1;
   },
 
   // ── 發送對象切換 ──
@@ -47,11 +48,13 @@ Object.assign(App, {
     const teamRow = document.getElementById('msg-team-row');
     if (indRow) indRow.style.display = val === 'individual' ? '' : 'none';
     if (teamRow) teamRow.style.display = val === 'team' ? '' : 'none';
+    if (val === 'team') void ApiService.ensureTeamsReady?.();
   },
 
   // ── 搜尋用戶 (UID/暱稱) ── 模糊搜尋 + 下拉選單
   _msgMatchedUser: null,
   _msgMatchedTeam: null,
+  _msgTeamSearchSeq: 0,
 
   searchMsgTarget() {
     const input = document.getElementById('msg-individual-target').value.trim();
@@ -125,25 +128,37 @@ Object.assign(App, {
   },
 
   // ── 搜尋俱樂部（模糊搜尋 + 下拉選單）──
-  searchMsgTeam() {
+  async searchMsgTeam(options = {}) {
     const input = document.getElementById('msg-team-target').value.trim();
     const dropdown = document.getElementById('msg-team-dropdown');
     const result = document.getElementById('msg-team-result');
     if (!result) return;
     if (!input) {
+      this._msgTeamSearchSeq += 1;
       result.textContent = '';
       this._msgMatchedTeam = null;
       if (dropdown) dropdown.classList.remove('open');
       return;
     }
+    if (this._msgMatchedTeam
+      && String(this._msgMatchedTeam.name || '').trim() !== input) {
+      this._msgMatchedTeam = null;
+      result.textContent = '';
+    }
+    const requestSeq = Number(options.requestSeq) || ++this._msgTeamSearchSeq;
     const q = input.toLowerCase();
-    const teams = ApiService.getTeams?.() || [];
+    const teams = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
+    const hasCachedTeams = teams.length > 0;
     const matches = teams.filter(t =>
       t.active !== false && t.name && t.name.toLowerCase().includes(q)
     ).slice(0, 8);
 
     if (dropdown) {
-      if (matches.length) {
+      if (matches.length === 0 && options.skipRefresh !== true) {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u8f09\u5165\u4ff1\u6a02\u90e8\u8cc7\u6599\u2026</div>';
+        if (hasCachedTeams) dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u6b63\u5728\u66f4\u65b0\u4ff1\u6a02\u90e8\u8cc7\u6599\u2026</div>';
+        dropdown.classList.add('open');
+      } else if (matches.length) {
         dropdown.innerHTML = matches.map(t =>
           `<div class="ce-delegate-item" data-tid="${t.id}" data-tname="${escapeHTML(t.name)}">
             <span class="ce-delegate-item-name">${escapeHTML(t.name)}</span>
@@ -162,11 +177,43 @@ Object.assign(App, {
         dropdown.classList.add('open');
       }
     }
+
+    if (options.skipRefresh === true) return;
+
+    let directoryReady = hasCachedTeams;
+    try {
+      if (typeof ApiService.ensureTeamsReady === 'function') {
+        directoryReady = await ApiService.ensureTeamsReady();
+      }
+    } catch (err) {
+      console.warn('[MessageAdmin] team directory load failed:', err);
+      directoryReady = false;
+    }
+
+    const currentInput = document.getElementById('msg-team-target');
+    const compose = document.getElementById('msg-compose');
+    if (requestSeq !== this._msgTeamSearchSeq
+      || String(currentInput?.value || '').trim().toLowerCase() !== q
+      || compose?.style.display === 'none'
+      || document.getElementById('msg-target')?.value !== 'team') return;
+
+    const refreshedTeams = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
+    const hasRefreshedMatch = refreshedTeams.some(t =>
+      t.active !== false && t.name && t.name.toLowerCase().includes(q));
+    if (!directoryReady && !hasRefreshedMatch) {
+      if (dropdown) {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u4ff1\u6a02\u90e8\u8cc7\u6599\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u91cd\u8a66</div>';
+        dropdown.classList.add('open');
+      }
+      return;
+    }
+    return this.searchMsgTeam({ skipRefresh: true, requestSeq });
   },
 
   _selectMsgTeam(teamId, teamName) {
     this._msgMatchedTeam = { id: teamId, name: teamName };
     const input = document.getElementById('msg-team-target');
+    this._msgTeamSearchSeq += 1;
     if (input) input.value = teamName;
     const dropdown = document.getElementById('msg-team-dropdown');
     if (dropdown) dropdown.classList.remove('open');

@@ -49,7 +49,7 @@ Object.assign(App, {
   },
 
   _getTeamOnlyCandidateTeams() {
-    const teams = ApiService.getTeams?.() || [];
+    const teams = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
     const activeTeamMap = new Map();
     teams.forEach(t => {
       if (!t || t.active === false) return;
@@ -337,6 +337,43 @@ Object.assign(App, {
     this._renderTeamOnlyPicker();
   },
 
+  _teamOnlyDirectoryRefreshSeq: 0,
+
+  async _refreshTeamOnlyDirectoryIfOpen() {
+    const requestSeq = ++this._teamOnlyDirectoryRefreshSeq;
+    const modal = document.getElementById('create-event-modal');
+    const cb = document.getElementById('ce-team-only');
+    const select = document.getElementById('ce-team-select');
+    if (!modal?.classList.contains('open') || !cb?.checked || !select) return true;
+
+    let directoryReady = false;
+    try {
+      if (typeof ApiService.ensureTeamsReady === 'function') {
+        directoryReady = await ApiService.ensureTeamsReady();
+      }
+    } catch (err) {
+      console.warn('[EventCreate] team directory load failed:', err);
+      return false;
+    }
+    if (requestSeq !== this._teamOnlyDirectoryRefreshSeq) return false;
+    const directoryTeams = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
+    if (!directoryReady && directoryTeams.length === 0) return false;
+
+    const currentModal = document.getElementById('create-event-modal');
+    const currentCb = document.getElementById('ce-team-only');
+    const currentSelect = document.getElementById('ce-team-select');
+    if (!currentModal?.classList.contains('open') || !currentCb?.checked || !currentSelect) return true;
+
+    const selectedTeams = this._getSelectedTeamValues(currentSelect);
+    this._populateTeamSelect(
+      currentSelect,
+      selectedTeams.map(team => team.id),
+      selectedTeams.map(team => team.name)
+    );
+    this._updateTeamOnlyLabel();
+    return true;
+  },
+
   bindTeamOnlyToggle() {
     const cb = document.getElementById('ce-team-only');
     const select = document.getElementById('ce-team-select');
@@ -344,6 +381,7 @@ Object.assign(App, {
     if (cb && !cb.dataset.bound) {
       cb.dataset.bound = '1';
       cb.addEventListener('change', () => {
+        this._teamOnlyDirectoryRefreshSeq += 1;
         if (cb.checked && !this._guardActivityAddonToggle?.(cb)) {
           if (select) Array.from(select.options || []).forEach(opt => { opt.selected = false; });
           this._updateTeamOnlyLabel();
@@ -351,6 +389,7 @@ Object.assign(App, {
         }
         if (cb.checked && select) {
           this._populateTeamSelect(select);
+          void this._refreshTeamOnlyDirectoryIfOpen();
         } else if (select) {
           Array.from(select.options || []).forEach(opt => { opt.selected = false; });
         }
