@@ -7,6 +7,7 @@ Object.assign(App, {
   _eduCourseLessonsContext: null,
   _eduCourseLessonAttendanceCountListener: null,
   _eduCourseLessonAttendanceCountListenerSeq: 0,
+  _eduCourseLessonConfirmedCountCache: {},
   _eduCourseLessonAdjustContext: null,
   _eduCourseLessonsPreloadPromises: {},
   _eduCourseLessonsPreloadLimit: 3,
@@ -123,6 +124,7 @@ Object.assign(App, {
           && String(ctx?.planId || '') === normalizedPlanId;
         const countSessions = contextMatches && Array.isArray(ctx?.sessions) ? ctx.sessions : sessions;
         const counts = this._buildCourseLessonConfirmedCountBySessionId(countSessions, records);
+        this._rememberCourseLessonConfirmedCounts(normalizedTeamId, normalizedPlanId, counts);
         if (!listener.receivedInitialSnapshot) {
           listener.receivedInitialSnapshot = true;
           settleInitial(counts);
@@ -290,6 +292,45 @@ Object.assign(App, {
 
   _getCourseLessonsPreloadKey(teamId, planId) {
     return String(teamId || '') + ':' + String(planId || '');
+  },
+
+  _getCourseLessonConfirmedCountCacheKey(teamId, planId) {
+    const normalizedTeamId = String(teamId || '').trim();
+    const normalizedPlanId = String(planId || '').trim();
+    return normalizedTeamId && normalizedPlanId
+      ? [normalizedTeamId, normalizedPlanId].join('|')
+      : '';
+  },
+
+  _getCachedCourseLessonConfirmedCounts(teamId, planId, sessions) {
+    const key = this._getCourseLessonConfirmedCountCacheKey(teamId, planId);
+    const cached = key ? this._eduCourseLessonConfirmedCountCache?.[key] : null;
+    if (!cached || typeof cached !== 'object') return null;
+    const counts = {};
+    (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+      const sessionId = this._getCourseLessonSessionId(session);
+      if (!sessionId) return;
+      const count = Number(cached[sessionId]);
+      counts[sessionId] = Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
+    });
+    return counts;
+  },
+
+  _rememberCourseLessonConfirmedCounts(teamId, planId, counts) {
+    const key = this._getCourseLessonConfirmedCountCacheKey(teamId, planId);
+    if (!key || !counts || typeof counts !== 'object') return null;
+    const normalizedCounts = {};
+    Object.keys(counts).forEach((sessionId) => {
+      const count = Number(counts[sessionId]);
+      if (sessionId && Number.isFinite(count) && count >= 0) {
+        normalizedCounts[sessionId] = Math.floor(count);
+      }
+    });
+    if (!this._eduCourseLessonConfirmedCountCache || typeof this._eduCourseLessonConfirmedCountCache !== 'object') {
+      this._eduCourseLessonConfirmedCountCache = {};
+    }
+    this._eduCourseLessonConfirmedCountCache[key] = normalizedCounts;
+    return { ...normalizedCounts };
   },
 
   _getCourseLessonRosterViewerUid() {
@@ -1442,13 +1483,17 @@ Object.assign(App, {
     if (cachedPlan && cachedSessions) {
       const sortedCachedSessions = this._sortCourseLessonListSessions(cachedSessions);
       const cachedCount = Number(cachedPlan._effectiveCount);
+      const cachedConfirmedCounts = cachedPlan.planType === 'weekly'
+        ? this._getCachedCourseLessonConfirmedCounts(teamId, planId, sortedCachedSessions)
+          || this._buildCourseLessonConfirmedCountBySessionId(sortedCachedSessions, [])
+        : null;
       container.innerHTML = this._renderCourseLessonList(cachedPlan, sortedCachedSessions, {
         teamId,
         planId,
         isStaff: this.isEduClubStaff?.(teamId) === true,
         planType: cachedPlan.planType,
         currentStudentCount: Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null,
-        confirmedCountBySessionId: cachedPlan.planType === 'weekly' ? this._buildCourseLessonConfirmedCountBySessionId(sortedCachedSessions, []) : null,
+        confirmedCountBySessionId: cachedConfirmedCounts,
       });
     }
 
@@ -1485,7 +1530,8 @@ Object.assign(App, {
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     let confirmedCountBySessionId = null;
     if (plan.planType === 'weekly') {
-      confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, []);
+      confirmedCountBySessionId = this._getCachedCourseLessonConfirmedCounts(teamId, planId, sessions)
+        || this._buildCourseLessonConfirmedCountBySessionId(sessions, []);
       const liveCounts = await this._startCourseLessonAttendanceCountListener(teamId, planId, sessions);
       if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
         return this._abortEduCourseLessonsTransition('showCourseLessons-attendance-listener', routeTransitionSeq);
@@ -1494,9 +1540,10 @@ Object.assign(App, {
       if (liveCounts !== null) {
         confirmedCountBySessionId = liveCounts;
       } else if (typeof FirebaseService?.queryEduAttendance === 'function') {
+        let fallbackCounts = null;
         try {
           const attendanceRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
-          confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, attendanceRecords);
+          fallbackCounts = this._buildCourseLessonConfirmedCountBySessionId(sessions, attendanceRecords);
         } catch (err) {
           console.warn('[edu-course-lessons] weekly attendance count load failed:', err);
         }
@@ -1504,6 +1551,10 @@ Object.assign(App, {
           return this._abortEduCourseLessonsTransition('showCourseLessons-attendance', routeTransitionSeq);
         }
         if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+        if (fallbackCounts !== null) {
+          confirmedCountBySessionId = fallbackCounts;
+          this._rememberCourseLessonConfirmedCounts(teamId, planId, confirmedCountBySessionId);
+        }
       }
     }
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {

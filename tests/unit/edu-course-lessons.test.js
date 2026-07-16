@@ -971,6 +971,7 @@ describe('edu course lessons', () => {
     expect(app._getCourseSessionDisplayStudentCount).not.toHaveBeenCalled();
     expect(container.innerHTML).toContain('2/6 \u4eba');
     expect(container.innerHTML).not.toContain('3/6 \u4eba');
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', [{ id: 'weeklyA' }]).weeklyA).toBe(2);
   });
 
   test('weekly lesson cards update counts from one attendance listener without a duplicate query', async () => {
@@ -1051,8 +1052,163 @@ describe('edu course lessons', () => {
 
     expect(container.innerHTML).toContain('2/6 \u4eba');
     expect(app._eduCourseLessonsContext.confirmedCountBySessionId.weeklyA).toBe(2);
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(2);
     app._stopCourseLessonAttendanceCountListener();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test('weekly lesson cards reuse the last count while the background listener refreshes it', async () => {
+    let emitSnapshot;
+    const unsubscribe = jest.fn();
+    const query = {
+      where: jest.fn(function where() { return this; }),
+      onSnapshot: jest.fn((next) => {
+        emitSnapshot = next;
+        return unsubscribe;
+      }),
+    };
+    const weeklySessions = [{
+      id: 'weeklyA',
+      title: '\u7b2c 1 \u5802\u8ab2',
+      date: '2099-06-01',
+      startTime: '09:00',
+      endTime: '10:30',
+      capacity: 6,
+    }];
+    const { app, container } = loadCourseLessonsContext({
+      firestore: jest.fn(() => ({ collection: jest.fn(() => query) })),
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: weeklySessions,
+      courseSessionCache: { 'teamA:weeklyPlan': weeklySessions },
+    });
+    app._rememberCourseLessonConfirmedCounts('teamA', 'weeklyPlan', { weeklyA: 2 });
+
+    let settled = false;
+    const openPromise = app.showCourseLessons('teamA', 'weeklyPlan').then((result) => {
+      settled = true;
+      return result;
+    });
+    for (let attempt = 0; attempt < 100 && typeof emitSnapshot !== 'function'; attempt += 1) {
+      await Promise.resolve();
+    }
+
+    expect(settled).toBe(false);
+    expect(container.innerHTML).toContain('2/6 \u4eba');
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'otherPlan', weeklySessions)).toBeNull();
+
+    emitSnapshot({ docs: [] });
+    await openPromise;
+
+    expect(container.innerHTML).toContain('0/6 \u4eba');
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(0);
+    app._stopCourseLessonAttendanceCountListener();
+  });
+
+  test('weekly lesson cards keep the last count when live and fallback refreshes are unavailable', async () => {
+    const weeklySessions = [{
+      id: 'weeklyA',
+      title: '\u7b2c 1 \u5802\u8ab2',
+      date: '2099-06-01',
+      startTime: '09:00',
+      endTime: '10:30',
+      capacity: 6,
+    }];
+    const queryEduAttendance = jest.fn(async () => {
+      throw new Error('offline');
+    });
+    const { app, container } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: weeklySessions,
+      courseSessionCache: { 'teamA:weeklyPlan': weeklySessions },
+      FirebaseService: { queryEduAttendance },
+    });
+    app._rememberCourseLessonConfirmedCounts('teamA', 'weeklyPlan', { weeklyA: 2 });
+
+    await app.showCourseLessons('teamA', 'weeklyPlan');
+
+    expect(queryEduAttendance).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).toContain('2/6 \u4eba');
+  });
+
+  test('a stale fallback cannot overwrite a newer listener count cache', async () => {
+    const oldFallback = deferred();
+    const queryEduAttendance = jest.fn(() => oldFallback.promise);
+    let emitNewSnapshot;
+    const unsubscribe = jest.fn();
+    const query = {
+      where: jest.fn(function where() { return this; }),
+      onSnapshot: jest.fn((next) => {
+        emitNewSnapshot = next;
+        return unsubscribe;
+      }),
+    };
+    const weeklySessions = [{
+      id: 'weeklyA',
+      title: '\u7b2c 1 \u5802\u8ab2',
+      date: '2099-06-01',
+      startTime: '09:00',
+      endTime: '10:30',
+      capacity: 6,
+    }];
+    const { app, context, container } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: weeklySessions,
+      courseSessionCache: { 'teamA:weeklyPlan': weeklySessions },
+      FirebaseService: { queryEduAttendance },
+    });
+
+    const oldOpen = app.showCourseLessons('teamA', 'weeklyPlan');
+    for (let attempt = 0; attempt < 100 && queryEduAttendance.mock.calls.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    expect(queryEduAttendance).toHaveBeenCalledTimes(1);
+
+    context.firebase.firestore = jest.fn(() => ({ collection: jest.fn(() => query) }));
+    const newOpen = app.showCourseLessons('teamA', 'weeklyPlan');
+    for (let attempt = 0; attempt < 100 && typeof emitNewSnapshot !== 'function'; attempt += 1) {
+      await Promise.resolve();
+    }
+    emitNewSnapshot({
+      docs: Array.from({ length: 3 }, (_, index) => ({
+        id: 'newAttendance' + index,
+        data: () => ({
+          studentId: 'newStudent' + index,
+          sessionId: 'weeklyA',
+          kind: 'registered',
+          status: 'active',
+        }),
+      })),
+    });
+    await newOpen;
+    expect(container.innerHTML).toContain('3/6 \u4eba');
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(3);
+
+    oldFallback.resolve([
+      { studentId: 'oldStudent', sessionId: 'weeklyA', kind: 'registered', status: 'active' },
+    ]);
+    await expect(oldOpen).resolves.toMatchObject({ ok: false, reason: 'stale' });
+
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(3);
+    expect(container.innerHTML).toContain('3/6 \u4eba');
+    app._stopCourseLessonAttendanceCountListener();
   });
 
   test('stopping the attendance listener settles a pending initial snapshot', async () => {
