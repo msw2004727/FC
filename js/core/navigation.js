@@ -1387,6 +1387,9 @@ Object.assign(App, {
       this._completeTeamMemberManagement?.(this._teamDetailId);
       this._cleanupTeamDetailV2Runtime?.(this._teamDetailId);
     }
+    if (this.currentPage === 'page-edu-course-lessons' && pageId !== 'page-edu-course-lessons') {
+      this._stopCourseLessonAttendanceCountListener?.();
+    }
     const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-course-lessons', 'page-edu-course-enrollment', 'page-edu-groups', 'page-edu-student-apply'];
     if (eduSubPages.includes(this.currentPage) && !eduSubPages.includes(pageId)) {
       this._cleanupEduListeners?.();

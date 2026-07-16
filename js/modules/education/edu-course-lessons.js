@@ -5,6 +5,8 @@
 Object.assign(App, {
   _eduCourseLessonsRequestSeq: 0,
   _eduCourseLessonsContext: null,
+  _eduCourseLessonAttendanceCountListener: null,
+  _eduCourseLessonAttendanceCountListenerSeq: 0,
   _eduCourseLessonAdjustContext: null,
   _eduCourseLessonsPreloadPromises: {},
   _eduCourseLessonsPreloadLimit: 3,
@@ -36,6 +38,127 @@ Object.assign(App, {
     return requestSeq !== this._eduCourseLessonsRequestSeq
       || this.currentPage !== 'page-edu-course-lessons'
       || (teamId && this._eduCurrentTeamId && String(this._eduCurrentTeamId) !== String(teamId));
+  },
+
+  _stopCourseLessonAttendanceCountListener() {
+    const listener = this._eduCourseLessonAttendanceCountListener;
+    this._eduCourseLessonAttendanceCountListener = null;
+    this._eduCourseLessonAttendanceCountListenerSeq = (Number(this._eduCourseLessonAttendanceCountListenerSeq) || 0) + 1;
+    if (typeof listener?.resolveInitial === 'function') {
+      const resolveInitial = listener.resolveInitial;
+      listener.resolveInitial = null;
+      resolveInitial(null);
+    }
+    if (typeof listener?.unsubscribe === 'function') {
+      try {
+        listener.unsubscribe();
+      } catch (err) {
+        console.warn('[edu-course-lessons] weekly attendance count unsubscribe failed:', err);
+      }
+    }
+  },
+
+  _startCourseLessonAttendanceCountListener(teamId, planId, sessions) {
+    this._stopCourseLessonAttendanceCountListener();
+    const normalizedTeamId = String(teamId || '').trim();
+    const normalizedPlanId = String(planId || '').trim();
+    if (!normalizedTeamId || !normalizedPlanId
+      || typeof firebase === 'undefined'
+      || typeof firebase.firestore !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    let db;
+    try {
+      db = firebase.firestore();
+    } catch (err) {
+      console.warn('[edu-course-lessons] weekly attendance count listener unavailable:', err);
+      return Promise.resolve(null);
+    }
+    if (!db || typeof db.collection !== 'function') return Promise.resolve(null);
+
+    const listenerSeq = Number(this._eduCourseLessonAttendanceCountListenerSeq);
+    let resolveInitial;
+    const initialSnapshotPromise = new Promise((resolve) => {
+      resolveInitial = resolve;
+    });
+    const listener = {
+      seq: listenerSeq,
+      resolveInitial,
+      unsubscribe: null,
+      receivedInitialSnapshot: false,
+    };
+    this._eduCourseLessonAttendanceCountListener = listener;
+
+    const isActive = () => this._eduCourseLessonAttendanceCountListener === listener
+      && Number(this._eduCourseLessonAttendanceCountListenerSeq) === listenerSeq;
+    const settleInitial = (value) => {
+      if (typeof listener.resolveInitial !== 'function') return;
+      const resolve = listener.resolveInitial;
+      listener.resolveInitial = null;
+      resolve(value);
+    };
+    const fail = (err) => {
+      if (!isActive()) return;
+      this._eduCourseLessonAttendanceCountListener = null;
+      console.warn('[edu-course-lessons] weekly attendance count listener failed:', err);
+      settleInitial(null);
+      if (typeof listener.unsubscribe === 'function') {
+        try {
+          listener.unsubscribe();
+        } catch (_) {}
+      }
+    };
+    const handleSnapshot = (snapshot) => {
+      if (!isActive()) return;
+      try {
+        const records = Array.from(snapshot?.docs || []).map((doc) => ({
+          id: doc?.id,
+          _docId: doc?.id,
+          ...(typeof doc?.data === 'function' ? doc.data() : {}),
+        }));
+        const ctx = this._eduCourseLessonsContext;
+        const contextMatches = ctx?.mode === 'list'
+          && String(ctx?.teamId || '') === normalizedTeamId
+          && String(ctx?.planId || '') === normalizedPlanId;
+        const countSessions = contextMatches && Array.isArray(ctx?.sessions) ? ctx.sessions : sessions;
+        const counts = this._buildCourseLessonConfirmedCountBySessionId(countSessions, records);
+        if (!listener.receivedInitialSnapshot) {
+          listener.receivedInitialSnapshot = true;
+          settleInitial(counts);
+          return;
+        }
+        if (!contextMatches || this.currentPage !== 'page-edu-course-lessons') return;
+        ctx.confirmedCountBySessionId = counts;
+        const container = this._getEduCourseLessonsContainer();
+        if (!container || !ctx.plan || !Array.isArray(ctx.sessions)) return;
+        container.innerHTML = this._renderCourseLessonList(ctx.plan, ctx.sessions, {
+          teamId: normalizedTeamId,
+          planId: normalizedPlanId,
+          isStaff: this.isEduClubStaff?.(normalizedTeamId) === true,
+          currentStudentCount: ctx.currentStudentCount,
+          planType: ctx.plan.planType,
+          confirmedCountBySessionId: counts,
+        });
+      } catch (err) {
+        fail(err);
+      }
+    };
+
+    try {
+      const query = db.collection('eduAttendance')
+        .where('teamId', '==', normalizedTeamId)
+        .where('coursePlanId', '==', normalizedPlanId);
+      const unsubscribe = query.onSnapshot(handleSnapshot, fail);
+      if (isActive()) {
+        listener.unsubscribe = typeof unsubscribe === 'function' ? unsubscribe : null;
+      } else if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    } catch (err) {
+      fail(err);
+    }
+    return initialSnapshotPromise;
   },
 
   _prepareEduCourseLessonsTransition(options = {}, isSameRoute = false) {
@@ -1294,6 +1417,7 @@ Object.assign(App, {
     if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
       return this._abortEduCourseLessonsTransition('showCourseLessons-entry', routeTransitionSeq);
     }
+    this._stopCourseLessonAttendanceCountListener();
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
     this._eduCourseLessonsContext = { teamId, planId, mode: 'list' };
@@ -1362,7 +1486,14 @@ Object.assign(App, {
     let confirmedCountBySessionId = null;
     if (plan.planType === 'weekly') {
       confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, []);
-      if (typeof FirebaseService?.queryEduAttendance === 'function') {
+      const liveCounts = await this._startCourseLessonAttendanceCountListener(teamId, planId, sessions);
+      if (!this._isEduCourseLessonsTransitionCurrent(routeTransitionSeq)) {
+        return this._abortEduCourseLessonsTransition('showCourseLessons-attendance-listener', routeTransitionSeq);
+      }
+      if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+      if (liveCounts !== null) {
+        confirmedCountBySessionId = liveCounts;
+      } else if (typeof FirebaseService?.queryEduAttendance === 'function') {
         try {
           const attendanceRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
           confirmedCountBySessionId = this._buildCourseLessonConfirmedCountBySessionId(sessions, attendanceRecords);
@@ -2280,6 +2411,7 @@ Object.assign(App, {
     if (restoreRequested && !restoredPageReady) {
       return { ok: false, reason: 'restore_not_current' };
     }
+    this._stopCourseLessonAttendanceCountListener();
     const perfStartedAtMs = this._getCourseLessonRosterPerfNow();
     this._eduCourseRosterPerfTimeline = [];
     this._recordCourseLessonRosterPerf('start', {

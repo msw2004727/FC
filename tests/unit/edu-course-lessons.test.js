@@ -241,6 +241,7 @@ function loadCourseLessonsContext(overrides = {}) {
       auth: () => ({
         currentUser: authState.uid ? { uid: authState.uid } : null,
       }),
+      firestore: overrides.firestore,
     },
     localStorage: localStorageMock,
     ...(overrides.window ? { window: overrides.window, URL } : {}),
@@ -970,6 +971,114 @@ describe('edu course lessons', () => {
     expect(app._getCourseSessionDisplayStudentCount).not.toHaveBeenCalled();
     expect(container.innerHTML).toContain('2/6 \u4eba');
     expect(container.innerHTML).not.toContain('3/6 \u4eba');
+  });
+
+  test('weekly lesson cards update counts from one attendance listener without a duplicate query', async () => {
+    let emitSnapshot;
+    const unsubscribe = jest.fn();
+    const query = {
+      where: jest.fn(function where() { return this; }),
+      onSnapshot: jest.fn((next) => {
+        emitSnapshot = next;
+        return unsubscribe;
+      }),
+    };
+    const collection = jest.fn(() => query);
+    const firestore = jest.fn(() => ({ collection }));
+    const weeklySessions = [{
+      id: 'weeklyA',
+      title: '\u7b2c 1 \u5802\u8ab2',
+      date: '2099-06-01',
+      startTime: '09:00',
+      endTime: '10:30',
+      capacity: 6,
+    }];
+    const { app, container, firebase } = loadCourseLessonsContext({
+      firestore,
+      plans: [{
+        id: 'weeklyPlan',
+        name: '\u56fa\u5b9a\u9031\u671f\u73ed',
+        planType: 'weekly',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: weeklySessions,
+      courseSessionCache: { 'teamA:weeklyPlan': weeklySessions },
+    });
+
+    let settled = false;
+    const openPromise = app.showCourseLessons('teamA', 'weeklyPlan').then((result) => {
+      settled = true;
+      return result;
+    });
+    for (let attempt = 0; attempt < 100 && typeof emitSnapshot !== 'function'; attempt += 1) {
+      await Promise.resolve();
+    }
+
+    expect(settled).toBe(false);
+    expect(container.innerHTML).toContain('\u7b2c 1 \u5802\u8ab2');
+    expect(container.innerHTML).toContain('0/6 \u4eba');
+    expect(typeof emitSnapshot).toBe('function');
+
+    emitSnapshot({
+      docs: [{
+        id: 'attendanceA',
+        data: () => ({ studentId: 'stu1', sessionId: 'weeklyA', kind: 'registered', status: 'active' }),
+      }],
+    });
+    await openPromise;
+
+    expect(collection).toHaveBeenCalledWith('eduAttendance');
+    expect(query.where.mock.calls).toEqual([
+      ['teamId', '==', 'teamA'],
+      ['coursePlanId', '==', 'weeklyPlan'],
+    ]);
+    expect(firebase.queryEduAttendance).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('1/6 \u4eba');
+
+    emitSnapshot({
+      docs: [
+        {
+          id: 'attendanceA',
+          data: () => ({ studentId: 'stu1', sessionId: 'weeklyA', kind: 'registered', status: 'active' }),
+        },
+        {
+          id: 'attendanceB',
+          data: () => ({ studentId: 'stu2', sessionId: 'weeklyA', kind: 'signin', status: 'active' }),
+        },
+      ],
+    });
+
+    expect(container.innerHTML).toContain('2/6 \u4eba');
+    expect(app._eduCourseLessonsContext.confirmedCountBySessionId.weeklyA).toBe(2);
+    app._stopCourseLessonAttendanceCountListener();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test('stopping the attendance listener settles a pending initial snapshot', async () => {
+    const unsubscribe = jest.fn();
+    const query = {
+      where: jest.fn(function where() { return this; }),
+      onSnapshot: jest.fn(() => unsubscribe),
+    };
+    const { app } = loadCourseLessonsContext({
+      firestore: jest.fn(() => ({ collection: jest.fn(() => query) })),
+    });
+
+    const initialSnapshot = app._startCourseLessonAttendanceCountListener('teamA', 'weeklyPlan', []);
+    app._stopCourseLessonAttendanceCountListener();
+
+    await expect(initialSnapshot).resolves.toBeNull();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test('opening a lesson roster stops the lesson-list attendance listener', async () => {
+    const { app } = loadCourseLessonsContext();
+    const stopListener = jest.spyOn(app, '_stopCourseLessonAttendanceCountListener');
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(stopListener).toHaveBeenCalledTimes(1);
   });
 
   test('staff lesson list uses auto session sync result', async () => {

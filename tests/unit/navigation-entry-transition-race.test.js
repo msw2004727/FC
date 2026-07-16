@@ -119,6 +119,20 @@ describe('async route entry transition guards', () => {
     expect(stopEduTeamsListener).toHaveBeenCalledTimes(1);
   });
 
+  test('leaving the course lesson page stops its attendance count listener', () => {
+    const stopCourseLessonAttendanceCountListener = jest.fn();
+    const App = installModule('js/core/navigation.js', {
+      before: {
+        currentPage: 'page-edu-course-lessons',
+        _stopCourseLessonAttendanceCountListener: stopCourseLessonAttendanceCountListener,
+      },
+    });
+
+    App._cleanupBeforePageSwitch('page-edu-course-plan');
+
+    expect(stopCourseLessonAttendanceCountListener).toHaveBeenCalledTimes(1);
+  });
+
   test('event detail does not activate its shell after a newer navigation', async () => {
     const scriptsReady = deferred();
     const event = { id: 'ce_test', type: 'play', title: 'Test event' };
