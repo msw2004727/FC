@@ -123,14 +123,27 @@ Object.assign(App, {
           && String(ctx?.teamId || '') === normalizedTeamId
           && String(ctx?.planId || '') === normalizedPlanId;
         const countSessions = contextMatches && Array.isArray(ctx?.sessions) ? ctx.sessions : sessions;
-        const counts = this._buildCourseLessonConfirmedCountBySessionId(countSessions, records);
-        this._rememberCourseLessonConfirmedCounts(normalizedTeamId, normalizedPlanId, counts);
+        const snapshotCounts = this._buildCourseLessonConfirmedCountBySessionId(countSessions, records);
+        const fromCache = snapshot?.metadata?.fromCache === true;
+        const rememberedCounts = this._getCachedCourseLessonConfirmedCounts(
+          normalizedTeamId,
+          normalizedPlanId,
+          countSessions,
+        );
+        const counts = fromCache && rememberedCounts ? rememberedCounts : snapshotCounts;
+        if (!fromCache) {
+          this._rememberCourseLessonConfirmedCounts(normalizedTeamId, normalizedPlanId, snapshotCounts);
+        }
         if (!listener.receivedInitialSnapshot) {
           listener.receivedInitialSnapshot = true;
           settleInitial(counts);
           return;
         }
         if (!contextMatches || this.currentPage !== 'page-edu-course-lessons') return;
+        if (this._areCourseLessonConfirmedCountsEqual(countSessions, ctx.confirmedCountBySessionId, counts)) {
+          ctx.confirmedCountBySessionId = counts;
+          return;
+        }
         ctx.confirmedCountBySessionId = counts;
         const container = this._getEduCourseLessonsContainer();
         if (!container || !ctx.plan || !Array.isArray(ctx.sessions)) return;
@@ -151,7 +164,7 @@ Object.assign(App, {
       const query = db.collection('eduAttendance')
         .where('teamId', '==', normalizedTeamId)
         .where('coursePlanId', '==', normalizedPlanId);
-      const unsubscribe = query.onSnapshot(handleSnapshot, fail);
+      const unsubscribe = query.onSnapshot({ includeMetadataChanges: true }, handleSnapshot, fail);
       if (isActive()) {
         listener.unsubscribe = typeof unsubscribe === 'function' ? unsubscribe : null;
       } else if (typeof unsubscribe === 'function') {
@@ -314,6 +327,14 @@ Object.assign(App, {
       counts[sessionId] = Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
     });
     return counts;
+  },
+
+  _areCourseLessonConfirmedCountsEqual(sessions, left, right) {
+    return (Array.isArray(sessions) ? sessions : []).every((session) => {
+      const sessionId = this._getCourseLessonSessionId(session);
+      if (!sessionId) return true;
+      return Number(left?.[sessionId] || 0) === Number(right?.[sessionId] || 0);
+    });
   },
 
   _rememberCourseLessonConfirmedCounts(teamId, planId, counts) {
@@ -2301,7 +2322,7 @@ Object.assign(App, {
       }
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
       if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
-        return this._handleCourseLessonRosterViewerChange(
+        return await this._handleCourseLessonRosterViewerChange(
           teamId,
           planId,
           sessionId,
@@ -2625,7 +2646,7 @@ Object.assign(App, {
         cachedVersion: this._getCourseLessonRosterPayloadVersion(cachedPayload),
         studentCount: Array.isArray(cachedRenderPayload?.students) ? cachedRenderPayload.students.length : 0,
       }, perfStartedAtMs);
-      this._refreshCourseLessonRosterInBackground(
+      void this._refreshCourseLessonRosterInBackground(
         requestSeq,
         teamId,
         planId,
@@ -2641,7 +2662,9 @@ Object.assign(App, {
           routeTransitionSeq,
           _viewerChangeRetryCount: options?._viewerChangeRetryCount,
         },
-      );
+      ).catch((err) => {
+        console.warn('[edu-course-lessons] roster background refresh rejected:', err);
+      });
       return { ...result, cached: true };
     }
 

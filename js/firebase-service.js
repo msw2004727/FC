@@ -54,6 +54,7 @@ const FirebaseService = {
     achievements: [],
     badges: [],
     adminUsers: [],
+    userDirectory: [],
     permissions: [],
     attendanceRecords: [],
     activityRecords: [],
@@ -192,6 +193,8 @@ const FirebaseService = {
   _usersUnsub: null,
   _adminUsersLoadPromise: null,
   _adminUsersLoadUid: '',
+  _userDirectoryLoadPromise: null,
+  _userDirectoryLoadUid: '',
   _userListener: null,
   _identityPrivateListener: null,
   _identityPrivateListenerUid: '',
@@ -847,7 +850,7 @@ const FirebaseService = {
   /** 儲存全部快取到 localStorage */
   _persistCache() {
     const toSave = [
-      ...this._bootCollections, ...this._liveCollections, 'adminUsers',
+      ...this._bootCollections, ...this._liveCollections, 'adminUsers', 'userDirectory',
       ...this._deferredCollections,
     ];
     toSave.forEach(name => {
@@ -931,12 +934,14 @@ const FirebaseService = {
     let restored = 0;
     const allCollections = [
       ...this._bootCollections, ...this._liveCollections,
-      ...this._deferredCollections, 'adminUsers',
+      ...this._deferredCollections, 'adminUsers', 'userDirectory',
     ];
     allCollections.forEach(name => {
       const data = this._loadFromLS(name);
       if (data && data.length > 0) {
-        this._cache[name] = this._isCanonicalCollection(name)
+        this._cache[name] = name === 'userDirectory'
+          ? this._normalizeUserDirectory(data)
+          : this._isCanonicalCollection(name)
           ? this._canonicalizeRecordList(name, data)
           : data;
         this._collectionLoadedAt[name] = ts;
@@ -1175,6 +1180,143 @@ const FirebaseService = {
     }
   },
 
+  _normalizeUserDirectory(entries) {
+    const seen = new Set();
+    return (Array.isArray(entries) ? entries : []).map(entry => {
+      const uid = String(entry?.uid || '').trim();
+      if (!uid || seen.has(uid)) return null;
+      seen.add(uid);
+      const name = String(entry?.name || entry?.displayName || '').trim();
+      const displayName = String(entry?.displayName || entry?.name || '').trim();
+      return {
+        uid,
+        name: name || displayName || '未知',
+        displayName,
+        pictureUrl: typeof entry?.pictureUrl === 'string' ? entry.pictureUrl.trim() : '',
+        role: String(entry?.role || 'user').trim() || 'user',
+      };
+    }).filter(Boolean);
+  },
+
+  getUserDirectory() {
+    return this._normalizeUserDirectory(this._cache.userDirectory);
+  },
+
+  async ensureUserDirectoryReady(options = {}) {
+    if (!this._initialized) return false;
+    const getAuthUser = () => (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!getAuthUser() && typeof this._ensureAuth === 'function') {
+      const authed = await this._ensureAuth();
+      if (!authed) return false;
+    }
+
+    const requestUid = String(getAuthUser()?.uid || '').trim();
+    if (!requestUid || typeof ensureFirebaseFunctionsSdk !== 'function') return false;
+    if (this._userDirectoryLoadPromise && this._userDirectoryLoadUid === requestUid) {
+      return this._userDirectoryLoadPromise;
+    }
+    if (options.force !== true && !this._shouldReloadCollection('userDirectory')) return true;
+
+    const loadPromise = (async () => {
+      try {
+        const functionsApi = await ensureFirebaseFunctionsSdk('asia-east1');
+        const callable = functionsApi?.httpsCallable?.('listUserDirectory');
+        if (typeof callable !== 'function') throw new Error('listUserDirectory callable unavailable');
+        const result = await callable({});
+        const currentUid = String(getAuthUser()?.uid || '').trim();
+        if (!this._initialized || currentUid !== requestUid) return false;
+        if (!Array.isArray(result?.data?.users)) {
+          throw new Error('listUserDirectory returned an invalid payload');
+        }
+
+        const users = this._normalizeUserDirectory(result.data.users);
+        this._cache.userDirectory = users;
+        this._markCollectionsLoaded(['userDirectory']);
+        this._saveToLS('userDirectory', users);
+        this._debouncedPersistCache();
+        return true;
+      } catch (err) {
+        console.warn('[FirebaseService] safe user directory load failed:', err);
+        return false;
+      }
+    })();
+
+    this._userDirectoryLoadPromise = loadPromise;
+    this._userDirectoryLoadUid = requestUid;
+    try {
+      return await loadPromise;
+    } finally {
+      if (this._userDirectoryLoadPromise === loadPromise) {
+        this._userDirectoryLoadPromise = null;
+        this._userDirectoryLoadUid = '';
+      }
+    }
+  },
+
+  async verifyUserDirectorySelection(uids) {
+    const requestedUids = [...new Set((Array.isArray(uids) ? uids : [])
+      .map(uid => String(uid || '').trim())
+      .filter(Boolean))];
+    const fail = (reason) => ({
+      ok: false,
+      users: [],
+      missingUids: [...requestedUids],
+      reason,
+    });
+    if (requestedUids.length === 0) {
+      return { ok: true, users: [], missingUids: [], reason: '' };
+    }
+    if (!this._initialized) return fail('not-initialized');
+
+    const getAuthUser = () => (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!getAuthUser() && typeof this._ensureAuth === 'function') {
+      const authed = await this._ensureAuth();
+      if (!authed) return fail('unauthenticated');
+    }
+    const requestUid = String(getAuthUser()?.uid || '').trim();
+    if (!requestUid || typeof ensureFirebaseFunctionsSdk !== 'function') {
+      return fail(requestUid ? 'unavailable' : 'unauthenticated');
+    }
+
+    try {
+      const functionsApi = await ensureFirebaseFunctionsSdk('asia-east1');
+      const callable = functionsApi?.httpsCallable?.('listUserDirectory');
+      if (typeof callable !== 'function') return fail('unavailable');
+      const result = await callable({ verifyUids: requestedUids });
+      const currentUid = String(getAuthUser()?.uid || '').trim();
+      if (!this._initialized || currentUid !== requestUid) return fail('stale-auth');
+
+      const rawUsers = result?.data?.users;
+      if (!Array.isArray(rawUsers)) return fail('invalid-response');
+      const requestedSet = new Set(requestedUids);
+      const responseUids = rawUsers.map(entry => String(entry?.uid || '').trim());
+      if (responseUids.some(uid => !uid || !requestedSet.has(uid))
+        || new Set(responseUids).size !== responseUids.length) {
+        return fail('invalid-response');
+      }
+
+      const users = this._normalizeUserDirectory(rawUsers);
+      if (users.length !== rawUsers.length) return fail('invalid-response');
+      const returnedSet = new Set(users.map(user => user.uid));
+      const retainedUsers = this._normalizeUserDirectory(this._cache.userDirectory)
+        .filter(user => !requestedSet.has(user.uid));
+      this._cache.userDirectory = [...retainedUsers, ...users];
+      this._saveToLS('userDirectory', this._cache.userDirectory);
+      this._debouncedPersistCache();
+
+      const missingUids = requestedUids.filter(uid => !returnedSet.has(uid));
+      return {
+        ok: missingUids.length === 0,
+        users,
+        missingUids,
+        reason: missingUids.length === 0 ? '' : 'missing-users',
+      };
+    } catch (err) {
+      console.warn('[FirebaseService] user directory selection verification failed:', err);
+      return fail('unavailable');
+    }
+  },
+
   async ensureAdminUsersReady(options = {}) {
     if (!this._initialized) return false;
     const getAuthUser = () => (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
@@ -1278,6 +1420,7 @@ const FirebaseService = {
 
   _staticReloadMaxAgeMs: {
     adminUsers: 5 * 60 * 1000,
+    userDirectory: 5 * 60 * 1000,
     teamDirectory: 5 * 60 * 1000,
     events: 60 * 1000,           // 60 秒 — 報名中活動需較新資料
     teams: 5 * 60 * 1000,       // 5 分鐘 — 俱樂部變動頻率低
@@ -5274,6 +5417,8 @@ const FirebaseService = {
     this._authDependentWorkUid = null;
     this._adminUsersLoadPromise = null;
     this._adminUsersLoadUid = '';
+    this._userDirectoryLoadPromise = null;
+    this._userDirectoryLoadUid = '';
     this._teamDirectoryCache = [];
     this._teamDirectoryHasSnapshot = false;
     this._teamDirectoryLoadPromise = null;

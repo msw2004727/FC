@@ -659,7 +659,7 @@ Object.assign(App, {
       if (u.role === key) {
         u.role = 'user';
         if (u._docId) {
-          FirebaseService.updateUserRole(u._docId, 'user').catch(err => console.error('[deleteCustomRole] demote user:', err));
+          FirebaseService.manageAdminUser(u._docId, { role: 'user', manualRole: 'user' }).catch(err => console.error('[deleteCustomRole] demote user:', err));
         }
       }
     });

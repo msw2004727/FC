@@ -21,7 +21,12 @@ function loadEventCreateModule(options = {}) {
     CACHE_VERSION: options.cacheVersion || '0.20260505test',
     fetch: fetchMock,
     document: { baseURI: options.baseURI || 'https://toosterx.com/' },
-    window: { location: { href: options.baseURI || 'https://toosterx.com/' } },
+    window: {
+      location: { href: options.baseURI || 'https://toosterx.com/' },
+      ...(options.indexVersion
+        ? { getSportHubAssetVersion: () => options.indexVersion }
+        : {}),
+    },
     URL,
     encodeURI,
     encodeURIComponent,
@@ -60,6 +65,16 @@ describe('event default cover image', () => {
     expect(fetchMock.mock.calls[0][1]).toEqual({ cache: 'force-cache' });
     expect(compressMock).toHaveBeenCalledTimes(1);
     expect(compressMock).toHaveBeenCalledWith(blob, 1200, 0.9, 'image/webp');
+  });
+
+  test('uses the canonical index version when config is stale', () => {
+    const { App } = loadEventCreateModule({
+      cacheVersion: '0.old',
+      indexVersion: '0.index',
+    });
+
+    expect(App._getDefaultEventCoverUrl())
+      .toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.index');
   });
 
   test('shows a clear toast when default cover cannot be loaded', async () => {

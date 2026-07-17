@@ -23,7 +23,7 @@ Object.assign(App, {
       dropdown.classList.remove('open');
       dropdown.innerHTML = '';
     }
-    if (canManageDelegates) void ApiService.ensureAdminUsersReady?.();
+    if (canManageDelegates) void ApiService.ensureUserDirectoryReady?.();
 
     if (!this._delegateSearchBound) {
       this._delegateSearchBound = true;
@@ -60,6 +60,7 @@ Object.assign(App, {
     const dropdown = document.getElementById('ce-delegate-dropdown');
     if (!dropdown) return;
     const requestSeq = Number(options.requestSeq) || ++this._delegateSearchSeq;
+    const formSession = options.formSession || this._eventFormSession || null;
     if (!this._canCurrentEditManageDelegates()) {
       dropdown.classList.remove('open');
       dropdown.innerHTML = '';
@@ -69,7 +70,7 @@ Object.assign(App, {
     const myUid = this._getEventCreatorUid();
     const selectedUids = this._delegates.map(d => d.uid);
 
-    const allUsers = ApiService.getAdminUsers?.() || [];
+    const allUsers = ApiService.getUserDirectory?.() || [];
     const hasCachedUsers = allUsers.length > 0;
     const results = allUsers.filter(u => {
       if (u.uid === myUid) return false;
@@ -97,10 +98,14 @@ Object.assign(App, {
       dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
         item.addEventListener('mousedown', (ev) => {
           ev.preventDefault();
-          this._addDelegate(item.dataset.uid, item.dataset.name);
-          document.getElementById('ce-delegate-search').value = '';
-          this._delegateSearchSeq += 1;
-          dropdown.classList.remove('open');
+          void this._addDelegate(item.dataset.uid, item.dataset.name, { requestSeq, query: q, formSession })
+            .then(added => {
+              if (!added) return;
+              const input = document.getElementById('ce-delegate-search');
+              if (input) input.value = '';
+              this._delegateSearchSeq = requestSeq + 1;
+              dropdown.classList.remove('open');
+            });
         });
       });
     }
@@ -109,8 +114,8 @@ Object.assign(App, {
 
     let directoryReady = allUsers.length > 0;
     try {
-      if (typeof ApiService.ensureAdminUsersReady === 'function') {
-        directoryReady = await ApiService.ensureAdminUsersReady();
+      if (typeof ApiService.ensureUserDirectoryReady === 'function') {
+        directoryReady = await ApiService.ensureUserDirectoryReady();
       }
     } catch (err) {
       console.warn('[EventCreate] delegate directory load failed:', err);
@@ -120,10 +125,11 @@ Object.assign(App, {
     const input = document.getElementById('ce-delegate-search');
     const modal = document.getElementById('create-event-modal');
     if (requestSeq !== this._delegateSearchSeq
+      || (formSession && !this._isEventFormSubmitSessionCurrent?.(formSession))
       || String(input?.value || '').trim().toLowerCase() !== q
       || !modal?.classList.contains('open')) return;
 
-    const refreshedUsers = ApiService.getAdminUsers?.() || [];
+    const refreshedUsers = ApiService.getUserDirectory?.() || [];
     const hasRefreshedMatch = refreshedUsers.some(u => {
       if (u.uid === myUid || selectedUids.includes(u.uid)) return false;
       return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
@@ -133,19 +139,79 @@ Object.assign(App, {
       dropdown.classList.add('open');
       return;
     }
-    return this._searchDelegates(query, { skipRefresh: true, requestSeq });
+    return this._searchDelegates(query, { skipRefresh: true, requestSeq, formSession });
   },
 
-  _addDelegate(uid, name) {
+  async _addDelegate(uid, name, options = {}) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return false;
     if (!this._canCurrentEditManageDelegates()) {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
-      return;
+      return false;
     }
-    if (this._delegates.length >= 3) return;
-    if (this._delegates.some(d => d.uid === uid)) return;
-    this._delegates.push({ uid, name });
+    if (this._delegates.length >= 3) return false;
+    if (this._delegates.some(d => d.uid === safeUid)) return false;
+
+    const input = document.getElementById('ce-delegate-search');
+    const requestSeq = Number.isFinite(Number(options.requestSeq))
+      ? Number(options.requestSeq)
+      : this._delegateSearchSeq;
+    const query = String(options.query ?? input?.value ?? '').trim().toLowerCase();
+    const formSession = options.formSession || this._eventFormSession || null;
+    const verification = await ApiService.verifyUserDirectorySelection?.([safeUid]);
+    const modal = document.getElementById('create-event-modal');
+    if (requestSeq !== this._delegateSearchSeq
+      || (formSession && !this._isEventFormSubmitSessionCurrent?.(formSession))
+      || String(input?.value || '').trim().toLowerCase() !== query
+      || !modal?.classList.contains('open')) return false;
+
+    const match = verification?.users?.find(user => user.uid === safeUid);
+    if (!verification?.ok || !match) {
+      this.showToast(verification?.reason === 'missing-users'
+        ? '\u6b64\u7528\u6236\u76ee\u524d\u7121\u6cd5\u9078\u53d6\uff0c\u8acb\u91cd\u65b0\u641c\u5c0b'
+        : '\u7528\u6236\u9a57\u8b49\u5931\u6557\uff0c\u8acb\u6aa2\u67e5\u7db2\u8def\u5f8c\u518d\u8a66');
+      return false;
+    }
+    if (!this._canCurrentEditManageDelegates()) return false;
+    if (this._delegates.length >= 3 || this._delegates.some(d => d.uid === safeUid)) return false;
+    this._delegates.push({ uid: match.uid, name: match.name });
     this._renderDelegateTags();
     this._updateDelegateInput();
+    return true;
+  },
+
+  async _verifySelectedEventDelegatesForSubmit(eventRecord = null, options = {}) {
+    const submitSession = options.submitSession || null;
+    const isCurrent = () => !submitSession || this._isEventFormSubmitSessionCurrent?.(submitSession) === true;
+    if (!isCurrent()) return false;
+    const canManage = !!(this._canManageEventDelegates?.(eventRecord)
+      || this._canManageCourseLinkedEventDelegates?.(eventRecord));
+    if (!canManage) return true;
+    const requestedUids = [...new Set((this._delegates || [])
+      .map(delegate => String(delegate?.uid || '').trim())
+      .filter(Boolean))];
+    if (requestedUids.length === 0) return true;
+
+    const verification = await ApiService.verifyUserDirectorySelection?.(requestedUids);
+    if (!isCurrent()) return false;
+    const currentUids = [...new Set((this._delegates || [])
+      .map(delegate => String(delegate?.uid || '').trim())
+      .filter(Boolean))];
+    if (currentUids.join('|') !== requestedUids.join('|')) {
+      this.showToast('\u59d4\u8a17\u4eba\u540d\u55ae\u5df2\u8b8a\u66f4\uff0c\u8acb\u91cd\u65b0\u9001\u51fa');
+      return false;
+    }
+    if (!verification?.ok || verification.users?.length !== requestedUids.length) {
+      this.showToast(verification?.reason === 'missing-users'
+        ? '\u59d4\u8a17\u4eba\u8cc7\u6599\u5df2\u5931\u6548\uff0c\u8acb\u91cd\u65b0\u9078\u64c7\u5f8c\u518d\u9001\u51fa'
+        : '\u7121\u6cd5\u9a57\u8b49\u59d4\u8a17\u4eba\uff0c\u8acb\u6aa2\u67e5\u7db2\u8def\u5f8c\u518d\u8a66');
+      return false;
+    }
+    const freshByUid = new Map(verification.users.map(user => [user.uid, user]));
+    this._delegates = requestedUids.map(uid => ({ uid, name: freshByUid.get(uid).name }));
+    this._renderDelegateTags();
+    this._updateDelegateInput();
+    return true;
   },
 
   _removeDelegate(uid) {
@@ -161,14 +227,26 @@ Object.assign(App, {
   _renderDelegateTags() {
     const container = document.getElementById('ce-delegate-tags');
     if (!container) return;
-    const users = ApiService.getAdminUsers?.() || [];
+    const users = ApiService.getUserDirectory?.() || [];
     const canManageDelegates = this._canCurrentEditManageDelegates();
     container.innerHTML = this._delegates.map(d => {
       const u = users.find(u => u.uid === d.uid);
       const role = u?.role || 'user';
-      const removeHtml = canManageDelegates ? `<span class="ce-delegate-remove" onclick="App._removeDelegate('${d.uid}')">✕</span>` : '';
+      const removeHtml = canManageDelegates
+        ? `<span class="ce-delegate-remove" role="button" tabindex="0" data-delegate-uid="${escapeHTML(String(d.uid || ''))}" aria-label="移除委託人">✕</span>`
+        : '';
       return `<span class="ce-delegate-tag">${this._userTag(d.name, role)}${removeHtml}</span>`;
     }).join('');
+    container.querySelectorAll('[data-delegate-uid]').forEach(button => {
+      const remove = () => this._removeDelegate(button.dataset.delegateUid);
+      button.addEventListener('click', remove);
+      button.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          remove();
+        }
+      });
+    });
   },
 
   _updateDelegateInput() {

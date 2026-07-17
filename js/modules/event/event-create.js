@@ -13,7 +13,15 @@ Object.assign(App, {
 
   _editEventId: null,
   _eventSubmitInFlight: false,
+  _eventFormGeneration: 0,
+  _eventFormSession: null,
+  _eventSubmitToken: null,
+  _eventSubmitContext: null,
+  _eventFormSessionObserver: null,
+  _eventFormSessionObserverModal: null,
+  _eventFormSessionBoundModal: null,
   _eventImageVariantsData: null,
+  _pendingMultiDateSubmission: null,
   _defaultEventCoverAssetPath: 'LOGO/Nocoverimage set.png',
   _defaultEventCoverDataUrl: null,
   _defaultEventCoverPromise: null,
@@ -67,6 +75,167 @@ Object.assign(App, {
     'ce-sport-list',
     'ce-template-name',
   ],
+
+  _getEventFormAuthUid() {
+    if (typeof auth !== 'undefined') return String(auth?.currentUser?.uid || '').trim();
+    return String(ApiService.getCurrentUser?.()?.uid || '').trim();
+  },
+
+  _normalizeEventFormEditId(eventId) {
+    const normalized = String(eventId || '').trim();
+    return normalized || null;
+  },
+
+  _bindEventFormSessionLifecycle(modal) {
+    if (!modal) return;
+    if (this._eventFormSessionBoundModal !== modal) {
+      modal.addEventListener?.('click', event => {
+        const closeTrigger = event.target?.closest?.('[onclick*="App.closeModal"]');
+        if (!closeTrigger || !modal.classList?.contains('open')) return;
+        if (this._eventSubmitInFlight) {
+          event.preventDefault?.();
+          event.stopImmediatePropagation?.();
+          this.showToast?.('資料儲存中，請稍候');
+          return;
+        }
+        const activeSession = this._eventFormSession;
+        if (activeSession?.modal === modal) this._invalidateEventFormSession(activeSession);
+      }, true);
+      this._eventFormSessionBoundModal = modal;
+    }
+    if (typeof MutationObserver === 'undefined' || this._eventFormSessionObserverModal === modal) return;
+    this._eventFormSessionObserver?.disconnect?.();
+    this._eventFormSessionObserver = new MutationObserver(() => {
+      const activeSession = this._eventFormSession;
+      if (activeSession?.modal === modal && !modal.classList?.contains('open')) {
+        this._invalidateEventFormSession(activeSession);
+      }
+    });
+    this._eventFormSessionObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    this._eventFormSessionObserverModal = modal;
+  },
+
+  _beginEventFormSession(eventId = null) {
+    const modal = document.getElementById('create-event-modal');
+    const generation = Number(this._eventFormGeneration || 0) + 1;
+    const session = {
+      generation,
+      editId: this._normalizeEventFormEditId(eventId),
+      authUid: this._getEventFormAuthUid(),
+      modal: modal || null,
+    };
+    this._eventFormGeneration = generation;
+    this._eventFormSession = session;
+    this._delegateSearchSeq = Number(this._delegateSearchSeq || 0) + 1;
+    this._pendingMultiDateSubmission = null;
+    this._eventSubmitToken = null;
+    this._eventSubmitContext = null;
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitting?.(false);
+    this._bindEventFormSessionLifecycle(modal);
+    return session;
+  },
+
+  _invalidateEventFormSession(expectedSession = null) {
+    const activeSession = this._eventFormSession;
+    if (expectedSession && activeSession?.generation !== expectedSession.generation) return false;
+    this._eventFormGeneration = Number(this._eventFormGeneration || 0) + 1;
+    this._eventFormSession = null;
+    this._delegateSearchSeq = Number(this._delegateSearchSeq || 0) + 1;
+    this._pendingMultiDateSubmission = null;
+    this._eventSubmitToken = null;
+    this._eventSubmitContext = null;
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitting?.(false);
+    return true;
+  },
+
+  _getEventFormSubmitSignature() {
+    const modal = document.getElementById('create-event-modal');
+    const fields = typeof modal?.querySelectorAll === 'function'
+      ? Array.from(modal.querySelectorAll('input, select, textarea')).map((field) => ({
+        id: field.id || '',
+        name: field.name || '',
+        type: field.type || '',
+        value: field.multiple
+          ? Array.from(field.selectedOptions || []).map(option => String(option.value || ''))
+          : (field.type === 'checkbox' || field.type === 'radio'
+            ? !!field.checked
+            : String(field.value || '')),
+      }))
+      : [];
+    return JSON.stringify({
+      fields,
+      multiDates: [...(this._multiDates || [])],
+      delegateUids: (this._delegates || []).map(delegate => String(delegate?.uid || '').trim()),
+      imageVariants: this._eventImageVariantsData || null,
+    });
+  },
+
+  _captureEventFormSubmitSession() {
+    const modal = document.getElementById('create-event-modal');
+    if (modal && !modal.classList?.contains('open')) return null;
+    const editId = this._normalizeEventFormEditId(this._editEventId);
+    const authUid = this._getEventFormAuthUid();
+    const activeSession = this._eventFormSession;
+    if (activeSession
+      && activeSession.generation === this._eventFormGeneration
+      && activeSession.editId === editId
+      && activeSession.authUid === authUid
+      && activeSession.modal === (modal || null)) {
+      return activeSession;
+    }
+    return this._beginEventFormSession(editId);
+  },
+
+  _isEventFormSubmitSessionCurrent(session) {
+    if (!session || this._eventFormSession !== session) return false;
+    if (session.generation !== this._eventFormGeneration) return false;
+    if (session.editId !== this._normalizeEventFormEditId(this._editEventId)) return false;
+    if (session.authUid !== this._getEventFormAuthUid()) return false;
+    const modal = document.getElementById('create-event-modal');
+    if (session.modal !== (modal || null)) return false;
+    return !modal || !!modal.classList?.contains('open');
+  },
+
+  _startEventFormSubmitSession(session) {
+    if (!this._isEventFormSubmitSessionCurrent(session)) return null;
+    const token = { generation: session.generation };
+    this._eventSubmitToken = token;
+    this._eventSubmitContext = session;
+    this._eventSubmitInFlight = true;
+    this._setCreateEventSubmitting?.(true);
+    return token;
+  },
+
+  _stopEventFormSubmitSession(session, token) {
+    if (!token || this._eventSubmitToken !== token) return false;
+    if (this._eventFormSession !== session || session?.generation !== this._eventFormGeneration) return false;
+    this._eventSubmitToken = null;
+    this._eventSubmitContext = null;
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitting?.(false);
+    return true;
+  },
+
+  _completeEventFormSubmitSession(session, token) {
+    if (!token || this._eventSubmitToken !== token || !this._isEventFormSubmitSessionCurrent(session)) return 0;
+    const completedGeneration = Number(this._eventFormGeneration || 0) + 1;
+    this._eventFormGeneration = completedGeneration;
+    this._eventFormSession = null;
+    this._eventSubmitToken = null;
+    this._eventSubmitContext = null;
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitting?.(false);
+    if (this._normalizeEventFormEditId(this._editEventId) === session.editId) this._editEventId = null;
+    return completedGeneration;
+  },
+
+  _isEventFormPostSaveGenerationCurrent(generation) {
+    return Number(generation || 0) > 0
+      && this._eventFormGeneration === generation
+      && !this._eventFormSession;
+  },
 
   _setCreateEventSubmitIdleLabel(label) {
     const submitBtn = document.getElementById('ce-submit-btn');
@@ -247,8 +416,18 @@ Object.assign(App, {
   },
 
   async _submitCourseLinkedEventVisibilityEdit(existingEvent, nextPrivateEvent) {
-    const eventId = this._editEventId;
-    if (!eventId || !this._isCourseLinkedEvent?.(existingEvent)) return false;
+    const submitSession = this._eventSubmitContext || this._captureEventFormSubmitSession();
+    if (!submitSession || !this._isEventFormSubmitSessionCurrent(submitSession)) return false;
+    let submitToken = this._eventSubmitToken;
+    const ownsSubmitToken = !submitToken;
+    if (ownsSubmitToken) submitToken = this._startEventFormSubmitSession(submitSession);
+    const eventId = submitSession.editId;
+    if (!submitToken || !eventId || !this._isCourseLinkedEvent?.(existingEvent)) {
+      if (ownsSubmitToken) this._stopEventFormSubmitSession(submitSession, submitToken);
+      return false;
+    }
+    const isCurrent = () => this._eventSubmitToken === submitToken
+      && this._isEventFormSubmitSessionCurrent(submitSession);
     const privateEvent = !!nextPrivateEvent;
     const canManageDelegates = !!(this._canManageEventDelegates?.(existingEvent)
       || this._canManageCourseLinkedEventDelegates?.(existingEvent));
@@ -273,13 +452,16 @@ Object.assign(App, {
       updates.delegates = normalizedDelegates;
       updates.delegateUids = nextDelegateUids;
     }
-    this._eventSubmitInFlight = true;
-    this._setCreateEventSubmitting?.(true);
     try {
+      if (!isCurrent()) return false;
       await ApiService.updateEventAwait(eventId, updates);
+      if (!isCurrent()) return false;
       const updatedEvent = ApiService.getEvent?.(eventId);
       if (updatedEvent) Object.assign(updatedEvent, updates);
+      const completedGeneration = this._completeEventFormSubmitSession(submitSession, submitToken);
+      if (!completedGeneration) return false;
       this.closeModal?.();
+      if (!this._isEventFormPostSaveGenerationCurrent(completedGeneration)) return true;
       this.showToast?.(didChangeDelegates
         ? '\u8ab2\u7a0b\u6d3b\u52d5\u59d4\u8a17\u4eba\u5df2\u66f4\u65b0'
         : (privateEvent ? '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u4e0d\u516c\u958b' : '\u8ab2\u7a0b\u6d3b\u52d5\u5df2\u8a2d\u70ba\u516c\u958b'));
@@ -289,24 +471,30 @@ Object.assign(App, {
       try {
         if (this._currentDetailEventId === eventId && typeof this.showEventDetail === 'function') {
           await this.showEventDetail(eventId);
+          if (!this._isEventFormPostSaveGenerationCurrent(completedGeneration)) return true;
         }
       } catch (detailRefreshErr) {
         console.warn('[courseLinkedEventVisibilityEdit] detail refresh failed:', detailRefreshErr);
       }
       return true;
     } catch (err) {
+      if (!isCurrent()) return false;
       console.error('[courseLinkedEventVisibilityEdit]', err);
       if (!err?._toasted) {
         this.showToast?.('\u8ab2\u7a0b\u6d3b\u52d5\u53ea\u80fd\u8abf\u6574\u516c\u958b\u72c0\u614b\u8207\u59d4\u8a17\u4eba\uff1b\u82e5\u4ecd\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u662f\u5426\u5177\u5099\u4e3b\u8fa6\u4eba\u3001\u4ee3\u7406\u4eba\u6216\u7e3d\u7ba1\u6b0a\u9650');
       }
       return false;
     } finally {
-      this._eventSubmitInFlight = false;
-      this._setCreateEventSubmitting?.(false);
+      if (ownsSubmitToken) this._stopEventFormSubmitSession(submitSession, submitToken);
     }
   },
-
   _setCreateEventSubmitting(isSubmitting) {
+    const modal = document.getElementById('create-event-modal');
+    if (modal) {
+      modal.inert = !!isSubmitting;
+      if (isSubmitting) modal.setAttribute?.('aria-busy', 'true');
+      else modal.removeAttribute?.('aria-busy');
+    }
     const submitBtn = document.getElementById('ce-submit-btn');
     if (!submitBtn) return;
     const idleLabel = submitBtn.dataset.idleLabel || submitBtn.textContent || '建立活動';
@@ -325,7 +513,10 @@ Object.assign(App, {
   },
 
   _getDefaultEventCoverUrl() {
-    const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
+    const version = (typeof this._getAssetVersion === 'function' && this._getAssetVersion())
+      || (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function'
+        && window.getSportHubAssetVersion())
+      || ((typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '');
     try {
       const baseUrl = (typeof document !== 'undefined' && document.baseURI)
         || (typeof window !== 'undefined' && window.location?.href)
@@ -363,14 +554,16 @@ Object.assign(App, {
     }
   },
 
-  async _resolveEventCoverImage(image) {
+  async _resolveEventCoverImage(image, options = {}) {
     const currentImage = typeof image === 'string' ? image.trim() : image;
     if (currentImage) return currentImage;
     try {
       return await this._getDefaultEventCoverDataUrl();
     } catch (err) {
       console.error('[EventCreate] default cover failed:', err);
-      this.showToast('預設活動封面載入失敗，請重新整理後再試');
+      if (typeof options.entryGuard !== 'function' || options.entryGuard()) {
+        this.showToast('預設活動封面載入失敗，請重新整理後再試');
+      }
       throw err;
     }
   },
@@ -732,6 +925,10 @@ Object.assign(App, {
   },
 
   async openCreateEventModal(options = {}) {
+    if (this._eventSubmitInFlight) {
+      this.showToast?.('資料儲存中，請稍候');
+      return false;
+    }
     const canContinue = () => typeof options.entryGuard !== 'function' || options.entryGuard();
     if (!canContinue()) return false;
     this._beginSwLazyContinuation?.();
@@ -826,12 +1023,17 @@ Object.assign(App, {
   },
 
   _openCreateCustomEventModal() {
+    if (this._eventSubmitInFlight) {
+      this.showToast?.('資料儲存中，請稍候');
+      return false;
+    }
     if (!this._canCreateBasicActivity?.()) {
       this.showToast('權限不足：需要建立活動權限');
       return;
     }
     if (!this._ensureCreateEventDomContract()) return;
     this._editEventId = null;
+    this._beginEventFormSession(null);
     this._clearCourseLinkedEditLockState?.();
     this._eventImageVariantsData = null;
     this._delegates = [];
@@ -909,33 +1111,46 @@ Object.assign(App, {
   //  event-create-input-history.js)
 
   async handleCreateEvent() {
+    const submitSession = this._captureEventFormSubmitSession();
+    if (!submitSession) return;
     if (this._eventSubmitInFlight) {
       this.showToast('系統已在處理中');
       return;
     }
-    const isEditSubmit = !!this._editEventId;
+    const editEventId = submitSession.editId;
+    const isEditSubmit = !!editEventId;
+    const submitFormSignature = this._getEventFormSubmitSignature();
+    let completedSessionGeneration = 0;
     let earlySubmitBusy = false;
+    let submitToken = null;
+    const isSubmitCurrent = () => !!submitToken
+      && this._eventSubmitToken === submitToken
+      && this._isEventFormSubmitSessionCurrent(submitSession)
+      && this._getEventFormSubmitSignature() === submitFormSignature;
+    const isSubmitSessionCurrent = () => !!submitToken
+      && this._eventSubmitToken === submitToken
+      && this._isEventFormSubmitSessionCurrent(submitSession);
+    const isPostSaveCurrent = () => this._isEventFormPostSaveGenerationCurrent(completedSessionGeneration);
     const startEarlySubmitBusy = () => {
       if (earlySubmitBusy) return;
-      earlySubmitBusy = true;
-      this._eventSubmitInFlight = true;
-      this._setCreateEventSubmitting?.(true);
+      submitToken = this._startEventFormSubmitSession(submitSession);
+      earlySubmitBusy = !!submitToken;
     };
     const stopEarlySubmitBusy = () => {
       if (!earlySubmitBusy) return;
       earlySubmitBusy = false;
-      this._eventSubmitInFlight = false;
-      this._setCreateEventSubmitting?.(false);
+      this._stopEventFormSubmitSession(submitSession, submitToken);
     };
     startEarlySubmitBusy();
+    if (!submitToken) return;
     try {
-    if (!await this._ensureFreshActivityRoleCapabilitiesForCreate()) return;
-    if (!isEditSubmit) stopEarlySubmitBusy();
-    const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
-    const isCourseLinkedEdit = !!(this._editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
+    if (!await this._ensureFreshActivityRoleCapabilitiesForCreate({ entryGuard: isSubmitCurrent })) return;
+    if (!isSubmitCurrent()) return;
+    const eventBeingEdited = editEventId ? ApiService.getEvent(editEventId) : null;
+    const isCourseLinkedEdit = !!(editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
     const canSubmitActivity = isCourseLinkedEdit
       ? this._canSubmitCourseLinkedEventLimitedEdit?.(eventBeingEdited)
-      : (this._editEventId
+      : (editEventId
         ? this._canEditOwnActivityBasic?.(eventBeingEdited)
         : this._canCreateBasicActivity?.());
     if (!canSubmitActivity) {
@@ -964,8 +1179,20 @@ Object.assign(App, {
     let genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     let allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     let privateEvent = !!document.getElementById('ce-private-event')?.checked;
+    if (typeof this._verifySelectedEventDelegatesForSubmit === 'function') {
+      const delegatesAreValid = await this._verifySelectedEventDelegatesForSubmit(eventBeingEdited, { submitSession });
+      if (!isSubmitCurrent()) return;
+      if (!delegatesAreValid) return;
+    }
+    const submitDelegates = (Array.isArray(this._delegates) ? this._delegates : [])
+      .map(delegate => ({
+        uid: String(delegate?.uid || '').trim(),
+        name: String(delegate?.name || '').trim(),
+      }))
+      .filter(delegate => delegate.uid);
     if (isCourseLinkedEdit) {
       await this._submitCourseLinkedEventVisibilityEdit?.(eventBeingEdited, privateEvent);
+      if (!isSubmitCurrent()) return;
       return;
     }
     let teamSplitData = this._tsGetFormData?.() || null;
@@ -1017,7 +1244,7 @@ Object.assign(App, {
     }
     // 新增模式：不允許選擇過去的日期時間
     if (feeEnabled && fee <= 0) { this.showToast('請輸入活動費用'); return; }
-    if (!this._editEventId) {
+    if (!editEventId) {
       const startDt = new Date(`${dateVal}T${tStart}`);
       if (startDt < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
     }
@@ -1029,9 +1256,6 @@ Object.assign(App, {
     const locationPayload = this._buildEventLocationPayload?.('ce', location, { gpsEnabled }) || {};
     // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
-    if (teamOnly && !this.hasPermission('team.create_event') && !this.hasPermission('activity.manage.entry')) {
-      this.showToast('權限不足：無法建立俱樂部限定活動'); return;
-    }
     if (teamOnly) {
       const team = this._getEventCreatorTeam();
       if (team.teamId) {
@@ -1051,6 +1275,23 @@ Object.assign(App, {
     if (teamOnly) {
       const selectedTeams = this._resolveTeamOnlySelection();
       if (selectedTeams.length === 0) { this.showToast('請至少選擇 1 支俱樂部'); return; }
+      if (!this._isTeamOnlySelectionValidForSubmit?.(selectedTeams)) {
+        this.showToast(editEventId
+          ? '非總管編輯活動時不能變更限定俱樂部'
+          : '非總管建立俱樂部限定活動時，只能選擇 1 支由你管理的俱樂部');
+        return;
+      }
+      const hasOnlyTeamScopedAddon = !feeEnabled
+        && !genderRestrictionEnabled
+        && !privateEvent
+        && !teamSplitData
+        && !socialLinksEnabled
+        && !earlyBirdEnabled
+        && !gpsEnabled;
+      if (!editEventId && !this._canCreateTeamOnlyActivityForSubmit?.(selectedTeams, { hasOnlyTeamScopedAddon })) {
+        this.showToast('權限不足：無法建立此俱樂部限定活動');
+        return;
+      }
       resolvedTeamIds = selectedTeams.map(t => t.id);
       resolvedTeamNames = selectedTeams.map(t => t.name || t.id);
       resolvedTeamId = resolvedTeamIds[0] || null;
@@ -1071,17 +1312,17 @@ Object.assign(App, {
     const startTimestamp = new Date(`${dateVal}T${tStart}`);
     const endTimestamp = new Date(`${dateVal}T${tEnd}`);
 
-    if (this._editEventId) {
+    if (editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
-      const existingEvent = ApiService.getEvent(this._editEventId);
+      const existingEvent = eventBeingEdited || ApiService.getEvent(editEventId);
       if (!this._hasActivityManageEntry?.() && !this._canManageAllActivities?.() && max < (Number(existingEvent?.current || 0) || 0)) {
         this.showToast('\u540d\u984d\u4e0d\u53ef\u5c0f\u65bc\u5df2\u6b63\u53d6\u4eba\u6578');
         return;
       }
       const notifyUids = this._collectEventNotifyRecipientUids
-        ? this._collectEventNotifyRecipientUids(existingEvent, this._editEventId)
+        ? this._collectEventNotifyRecipientUids(existingEvent, editEventId)
         : (() => {
-          const set = new Set((ApiService.getRegistrationsByEvent(this._editEventId) || []).map(r => r.userId).filter(Boolean));
+          const set = new Set((ApiService.getRegistrationsByEvent(editEventId) || []).map(r => r.userId).filter(Boolean));
           if (set.size || !existingEvent) return set;
           // Phase 3 (2026-04-19): 優先從 participantsWithUid / waitlistWithUid 取真 UID（無歧義）
           const wuP = Array.isArray(existingEvent.participantsWithUid) ? existingEvent.participantsWithUid : [];
@@ -1126,8 +1367,8 @@ Object.assign(App, {
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
         creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
-        delegates: [...this._delegates],
-        delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
+        delegates: submitDelegates.map(delegate => ({ ...delegate })),
+        delegateUids: submitDelegates.map(delegate => delegate.uid),
       };
       Object.assign(updates, locationPayload);
       if (imageVariants) updates.imageVariants = imageVariants;
@@ -1140,6 +1381,10 @@ Object.assign(App, {
           'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider',
           'mapLocationConfirmed', 'mapLocationUpdatedAt',
         ].forEach(key => { delete updates[key]; });
+      }
+      if (!this._canManageAllActivities?.()) {
+        ['teamOnly', 'creatorTeamId', 'creatorTeamName', 'creatorTeamIds', 'creatorTeamNames']
+          .forEach(key => { delete updates[key]; });
       }
       if (!this._canManageEventDelegates?.(existingEvent)) {
         delete updates.delegates;
@@ -1164,28 +1409,30 @@ Object.assign(App, {
       const oldMax = existingEvent ? existingEvent.max : max;
       const shouldNotifyEventChange = this._hasEventChangeNotificationDiff(existingEvent, updates);
       const eventChangeNotifyData = { ...(existingEvent || {}), ...updates };
-      this._eventSubmitInFlight = true;
       try {
-        await ApiService.updateEventAwait(this._editEventId, updates);
-        const updatedEvent = ApiService.getEvent(this._editEventId);
+        if (!isSubmitCurrent()) return;
+        await ApiService.updateEventAwait(editEventId, updates);
+        if (!isSubmitSessionCurrent()) return;
+        const updatedEvent = ApiService.getEvent(editEventId);
         if (updatedEvent) Object.assign(updatedEvent, updates);
       } catch (err) {
-        this._eventSubmitInFlight = false;
-        this._setCreateEventSubmitting?.(false);
+        if (!isSubmitSessionCurrent()) return;
         if (!err?._toasted) this.showToast('活動更新失敗，請重試');
         return;
       }
-      this._eventSubmitInFlight = false;
+      const editedId = editEventId;
+      this._eventImageVariantsData = null;
+      completedSessionGeneration = this._completeEventFormSubmitSession(submitSession, submitToken);
+      if (!completedSessionGeneration) return;
       // ── 編輯成功：先完成關鍵收尾 ──
       this.closeModal();
+      if (!isPostSaveCurrent()) return;
       this.showToast(`活動「${title}」已更新！`);
-      const editedId = this._editEventId;
-      this._editEventId = null;
-      this._eventImageVariantsData = null;
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
         if (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) {
           await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+          if (!isPostSaveCurrent()) return;
         }
         if (shouldNotifyEventChange) {
           notifyUids.forEach(uid => {
@@ -1209,23 +1456,26 @@ Object.assign(App, {
           && this._currentDetailEventId === editedId
           && typeof this.showEventDetail === 'function') {
           await this.showEventDetail(editedId);
+          if (!isPostSaveCurrent()) return;
         }
       } catch (detailRefreshErr) {
         console.warn('[handleCreateEvent] post-edit detail refresh failed:', detailRefreshErr);
       }
-      try { await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []); } catch (_) {}
+      try {
+        await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []);
+        if (!isPostSaveCurrent()) return;
+      } catch (_) {}
     } else {
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
       const initStatus = (regOpenTime && new Date(regOpenTime) > new Date()) ? 'upcoming' : 'open';
-      this._eventSubmitInFlight = true;
-      this._setCreateEventSubmitting(true);
       let resolvedImage;
       try {
-        resolvedImage = await this._resolveEventCoverImage(image);
+        if (!isSubmitCurrent()) return;
+        resolvedImage = await this._resolveEventCoverImage(image, { entryGuard: isSubmitCurrent });
+        if (!isSubmitCurrent()) return;
       } catch (_) {
-        this._eventSubmitInFlight = false;
-        this._setCreateEventSubmitting(false);
+        if (!isSubmitCurrent()) return;
         return;
       }
       const newEvent = {
@@ -1258,8 +1508,8 @@ Object.assign(App, {
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
         creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
-        delegates: [...this._delegates],
-        delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
+        delegates: submitDelegates.map(delegate => ({ ...delegate })),
+        delegateUids: submitDelegates.map(delegate => delegate.uid),
       };
       Object.assign(newEvent, locationPayload);
       if (imageVariants) newEvent.imageVariants = imageVariants;
@@ -1274,27 +1524,44 @@ Object.assign(App, {
       // ★ 多日期模式：批次建立所有場次
       let totalCreated = 1;
       if (this._isMultiDateMode()) {
-        const allEvents = this._buildMultiDateEvents(newEvent, tStart, tEnd);
+        const pendingBatch = this._pendingMultiDateSubmission;
+        const canReusePendingBatch = pendingBatch?.generation === submitSession.generation
+          && pendingBatch.signature === submitFormSignature
+          && Array.isArray(pendingBatch.events);
+        const allEvents = canReusePendingBatch
+          ? pendingBatch.events
+          : this._buildMultiDateEvents(newEvent, tStart, tEnd);
+        this._pendingMultiDateSubmission = {
+          generation: submitSession.generation,
+          signature: submitFormSignature,
+          events: allEvents,
+        };
         try {
-          for (const evt of allEvents) {
-            await ApiService.createEvent(evt);
+          if (!isSubmitCurrent()) return;
+          if (typeof ApiService.createEventsAtomic !== 'function') {
+            throw new Error('Atomic multi-date event creation unavailable');
           }
+          await ApiService.createEventsAtomic(allEvents);
+          if (!isSubmitSessionCurrent()) return;
+          this._pendingMultiDateSubmission = null;
           totalCreated = allEvents.length;
         } catch (err) {
+          if (!isSubmitSessionCurrent()) return;
           console.error('[handleCreateEvent:multiDate]', err);
           if (!err?._toasted) {
             const msg = this._getCreateEventWriteErrorMessage?.(err, allEvents?.[0])
               || '部分活動建立失敗，請檢查活動列表';
             this.showToast(msg);
           }
-          this._eventSubmitInFlight = false;
-          this._setCreateEventSubmitting(false);
           return;
         }
       } else {
         try {
+          if (!isSubmitCurrent()) return;
           await ApiService.createEvent(newEvent);
+          if (!isSubmitSessionCurrent()) return;
         } catch (err) {
+          if (!isSubmitSessionCurrent()) return;
           console.error('[handleCreateEvent:createEvent]', err);
           ApiService._writeErrorLog?.({
             fn: 'handleCreateEvent',
@@ -1310,24 +1577,25 @@ Object.assign(App, {
           if (!err?._toasted) {
             this.showToast(this._getCreateEventWriteErrorMessage?.(err, newEvent) || '建立活動失敗，請稍後再試');
           }
-          this._eventSubmitInFlight = false;
-          this._setCreateEventSubmitting(false);
           return;
         }
       }
+      if (!isSubmitSessionCurrent()) return;
+      this._eventImageVariantsData = null;
+      completedSessionGeneration = this._completeEventFormSubmitSession(submitSession, submitToken);
+      if (!completedSessionGeneration) return;
       // ── 建立成功：先完成關鍵收尾（closeModal + toast），再處理非關鍵操作 ──
       this.closeModal();
+      if (!isPostSaveCurrent()) return;
       const toastMsg = totalCreated > 1 ? '已建立 ' + totalCreated + ' 場「' + title + '」活動！' : '活動「' + title + '」已建立！';
       this.showToast(toastMsg);
-      this._eventSubmitInFlight = false;
-      this._setCreateEventSubmitting(false);
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
         this._saveInputHistory('ce-location', location);
         if (feeEnabled && fee > 0) this._saveInputHistory('ce-fee', fee);
         this._saveInputHistory('ce-max', max);
         if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
-        this._saveRecentDelegates(this._delegates);
+        this._saveRecentDelegates(submitDelegates);
         ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
         const _creatorUser = ApiService.getCurrentUser?.();
         if (_creatorUser?.uid) this._grantAutoExp?.(_creatorUser.uid, 'host_activity', title);
@@ -1338,14 +1606,23 @@ Object.assign(App, {
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderMyActivities(); } catch (_) {}
-      try { await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []); } catch (_) {}
+      try {
+        await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []);
+        if (!isPostSaveCurrent()) return;
+      } catch (_) {}
       // 活動建立成功後提示分享到 LINE
       if (newEvent.id && typeof this._promptShareAfterCreate === 'function') {
         const _eid = newEvent.id;
-        setTimeout(() => this._promptShareAfterCreate(_eid).catch(err => console.warn('[Share] prompt failed:', err)), 500);
+        const sharePromptGeneration = completedSessionGeneration;
+        setTimeout(() => {
+          if (!this._isEventFormPostSaveGenerationCurrent(sharePromptGeneration)) return;
+          Promise.resolve(this._promptShareAfterCreate(_eid))
+            .catch(err => console.warn('[Share] prompt failed:', err));
+        }, 500);
       }
     }
 
+    if (!isPostSaveCurrent()) return;
     // 重置表單
     this._editEventId = null;
     this._clearCourseLinkedEditLockState?.();

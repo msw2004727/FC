@@ -831,49 +831,59 @@ Object.assign(App, {
 
   _isCurrentUserTeamStaffForCreate(teamOrId) {
     const team = typeof teamOrId === 'string' ? ApiService.getTeam?.(teamOrId) : teamOrId;
-    const currentUser = ApiService.getCurrentUser?.();
-    if (!team || !currentUser?.uid) return false;
-    if (typeof this._canManageTeamMembers === 'function' && this._canManageTeamMembers(team)) return true;
+    const currentUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    if (!team || !currentUid) return false;
 
-    const userIds = [currentUser.uid, currentUser._docId]
-      .map(v => String(v || '').trim())
-      .filter(Boolean);
     const staffIds = [
       team.captainUid,
+      team.creatorUid,
+      team.ownerUid,
       team.leaderUid,
       ...(Array.isArray(team.leaderUids) ? team.leaderUids : []),
       ...(Array.isArray(team.coachUids) ? team.coachUids : []),
-    ].map(v => String(v || '').trim()).filter(Boolean);
-    if (userIds.some(uid => staffIds.includes(uid))) return true;
-
-    const normalizeName = (value) => String(value || '').trim().toLowerCase();
-    const userNames = [currentUser.name, currentUser.displayName].map(normalizeName).filter(Boolean);
-    const staffNames = [
-      team.captain,
-      team.captainName,
-      team.leader,
-      ...(Array.isArray(team.leaders) ? team.leaders : []),
-      ...(Array.isArray(team.leaderNames) ? team.leaderNames : []),
-      ...(Array.isArray(team.coaches) ? team.coaches : []),
-      ...(Array.isArray(team.coachNames) ? team.coachNames : []),
-    ].map(normalizeName).filter(Boolean);
-    return userNames.some(name => staffNames.includes(name));
+    ].map(value => String(value || '').trim()).filter(Boolean);
+    return staffIds.includes(currentUid);
   },
 
   _canCreateTeamDetailActivity(teamOrId) {
-    const currentUser = ApiService.getCurrentUser?.();
-    if (!currentUser?.uid) return false;
-    if (!this._isCurrentUserTeamStaffForCreate(teamOrId)) return false;
-    if (typeof this._canCreateActivityByPermission === 'function') return !!this._canCreateActivityByPermission();
-    if (typeof this._canCreateBasicActivity === 'function' && this._canCreateBasicActivity()) return true;
-    if (typeof this._canCreateExternalActivity === 'function' && this._canCreateExternalActivity()) return true;
-    if (typeof this.hasPermission === 'function') {
-      return !!(this.hasPermission('activity.manage.entry')
-        || this.hasPermission('team.create_event')
-        || this.hasPermission('user.activity.basic_create')
-        || this.hasPermission('user.activity.external_create'));
+    const team = typeof teamOrId === 'string' ? ApiService.getTeam?.(teamOrId) : teamOrId;
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    if (!team || !currentUser?.uid) return false;
+
+    const roleKey = String(
+      this._getCurrentActivityRoleKey?.()
+      || currentUser.role
+      || this.currentRole
+      || 'user'
+    ).trim().toLowerCase() || 'user';
+    const hasPermission = code => !!this.hasPermission?.(code);
+    const canManageAllActivities = roleKey === 'super_admin'
+      || !!this._canManageAllActivities?.()
+      || hasPermission('event.edit_all');
+    const hasExactStaffScope = this._isCurrentUserTeamStaffForCreate(team);
+    const hasEventCreate = hasPermission('event.create');
+
+    if (roleKey === 'user') {
+      const hasTeamCreateEvent = hasPermission('team.create_event');
+      const hasCapability = code => (typeof this._hasUserActivityCapability === 'function'
+        ? !!this._hasUserActivityCapability(code)
+        : !!ApiService.hasRoleActivityCapability?.('user', code));
+      const hasBasicCreateCapability = hasCapability('user.activity.basic_create');
+      const hasAddonCapability = hasCapability('user.activity.addons_use');
+      return (hasEventCreate && hasTeamCreateEvent && hasExactStaffScope)
+        || (
+          hasAddonCapability
+          && (hasBasicCreateCapability || hasEventCreate)
+          && (canManageAllActivities || (hasTeamCreateEvent && hasExactStaffScope))
+        );
     }
-    return false;
+
+    const isCoachPlusRole = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(roleKey);
+    const hasCreateEntry = isCoachPlusRole
+      || hasPermission('activity.manage.entry')
+      || hasPermission('event.edit_all')
+      || hasEventCreate;
+    return hasCreateEntry && (canManageAllActivities || hasExactStaffScope);
   },
 
   async openTeamDetailCreateEvent(teamId) {
@@ -1472,7 +1482,7 @@ Object.assign(App, {
         const result = updater.call(ApiService, teamId, updates);
         if (result && typeof result.then === 'function') await result;
 
-        const roleChange = ApiService._recalcUserRole?.(currentRow.uid);
+        const roleChange = ApiService._recalcUserRole?.(currentRow.uid, teamId);
         this._applyRoleChange?.(roleChange);
         this._sendTeamRoleLevelChangeNotice(currentTeam, currentRow, target);
         ApiService._writeOpLog?.(

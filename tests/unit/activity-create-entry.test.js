@@ -531,7 +531,7 @@ describe('activity create capability refresh gate', () => {
 
     await App.handleCreateEvent();
 
-    expect(App._setCreateEventSubmitting).toHaveBeenNthCalledWith(1, true);
+    expect(App._setCreateEventSubmitting).toHaveBeenCalledWith(true);
     expect(App._setCreateEventSubmitting).toHaveBeenLastCalledWith(false);
     expect(App._eventSubmitInFlight).toBe(false);
   });

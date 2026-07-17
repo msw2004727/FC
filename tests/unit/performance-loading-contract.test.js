@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const root = path.resolve(__dirname, '../..');
 
@@ -27,15 +28,22 @@ describe('startup performance guardrails', () => {
 
   test('initial local script count and parse bytes stay within the reviewed budget', () => {
     const scripts = localStaticScripts();
+    let gzipBytes = 0;
     const rawBytes = scripts.reduce((total, src) => {
       const absolute = path.join(root, src);
       expect(fs.existsSync(absolute)).toBe(true);
-      return total + fs.statSync(absolute).size;
+      // Keep the budget platform-stable: Windows checkouts may expand LF to CRLF,
+      // while production serves the repository's LF blobs.
+      const content = Buffer.from(fs.readFileSync(absolute, 'utf8').replace(/\r\n/g, '\n'));
+      gzipBytes += zlib.gzipSync(content, { level: 9 }).length;
+      return total + content.length;
     }, 0);
 
     expect(scripts.length).toBeLessThanOrEqual(54);
-    // Reload/lazy-load recovery guards add a small reviewed boot cost.
-    expect(rawBytes).toBeLessThanOrEqual(1_525_000);
+    // Reviewed safe-directory, atomic event writes, reliable-message, and delegated-profile
+    // handlers add 30.8 KB raw versus the prior release, but only 4.8 KB gzip (< 1.3%).
+    expect(rawBytes).toBeLessThanOrEqual(1_540_000);
+    expect(gzipBytes).toBeLessThanOrEqual(390_000);
   });
 
   test('public activity list uses list-only scripts and data', () => {

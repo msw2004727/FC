@@ -1,6 +1,13 @@
 /**
+ * @jest-environment jsdom
+ *
  * Tests for showUserProfile UID-first lookup + _userTag uid option
  */
+
+const fs = require('fs');
+const path = require('path');
+
+const profileCoreSource = fs.readFileSync(path.join(__dirname, '../../js/modules/profile/profile-core.js'), 'utf8');
 
 // Mock dependencies
 const mockUsers = [
@@ -53,14 +60,38 @@ function escapeHTML(str) {
 }
 
 // ---------------------------------------------------------------------------
-// Simplified _userTag onclick generation (mirrors profile-core.js logic)
-// ---------------------------------------------------------------------------
-function generateOnclick(name, options) {
-  const _uid = options && options.uid ? options.uid : '';
-  return _uid
-    ? `App.showUserProfile('${escapeHTML(name)}',{uid:'${escapeHTML(_uid)}'})`
-    : `App.showUserProfile('${escapeHTML(name)}')`;
-}
+// Load the actual profile-core implementation for DOM event behavior
+let profileApp;
+
+beforeAll(() => {
+  global.App = {};
+  global.ApiService = {
+    getAdminUsers: () => mockUsers,
+    getUserRole: () => 'user',
+  };
+  global.ROLES = { user: { label: '一般用戶' } };
+  global.escapeHTML = escapeHTML;
+  jest.isolateModules(() => {
+    require('../../js/modules/profile/profile-core.js');
+  });
+  profileApp = global.App;
+  profileApp.showUserProfile = jest.fn();
+  profileApp._bindProfileCoreEvents();
+});
+
+beforeEach(() => {
+  document.body.innerHTML = '';
+  profileApp.showUserProfile.mockClear();
+  delete window.__profilePwned;
+});
+
+afterAll(() => {
+  delete window.__profilePwned;
+  delete global.App;
+  delete global.ApiService;
+  delete global.ROLES;
+  delete global.escapeHTML;
+});
 
 describe('UID-first User Profile Lookup', () => {
 
@@ -161,39 +192,70 @@ describe('UID-first User Profile Lookup', () => {
     });
   });
 
-  describe('_userTag onclick generation with uid option', () => {
-    test('generates onclick with UID when options.uid is provided', () => {
-      const onclick = generateOnclick('小明', { uid: 'U_alice_001' });
-      expect(onclick).toContain('U_alice_001');
-      expect(onclick).toContain('{uid:');
-      expect(onclick).toBe("App.showUserProfile('小明',{uid:'U_alice_001'})");
+  describe('_userTag profile navigation event binding', () => {
+    test('stores the exact name and UID in data attributes and keeps normal click behavior', () => {
+      document.body.innerHTML = profileApp._userTag('小明', 'user', { uid: 'U_alice_001' });
+      const capsule = document.querySelector('.user-capsule');
+
+      expect(capsule.getAttribute('onclick')).toBeNull();
+      expect(capsule.dataset.profileName).toBe('小明');
+      expect(capsule.dataset.profileUid).toBe('U_alice_001');
+
+      capsule.click();
+      expect(profileApp.showUserProfile).toHaveBeenCalledWith('小明', { uid: 'U_alice_001' });
     });
 
-    test('generates onclick without UID when options.uid is empty', () => {
-      const onclick = generateOnclick('小明', { uid: '' });
-      expect(onclick).toBe("App.showUserProfile('小明')");
-      expect(onclick).not.toContain('{uid:');
+    test('does not turn a malicious display name into executable onclick code', () => {
+      const maliciousName = "');window.__profilePwned=true;//";
+      document.body.innerHTML = profileApp._userTag(maliciousName, 'user');
+      const capsule = document.querySelector('.user-capsule');
+
+      expect(capsule.getAttribute('onclick')).toBeNull();
+      expect(capsule.dataset.profileName).toBe(maliciousName);
+      expect(capsule.textContent).toContain(maliciousName);
+
+      capsule.click();
+      expect(window.__profilePwned).toBeUndefined();
+      expect(profileApp.showUserProfile).toHaveBeenCalledWith(maliciousName);
+    });
+  });
+
+  describe('profile card retry and share event binding', () => {
+    test('retry keeps the exact malicious display name as data and preserves UID navigation options', () => {
+      const maliciousName = "');window.__profilePwned=true;//";
+      const uid = `U${'a'.repeat(32)}`;
+      document.body.innerHTML = '<div id="user-card-full"></div>';
+
+      profileApp._renderUserProfileUnavailable(maliciousName, uid);
+      const retryButton = document.querySelector('.uc-card-retry-btn');
+
+      expect(retryButton.getAttribute('onclick')).toBeNull();
+      expect(retryButton.dataset.profileRetryName).toBe(maliciousName);
+      expect(retryButton.dataset.profileRetryUid).toBe(uid);
+
+      retryButton.click();
+      expect(window.__profilePwned).toBeUndefined();
+      expect(profileApp.showUserProfile).toHaveBeenCalledWith(maliciousName, {
+        uid,
+        bypassPageLock: true,
+        skipPageHistory: true,
+      });
     });
 
-    test('generates onclick without UID when options is empty', () => {
-      const onclick = generateOnclick('小明', {});
-      expect(onclick).toBe("App.showUserProfile('小明')");
-    });
+    test('share markup has no inline display-name handler and delegated click passes the exact name', () => {
+      const maliciousName = "');window.__profilePwned=true;//";
+      const shareUserCard = jest.fn();
+      profileApp._shareUserCard = shareUserCard;
+      document.body.innerHTML = `<button type="button" data-profile-share-name="${escapeHTML(maliciousName)}"><svg></svg></button>`;
+      const shareButton = document.querySelector('[data-profile-share-name]');
 
-    test('generates onclick without UID when options is null', () => {
-      const onclick = generateOnclick('小明', null);
-      expect(onclick).toBe("App.showUserProfile('小明')");
-    });
+      expect(profileCoreSource).toContain('data-profile-share-name="${escapeHTML(displayName)}"');
+      expect(profileCoreSource).not.toContain('onclick="App._shareUserCard(\'${escapeHTML(displayName)}\')"');
+      expect(shareButton.getAttribute('onclick')).toBeNull();
 
-    test('escapes special characters in name', () => {
-      const onclick = generateOnclick("O'Brien", { uid: 'U_test' });
-      expect(onclick).toContain('O&#39;Brien');
-      expect(onclick).not.toContain("O'Brien");
-    });
-
-    test('escapes special characters in UID', () => {
-      const onclick = generateOnclick('Test', { uid: "uid'inject" });
-      expect(onclick).toContain('uid&#39;inject');
+      shareButton.querySelector('svg').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(window.__profilePwned).toBeUndefined();
+      expect(shareUserCard).toHaveBeenCalledWith(maliciousName);
     });
   });
 
@@ -204,9 +266,10 @@ describe('UID-first User Profile Lookup', () => {
       expect(result.uid).toBe('U_charlie_003');
     });
 
-    test('_userTag without options still generates valid onclick', () => {
-      const onclick = generateOnclick('小明', undefined);
-      expect(onclick).toBe("App.showUserProfile('小明')");
+    test('_userTag without options still opens the profile by name', () => {
+      document.body.innerHTML = profileApp._userTag('小明', 'user');
+      document.querySelector('.user-capsule').click();
+      expect(profileApp.showUserProfile).toHaveBeenCalledWith('小明');
     });
   });
 });

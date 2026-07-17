@@ -261,8 +261,9 @@ describe('Service Worker runtime cache transition behavior', () => {
   });
 
   test('current page-fragment cache write is kept alive with waitUntil', async () => {
-    const url = 'https://toosterx.test/pages/activity.html?v=0.20260717';
     const harness = createSwHarness();
+    const currentVersion = harness.helpers.CACHE_NAME.replace('sporthub-', '');
+    const url = `https://toosterx.test/pages/activity.html?v=${currentVersion}`;
     harness.fetchMock.mockResolvedValue(new Response('fresh-page', { status: 200 }));
 
     let responsePromise;

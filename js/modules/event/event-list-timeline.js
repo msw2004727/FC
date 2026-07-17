@@ -489,7 +489,11 @@ Object.assign(App, {
     this._syncActivityMapEntry?.();
     this._refreshActivityCreateButton?.();
     clearTimeout(this._activityListRenderTimer);
-    this._activityListRenderTimer = setTimeout(() => { this._doRenderActivityList(); }, 100);
+    this._activityListRenderTimer = setTimeout(() => {
+      this._activityListRenderTimer = null;
+      if (this.currentPage !== 'page-activities') return;
+      this._doRenderActivityList();
+    }, 100);
   },
 
   _hasActivitySourceFinishedInitialLoad() {
@@ -531,6 +535,7 @@ Object.assign(App, {
   },
 
   _doRenderActivityList() {
+    if (this.currentPage !== 'page-activities') return;
     this._autoEndExpiredEvents();
     const container = document.getElementById('activity-list');
     if (!container) return;
@@ -572,6 +577,100 @@ Object.assign(App, {
       return;
     }
 
+    const eventStats = new Map();
+    const getEventStats = (event) => {
+      if (!eventStats.has(event)) {
+        eventStats.set(event, this._getEventParticipantStats(event));
+      }
+      return eventStats.get(event);
+    };
+    const eventRenderStates = new Map();
+    const getEventRenderState = (event) => {
+      if (!eventRenderStates.has(event)) {
+        const typeKey = this._getEventDisplayTypeKey?.(event) || (TYPE_CONFIG[event.type] ? event.type : 'friendly');
+        const typeConf = this._getEventDisplayTypeConfig?.(event) || TYPE_CONFIG[typeKey] || TYPE_CONFIG.friendly;
+        const isExternal = typeKey === 'external';
+        const effectiveStatus = !isExternal && typeof this._getEventEffectiveStatus === 'function'
+          ? this._getEventEffectiveStatus(event)
+          : event.status;
+        const hasGenderRestriction = !isExternal && !!this._hasEventGenderRestriction?.(event);
+        const isSignedUp = !isExternal && !!this._isUserSignedUp?.(event);
+        eventRenderStates.set(event, {
+          typeKey,
+          typeConf,
+          isExternal,
+          effectiveStatus,
+          isFemaleOnly: !isExternal && this._getEventAllowedGender?.(event) === '女',
+          hasGenderRestriction,
+          genderRibbonText: hasGenderRestriction
+            ? (this._getEventGenderTimelineRibbonText?.(event) || '')
+            : '',
+          isFavorite: !!this.isEventFavorited?.(event.id),
+          isSignedUp,
+          isWaitlist: isSignedUp && !!this._isUserOnWaitlist?.(event),
+          eventImage: this._getEventImageUrl?.(event, 'cover') || event.image || '',
+        });
+      }
+      return eventRenderStates.get(event);
+    };
+    const stableStringify = (value) => JSON.stringify(value, (_key, current) => {
+      if (!current || typeof current !== 'object' || Array.isArray(current)) return current;
+      return Object.keys(current).sort().reduce((sorted, key) => {
+        sorted[key] = current[key];
+        return sorted;
+      }, {});
+    });
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}`;
+    const _fp = stableStringify({
+      events: events.map((e) => {
+        const s = getEventStats(e);
+        const view = getEventRenderState(e);
+        return {
+          data: {
+            id: e.id,
+            date: e.date,
+            location: e.location,
+            pinned: e.pinned,
+            pinOrder: e.pinOrder,
+            privateEvent: e.privateEvent,
+            sportTag: e.sportTag,
+            status: e.status,
+            teamOnly: e.teamOnly,
+            title: e.title,
+          },
+          stats: {
+            confirmedCount: s?.confirmedCount,
+            maxCount: s?.maxCount,
+            occupiedCount: s?.occupiedCount,
+            reservedRemainingCount: s?.reservedRemainingCount,
+            waitlistCount: s?.waitlistCount,
+          },
+          view: {
+            effectiveStatus: view.effectiveStatus,
+            eventImage: view.eventImage,
+            genderRibbonText: view.genderRibbonText,
+            hasGenderRestriction: view.hasGenderRestriction,
+            isFavorite: view.isFavorite,
+            isFemaleOnly: view.isFemaleOnly,
+            isSignedUp: view.isSignedUp,
+            isWaitlist: view.isWaitlist,
+            typeKey: view.typeKey,
+            typeLabel: view.typeConf?.label,
+          },
+        };
+      }),
+      activeSport: App._activeSport || 'all',
+      activeTab,
+      filterKeyword: filterKw,
+      filterType,
+      today: todayStr,
+    });
+    if (this._activityListLastFp === _fp && container.children.length > 0) {
+      this._scheduleActivityCommentBadges(events);
+      return;
+    }
+
     const monthGroups = {};
     events.forEach(e => {
       const parts = e.date.split(' ')[0].split('/');
@@ -586,9 +685,6 @@ Object.assign(App, {
       }
       monthGroups[monthKey][day].events.push(e);
     });
-
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}`;
 
     const isEndedTab = activeTab === 'ended';
     let html = '';
@@ -626,13 +722,12 @@ Object.assign(App, {
         });
 
         dayInfo.events.forEach(e => {
-          const typeKey = this._getEventDisplayTypeKey?.(e) || (TYPE_CONFIG[e.type] ? e.type : 'friendly');
-          const typeConf = this._getEventDisplayTypeConfig?.(e) || TYPE_CONFIG[typeKey] || TYPE_CONFIG.friendly;
+          const view = getEventRenderState(e);
+          const typeKey = view.typeKey;
+          const typeConf = view.typeConf;
           const time = e.date.split(' ')[1] || '';
-          const isExternal = typeKey === 'external';
-          const effectiveStatus = !isExternal && typeof this._getEventEffectiveStatus === 'function'
-            ? this._getEventEffectiveStatus(e)
-            : e.status;
+          const isExternal = view.isExternal;
+          const effectiveStatus = view.effectiveStatus;
           const isEnded = effectiveStatus === 'ended' || effectiveStatus === 'cancelled';
 
           // 外部活動：自訂 status 與 meta
@@ -644,7 +739,7 @@ Object.assign(App, {
             const locPart = e.location ? ` · ${escapeHTML((e.location || '').split('市')[1] || e.location)}` : '';
             metaText = `${typeConf.label} · ${time}${locPart}`;
           } else {
-            const stats = this._getEventParticipantStats(e);
+            const stats = getEventStats(e);
             const statusConf = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.open;
             statusLabel = statusConf.label;
             statusCss = statusConf.css;
@@ -654,26 +749,26 @@ Object.assign(App, {
           }
 
           // 俱樂部限定用特殊色
-          const isFemaleOnly = !isExternal && this._getEventAllowedGender?.(e) === '女';
+          const isFemaleOnly = view.isFemaleOnly;
           const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${typeKey}`;
           const rowClass = isFemaleOnly ? `${rowBaseClass} tl-type-female-only` : rowBaseClass;
           const rowStyle = e.pinned
             ? (isFemaleOnly ? 'box-shadow:0 0 0 1px rgba(236,72,153,.16)' : 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)')
             : '';
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
-          const genderRibbon = !isExternal && this._hasEventGenderRestriction(e)
-            ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText(e))}</span>`
+          const genderRibbon = view.hasGenderRestriction
+            ? `<span class="tl-event-gender-ribbon">${escapeHTML(view.genderRibbonText)}</span>`
             : '';
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
-          const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
+          const favHeart = this._favHeartHtml(view.isFavorite, 'Event', e.id);
           const commentBadge = this._activityCommentBadgeHtml(e.id);
           const statusStack = `<div class="tl-event-status-stack"><span class="tl-event-status ${statusCss}">${statusLabel}</span>${commentBadge}</div>`;
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
-          const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
+          const eventImage = view.eventImage;
 
           // 報名狀態章
-          const isSignedUp = !isExternal && this._isUserSignedUp(e);
-          const isWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+          const isSignedUp = view.isSignedUp;
+          const isWaitlist = view.isWaitlist;
           let regStamp = '';
           if (isWaitlist) regStamp = '<span class="tl-stamp-waitlisted">候補</span>';
           else if (isSignedUp) regStamp = '<span class="tl-stamp-confirmed">正取</span>';
@@ -682,7 +777,7 @@ Object.assign(App, {
           // 人數計量條
           let progressHtml = '';
           if (!isExternal && !isEnded) {
-            const _ps = this._getEventParticipantStats(e);
+            const _ps = getEventStats(e);
             const _pPct = _ps.maxCount > 0 ? Math.min(100, Math.round((_ps.occupiedCount ?? _ps.confirmedCount) / _ps.maxCount * 100)) : 0;
             const _pClr = _pPct >= 100 ? 'var(--danger)' : _pPct >= 70 ? 'var(--warning)' : 'var(--success)';
             const _wTag = _ps.waitlistCount > 0 ? ` · 候補 ${_ps.waitlistCount}` : '';
@@ -713,16 +808,6 @@ Object.assign(App, {
     });
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = events.map((e) => {
-      var s = this._getEventParticipantStats(e);
-      return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0)
-        + '|sc:' + (s?.confirmedCount ?? '') + '|sw:' + (s?.waitlistCount ?? '') + '|sm:' + (s?.maxCount ?? '')
-        + '|' + (e.pinned?1:0) + '|' + (e.title||'') + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '');
-    }).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
-    if (this._activityListLastFp === _fp && container.children.length > 0) {
-      this._scheduleActivityCommentBadges(events);
-      return;
-    }
     this._activityListLastFp = _fp;
 
     // 方案 A：存 scrollTop

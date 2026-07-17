@@ -802,6 +802,29 @@ const ApiService = {
     try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
     return result;
   },
+  async createEventsAtomic(events) {
+    const payloads = Array.isArray(events) ? events : [];
+    if (this._handleRestrictedAction()) return null;
+    try {
+      const expectedUid = this._getExpectedAuthUidForWrite('events', payloads[0]);
+      const authed = await FirebaseService.ensureAuthReadyForWrite(expectedUid);
+      if (!authed) throw this._buildAuthNotReadyWriteError(expectedUid);
+      const saved = await FirebaseService.addEventsAtomic(payloads);
+      const source = this._src('events');
+      saved.forEach(event => {
+        const existing = source.find(item => item?.id === event.id);
+        if (existing) Object.assign(existing, event);
+        else source.unshift(event);
+      });
+      try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+      return saved;
+    } catch (err) {
+      console.error('[createEventsAtomic]', err);
+      const toasted = this._handleFirestoreWriteError(err, 'createEventsAtomic', payloads[0]);
+      err._toasted = toasted;
+      throw err;
+    }
+  },
   updateEvent(id, updates)  {
     const result = this._update('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent');
     try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
@@ -1081,6 +1104,7 @@ const ApiService = {
   getActiveTeams()  { return this._src('teams').filter(t => t.active); },
 
   createTeam(data)        { return this._create('teams', data, FirebaseService.addTeam, 'createTeam'); },
+  async createTeamAwait(data) { return await this._createAwaitWrite('teams', data, FirebaseService.addTeam, 'createTeam'); },
   updateTeam(id, updates) { return this._update('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
   async updateTeamAwait(id, updates) { return await this._updateAwaitWrite('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
 
@@ -1245,6 +1269,39 @@ const ApiService = {
   // ════════════════════════════════
   //  Users & Admin（用戶管理）
   // ════════════════════════════════
+
+  getUserDirectory() {
+    if (typeof FirebaseService.getUserDirectory === 'function') {
+      return FirebaseService.getUserDirectory();
+    }
+    return this._src('userDirectory');
+  },
+  async ensureUserDirectoryReady(options = {}) {
+    if (typeof FirebaseService.ensureUserDirectoryReady !== 'function') {
+      return (this.getUserDirectory?.() || []).length > 0;
+    }
+    try {
+      return await FirebaseService.ensureUserDirectoryReady(options);
+    } catch (err) {
+      console.warn('[ApiService] safe user directory load failed:', err);
+      return false;
+    }
+  },
+
+  async verifyUserDirectorySelection(uids) {
+    const requestedUids = [...new Set((Array.isArray(uids) ? uids : [])
+      .map(uid => String(uid || '').trim())
+      .filter(Boolean))];
+    if (typeof FirebaseService.verifyUserDirectorySelection !== 'function') {
+      return { ok: false, users: [], missingUids: requestedUids, reason: 'unavailable' };
+    }
+    try {
+      return await FirebaseService.verifyUserDirectorySelection(requestedUids);
+    } catch (err) {
+      console.warn('[ApiService] user directory selection verification failed:', err);
+      return { ok: false, users: [], missingUids: requestedUids, reason: 'unavailable' };
+    }
+  },
 
   getAdminUsers() { return this._src('adminUsers'); },
   async ensureAdminUsersReady(options = {}) {
@@ -2012,7 +2069,9 @@ const ApiService = {
         severityHint: isFirestoreIndexedDbTransient ? 'low' : '',
         noise: !!isFirestoreIndexedDbTransient,
         page,
-        appVersion: CACHE_VERSION,
+        appVersion: (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function')
+          ? window.getSportHubAssetVersion()
+          : (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : ''),
         url: typeof location !== 'undefined' ? location.href : '',
         hash: typeof location !== 'undefined' ? location.hash : '',
         userAgent,
@@ -2433,7 +2492,6 @@ const ApiService = {
 
   createAdminMessage(data)        { return this._create('adminMessages', data, FirebaseService.addAdminMessage, 'createAdminMessage'); },
   updateAdminMessage(id, updates) { return this._update('adminMessages', id, updates, FirebaseService.updateAdminMessage, 'updateAdminMessage'); },
-
   deleteAdminMessage(id) {
     const source = this._src('adminMessages');
     // 先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
@@ -2466,6 +2524,25 @@ const ApiService = {
   //  User Promotion（用戶晉升）
   // ════════════════════════════════
 
+  async promoteUserByUid(uid, { teamId = '' } = {}) {
+    const safeUid = String(uid || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    if (!safeUid || safeUid.includes('/') || safeUid.length > 128) return null;
+    if (safeTeamId && (safeTeamId.includes('/') || safeTeamId.length > 128)) return null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await FirebaseService.updateUserRole(safeUid, { teamId: safeTeamId });
+      } catch (err) {
+        lastError = err;
+        const code = String(err?.code || '').replace(/^functions\//, '');
+        if (attempt > 0 || !['internal', 'unavailable', 'deadline-exceeded'].includes(code)) break;
+      }
+    }
+    console.error('[promoteUserByUid]', lastError);
+    return null;
+  },
+
   promoteUser(name, newRole) {
     const user = this._src('adminUsers').find(u => u.name === name);
     if (user) {
@@ -2482,7 +2559,8 @@ const ApiService = {
    * @param {string} uid
    * @returns {{ uid, oldRole, newRole, userName }|null} 有變化回傳結果，無變化回傳 null
    */
-  _recalcUserRole(uid) {
+  _recalcUserRole(uid, teamId = '') {
+    void this.promoteUserByUid(uid, { teamId });
     const user = this._src('adminUsers').find(u => u.uid === uid);
     if (!user) return null;
     const oldRole = user.role;
@@ -2518,9 +2596,6 @@ const ApiService = {
 
     // 更新角色
     user.role = newRole;
-    if (user._docId) {
-      FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[_recalcUserRole]', err));
-    }
     return { uid, oldRole, newRole, userName: user.name };
   },
 

@@ -93,6 +93,102 @@ describe('activity timeline effective status label', () => {
     expect(dom.window.document.querySelector('.tl-event-row').textContent).toContain('19/21人');
   });
 
+  test('skips unchanged cards but rerenders when timeline date or location changes', () => {
+    const dom = new JSDOM(`
+      <div id="page-activities"></div>
+      <select id="activity-filter-type"></select>
+      <input id="activity-filter-keyword" value="">
+      <div id="activity-list"></div>
+    `);
+    const event = {
+      id: 'e1',
+      title: 'Cached Timeline Event',
+      type: 'friendly',
+      status: 'open',
+      date: '2099/01/02 19:00',
+      location: 'Main Field',
+      current: 2,
+      max: 10,
+      waitlist: 0,
+    };
+    const app = {
+      currentPage: 'page-activities',
+      _activityActiveTab: 'normal',
+      _autoEndExpiredEvents: jest.fn(),
+      _getVisibleEvents: () => [event],
+      _filterByRegionTab: events => events,
+      _filterBySportTag: events => events,
+      _getEventParticipantStats: jest.fn(() => ({
+        confirmedCount: 2,
+        waitlistCount: 0,
+        maxCount: 10,
+        occupiedCount: 2,
+        reservedRemainingCount: 0,
+        isCapacityFull: false,
+      })),
+      _getEventEffectiveStatus: () => 'open',
+      _hasEventGenderRestriction: () => false,
+      _renderEventSportIcon: jest.fn(() => ''),
+      _favHeartHtml: () => '',
+      isEventFavorited: () => false,
+      _isUserSignedUp: () => false,
+      _isUserOnWaitlist: () => false,
+      _bindSwipeTabs: jest.fn(),
+      _markPageSnapshotReady: jest.fn(),
+    };
+
+    loadTimelineModule(app, dom);
+    app._scheduleActivityCommentBadges = jest.fn();
+    app._doRenderActivityList();
+    app._doRenderActivityList();
+
+    expect(app._renderEventSportIcon).toHaveBeenCalledTimes(1);
+    expect(app._getEventParticipantStats).toHaveBeenCalledTimes(2);
+    expect(dom.window.document.querySelectorAll('.tl-event-row')).toHaveLength(1);
+
+    event.viewCount = 99;
+    event.updatedAt = '2099-01-01T00:00:00Z';
+    app._doRenderActivityList();
+    expect(app._renderEventSportIcon).toHaveBeenCalledTimes(1);
+    expect(app._getEventParticipantStats).toHaveBeenCalledTimes(3);
+
+    event.location = 'Updated Field';
+    app._doRenderActivityList();
+    expect(dom.window.document.querySelector('.tl-event-meta').textContent).toContain('Updated Field');
+
+    event.date = '2099/02/03 20:30';
+    app._doRenderActivityList();
+    expect(dom.window.document.querySelector('.tl-month-header').textContent).toContain('2099 年 2 月');
+    expect(dom.window.document.querySelector('.tl-day-num').textContent).toBe('3');
+    expect(dom.window.document.querySelector('.tl-event-meta').textContent).toContain('20:30');
+    expect(app._renderEventSportIcon).toHaveBeenCalledTimes(3);
+    expect(app._getEventParticipantStats).toHaveBeenCalledTimes(5);
+  });
+
+  test('debounced timeline render does not run after navigation leaves the list', () => {
+    jest.useFakeTimers();
+    try {
+      const dom = new JSDOM('<div id="activity-list"></div>');
+      const app = {
+        currentPage: 'page-activities',
+        _syncActivityFemaleTheme: jest.fn(),
+        _syncActivityMapEntry: jest.fn(),
+        _refreshActivityCreateButton: jest.fn(),
+      };
+
+      loadTimelineModule(app, dom);
+      app._doRenderActivityList = jest.fn();
+      app.renderActivityList();
+      app.currentPage = 'page-activity-detail';
+      jest.advanceTimersByTime(100);
+
+      expect(app._doRenderActivityList).not.toHaveBeenCalled();
+      expect(app._activityListRenderTimer).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('renders activity card comment badge and updates count without opening comments', () => {
     const dom = new JSDOM(`
       <div id="page-activities"></div>

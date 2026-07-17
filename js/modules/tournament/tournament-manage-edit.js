@@ -188,7 +188,9 @@ Object.assign(App, {
       return;
     }
 
-    return this._withButtonLoading('#tf-save-btn', '儲存中...', async () => {
+    const submitContext = this._beginTournamentSubmit('edit', editId);
+    if (!submitContext) return;
+    return this._runTournamentSubmit(submitContext, '儲存中...', async () => {
 
     const editVenues = [...this._tournamentFormState.venues];
     const editDelegates = [...this._tournamentFormState.delegates];
@@ -253,16 +255,19 @@ Object.assign(App, {
       this._showTournamentActionError?.('更新賽事', err);
       return;
     }
+    if (!this._isTournamentSubmitSessionCurrent(submitContext)) {
+      return { ok: true, reason: 'stale-after-write' };
+    }
     ApiService._writeOpLog('tourn_edit', '編輯賽事', `更新「${editName}」`);
     this._editTournamentId = null;
     this._tournamentFormEditId = null;
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
-    this.closeModal();
+    this.closeModal({ allowSubmitting: true });
     this.showToast(`賽事「${editName}」已更新。`);
 
-    });  // _withButtonLoading
+    });  // _runTournamentSubmit
   },
 
 });

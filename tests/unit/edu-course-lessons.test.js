@@ -979,8 +979,8 @@ describe('edu course lessons', () => {
     const unsubscribe = jest.fn();
     const query = {
       where: jest.fn(function where() { return this; }),
-      onSnapshot: jest.fn((next) => {
-        emitSnapshot = next;
+      onSnapshot: jest.fn((options, next) => {
+        emitSnapshot = typeof options === 'function' ? options : next;
         return unsubscribe;
       }),
     };
@@ -1006,6 +1006,7 @@ describe('edu course lessons', () => {
       sessions: weeklySessions,
       courseSessionCache: { 'teamA:weeklyPlan': weeklySessions },
     });
+    const renderLessonList = jest.spyOn(app, '_renderCourseLessonList');
 
     let settled = false;
     const openPromise = app.showCourseLessons('teamA', 'weeklyPlan').then((result) => {
@@ -1035,7 +1036,18 @@ describe('edu course lessons', () => {
       ['coursePlanId', '==', 'weeklyPlan'],
     ]);
     expect(firebase.queryEduAttendance).not.toHaveBeenCalled();
+    expect(query.onSnapshot.mock.calls[0][0]).toMatchObject({ includeMetadataChanges: true });
     expect(container.innerHTML).toContain('1/6 \u4eba');
+
+    const renderCountAfterInitial = renderLessonList.mock.calls.length;
+    emitSnapshot({
+      docs: [{
+        id: 'attendanceA',
+        data: () => ({ studentId: 'stu1', sessionId: 'weeklyA', kind: 'signin', status: 'active', note: 'updated' }),
+      }],
+      metadata: { fromCache: false },
+    });
+    expect(renderLessonList).toHaveBeenCalledTimes(renderCountAfterInitial);
 
     emitSnapshot({
       docs: [
@@ -1051,6 +1063,7 @@ describe('edu course lessons', () => {
     });
 
     expect(container.innerHTML).toContain('2/6 \u4eba');
+    expect(renderLessonList).toHaveBeenCalledTimes(renderCountAfterInitial + 1);
     expect(app._eduCourseLessonsContext.confirmedCountBySessionId.weeklyA).toBe(2);
     expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(2);
     app._stopCourseLessonAttendanceCountListener();
@@ -1062,8 +1075,8 @@ describe('edu course lessons', () => {
     const unsubscribe = jest.fn();
     const query = {
       where: jest.fn(function where() { return this; }),
-      onSnapshot: jest.fn((next) => {
-        emitSnapshot = next;
+      onSnapshot: jest.fn((options, next) => {
+        emitSnapshot = typeof options === 'function' ? options : next;
         return unsubscribe;
       }),
     };
@@ -1102,9 +1115,13 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('2/6 \u4eba');
     expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'otherPlan', weeklySessions)).toBeNull();
 
-    emitSnapshot({ docs: [] });
+    emitSnapshot({ docs: [], metadata: { fromCache: true } });
     await openPromise;
 
+    expect(container.innerHTML).toContain('2/6 \u4eba');
+    expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(2);
+
+    emitSnapshot({ docs: [], metadata: { fromCache: false } });
     expect(container.innerHTML).toContain('0/6 \u4eba');
     expect(app._getCachedCourseLessonConfirmedCounts('teamA', 'weeklyPlan', weeklySessions).weeklyA).toBe(0);
     app._stopCourseLessonAttendanceCountListener();
@@ -1149,8 +1166,8 @@ describe('edu course lessons', () => {
     const unsubscribe = jest.fn();
     const query = {
       where: jest.fn(function where() { return this; }),
-      onSnapshot: jest.fn((next) => {
-        emitNewSnapshot = next;
+      onSnapshot: jest.fn((options, next) => {
+        emitNewSnapshot = typeof options === 'function' ? options : next;
         return unsubscribe;
       }),
     };

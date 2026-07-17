@@ -1766,10 +1766,21 @@ Object.assign(App, {
     }
   },
 
-  closeModal() {
+  closeModal(options = {}) {
     // 首次登入彈窗鎖定時不可關閉
     const overlay = document.getElementById('modal-overlay');
     if (overlay && overlay.dataset.locked === '1') return;
+    if (options.allowSubmitting !== true) {
+      const submittingModalIsOpen = [
+        ['create-event-modal', this._eventSubmitInFlight === true],
+        ['create-team-modal', this._teamFormSubmitToken != null],
+        ['tournament-form-modal', this._tournamentSubmitToken != null],
+      ].some(([id, busy]) => busy && document.getElementById(id)?.classList?.contains('open'));
+      if (submittingModalIsOpen) {
+        this.showToast?.('資料儲存中，請稍候');
+        return;
+      }
+    }
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
     if (overlay) overlay.classList.remove('open');
     this._maybeRunDeferredSwReload?.('modal-close');

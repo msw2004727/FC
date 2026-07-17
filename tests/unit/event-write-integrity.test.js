@@ -38,9 +38,9 @@ function makeEventsDb() {
   return { db: { collection }, collection, doc, update };
 }
 
-function makeCreateEventDb({ exists = false } = {}) {
+function makeCreateEventDb({ exists = false, existingData = {} } = {}) {
   const transaction = {
-    get: jest.fn().mockResolvedValue({ exists }),
+    get: jest.fn().mockResolvedValue({ exists, data: () => existingData }),
     set: jest.fn(),
   };
   const runTransaction = jest.fn(async callback => callback(transaction));
@@ -161,6 +161,40 @@ describe('event write integrity', () => {
     expect(db.transaction.set).not.toHaveBeenCalled();
   });
 
+  test('addEventsAtomic commits every date in one transaction', async () => {
+    const db = makeCreateEventDb();
+    const { FirebaseService } = loadFirebaseCrud({ events: [], dbMock: db.db, docLookup: jest.fn() });
+    FirebaseService.ensureAuthReadyForWrite = jest.fn().mockResolvedValue(true);
+    FirebaseService._uploadEventImageVariants = jest.fn().mockResolvedValue(undefined);
+    const events = [
+      { id: 'ce_batch_1', title: 'Date 1', creatorUid: 'actor-1', batchGroupId: 'batch-1', image: '' },
+      { id: 'ce_batch_2', title: 'Date 2', creatorUid: 'actor-1', batchGroupId: 'batch-1', image: '' },
+    ];
+
+    await expect(FirebaseService.addEventsAtomic(events)).resolves.toBe(events);
+
+    expect(db.runTransaction).toHaveBeenCalledTimes(1);
+    expect(db.transaction.get).toHaveBeenCalledTimes(2);
+    expect(db.transaction.set).toHaveBeenCalledTimes(2);
+    expect(events.map(event => event._docId)).toEqual(['ce_batch_1', 'ce_batch_2']);
+  });
+
+  test('addEventsAtomic treats an acknowledged retry of the same batch as idempotent', async () => {
+    const db = makeCreateEventDb({
+      exists: true,
+      existingData: { creatorUid: 'actor-1', batchGroupId: 'batch-1' },
+    });
+    const { FirebaseService } = loadFirebaseCrud({ events: [], dbMock: db.db, docLookup: jest.fn() });
+    FirebaseService.ensureAuthReadyForWrite = jest.fn().mockResolvedValue(true);
+    FirebaseService._uploadEventImageVariants = jest.fn().mockResolvedValue(undefined);
+    const events = [
+      { id: 'ce_batch_1', creatorUid: 'actor-1', batchGroupId: 'batch-1', image: '' },
+      { id: 'ce_batch_2', creatorUid: 'actor-1', batchGroupId: 'batch-1', image: '' },
+    ];
+
+    await expect(FirebaseService.addEventsAtomic(events)).resolves.toBe(events);
+    expect(db.transaction.set).not.toHaveBeenCalled();
+  });
   test('updateEvent resolves missing event doc id before writing', async () => {
     const event = { id: 'evt-1', title: 'Test Event' };
     const db = makeEventsDb();

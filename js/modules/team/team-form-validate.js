@@ -39,8 +39,9 @@ Object.assign(App, {
     let oldCaptainUid = null;
     let oldCoachUids = [];
     let oldLeaderUids = [];
+    let oldTeam = null;
     if (this._teamFormState.editId) {
-      const oldTeam = ApiService.getTeam(this._teamFormState.editId);
+      oldTeam = ApiService.getTeam(this._teamFormState.editId);
       if (oldTeam) {
         oldCaptainUid = oldTeam.captainUid || null;
         oldCoachUids = (Array.isArray(oldTeam.coachUids) ? oldTeam.coachUids : []).filter(Boolean);
@@ -48,7 +49,20 @@ Object.assign(App, {
       }
     }
 
-    const users = ApiService.getAdminUsers();
+    const users = ApiService.getUserDirectory?.() || [];
+    const unresolvedStaffNames = this._teamFormState.unresolvedStaffNames || { leaders: [], captain: '', coaches: [] };
+    const mergeUniqueNames = (...groups) => {
+      const seen = new Set();
+      const result = [];
+      groups.flat().forEach(name => {
+        const value = String(name || '').trim();
+        const key = value.toLowerCase();
+        if (!value || seen.has(key)) return;
+        seen.add(key);
+        result.push(value);
+      });
+      return result;
+    };
 
     // 驗證領隊（新建：至少一位且非 legacy；編輯：允許保留）
     if (!this._teamFormState.editId && this._teamFormState.leaders.length === 0) {
@@ -62,18 +76,23 @@ Object.assign(App, {
     }
 
     // 解析領隊名稱
-    const leaderNames = this._teamFormState.leaders.map(uid => {
-      const u = users.find(u => u.uid === uid);
-      return u ? u.name : '';
+    const resolvedLeaderNames = this._teamFormState.leaders.map(uid => {
+      const u = users.find(user => user.uid === uid || user._docId === uid);
+      return u?.name || u?.displayName || this._getTeamFormStaffDisplayName?.(uid) || '';
     }).filter(Boolean);
+    const leaderNames = mergeUniqueNames(resolvedLeaderNames, unresolvedStaffNames.leaders || []);
 
     // Resolve team manager (captain) name
     let captain = '';
     let selectedCaptainUser = null;
     if (this._teamFormState.captain) {
-      selectedCaptainUser = users.find(u => u.uid === this._teamFormState.captain);
-      captain = selectedCaptainUser ? selectedCaptainUser.name : '';
+      selectedCaptainUser = users.find(user => user.uid === this._teamFormState.captain || user._docId === this._teamFormState.captain);
+      captain = selectedCaptainUser?.name
+        || selectedCaptainUser?.displayName
+        || this._getTeamFormStaffDisplayName?.(this._teamFormState.captain)
+        || '';
     }
+    if (!captain) captain = String(unresolvedStaffNames.captain || '').trim();
 
     if (!this._teamFormState.editId) {
       if (!this._teamFormState.captain) {
@@ -84,7 +103,7 @@ Object.assign(App, {
         this.showToast('俱樂部經理必須為有效用戶，請重新選擇');
         return null;
       }
-    } else if (this._teamFormState.captain && !selectedCaptainUser) {
+    } else if (this._teamFormState.captain && !selectedCaptainUser && !captain) {
       this.showToast('俱樂部經理資料無效，請重新選擇俱樂部經理');
       return null;
     }
@@ -92,10 +111,11 @@ Object.assign(App, {
     const captainUidForSave = this._teamFormState.captain || null;
 
     // Resolve coach names
-    const coaches = this._teamFormState.coaches.map(uid => {
-      const u = users.find(u => u.uid === uid);
-      return u ? u.name : '';
+    const resolvedCoachNames = this._teamFormState.coaches.map(uid => {
+      const u = users.find(user => user.uid === uid || user._docId === uid);
+      return u?.name || u?.displayName || this._getTeamFormStaffDisplayName?.(uid) || '';
     }).filter(Boolean);
+    const coaches = mergeUniqueNames(resolvedCoachNames, unresolvedStaffNames.coaches || []);
 
     const newCoachUids = [...this._teamFormState.coaches];
 

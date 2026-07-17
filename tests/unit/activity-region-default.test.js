@@ -58,7 +58,7 @@ describe('activity region default', () => {
     expect(tabSource).toContain('event?.stopImmediatePropagation?.()');
     expect(timelineSource).toContain("if (activeTab === 'female')");
     expect(timelineSource).toContain("this._getEventAllowedGender?.(e) === '女'");
-    expect(timelineSource).toContain('const isFemaleOnly = !isExternal && this._getEventAllowedGender?.(e)');
+    expect(timelineSource).toContain("isFemaleOnly: !isExternal && this._getEventAllowedGender?.(event) === '女'");
     expect(timelineSource).toContain('tl-type-female-only');
     expect(timelineSource).toContain('rgba(236,72,153,.16)');
   });

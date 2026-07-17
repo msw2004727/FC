@@ -1167,7 +1167,6 @@ Object.assign(App, {
     if (!isGuestView) {
       const _vcSpan = document.getElementById('detail-view-count-num');
       if (_vcSpan) _vcSpan.textContent = (e.viewCount || 0).toLocaleString();
-      this._incrementEventViewCount?.(id);
     }
     this._renderEventPublicToggle(isGuestView ? null : e);
     this._renderEventRefreshButton(isGuestView ? null : e);
@@ -1646,6 +1645,15 @@ Object.assign(App, {
       if (!this._isPageTransitionCurrent(routeTransitionSeq)) {
         return this._abortStalePageTransition('showEventDetail-finalize', 'page-activity-detail', routeTransitionSeq);
       }
+      const finalDetailGuard = this._isCurrentEventDetailPatch(id, requestSeq, {
+        renderToken: detailRenderToken,
+      });
+      if (!finalDetailGuard.ok) {
+        return { ok: false, reason: finalDetailGuard.reason || 'stale' };
+      }
+      if (!isGuestView) {
+        this._incrementEventViewCount?.(id, { requestSeq });
+      }
       this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
@@ -1965,31 +1973,100 @@ Object.assign(App, {
     }
   },
 
-  // ── 瀏覽數 +1（登入用戶同日去重，localStorage 擋住重複）──
-  async _incrementEventViewCount(eventId) {
-    try {
-      if (!eventId) return;
-      if (typeof firebase === 'undefined' || !firebase.firestore || !firebase.auth) return;
-      if (!firebase.auth().currentUser) return;
-      const now = new Date();
-      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const lsKey = `view_${eventId}_${today}`;
-      if (localStorage.getItem(lsKey)) return;
-      localStorage.setItem(lsKey, '1');
+  // ── 瀏覽數（後端依登入用戶與台北日期去重；本地標記只作成功提示）──
+  async _incrementEventViewCount(eventId, options = {}) {
+    const safeEventId = String(eventId || '').trim();
+    if (!safeEventId) return;
+    const requestSeq = options?.requestSeq ?? null;
+    if (typeof firebase === 'undefined' || !firebase.auth) return;
+    const expectedUid = String(firebase.auth().currentUser?.uid || '').trim();
+    if (!expectedUid) return;
 
-      const ev = (typeof ApiService !== 'undefined' && ApiService.getEvent) ? ApiService.getEvent(eventId) : null;
-      const docId = ev?._docId;
-      if (!docId) return;
-
-      await firebase.firestore().collection('events').doc(docId).update({
-        viewCount: firebase.firestore.FieldValue.increment(1)
-      });
-      if (ev) ev.viewCount = (ev.viewCount || 0) + 1;
-      const span = document.getElementById('detail-view-count-num');
-      if (span && ev) span.textContent = (ev.viewCount || 0).toLocaleString();
-    } catch (err) {
-      console.warn('[viewCount] increment failed:', err);
+    let inFlight = this._eventViewCountInFlight;
+    if (!(inFlight instanceof Map)) {
+      inFlight = new Map();
+      this._eventViewCountInFlight = inFlight;
     }
+    const workKey = expectedUid + ':' + safeEventId;
+    let workPromise = inFlight.get(workKey);
+
+    if (!workPromise) {
+      workPromise = (async () => {
+        try {
+          const ev = (typeof ApiService !== 'undefined' && ApiService.getEvent)
+            ? ApiService.getEvent(safeEventId)
+            : null;
+          const docId = String(ev?._docId || '').trim();
+          if (!docId) return null;
+
+          if (typeof FirebaseService !== 'undefined'
+            && typeof FirebaseService.ensureAuthReadyForWrite === 'function') {
+            const authReady = await FirebaseService.ensureAuthReadyForWrite(expectedUid);
+            const currentUid = String(firebase.auth().currentUser?.uid || '').trim();
+            if (!authReady || currentUid !== expectedUid) return null;
+          }
+
+          if (typeof ensureFirebaseFunctionsSdk !== 'function') {
+            throw new Error('incrementEventViewCount callable unavailable');
+          }
+          const functionsApi = await ensureFirebaseFunctionsSdk('asia-east1');
+          const callable = functionsApi?.httpsCallable?.('incrementEventViewCount');
+          if (typeof callable !== 'function') {
+            throw new Error('incrementEventViewCount callable unavailable');
+          }
+          const currentUidBeforeCall = String(firebase.auth().currentUser?.uid || '').trim();
+          if (currentUidBeforeCall !== expectedUid) return null;
+          const response = await callable({ eventId: safeEventId, docId });
+          const payload = response?.data;
+          const nextViewCount = Number(payload?.viewCount);
+          if (typeof payload?.incremented !== 'boolean'
+            || !Number.isSafeInteger(nextViewCount)
+            || nextViewCount < 0) {
+            throw new Error('incrementEventViewCount returned an invalid payload');
+          }
+          const latestEvent = (typeof ApiService !== 'undefined' && ApiService.getEvent)
+            ? ApiService.getEvent(safeEventId)
+            : ev;
+          const mergedViewCount = Math.max(
+            Number(ev?.viewCount || 0),
+            Number(latestEvent?.viewCount || 0),
+            nextViewCount,
+          );
+          if (ev) ev.viewCount = mergedViewCount;
+          if (latestEvent) latestEvent.viewCount = mergedViewCount;
+          return { event: latestEvent || ev, viewCount: mergedViewCount };
+        } catch (err) {
+          console.warn('[viewCount] increment failed:', err);
+          return null;
+        }
+      })();
+      inFlight.set(workKey, workPromise);
+    }
+
+    let result = null;
+    try {
+      result = await workPromise;
+    } finally {
+      if (inFlight.get(workKey) === workPromise) inFlight.delete(workKey);
+    }
+
+    const ev = result?.event || null;
+    if (!ev) return;
+    const latestEvent = (typeof ApiService !== 'undefined' && ApiService.getEvent)
+      ? ApiService.getEvent(safeEventId)
+      : ev;
+    const displayViewCount = Math.max(
+      Number(result?.viewCount || 0),
+      Number(ev?.viewCount || 0),
+      Number(latestEvent?.viewCount || 0),
+    );
+    if (latestEvent) latestEvent.viewCount = displayViewCount;
+    const canPatchCurrentDetail = this.currentPage === 'page-activity-detail'
+      && String(this._currentDetailEventId || '') === safeEventId
+      && (requestSeq == null || Number(requestSeq) === Number(this._eventDetailRequestSeq));
+    if (!canPatchCurrentDetail) return;
+    const span = document.getElementById('detail-view-count-num');
+    if (span) span.textContent = displayViewCount.toLocaleString();
   },
 
   _renderEventLogButton(e) {

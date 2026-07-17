@@ -563,7 +563,24 @@ function identitySettingsPayload(overrides = {}) {
   };
 }
 
+function teamScopedEventPayload(id, creatorUid, teamIds) {
+  const normalizedTeamIds = [...teamIds];
+  return {
+    id,
+    title: `Team Scoped ${id}`,
+    creatorUid,
+    status: "open",
+    teamOnly: true,
+    isPublic: true,
+    creatorTeamId: normalizedTeamIds[0],
+    creatorTeamName: `Team ${normalizedTeamIds[0]}`,
+    creatorTeamIds: normalizedTeamIds,
+    creatorTeamNames: normalizedTeamIds.map((teamId) => `Team ${teamId}`),
+  };
+}
+
 describe("/users/{userId}", () => {
+
   test("[SECONDARY_IDENTITY] root create permits only login/profile seed fields", async () => {
     await assertSucceeds(
       setDoc(
@@ -963,6 +980,32 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("viewCount direct updates and private markers stay server-only", async () => {
+    await seedDoc("events", "event_view_server_only", {
+      id: "event_view_server_only",
+      title: "View Server Only",
+      creatorUid: "uidA",
+      ownerUid: "uidA",
+      status: "open",
+      viewCount: 3,
+    });
+
+    for (const role of roles) {
+      const db = roleDb[role]();
+      await assertFails(
+        updateDoc(doc(db, "events", "event_view_server_only"), { viewCount: 4 })
+      );
+      await assertFails(
+        getDoc(doc(db, "eventViewCountMarkers", `marker_${role}`))
+      );
+      await assertFails(
+        setDoc(doc(db, "eventViewCountMarkers", `marker_${role}`), {
+          eventId: "event_view_server_only",
+          dayKey: "2026-07-17",
+        })
+      );
+    }
+  });
   test("write-create: guest denied; authenticated roles allowed through scoped capabilities", async () => {
     await assertByRole(
       ({ db, role }) =>
@@ -971,6 +1014,83 @@ describe("/events/{eventId}", () => {
           creatorUid: uidByRole[role] || "uidA",
         }),
       allowAuth
+    );
+  });
+
+  test("coach can create a team-scoped event only for one team they staff", async () => {
+    await seedDoc("teams", "teamCoachOwn", {
+      id: "teamCoachOwn",
+      name: "Coach Team",
+      coachUids: ["uidCoach"],
+    });
+
+    await assertSucceeds(
+      setDoc(
+        doc(coach(), "events", "event_coach_team_own"),
+        teamScopedEventPayload("event_coach_team_own", "uidCoach", ["teamCoachOwn"])
+      )
+    );
+    await assertFails(
+      setDoc(
+        doc(coach(), "events", "event_coach_team_unrelated"),
+        teamScopedEventPayload("event_coach_team_unrelated", "uidCoach", ["teamA"])
+      )
+    );
+    await assertFails(
+      setDoc(
+        doc(coach(), "events", "event_coach_team_multiple"),
+        teamScopedEventPayload("event_coach_team_multiple", "uidCoach", ["teamCoachOwn", "teamA"])
+      )
+    );
+  });
+
+  test("admin needs event.edit_all to create events for arbitrary team scopes", async () => {
+    await seedRolePermissions("admin", []);
+    await assertFails(
+      setDoc(
+        doc(admin(), "events", "event_admin_team_without_broad"),
+        teamScopedEventPayload("event_admin_team_without_broad", "uidAdmin", ["teamA", "teamB"])
+      )
+    );
+
+    await seedRolePermissions("admin", ["event.edit_all"]);
+    await assertSucceeds(
+      setDoc(
+        doc(admin(), "events", "event_admin_team_with_broad"),
+        teamScopedEventPayload("event_admin_team_with_broad", "uidAdmin", ["teamA", "teamB"])
+      )
+    );
+  });
+
+  test("activity entry alone cannot grant team scope; team.create_event still requires staff scope", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+    await seedUserPermissionGrant("uidUser", ["activity.manage.entry"]);
+
+    await assertFails(
+      setDoc(
+        doc(user(), "events", "event_user_entry_team_own"),
+        teamScopedEventPayload("event_user_entry_team_own", "uidUser", ["teamUserOwn"])
+      )
+    );
+
+    await seedUserPermissionGrant("uidUser", [
+      "activity.manage.entry",
+      "team.create_event",
+    ]);
+    await assertSucceeds(
+      setDoc(
+        doc(user(), "events", "event_user_scoped_team_own"),
+        teamScopedEventPayload("event_user_scoped_team_own", "uidUser", ["teamUserOwn"])
+      )
+    );
+    await assertFails(
+      setDoc(
+        doc(user(), "events", "event_user_scoped_team_unrelated"),
+        teamScopedEventPayload("event_user_scoped_team_unrelated", "uidUser", ["teamA"])
+      )
     );
   });
 
@@ -3341,11 +3461,21 @@ describe("/teams/{teamId}", () => {
     await assertByRole(({ db }) => getDoc(doc(db, "teams", "teamA")), allowAll);
   });
 
-  test("create (current): guest deny; authenticated allow with name", async () => {
+  test("create: requires explicit team.create or global team management permission", async () => {
     await assertByRole(
       ({ db, role }) => setDoc(doc(db, "teams", `team_create_${role}`), { name: "Team X" }),
-      allowAuth
+      allowAdminAndSuper
     );
+
+    await assertFails(setDoc(doc(user(), "teams", "team_forged_captain"), {
+      name: "Forged Team",
+      captainUid: "uidUser",
+    }));
+    await seedUserPermissionGrant("uidUser", ["team.create"]);
+    await assertSucceeds(setDoc(doc(user(), "teams", "team_granted_create"), {
+      name: "Granted Team",
+      captainUid: "uidUser",
+    }));
   });
 
   test("update: owner or hasPerm('team.manage_all') can update, others cannot", async () => {

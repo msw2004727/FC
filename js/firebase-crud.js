@@ -582,6 +582,56 @@ Object.assign(FirebaseService, {
     return eventData;
   },
 
+  async addEventsAtomic(eventDataList) {
+    const events = Array.isArray(eventDataList) ? eventDataList : [];
+    if (events.length < 2 || events.length > 30) throw new Error('EVENT_BATCH_SIZE_INVALID');
+    const creatorUids = [...new Set(events
+      .map(event => String(event?.creatorUid || '').trim())
+      .filter(uid => uid && uid !== 'unknown'))];
+    if (creatorUids.length > 1) throw new Error('EVENT_BATCH_CREATOR_MISMATCH');
+    if (creatorUids[0]) {
+      const authed = await this.ensureAuthReadyForWrite(creatorUids[0]);
+      if (!authed) throw new Error('AUTH_NOT_READY');
+    }
+
+    const prepared = [];
+    for (const eventData of events) {
+      const eventId = this._normalizeEventDocumentId(eventData);
+      eventData.id = eventId;
+      await this._uploadEventImageVariants(eventId, eventData);
+      if (eventData.image && eventData.image.startsWith('data:')) {
+        eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
+      }
+      if (Array.isArray(eventData.delegates) && !eventData.delegateUids) {
+        eventData.delegateUids = eventData.delegates.map(delegate => String(delegate.uid || '').trim()).filter(Boolean);
+      }
+      prepared.push({ eventData, docRef: db.collection('events').doc(eventId) });
+    }
+
+    await db.runTransaction(async transaction => {
+      const snapshots = [];
+      for (const item of prepared) snapshots.push(await transaction.get(item.docRef));
+      prepared.forEach((item, index) => {
+        const existing = snapshots[index];
+        if (existing.exists) {
+          const current = typeof existing.data === 'function' ? existing.data() : {};
+          if (!item.eventData.batchGroupId
+            || current?.batchGroupId !== item.eventData.batchGroupId
+            || String(current?.creatorUid || '') !== String(item.eventData.creatorUid || '')) {
+            throw new Error('EVENT_ID_CONFLICT: id=' + item.eventData.id);
+          }
+          return;
+        }
+        transaction.set(item.docRef, {
+          ..._stripDocId(item.eventData),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    });
+    prepared.forEach(({ eventData, docRef }) => { eventData._docId = docRef.id; });
+    return events;
+  },
   async updateEvent(id, updates) {
     const safeId = String(id || '').trim();
     if (!safeId) throw new Error('EVENT_ID_REQUIRED');
@@ -2888,9 +2938,12 @@ Object.assign(FirebaseService, {
   //  User Role（用戶晉升）
   // ════════════════════════════════
 
-  async updateUserRole(docId, newRole) {
+  async updateUserRole(uid, { teamId = '' } = {}) {
     const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('autoPromoteTeamRole');
-    const result = await fn({ targetUid: docId, newRole });
+    const payload = { targetUid: uid };
+    const safeTeamId = String(teamId || '').trim();
+    if (safeTeamId) payload.teamId = safeTeamId;
+    const result = await fn(payload);
     // Refresh current user's token if their own role changed
     if (result?.data?.newRole && typeof auth !== 'undefined' && auth?.currentUser?.uid === result.data.targetUid) {
       await auth.currentUser.getIdToken(true);

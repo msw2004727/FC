@@ -95,6 +95,36 @@ Object.assign(App, {
     if (expFillEl) expFillEl.style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
   },
 
+  _bindProfileCoreEvents() {
+    if (this._profileCoreClickHandler || typeof document === 'undefined') return;
+    this._profileCoreClickHandler = event => {
+      const target = event.target;
+      const retryButton = target?.closest?.('.uc-card-retry-btn[data-profile-retry-name]');
+      if (retryButton) {
+        const profileName = retryButton.dataset.profileRetryName || '';
+        const profileUid = retryButton.dataset.profileRetryUid || '';
+        const retryOptions = { bypassPageLock: true, skipPageHistory: true };
+        if (profileUid) retryOptions.uid = profileUid;
+        this.showUserProfile(profileName, retryOptions);
+        return;
+      }
+
+      const shareButton = target?.closest?.('[data-profile-share-name]');
+      if (shareButton) {
+        this._shareUserCard(shareButton.dataset.profileShareName || '');
+        return;
+      }
+
+      const capsule = target?.closest?.('.user-capsule[data-profile-name]');
+      if (!capsule) return;
+      const profileName = capsule.dataset.profileName || '';
+      const profileUid = capsule.dataset.profileUid || '';
+      if (profileUid) this.showUserProfile(profileName, { uid: profileUid });
+      else this.showUserProfile(profileName);
+    };
+    document.addEventListener('click', this._profileCoreClickHandler);
+  },
+
   _userTag(name, forceRole, options) {
     const rawRole = forceRole || ApiService.getUserRole(name);
     const role = this._stealthRole(name, rawRole, options?.uid);
@@ -125,10 +155,10 @@ Object.assign(App, {
         jerseyHtml = svg;
       }
     }
-    const _uid = options && options.uid ? options.uid : '';
-    const _onclick = _uid
-      ? `App.showUserProfile('${escapeHTML(name)}',{uid:'${escapeHTML(_uid)}'})`
-      : `App.showUserProfile('${escapeHTML(name)}')`;
+    const _uid = options && options.uid ? String(options.uid) : '';
+    const profileName = String(name || '');
+    const profileAttrs = ` data-profile-name="${escapeHTML(profileName)}" data-profile-uid="${escapeHTML(_uid)}"`;
+    this._bindProfileCoreEvents();
     // 出席率染色（同步綁定 noShow 查看權限，由呼叫方判斷後傳入）
     const fill = options && options.attendanceFill;
     const attClass = fill ? ' uc-att-warn' : '';
@@ -143,7 +173,7 @@ Object.assign(App, {
     const recentHtml = recentNS
       ? '<span class="uc-recent-noshow" aria-label="最近一場活動未簽到" title="最近一場活動未簽到">🕊</span>'
       : '';
-    return `<span class="user-capsule uc-${role}${attClass}"${attStyle} data-no-translate onclick="${_onclick}"${attTitle}><span class="uc-lv">Lv${lvl}</span>${recentHtml}${jerseyHtml}${escapeHTML(name)}</span>`;
+    return `<span class="user-capsule uc-${role}${attClass}"${attStyle} data-no-translate${profileAttrs}${attTitle}><span class="uc-lv">Lv${lvl}</span>${recentHtml}${jerseyHtml}${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {
@@ -323,11 +353,8 @@ Object.assign(App, {
     if (!container) return false;
     const safeName = String(name || uidHint || '').trim();
     const safeUid = String(uidHint || '').trim();
-    const retryName = escapeHTML(safeName);
-    const retryUid = escapeHTML(safeUid);
-    const retryAction = safeUid
-      ? `App.showUserProfile('${retryName}',{uid:'${retryUid}',bypassPageLock:true,skipPageHistory:true})`
-      : `App.showUserProfile('${retryName}',{bypassPageLock:true,skipPageHistory:true})`;
+    const retryAttrs = ` data-profile-retry-name="${escapeHTML(safeName)}" data-profile-retry-uid="${escapeHTML(safeUid)}"`;
+    this._bindProfileCoreEvents();
     const actionPanel = safeUid ? this._buildUserCardActionPanel(safeUid) : '';
     const unavailableMessage = options?.message || '暫時無法載入完整用戶資料';
     container.classList.remove('is-secondary-private');
@@ -336,7 +363,7 @@ Object.assign(App, {
         <div class="uc-card-loading-title" data-no-translate>${escapeHTML(safeName || 'User')}</div>
         <div class="uc-card-loading-text">${escapeHTML(unavailableMessage)}</div>
         ${actionPanel}
-        <button type="button" class="outline-btn uc-card-retry-btn" onclick="${retryAction}">&#37325;&#26032;&#36617;&#20837;</button>
+        <button type="button" class="outline-btn uc-card-retry-btn"${retryAttrs}>&#37325;&#26032;&#36617;&#20837;</button>
       </div>
     `;
     return true;
@@ -549,13 +576,14 @@ Object.assign(App, {
         ${_statsBlurHtml}
       </div>
       <div style="text-align:center;padding:.5rem 0 1rem">
-        <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" onclick="App._shareUserCard('${escapeHTML(displayName)}')">
+        <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" data-profile-share-name="${escapeHTML(displayName)}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           分享名片
         </button>
       </div>
       ${privateBodyEnd}
     `;
+    this._bindProfileCoreEvents();
     this._bindAvatarFallbacks(userCardContainer);
 
     // 切頁前檢查 seq（避免已 stale 還硬把用戶拉回 user-card）

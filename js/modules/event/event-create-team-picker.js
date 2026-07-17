@@ -48,64 +48,43 @@ Object.assign(App, {
     return '未知俱樂部';
   },
 
+  _isCurrentUserTeamStaffForEventScope(team) {
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    if (!team || !currentUser) return false;
+
+    const currentUserIds = new Set([currentUser.uid]
+      .map(value => String(value || '').trim())
+      .filter(Boolean));
+    if (currentUserIds.size === 0) return false;
+
+    const staffIds = [
+      team.captainUid,
+      team.creatorUid,
+      team.ownerUid,
+      team.leaderUid,
+      ...(Array.isArray(team.leaderUids) ? team.leaderUids : []),
+      ...(Array.isArray(team.coachUids) ? team.coachUids : []),
+    ].map(value => String(value || '').trim()).filter(Boolean);
+
+    return staffIds.some(uid => currentUserIds.has(uid));
+  },
+
   _getTeamOnlyCandidateTeams() {
     const teams = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
-    const activeTeamMap = new Map();
-    teams.forEach(t => {
-      if (!t || t.active === false) return;
-      const customId = String(t.id || '').trim();
-      const docId = String(t._docId || '').trim();
-      if (customId) activeTeamMap.set(customId, t);
-      if (docId && docId !== customId) activeTeamMap.set(docId, t);
-    });
-
-    const ids = new Set();
-    const pushId = (id) => {
-      const v = String(id || '').trim();
-      if (v) ids.add(v);
-    };
-
-    const currentUser = ApiService.getCurrentUser?.() || null;
-    if (currentUser) {
-      if (typeof this._getUserTeamIds === 'function') {
-        this._getUserTeamIds(currentUser).forEach(pushId);
-      } else {
-        if (Array.isArray(currentUser.teamIds)) currentUser.teamIds.forEach(pushId);
-        pushId(currentUser.teamId);
-      }
-    }
-
-    if (typeof this._getVisibleTeamIdsForLimitedEvents === 'function') {
-      this._getVisibleTeamIdsForLimitedEvents().forEach(pushId);
-    }
-
-    // 建構用戶 teamId → teamName 的對照表，作為名稱 fallback
-    const userTeamNameMap = new Map();
-    if (currentUser) {
-      const uIds = Array.isArray(currentUser.teamIds) ? currentUser.teamIds : (currentUser.teamId ? [currentUser.teamId] : []);
-      const uNames = Array.isArray(currentUser.teamNames) ? currentUser.teamNames : (currentUser.teamName ? [currentUser.teamName] : []);
-      uIds.forEach((tid, idx) => {
-        const k = String(tid || '').trim();
-        const v = String(uNames[idx] || '').trim();
-        if (k && v) userTeamNameMap.set(k, v);
+    const canManageAllActivities = !!this._canManageAllActivities?.();
+    const resultMap = new Map();
+    teams.forEach(team => {
+      if (!team || team.active === false) return;
+      if (!canManageAllActivities && !this._isCurrentUserTeamStaffForEventScope(team)) return;
+      const id = String(team.id || team._docId || '').trim();
+      if (!id || resultMap.has(id)) return;
+      resultMap.set(id, {
+        id,
+        name: this._resolveTeamDisplayName(id, team.name || ''),
       });
-    }
-
-    const result = [];
-    ids.forEach(id => {
-      const team = activeTeamMap.get(id);
-      if (team) {
-        result.push({
-          id: String(team.id || id),
-          name: this._resolveTeamDisplayName(team.id || id, team.name || ''),
-        });
-        return;
-      }
-      // fallback：從用戶的 teamNames 取名稱，避免顯示「未知俱樂部」
-      const fallbackName = userTeamNameMap.get(id) || '';
-      result.push({ id, name: this._resolveTeamDisplayName(id, fallbackName) });
     });
 
+    const result = Array.from(resultMap.values());
     result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'zh-Hant'));
     return result;
   },
@@ -120,6 +99,107 @@ Object.assign(App, {
       .filter(t => t.id);
   },
 
+  _getExistingEventTeamOnlyScopeIds() {
+    if (!this._editEventId) return [];
+    const eventRecord = ApiService.getEvent?.(this._editEventId) || null;
+    if (!eventRecord?.teamOnly) return [];
+
+    const ids = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const value = String(id || '').trim();
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      ids.push(value);
+    };
+    if (Array.isArray(eventRecord.creatorTeamIds)) eventRecord.creatorTeamIds.forEach(pushId);
+    pushId(eventRecord.creatorTeamId);
+    return ids;
+  },
+
+  _isSameTeamOnlyScope(leftIds = [], rightIds = []) {
+    const normalize = (ids) => Array.from(new Set((Array.isArray(ids) ? ids : [ids])
+      .map(id => String(id || '').trim())
+      .filter(Boolean)))
+      .sort();
+    const left = normalize(leftIds);
+    const right = normalize(rightIds);
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  },
+
+  _isTeamOnlySelectionValidForSubmit(selectedTeams = []) {
+    if (this._canManageAllActivities?.()) return true;
+    const selectedIds = (Array.isArray(selectedTeams) ? selectedTeams : [])
+      .map(team => String(team?.id || '').trim())
+      .filter(Boolean);
+    if (this._editEventId) {
+      const eventRecord = ApiService.getEvent?.(this._editEventId) || null;
+      const existingIds = this._getExistingEventTeamOnlyScopeIds();
+      return !!eventRecord?.teamOnly
+        && existingIds.length > 0
+        && this._isSameTeamOnlyScope(selectedIds, existingIds);
+    }
+
+    if (selectedIds.length !== 1) return false;
+    const allowedIds = new Set(this._getTeamOnlyCandidateTeams().map(team => String(team.id || '').trim()));
+    return allowedIds.has(selectedIds[0]);
+  },
+
+  _canCreateTeamOnlyActivityForSubmit(selectedTeams = [], options = {}) {
+    if (this._editEventId) return true;
+
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    const currentUid = String(currentUser?.uid || '').trim();
+    if (!currentUid) return false;
+
+    const selectedIds = (Array.isArray(selectedTeams) ? selectedTeams : [])
+      .map(team => String(team?.id || '').trim())
+      .filter(Boolean);
+    const canManageAllActivities = !!this._canManageAllActivities?.();
+    const directory = ApiService.getTeamDirectory?.() || ApiService.getTeams?.() || [];
+    const selectedTeamRecord = selectedIds.length === 1
+      ? (directory.find(team => team && (
+        String(team.id || '').trim() === selectedIds[0]
+        || String(team._docId || '').trim() === selectedIds[0]
+      )) || ApiService.getTeam?.(selectedIds[0]) || null)
+      : null;
+    const hasExactStaffScope = selectedIds.length === 1
+      && this._isCurrentUserTeamStaffForEventScope(selectedTeamRecord);
+    const roleKey = String(
+      this._getCurrentActivityRoleKey?.()
+      || currentUser.role
+      || this.currentRole
+      || 'user'
+    ).trim().toLowerCase() || 'user';
+    const hasPermission = code => !!this.hasPermission?.(code);
+    const hasEventCreate = hasPermission('event.create');
+
+    if (roleKey === 'user') {
+      const hasTeamCreateEvent = hasPermission('team.create_event');
+      const hasCapability = code => (typeof this._hasUserActivityCapability === 'function'
+        ? !!this._hasUserActivityCapability(code)
+        : !!ApiService.hasRoleActivityCapability?.('user', code));
+      const hasBasicCreateCapability = hasCapability('user.activity.basic_create');
+      const hasAddonCapability = hasCapability('user.activity.addons_use');
+      const hasOnlyTeamScopedAddon = options.hasOnlyTeamScopedAddon !== false;
+      const directGrantPath = hasOnlyTeamScopedAddon
+        && hasEventCreate
+        && hasTeamCreateEvent
+        && hasExactStaffScope;
+      const addonCapabilityPath = hasAddonCapability
+        && (hasBasicCreateCapability || hasEventCreate)
+        && (canManageAllActivities || (hasTeamCreateEvent && hasExactStaffScope));
+      return directGrantPath || addonCapabilityPath;
+    }
+
+    const isCoachPlusRole = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(roleKey);
+    const hasCreateEntry = isCoachPlusRole
+      || hasPermission('activity.manage.entry')
+      || hasPermission('event.edit_all')
+      || hasEventCreate;
+    const hasAllowedScope = canManageAllActivities || roleKey === 'super_admin' || hasExactStaffScope;
+    return hasCreateEntry && hasAllowedScope;
+  },
   _setTeamSelectValues(select, teamIds = []) {
     if (!select) return;
     const selected = new Set((Array.isArray(teamIds) ? teamIds : [teamIds]).map(v => String(v || '').trim()).filter(Boolean));
@@ -131,11 +211,16 @@ Object.assign(App, {
   _populateTeamSelect(select, presetTeamIds = [], presetTeamNames = []) {
     if (!select) return [];
     const teams = this._getTeamOnlyCandidateTeams();
+    const canManageAllActivities = !!this._canManageAllActivities?.();
     const teamMap = new Map(teams.map(t => [String(t.id), t]));
     const normalizedPresetTeamIds = (Array.isArray(presetTeamIds) ? presetTeamIds : [presetTeamIds])
       .map(id => String(id || '').trim())
       .filter(Boolean);
     const presetNameHints = this._buildTeamNameHints(normalizedPresetTeamIds, presetTeamNames);
+    const existingScopeIds = this._getExistingEventTeamOnlyScopeIds();
+    const preserveExistingScope = !canManageAllActivities
+      && existingScopeIds.length > 0
+      && this._isSameTeamOnlyScope(normalizedPresetTeamIds, existingScopeIds);
 
     normalizedPresetTeamIds.forEach(id => {
       const v = String(id || '').trim();
@@ -152,24 +237,39 @@ Object.assign(App, {
         return;
       }
 
+      if (!canManageAllActivities && !existingScopeIds.includes(v)) return;
       teamMap.set(v, { id: v, name: this._resolveTeamDisplayName(v, hintedName) });
     });
 
-    const renderTeams = Array.from(teamMap.values()).map(team => {
+    const renderTeamSource = preserveExistingScope
+      ? existingScopeIds.map(id => teamMap.get(id)).filter(Boolean)
+      : Array.from(teamMap.values());
+    const renderTeams = renderTeamSource.map(team => {
       const teamId = String(team?.id || '').trim();
       const hintedName = presetNameHints.get(teamId) || '';
       return {
         ...team,
         id: teamId,
-        name: this._resolveTeamDisplayName(teamId, team?.name || hintedName),
+        name: this._resolveTeamDisplayName(teamId, preserveExistingScope ? hintedName : (team?.name || hintedName)),
       };
     }).filter(team => team.id);
 
-    select.multiple = true;
+    const selectedPresetTeamIds = (canManageAllActivities || preserveExistingScope)
+      ? normalizedPresetTeamIds
+      : normalizedPresetTeamIds.slice(0, 1);
+    select.multiple = canManageAllActivities || (preserveExistingScope && selectedPresetTeamIds.length > 1);
+    select.dataset.teamScopeLocked = preserveExistingScope ? '1' : '0';
     select.innerHTML = renderTeams.map(t =>
       `<option value="${t.id}" data-name="${escapeHTML(t.name || t.id)}">${escapeHTML(t.name || t.id)}</option>`
     ).join('');
-    this._setTeamSelectValues(select, normalizedPresetTeamIds);
+    this._setTeamSelectValues(select, selectedPresetTeamIds);
+    const teamOnlyToggle = document.getElementById('ce-team-only');
+    if (teamOnlyToggle) {
+      const lockCurrentEditScope = !!this._editEventId && !canManageAllActivities;
+      teamOnlyToggle.disabled = lockCurrentEditScope;
+      teamOnlyToggle.dataset.teamScopeLocked = lockCurrentEditScope ? '1' : '0';
+      select.dataset.teamScopeLocked = lockCurrentEditScope ? '1' : '0';
+    }
     if (this._getSelectedTeamValues(select).length === 0 && renderTeams.length === 1) {
       select.options[0].selected = true;
     }
@@ -183,13 +283,20 @@ Object.assign(App, {
   _setTeamOptionSelected(teamId, selected) {
     const select = document.getElementById('ce-team-select');
     if (!select) return;
+    if (select.dataset.teamScopeLocked === '1') return;
     const targetId = String(teamId || '').trim();
     if (!targetId) return;
     const option = Array.from(select.options || []).find(opt => String(opt.value || '').trim() === targetId);
     if (!option) return;
     const nextValue = !!selected;
-    if (option.selected === nextValue) return;
-    option.selected = nextValue;
+    if (nextValue && !select.multiple) {
+      Array.from(select.options || []).forEach(candidate => {
+        candidate.selected = candidate === option;
+      });
+    } else {
+      if (option.selected === nextValue) return;
+      option.selected = nextValue;
+    }
     select.dispatchEvent(new Event('change', { bubbles: true }));
   },
 
@@ -220,9 +327,11 @@ Object.assign(App, {
 
     picker.style.display = '';
     const selectedVals = this._getSelectedTeamValues(select);
+    const isScopeLocked = select.dataset.teamScopeLocked === '1';
+    search.disabled = isScopeLocked;
     chips.innerHTML = selectedVals.length > 0
       ? selectedVals.map(team => `
-          <button type="button" class="ce-team-chip" data-team-id="${escapeHTML(team.id)}" title="取消選擇 ${escapeHTML(team.name)}">
+          <button type="button" class="ce-team-chip" data-team-id="${escapeHTML(team.id)}" title="${isScopeLocked ? '限定俱樂部不可變更' : `取消選擇 ${escapeHTML(team.name)}`}"${isScopeLocked ? ' disabled aria-disabled="true"' : ''}>
             <span>${escapeHTML(team.name)}</span>
             <span class="ce-team-chip-remove">×</span>
           </button>
@@ -245,9 +354,11 @@ Object.assign(App, {
       const teamId = String(opt.value || '').trim();
       const teamName = String(opt.dataset?.name || opt.textContent || teamId);
       const checkedAttr = opt.selected ? ' checked' : '';
+      const inputType = select.multiple ? 'checkbox' : 'radio';
+      const disabledAttr = isScopeLocked ? ' disabled' : '';
       return `
         <label class="ce-team-item">
-          <input type="checkbox" data-team-id="${escapeHTML(teamId)}"${checkedAttr}>
+          <input type="${inputType}" name="ce-team-scope" data-team-id="${escapeHTML(teamId)}"${checkedAttr}${disabledAttr}>
           <span>${escapeHTML(teamName)}</span>
         </label>
       `;
@@ -268,7 +379,7 @@ Object.assign(App, {
       list.dataset.bound = '1';
       list.addEventListener('change', (ev) => {
         const input = ev.target instanceof HTMLInputElement ? ev.target : null;
-        if (!input || input.type !== 'checkbox') return;
+        if (!input || (input.type !== 'checkbox' && input.type !== 'radio')) return;
         this._setTeamOptionSelected(input.dataset.teamId, input.checked);
       });
     }
@@ -314,13 +425,12 @@ Object.assign(App, {
     const teams = this._getTeamOnlyCandidateTeams();
     if (select) select.style.display = 'none';
 
-    if (teams.length === 0) {
+    const selectedVals = this._resolveTeamOnlySelection();
+    if (teams.length === 0 && selectedVals.length === 0) {
       label.textContent = '已啟用：目前沒有可選俱樂部';
       this._renderTeamOnlyPicker();
       return;
     }
-
-    const selectedVals = this._resolveTeamOnlySelection();
     if (selectedVals.length === 0) {
       label.textContent = '已啟用：請至少選擇 1 支俱樂部';
       this._renderTeamOnlyPicker();
@@ -377,6 +487,12 @@ Object.assign(App, {
   bindTeamOnlyToggle() {
     const cb = document.getElementById('ce-team-only');
     const select = document.getElementById('ce-team-select');
+    const lockCurrentEditScope = !!this._editEventId && !this._canManageAllActivities?.();
+    if (cb) {
+      cb.disabled = lockCurrentEditScope;
+      cb.dataset.teamScopeLocked = lockCurrentEditScope ? '1' : '0';
+    }
+    if (select) select.dataset.teamScopeLocked = lockCurrentEditScope ? '1' : '0';
     this._bindTeamOnlyPickerEvents();
     if (cb && !cb.dataset.bound) {
       cb.dataset.bound = '1';

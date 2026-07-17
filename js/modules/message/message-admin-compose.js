@@ -30,6 +30,7 @@ Object.assign(App, {
     if (teamDd) teamDd.classList.remove('open');
     this._msgMatchedUser = null;
     this._msgMatchedTeam = null;
+    this._msgUserSearchSeq += 1;
     document.body.appendChild(el);
     el.style.webkitBackdropFilter = 'blur(10px)';
     el.style.display = 'flex';
@@ -38,12 +39,14 @@ Object.assign(App, {
   hideMsgCompose() {
     const el = document.getElementById('msg-compose');
     if (el) el.style.display = 'none';
+    this._msgUserSearchSeq += 1;
     this._msgTeamSearchSeq += 1;
   },
 
   // ── 發送對象切換 ──
   onMsgTargetChange() {
     const val = document.getElementById('msg-target').value;
+    this._msgUserSearchSeq += 1;
     const indRow = document.getElementById('msg-individual-row');
     const teamRow = document.getElementById('msg-team-row');
     if (indRow) indRow.style.display = val === 'individual' ? '' : 'none';
@@ -54,27 +57,41 @@ Object.assign(App, {
   // ── 搜尋用戶 (UID/暱稱) ── 模糊搜尋 + 下拉選單
   _msgMatchedUser: null,
   _msgMatchedTeam: null,
+  _msgUserSearchSeq: 0,
   _msgTeamSearchSeq: 0,
 
-  searchMsgTarget() {
+  async searchMsgTarget(options = {}) {
     const input = document.getElementById('msg-individual-target').value.trim();
     const dropdown = document.getElementById('msg-user-dropdown');
     const result = document.getElementById('msg-target-result');
     if (!result) return;
     if (!input) {
+      this._msgUserSearchSeq += 1;
       result.textContent = '';
       this._msgMatchedUser = null;
       if (dropdown) dropdown.classList.remove('open');
       return;
     }
+    if (this._msgMatchedUser
+      && String(this._msgMatchedUser.name || '').trim() !== input
+      && String(this._msgMatchedUser.uid || '').trim() !== input) {
+      this._msgMatchedUser = null;
+      result.textContent = '';
+    }
+    const requestSeq = Number(options.requestSeq) || ++this._msgUserSearchSeq;
     const q = input.toLowerCase();
-    const users = ApiService.getAdminUsers();
+    const users = ApiService.getUserDirectory?.() || [];
+    const hasCachedUsers = users.length > 0;
     const matches = users.filter(u =>
       (u.name && u.name.toLowerCase().includes(q)) || (u.uid && u.uid.toLowerCase().includes(q))
     ).slice(0, 8);
 
     if (dropdown) {
-      if (matches.length) {
+      if (matches.length === 0 && options.skipRefresh !== true) {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u8f09\u5165\u7528\u6236\u8cc7\u6599\u2026</div>';
+        if (hasCachedUsers) dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u6b63\u5728\u66f4\u65b0\u7528\u6236\u8cc7\u6599\u2026</div>';
+        dropdown.classList.add('open');
+      } else if (matches.length) {
         const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
         dropdown.innerHTML = matches.map(u => {
           const roleLabel = roleLabels[u.role]?.label || u.role || '';
@@ -88,7 +105,7 @@ Object.assign(App, {
         dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
           item.addEventListener('mousedown', (ev) => {
             ev.preventDefault();
-            this._selectMsgUser(item.dataset.uid);
+            void this._selectMsgUser(item.dataset.uid, { requestSeq, query: q });
           });
         });
         dropdown.classList.add('open');
@@ -97,10 +114,11 @@ Object.assign(App, {
         dropdown.classList.add('open');
       }
     }
+
     // 即時精準匹配提示
     const exact = users.find(u => u.uid === input || u.name === input);
     if (exact) {
-      this._msgMatchedUser = exact;
+      this._msgMatchedUser = null;
       const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(exact.uid) : exact.uid;
       const suffix = uidLabel ? `（${escapeHTML(uidLabel)}）` : '';
       result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 找到：${escapeHTML(exact.name)}${suffix}・ ${escapeHTML(exact.role)}</span>`;
@@ -108,23 +126,84 @@ Object.assign(App, {
       this._msgMatchedUser = null;
       result.textContent = '';
     }
+
+    if (options.skipRefresh === true) return;
+
+    let directoryReady = hasCachedUsers;
+    try {
+      if (typeof ApiService.ensureUserDirectoryReady === 'function') {
+        directoryReady = await ApiService.ensureUserDirectoryReady();
+      }
+    } catch (err) {
+      console.warn('[MessageAdmin] user directory load failed:', err);
+      directoryReady = false;
+    }
+
+    const currentInput = document.getElementById('msg-individual-target');
+    const compose = document.getElementById('msg-compose');
+    if (requestSeq !== this._msgUserSearchSeq
+      || String(currentInput?.value || '').trim().toLowerCase() !== q
+      || !compose
+      || compose.style.display === 'none'
+      || document.getElementById('msg-target')?.value !== 'individual') return;
+
+    const refreshedUsers = ApiService.getUserDirectory?.() || [];
+    const hasRefreshedMatch = refreshedUsers.some(u =>
+      (u.name && u.name.toLowerCase().includes(q)) || (u.uid && u.uid.toLowerCase().includes(q))
+    );
+    if (!directoryReady && !hasRefreshedMatch) {
+      if (dropdown) {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u7528\u6236\u8cc7\u6599\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u91cd\u8a66</div>';
+        dropdown.classList.add('open');
+      }
+      return;
+    }
+    return this.searchMsgTarget({ skipRefresh: true, requestSeq });
   },
 
-  _selectMsgUser(uid) {
-    const users = ApiService.getAdminUsers();
-    const match = users.find(u => u.uid === uid);
-    if (!match) return;
-    this._msgMatchedUser = match;
+  async _selectMsgUser(uid, options = {}) {
+    const safeUid = String(uid || '').trim();
+    const users = ApiService.getUserDirectory?.() || [];
+    const cachedMatch = users.find(user => user.uid === safeUid);
+    if (!cachedMatch) return false;
+
     const input = document.getElementById('msg-individual-target');
+    const requestSeq = Number.isFinite(Number(options.requestSeq))
+      ? Number(options.requestSeq)
+      : this._msgUserSearchSeq;
+    const query = String(options.query ?? input?.value ?? '').trim().toLowerCase();
+    const verification = await ApiService.verifyUserDirectorySelection?.([safeUid]);
+    const compose = document.getElementById('msg-compose');
+    if (requestSeq !== this._msgUserSearchSeq
+      || String(input?.value || '').trim().toLowerCase() !== query
+      || !compose
+      || compose.style.display === 'none'
+      || document.getElementById('msg-target')?.value !== 'individual') return false;
+
+    const match = verification?.users?.find(user => user.uid === safeUid);
+    if (!verification?.ok || !match) {
+      this._msgMatchedUser = null;
+      const result = document.getElementById('msg-target-result');
+      if (result) result.textContent = '';
+      this.showToast(verification?.reason === 'missing-users'
+        ? '\u6b64\u7528\u6236\u76ee\u524d\u7121\u6cd5\u9078\u53d6\uff0c\u8acb\u91cd\u65b0\u641c\u5c0b'
+        : '\u7528\u6236\u9a57\u8b49\u5931\u6557\uff0c\u8acb\u6aa2\u67e5\u7db2\u8def\u5f8c\u518d\u8a66');
+      return false;
+    }
+
+    this._msgUserSearchSeq += 1;
+    this._msgMatchedUser = match;
     if (input) input.value = match.name;
     const dropdown = document.getElementById('msg-user-dropdown');
     if (dropdown) dropdown.classList.remove('open');
     const result = document.getElementById('msg-target-result');
     if (result) {
       const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(match.uid) : match.uid;
-      const suffix = uidLabel ? `（${escapeHTML(uidLabel)}）` : '';
-      result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 已選取：${escapeHTML(match.name)}${suffix}・ ${escapeHTML(match.role)}</span>`;
+      const suffix = uidLabel ? '\uff08' + escapeHTML(uidLabel) + '\uff09' : '';
+      result.innerHTML = '<span style="color:var(--success)" data-no-translate>&#10003; \u5df2\u9078\u53d6\uff1a'
+        + escapeHTML(match.name) + suffix + '\u30fb ' + escapeHTML(match.role) + '</span>';
     }
+    return true;
   },
 
   // ── 搜尋俱樂部（模糊搜尋 + 下拉選單）──
@@ -160,9 +239,9 @@ Object.assign(App, {
         dropdown.classList.add('open');
       } else if (matches.length) {
         dropdown.innerHTML = matches.map(t =>
-          `<div class="ce-delegate-item" data-tid="${t.id}" data-tname="${escapeHTML(t.name)}">
+          `<div class="ce-delegate-item" data-tid="${escapeHTML(String(t.id || ''))}" data-tname="${escapeHTML(t.name)}">
             <span class="ce-delegate-item-name">${escapeHTML(t.name)}</span>
-            <span class="ce-delegate-item-meta">${t.members || 0}人 · ${escapeHTML(t.region || '')}</span>
+            <span class="ce-delegate-item-meta">${escapeHTML(String(t.members || 0))}人 · ${escapeHTML(t.region || '')}</span>
           </div>`
         ).join('');
         dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
@@ -221,8 +300,28 @@ Object.assign(App, {
     if (result) result.innerHTML = `<span style="color:var(--success)">&#10003; 已選取：${escapeHTML(teamName)}</span>`;
   },
 
+  _getMessageComposeSignature() {
+    const compose = document.getElementById('msg-compose');
+    const fields = typeof compose?.querySelectorAll === 'function'
+      ? Array.from(compose.querySelectorAll('input, select, textarea')).map((field) => ({
+        id: field.id || '',
+        type: field.type || '',
+        value: field.multiple
+          ? Array.from(field.selectedOptions || []).map(option => String(option.value || ''))
+          : (field.type === 'checkbox' || field.type === 'radio'
+            ? !!field.checked
+            : String(field.value || '')),
+      }))
+      : [];
+    return JSON.stringify({
+      fields,
+      userUid: String(this._msgMatchedUser?.uid || ''),
+      teamId: String(this._msgMatchedTeam?.id || ''),
+    });
+  },
+
   // ── 發送信件（實裝） ──
-  sendMessage() {
+  async sendMessage() {
     if (!this.hasPermission('admin.messages.compose') && !this.hasPermission('admin.messages.entry')) { this.showToast('權限不足'); return; }
     const title = document.getElementById('msg-title')?.value.trim();
     if (!title) { this.showToast('請輸入信件標題'); return; }
@@ -234,6 +333,7 @@ Object.assign(App, {
     const catNames = { system: '系統', activity: '活動', private: '私訊' };
     const targetType = document.getElementById('msg-target')?.value || 'all';
     const schedule = document.getElementById('msg-schedule')?.value;
+    const composeSignature = this._getMessageComposeSignature();
 
     // targetType → label / role 映射
     const targetLabelMap = {
@@ -267,9 +367,29 @@ Object.assign(App, {
         this.showToast('請先搜尋並確認目標用戶');
         return;
       }
-      targetLabel = this._msgMatchedUser.name;
-      targetUid = this._msgMatchedUser.uid;
-      targetName = this._msgMatchedUser.name;
+      const selectedUid = String(this._msgMatchedUser.uid || '').trim();
+      const submitSeq = ++this._msgUserSearchSeq;
+      const verification = await ApiService.verifyUserDirectorySelection?.([selectedUid]);
+      const compose = document.getElementById('msg-compose');
+      if (submitSeq !== this._msgUserSearchSeq
+        || !compose
+        || compose.style.display === 'none'
+        || document.getElementById('msg-target')?.value !== 'individual'
+        || String(this._msgMatchedUser?.uid || '').trim() !== selectedUid
+        || this._getMessageComposeSignature() !== composeSignature) return;
+
+      const verifiedUser = verification?.users?.find(user => user.uid === selectedUid);
+      if (!verification?.ok || !verifiedUser) {
+        this._msgMatchedUser = null;
+        this.showToast(verification?.reason === 'missing-users'
+          ? '目標用戶已無法接收訊息，請重新選擇'
+          : '無法驗證目標用戶，請檢查網路後再試');
+        return;
+      }
+      this._msgMatchedUser = verifiedUser;
+      targetLabel = verifiedUser.name;
+      targetUid = verifiedUser.uid;
+      targetName = verifiedUser.name;
     }
 
     // 發送人：LINE 暱稱優先

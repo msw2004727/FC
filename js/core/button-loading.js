@@ -19,7 +19,7 @@ Object.assign(App, {
    * @param {() => Promise} asyncFn - 實際非同步寫入函式
    * @returns {Promise} asyncFn 的結果,失敗時 rethrow
    */
-  _withButtonLoading(btnOrSelector, loadingText, asyncFn) {
+  _withButtonLoading(btnOrSelector, loadingText, asyncFn, options = {}) {
     const btn = typeof btnOrSelector === 'string'
       ? document.querySelector(btnOrSelector)
       : btnOrSelector;
@@ -51,6 +51,7 @@ Object.assign(App, {
     return Promise.resolve().then(() => asyncFn()).finally(() => {
       // 即使 DOM 被換掉(例如 modal 重渲染)也不要拋
       try {
+        if (typeof options.shouldRestore === 'function' && options.shouldRestore() === false) return;
         if (btn.isConnected) {
           btn.dataset.btnLoading = '';
           btn.disabled = originalDisabled;

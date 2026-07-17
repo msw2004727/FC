@@ -8,6 +8,96 @@ Object.assign(App, {
   _editTournamentId: null,
   _tournamentFormMode: 'create',
   _tournamentFormEditId: null,
+  _tournamentFormGeneration: 0,
+  _tournamentSubmitCounter: 0,
+  _tournamentSubmitToken: null,
+
+  _getTournamentFormSignature() {
+    const modal = document.getElementById('tournament-form-modal');
+    const fields = typeof modal?.querySelectorAll === 'function'
+      ? Array.from(modal.querySelectorAll('input, select, textarea')).map((field) => ({
+        id: field.id || '',
+        name: field.name || '',
+        type: field.type || '',
+        value: field.multiple
+          ? Array.from(field.selectedOptions || []).map(option => String(option.value || ''))
+          : (field.type === 'checkbox' || field.type === 'radio'
+            ? !!field.checked
+            : String(field.value || '')),
+      }))
+      : [];
+    const readImage = (id) => {
+      const preview = document.getElementById(id);
+      return preview?.querySelector?.('img')?.src || preview?.style?.backgroundImage || '';
+    };
+    const state = this._tournamentFormState || {};
+    return JSON.stringify({
+      fields,
+      people: ['delegates', 'referees', 'refereeHeads'].map(key =>
+        (state[key] || []).map(person => String(person?.uid || '').trim())),
+      matchDates: [...(state.matchDates || [])],
+      venues: [...(state.venues || [])],
+      cover: readImage('tf-upload-preview'),
+      content: readImage('tf-content-upload-preview'),
+    });
+  },
+
+  _beginTournamentSubmit(mode, editId = '') {
+    if (this._tournamentSubmitToken != null) return null;
+    const token = ++this._tournamentSubmitCounter;
+    const context = {
+      token,
+      generation: Number(this._tournamentFormGeneration || 0),
+      mode: String(mode || ''),
+      editId: String(editId || ''),
+      authUid: String(ApiService.getCurrentUser?.()?.uid || ''),
+      signature: this._getTournamentFormSignature(),
+    };
+    this._tournamentSubmitToken = token;
+    const modal = document.getElementById('tournament-form-modal');
+    if (modal) {
+      modal.inert = true;
+      modal.setAttribute?.('aria-busy', 'true');
+    }
+    return context;
+  },
+
+  _isTournamentSubmitSessionCurrent(context) {
+    if (!context || this._tournamentSubmitToken !== context.token) return false;
+    if (Number(this._tournamentFormGeneration || 0) !== context.generation) return false;
+    if (String(this._tournamentFormMode || '') !== context.mode) return false;
+    if (String(this._tournamentFormEditId || '') !== context.editId) return false;
+    if (String(ApiService.getCurrentUser?.()?.uid || '') !== context.authUid) return false;
+    const modal = document.getElementById('tournament-form-modal');
+    return !modal || !!modal.classList?.contains('open');
+  },
+
+  _isTournamentSubmitCurrent(context) {
+    return this._isTournamentSubmitSessionCurrent(context)
+      && this._getTournamentFormSignature() === context.signature;
+  },
+
+  _runTournamentSubmit(context, loadingText, task) {
+    const promise = this._withButtonLoading('#tf-save-btn', loadingText, async () => {
+      if (!this._isTournamentSubmitCurrent(context)) return { ok: false, reason: 'stale' };
+      if (typeof this._verifyTournamentPeopleForSubmit === 'function'
+        && !await this._verifyTournamentPeopleForSubmit(context)) return { ok: false, reason: 'people-verification' };
+      if (!this._isTournamentSubmitCurrent(context)) return { ok: false, reason: 'stale' };
+      return task();
+    }, {
+      shouldRestore: () => this._tournamentSubmitToken === context.token,
+    });
+    return Promise.resolve(promise).finally(() => {
+      if (this._tournamentSubmitToken === context.token) {
+        this._tournamentSubmitToken = null;
+        const modal = document.getElementById('tournament-form-modal');
+        if (modal) {
+          modal.inert = false;
+          modal.removeAttribute?.('aria-busy');
+        }
+      }
+    });
+  },
 
   switchTournamentManageTab(tab) {
     this._tmActiveTab = tab;
@@ -109,6 +199,12 @@ Object.assign(App, {
   //  Mode-Switching (unified modal)
   // ══════════════════════════════════
   _openTournamentFormModal(mode, tournamentId) {
+    if (this._tournamentSubmitToken != null) {
+      this.showToast?.('賽事資料儲存中，請稍候');
+      return false;
+    }
+    this._tournamentFormGeneration = Number(this._tournamentFormGeneration || 0) + 1;
+    this._tournamentSubmitToken = null;
     const title = document.getElementById('tf-modal-title');
     const btn = document.getElementById('tf-save-btn');
     if (mode === 'create') {
@@ -121,6 +217,13 @@ Object.assign(App, {
       if (btn) { btn.textContent = '儲存變更'; btn.onclick = () => App.handleSaveEditTournament(); }
       this._tournamentFormMode = 'edit';
       this._tournamentFormEditId = tournamentId;
+    }
+    if (btn) {
+      btn.dataset.btnLoading = '';
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.style.opacity = '';
+      btn.removeAttribute?.('aria-busy');
     }
     // Clear errors and bind focus-to-clear-error listeners
     this._tfClearErrors();
@@ -336,7 +439,9 @@ Object.assign(App, {
       this.showToast('報名開始時間不能晚於或等於截止時間。'); return;
     }
 
-    return this._withButtonLoading('#tf-save-btn', '建立中...', async () => {
+    const submitContext = this._beginTournamentSubmit('create', '');
+    if (!submitContext) return;
+    return this._runTournamentSubmit(submitContext, '建立中...', async () => {
 
     const createCoverPreview = document.getElementById('tf-upload-preview');
     const createCoverImage = createCoverPreview?.querySelector('img')?.src || null;
@@ -405,11 +510,14 @@ Object.assign(App, {
     } catch (err) {
       this._showTournamentActionError?.('建立賽事', err); return;
     }
+    if (!this._isTournamentSubmitSessionCurrent(submitContext)) {
+      return { ok: true, reason: 'stale-after-write' };
+    }
     ApiService._writeOpLog('tourn_create', '建立賽事', `建立「${createName}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
-    this.closeModal();
+    this.closeModal({ allowSubmitting: true });
     this.showToast(`賽事「${createName}」已建立。`);
     document.getElementById('tf-name').value = '';
     document.getElementById('tf-region').value = '';
@@ -443,7 +551,7 @@ Object.assign(App, {
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);
 
-    });  // _withButtonLoading
+    });  // _runTournamentSubmit
   },
 
   // ══════════════════════════════════

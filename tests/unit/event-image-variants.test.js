@@ -35,6 +35,6 @@ describe('activity image variants', () => {
     expect(homeNextSource).toContain("_getEventImageUrl?.(event, 'homeNext')");
     expect(detailSource).toContain("_getEventImageUrl?.(eventRecord, 'cover')");
     expect(hotSource).toContain("_getEventImageUrl?.(e, 'cover')");
-    expect(timelineSource).toContain("_getEventImageUrl?.(e, 'cover')");
+    expect(timelineSource).toContain("_getEventImageUrl?.(event, 'cover')");
   });
 });

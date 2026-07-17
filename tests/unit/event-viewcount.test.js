@@ -1,155 +1,327 @@
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
 /**
  * 活動瀏覽數（viewCount）— unit tests
  *
- * Extracted from:
- *   - js/modules/event/event-detail.js (_incrementEventViewCount)
- *   - firestore.rules (isViewCountIncrementOnly)
- *
- * 重點驗證：
- *   - localStorage 同日去重 key 格式（本地時區 YYYY-MM-DD，非 UTC）
- *   - IP 比對 rate limit 邏輯
- *   - Rules 規則：只允許 viewCount +1、拒絕 -1、拒絕同時改其他欄位
- *   - 舊活動無 viewCount 欄位時的 increment 行為
+ * 驗證 event detail 使用受驗證 callable、後端回傳權威數字、
+ * 同一頁併發去重，以及跨活動與登入身分切換時不誤更新畫面。
  */
 
-// ─── 從 event-detail.js 抽取 ───
-function buildViewCountLocalKey(eventId, date = new Date()) {
-  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return `view_${eventId}_${today}`;
-}
+describe('ViewCount server idempotency contract', () => {
+  test('client uses the callable without a localStorage marker or direct Firestore increment', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../../js/modules/event/event-detail.js'),
+      'utf8'
+    );
+    const methodStart = source.indexOf('  async _incrementEventViewCount(eventId, options = {}) {');
+    const methodEnd = source.indexOf('\n\n  _renderEventLogButton', methodStart);
+    const methodSource = source.slice(methodStart, methodEnd);
 
-// ─── Rules: isViewCountIncrementOnly 的行為模擬 ───
-function isViewCountIncrementOnly({ affectedKeys, newViewCount, oldViewCount }) {
-  // affectedKeys = request.resource.data.diff(resource.data).affectedKeys()
-  // hasOnly(['viewCount'])
-  if (!Array.isArray(affectedKeys) || affectedKeys.length !== 1 || affectedKeys[0] !== 'viewCount') {
-    return false;
+    expect(methodSource).toContain("httpsCallable?.('incrementEventViewCount')");
+    expect(methodSource).not.toContain('localStorage');
+    expect(methodSource).not.toContain('FieldValue.increment');
+  });
+});
+
+describe('ViewCount callable event detail flow', () => {
+  function createHarness() {
+    const order = [];
+    const event = { id: 'event-1', _docId: 'event-doc-1', viewCount: 3 };
+    const events = new Map([
+      ['event-1', event],
+      ['event-2', { id: 'event-2', _docId: 'event-doc-2', viewCount: 12 }],
+    ]);
+    const viewCountSpan = { textContent: '' };
+    const ensureAuthReadyForWrite = jest.fn(async () => {
+      order.push('auth');
+      return true;
+    });
+    const authState = { currentUser: { uid: 'viewer-1' } };
+    const callable = jest.fn(async () => {
+      order.push('callable');
+      return {
+        data: {
+          incremented: true,
+          viewCount: event.viewCount + 1,
+        },
+      };
+    });
+    const httpsCallable = jest.fn(name => (
+      name === 'incrementEventViewCount' ? callable : null
+    ));
+    const ensureFirebaseFunctionsSdk = jest.fn(async () => ({ httpsCallable }));
+    const storage = new Map();
+    const localStorage = {
+      getItem: jest.fn(key => storage.get(key) || null),
+      setItem: jest.fn((key, value) => {
+        order.push('cache');
+        storage.set(key, value);
+      }),
+    };
+    const warn = jest.fn();
+    const context = {
+      App: {
+        currentPage: 'page-activity-detail',
+        _currentDetailEventId: 'event-1',
+        _eventDetailRequestSeq: 1,
+      },
+      ApiService: { getEvent: jest.fn(eventId => events.get(eventId) || null) },
+      FirebaseService: { ensureAuthReadyForWrite },
+      ensureFirebaseFunctionsSdk,
+      firebase: { auth: () => authState },
+      localStorage,
+      document: {
+        getElementById: jest.fn(id => (
+          id === 'detail-view-count-num' ? viewCountSpan : null
+        )),
+      },
+      console: { warn },
+      Date,
+      Map,
+      Set,
+      String,
+      Object,
+      Number,
+      Error,
+    };
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../../js/modules/event/event-detail.js'),
+      'utf8'
+    );
+    const methodStart = source.indexOf(
+      '  async _incrementEventViewCount(eventId, options = {}) {'
+    );
+    const methodEnd = source.indexOf('\n\n  _renderEventLogButton', methodStart);
+    expect(methodStart).toBeGreaterThan(-1);
+    expect(methodEnd).toBeGreaterThan(methodStart);
+    vm.createContext(context);
+    vm.runInContext(
+      'Object.assign(App, {\n' + source.slice(methodStart, methodEnd) + '\n});',
+      context
+    );
+    return {
+      App: context.App,
+      authState,
+      callable,
+      ensureAuthReadyForWrite,
+      ensureFirebaseFunctionsSdk,
+      event,
+      events,
+      httpsCallable,
+      localStorage,
+      order,
+      viewCountSpan,
+      warn,
+    };
   }
-  // request.resource.data.viewCount == resource.data.get('viewCount', 0) + 1
-  const expected = (oldViewCount || 0) + 1;
-  return newViewCount === expected;
-}
 
-// ═══════════════════════════════════════════════════════════════════
-// Tests
-// ═══════════════════════════════════════════════════════════════════
+  test('starts only after the final detail guard and forwards requestSeq', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../../js/modules/event/event-detail.js'),
+      'utf8'
+    );
+    const showStart = source.indexOf('  async showEventDetail(id, options = {}) {');
+    const showEnd = source.indexOf('\n\n  _renderGroupedWaitlistSection', showStart);
+    const showSource = source.slice(showStart, showEnd);
+    const finalGuardIndex = showSource.indexOf(
+      'const finalDetailGuard = this._isCurrentEventDetailPatch'
+    );
+    const incrementIndex = showSource.indexOf(
+      'this._incrementEventViewCount?.(id, { requestSeq });'
+    );
 
-describe('ViewCount — localStorage key 格式', () => {
-  test('台灣時區日期格式化正確', () => {
-    const key = buildViewCountLocalKey('ce_123', new Date(2026, 3, 20, 18, 0));
-    // 2026-04-20（注意 Month 0-indexed）
-    expect(key).toBe('view_ce_123_2026-04-20');
+    expect(showStart).toBeGreaterThan(-1);
+    expect(showEnd).toBeGreaterThan(showStart);
+    expect(finalGuardIndex).toBeGreaterThan(-1);
+    expect(incrementIndex).toBeGreaterThan(finalGuardIndex);
+    expect(showSource.slice(finalGuardIndex, incrementIndex))
+      .toContain('if (!finalDetailGuard.ok)');
   });
 
-  test('月份 / 日期補 0', () => {
-    const key = buildViewCountLocalKey('ce_456', new Date(2026, 0, 5));
-    expect(key).toBe('view_ce_456_2026-01-05');
+  test('uses the authenticated callable and applies the authoritative count without a client marker', async () => {
+    const harness = createHarness();
+
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.ensureAuthReadyForWrite).toHaveBeenCalledWith('viewer-1');
+    expect(harness.ensureFirebaseFunctionsSdk).toHaveBeenCalledWith('asia-east1');
+    expect(harness.httpsCallable).toHaveBeenCalledWith('incrementEventViewCount');
+    expect(harness.callable).toHaveBeenCalledWith({
+      eventId: 'event-1',
+      docId: 'event-doc-1',
+    });
+    expect(harness.order).toEqual(['auth', 'callable']);
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
+    expect(harness.event.viewCount).toBe(4);
+    expect(harness.viewCountSpan.textContent).toBe('4');
   });
 
-  test('跨年邊界', () => {
-    const key = buildViewCountLocalKey('ce_789', new Date(2026, 11, 31, 23, 59));
-    expect(key).toBe('view_ce_789_2026-12-31');
+  test('always asks the server for the authoritative idempotent count', async () => {
+    const harness = createHarness();
+    harness.localStorage.getItem.mockReturnValue('1');
+    harness.callable.mockResolvedValueOnce({
+      data: { incremented: false, viewCount: 9 },
+    });
+
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.callable).toHaveBeenCalledTimes(1);
+    expect(harness.event.viewCount).toBe(9);
+    expect(harness.viewCountSpan.textContent).toBe('9');
   });
 
-  test('同日不同時間 → 同一 key', () => {
-    const morning = buildViewCountLocalKey('ce_abc', new Date(2026, 3, 20, 6, 0));
-    const evening = buildViewCountLocalKey('ce_abc', new Date(2026, 3, 20, 23, 59));
-    expect(morning).toBe(evening);
+  test('repeated completed calls can refresh the server-idempotent count', async () => {
+    const harness = createHarness();
+
+    harness.callable
+      .mockResolvedValueOnce({ data: { incremented: true, viewCount: 4 } })
+      .mockResolvedValueOnce({ data: { incremented: false, viewCount: 4 } });
+
+    await harness.App._incrementEventViewCount('event-1');
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.callable).toHaveBeenCalledTimes(2);
+    expect(harness.event.viewCount).toBe(4);
+    expect(harness.warn).not.toHaveBeenCalled();
+  });
+  test('does not call the backend when auth readiness fails', async () => {
+    const harness = createHarness();
+    harness.ensureAuthReadyForWrite.mockResolvedValue(false);
+
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.callable).not.toHaveBeenCalled();
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
+    expect(harness.event.viewCount).toBe(3);
   });
 
-  test('同裝置不同活動 → 不同 key', () => {
-    const date = new Date(2026, 3, 20);
-    expect(buildViewCountLocalKey('ce_111', date)).not.toBe(buildViewCountLocalKey('ce_222', date));
-  });
-});
+  test('does not call the backend when the signed-in uid changes while auth settles', async () => {
+    const harness = createHarness();
+    harness.ensureAuthReadyForWrite.mockImplementation(async () => {
+      harness.authState.currentUser = { uid: 'viewer-2' };
+      return true;
+    });
 
-describe('ViewCount — Rules: isViewCountIncrementOnly', () => {
-  test('合法：只改 viewCount 且 +1', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount'],
-      newViewCount: 6,
-      oldViewCount: 5,
-    })).toBe(true);
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.callable).not.toHaveBeenCalled();
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
   });
 
-  test('舊活動無 viewCount 欄位（oldViewCount=undefined）→ +1 = 1 合法', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount'],
-      newViewCount: 1,
-      oldViewCount: undefined,
-    })).toBe(true);
+  test('failed or invalid callable responses can retry without client-side suppression', async () => {
+    const harness = createHarness();
+    harness.callable
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce({ data: { incremented: 'yes', viewCount: 4 } });
+
+    await harness.App._incrementEventViewCount('event-1');
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
+    expect(harness.event.viewCount).toBe(3);
+
+    harness.callable.mockImplementationOnce(async () => ({
+      data: { incremented: true, viewCount: 4 },
+    }));
+    await harness.App._incrementEventViewCount('event-1');
+
+    expect(harness.callable).toHaveBeenCalledTimes(3);
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
+    expect(harness.event.viewCount).toBe(4);
   });
 
-  test('拒絕：減 1', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount'],
-      newViewCount: 4,
-      oldViewCount: 5,
-    })).toBe(false);
+  test('does not patch event B when event A callable resolves late', async () => {
+    const harness = createHarness();
+    let resolveCallable;
+    let markStarted;
+    const started = new Promise(resolve => { markStarted = resolve; });
+    harness.callable.mockImplementation(() => new Promise(resolve => {
+      harness.order.push('callable');
+      resolveCallable = resolve;
+      markStarted();
+    }));
+
+    const incrementA = harness.App._incrementEventViewCount(
+      'event-1',
+      { requestSeq: 1 }
+    );
+    await started;
+
+    harness.App._eventDetailRequestSeq = 2;
+    harness.App._currentDetailEventId = 'event-2';
+    harness.viewCountSpan.textContent = '12';
+    resolveCallable({ data: { incremented: true, viewCount: 4 } });
+    await incrementA;
+
+    expect(harness.event.viewCount).toBe(4);
+    expect(harness.events.get('event-2').viewCount).toBe(12);
+    expect(harness.viewCountSpan.textContent).toBe('12');
   });
 
-  test('拒絕：+ 2（試圖加兩次）', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount'],
-      newViewCount: 7,
-      oldViewCount: 5,
-    })).toBe(false);
+  test('deduplicates concurrent calls for the same viewer and event', async () => {
+    const harness = createHarness();
+    let resolveAuth;
+    harness.ensureAuthReadyForWrite.mockImplementation(() => new Promise(resolve => {
+      resolveAuth = resolve;
+    }));
+
+    const first = harness.App._incrementEventViewCount('event-1');
+    const second = harness.App._incrementEventViewCount('event-1');
+    expect(harness.ensureAuthReadyForWrite).toHaveBeenCalledTimes(1);
+
+    resolveAuth(true);
+    await Promise.all([first, second]);
+
+    expect(harness.callable).toHaveBeenCalledTimes(1);
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
   });
 
-  test('拒絕：同時改其他欄位（viewCount + title）', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount', 'title'],
-      newViewCount: 6,
-      oldViewCount: 5,
-    })).toBe(false);
+  test('A to B to A lets the newest A request patch the shared result', async () => {
+    const harness = createHarness();
+    let resolveCallable;
+    let markStarted;
+    const started = new Promise(resolve => { markStarted = resolve; });
+    harness.callable.mockImplementation(() => new Promise(resolve => {
+      harness.order.push('callable');
+      resolveCallable = resolve;
+      markStarted();
+    }));
+
+    const firstA = harness.App._incrementEventViewCount(
+      'event-1',
+      { requestSeq: 1 }
+    );
+    await started;
+
+    harness.App._currentDetailEventId = 'event-2';
+    harness.App._eventDetailRequestSeq = 2;
+    harness.App._currentDetailEventId = 'event-1';
+    harness.App._eventDetailRequestSeq = 3;
+    harness.viewCountSpan.textContent = '3';
+
+    const latestA = harness.App._incrementEventViewCount(
+      'event-1',
+      { requestSeq: 3 }
+    );
+    resolveCallable({ data: { incremented: true, viewCount: 4 } });
+    await Promise.all([firstA, latestA]);
+
+    expect(harness.callable).toHaveBeenCalledTimes(1);
+    expect(harness.event.viewCount).toBe(4);
+    expect(harness.viewCountSpan.textContent).toBe('4');
   });
 
-  test('拒絕：沒改 viewCount（只改其他欄位）', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['title'],
-      newViewCount: 5,
-      oldViewCount: 5,
-    })).toBe(false);
-  });
+  test('uses separate server identities after the signed-in viewer changes', async () => {
+    const harness = createHarness();
 
-  test('拒絕：空 affectedKeys', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: [],
-      newViewCount: 5,
-      oldViewCount: 5,
-    })).toBe(false);
-  });
+    await harness.App._incrementEventViewCount('event-1');
+    harness.authState.currentUser = { uid: 'viewer-2' };
+    await harness.App._incrementEventViewCount('event-1');
 
-  test('拒絕：不改值但 affectedKeys=[viewCount]', () => {
-    expect(isViewCountIncrementOnly({
-      affectedKeys: ['viewCount'],
-      newViewCount: 5,
-      oldViewCount: 5,
-    })).toBe(false);
-  });
-});
-
-describe('ViewCount — 整體邏輯防護', () => {
-  test('連續 10 次 +1 永遠合法', () => {
-    for (let i = 0; i < 10; i++) {
-      expect(isViewCountIncrementOnly({
-        affectedKeys: ['viewCount'],
-        newViewCount: i + 1,
-        oldViewCount: i,
-      })).toBe(true);
-    }
-  });
-
-  test('刷榜情境：短時間 +1000 被分散成 1000 次獨立寫入（每次仍合法）', () => {
-    // 此測試驗證 Rules 無法擋住「分散式刷榜」
-    // 這是方案 A 的已知限制（CLAUDE.md 記錄的接受風險）
-    for (let i = 0; i < 100; i++) {
-      expect(isViewCountIncrementOnly({
-        affectedKeys: ['viewCount'],
-        newViewCount: i + 1,
-        oldViewCount: i,
-      })).toBe(true);
-    }
-    // 這是預期行為：Rules 層無法擋惡意刷榜，需要 rate limit 層額外保護
+    expect(harness.callable).toHaveBeenCalledTimes(2);
+    expect(harness.localStorage.setItem).not.toHaveBeenCalled();
+    expect(harness.event.viewCount).toBe(5);
   });
 });

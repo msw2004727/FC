@@ -30,6 +30,10 @@ Object.assign(App, {
   },
 
   editMyActivity(id) {
+    if (this._eventSubmitInFlight) {
+      this.showToast?.('資料儲存中，請稍候');
+      return;
+    }
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canEditOwnActivityBasic?.(e)) { this.showToast('您只能編輯自己的活動'); return; }
@@ -37,6 +41,7 @@ Object.assign(App, {
     if (e.type === 'external') { this.editExternalActivity(id); return; }
     if (!this._ensureCreateEventDomContract?.()) return;
     this._editEventId = id;
+    this._beginEventFormSession?.(id);
     this._eventImageVariantsData = null;
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindEventImageVariantUpload?.('ce-image', 'ce-upload-preview');

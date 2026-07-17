@@ -33,6 +33,8 @@ Object.assign(App, {
     this._teamFormState.leaders = [];
     this._teamFormState.captain = null;
     this._teamFormState.coaches = [];
+    this._teamFormState.staffNameHints = {};
+    this._teamFormState.unresolvedStaffNames = { leaders: [], captain: '', coaches: [] };
     this._teamImageVariantsData = null;
     // 運動類型重置
     const sportSelect = document.getElementById('ct-team-sport-tag');
@@ -172,7 +174,116 @@ Object.assign(App, {
     if (sug) sug.classList.remove('show');
   },
 
-  showTeamForm(id) {
+  _buildTeamFormStaffState(team, users = []) {
+    const directory = Array.isArray(users) ? users : [];
+    const findByUid = (uid) => {
+      const key = String(uid || '').trim();
+      if (!key) return null;
+      return directory.find(user => user && (
+        String(user.uid || '').trim() === key
+        || String(user._docId || '').trim() === key
+      )) || null;
+    };
+
+    const staffNameHints = {};
+    const unresolvedStaffNames = { leaders: [], captain: '', coaches: [] };
+    const normalizeNameKey = value => String(value || '').trim().toLowerCase();
+    const setHint = (uid, name) => {
+      const key = String(uid || '').trim();
+      const value = String(name || '').trim();
+      if (key && value) staffNameHints[key] = value;
+    };
+    const pushUnresolvedName = (list, name) => {
+      const value = String(name || '').trim();
+      if (!value) return;
+      const key = normalizeNameKey(value);
+      if (!list.some(item => normalizeNameKey(item) === key)) list.push(value);
+    };
+    const buildStaffList = (rawUidValues, rawNameValues, fallbackName = '') => {
+      const rawUids = Array.isArray(rawUidValues) ? rawUidValues : [rawUidValues];
+      const names = (Array.isArray(rawNameValues) ? rawNameValues : [rawNameValues])
+        .map(value => String(value || '').trim());
+      if (names.every(name => !name) && String(fallbackName || '').trim()) names[0] = String(fallbackName).trim();
+      const consumedNameIndexes = new Set();
+      const seenUids = new Set();
+      const ids = [];
+      const unresolvedNames = [];
+      const positionalNamesAreReliable = names.length === rawUids.length;
+      const addUid = (uid, name = '') => {
+        const key = String(uid || '').trim();
+        if (!key) return;
+        setHint(key, name);
+        if (seenUids.has(key)) return;
+        seenUids.add(key);
+        ids.push(key);
+      };
+
+      rawUids.forEach((rawUid, index) => {
+        const rawKey = String(rawUid || '').trim();
+        if (!rawKey) return;
+        const found = findByUid(rawKey);
+        let nameIndex = -1;
+        if (found) {
+          const directoryNames = [found.name, found.displayName].map(normalizeNameKey).filter(Boolean);
+          nameIndex = names.findIndex((name, candidateIndex) => (
+            !consumedNameIndexes.has(candidateIndex)
+            && directoryNames.includes(normalizeNameKey(name))
+          ));
+        }
+        if (nameIndex < 0 && positionalNamesAreReliable && names[index]) nameIndex = index;
+        if (nameIndex >= 0) consumedNameIndexes.add(nameIndex);
+        addUid(
+          found?.uid || rawKey,
+          found?.name || found?.displayName || (nameIndex >= 0 ? names[nameIndex] : '')
+        );
+      });
+
+      names.forEach((name, index) => {
+        if (!name || consumedNameIndexes.has(index)) return;
+        // Legacy name-only fields are display hints, not identities. A same-name
+        // directory entry must never silently acquire the role; only an explicit
+        // picker selection may add a UID.
+        pushUnresolvedName(unresolvedNames, name);
+      });
+      return { ids, unresolvedNames };
+    };
+
+    const rawLeaderUidValues = Array.isArray(team?.leaderUids) && team.leaderUids.length > 0
+      ? team.leaderUids
+      : (team?.leaderUid ? [team.leaderUid] : []);
+    const leaderNameHints = Array.isArray(team?.leaderNames) && team.leaderNames.length > 0
+      ? team.leaderNames
+      : (Array.isArray(team?.leaders) && team.leaders.length > 0
+        ? team.leaders
+        : (team?.leader ? [team.leader] : []));
+    const leaderState = buildStaffList(rawLeaderUidValues, leaderNameHints, team?.leader || '');
+    const leaders = leaderState.ids;
+    unresolvedStaffNames.leaders = leaderState.unresolvedNames;
+
+    const captainNameHint = String(team?.captainName || team?.captain || '').trim();
+    const captainUser = team?.captainUid ? findByUid(team.captainUid) : null;
+    const captain = String(captainUser?.uid || team?.captainUid || '').trim() || null;
+    if (captain) setHint(captain, captainUser?.name || captainUser?.displayName || captainNameHint);
+    else unresolvedStaffNames.captain = captainNameHint;
+
+    const rawCoachUidValues = Array.isArray(team?.coachUids) ? team.coachUids : [];
+    const coachNameHints = Array.isArray(team?.coachNames) && team.coachNames.length > 0
+      ? team.coachNames
+      : (Array.isArray(team?.coaches) ? team.coaches : []);
+    const coachState = buildStaffList(rawCoachUidValues, coachNameHints);
+    const coaches = coachState.ids;
+    unresolvedStaffNames.coaches = coachState.unresolvedNames;
+
+    return { leaders, captain, coaches, staffNameHints, unresolvedStaffNames };
+  },
+
+  _teamFormRequestSeq: 0,
+
+  async showTeamForm(id) {
+    if (this._teamFormSubmitToken != null) {
+      this.showToast?.('俱樂部資料儲存中，請稍候');
+      return { ok: false, reason: 'submit-in-flight' };
+    }
     // v8 M1：建立俱樂部前先擋未登入（避免用戶填完表單才被踢）
     if (!id && this._requireProtectedActionLogin?.({ type: 'createTeam' }, { suppressToast: true })) return;
     if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {
@@ -187,11 +298,52 @@ Object.assign(App, {
         return;
       }
     }
+
+    const requestSeq = ++this._teamFormRequestSeq;
+    this._teamFormSubmitToken = null;
+    const requestUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    const requestPage = this.currentPage;
+    this.showToast?.('正在載入用戶資料…');
+    let directoryReady = false;
+    try {
+      const directoryLoad = ApiService.ensureUserDirectoryReady?.();
+      directoryReady = typeof ApiService._withFirestoreFetchTimeout === 'function'
+        ? await ApiService._withFirestoreFetchTimeout(directoryLoad, 6000, 'user directory')
+        : await directoryLoad;
+    } catch (err) {
+      console.warn('[TeamForm] user directory load timed out:', err);
+    }
+    const currentUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    if (requestSeq !== this._teamFormRequestSeq || currentUid !== requestUid || this.currentPage !== requestPage) {
+      if (typeof window !== 'undefined' && window._raceDebug) {
+        console.debug('[TeamForm] stale directory response ignored', { id: id || null, requestSeq });
+      }
+      return { ok: false, reason: 'stale' };
+    }
+    if (!directoryReady) {
+      this.showToast?.('用戶資料載入失敗；表單仍可編輯，若搜尋不到請關閉後重試');
+    }
+    if (id) {
+      const refreshedTeam = ApiService.getTeam(id);
+      if (!refreshedTeam) return { ok: false, reason: 'missing' };
+      if (typeof this._canEditTeamByRoleOrCaptain === 'function' && !this._canEditTeamByRoleOrCaptain(refreshedTeam)) {
+        this.showToast('您沒有編輯此俱樂部的權限');
+        return { ok: false, reason: 'forbidden' };
+      }
+    }
+
     this._teamFormState.editId = id || null;
     this._teamImageVariantsData = null;
     this._initTeamSportOptions();
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
+    if (saveBtn) {
+      saveBtn.dataset.btnLoading = '';
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('loading');
+      saveBtn.style.opacity = '';
+      saveBtn.removeAttribute?.('aria-busy');
+    }
     const captainDisplay = document.getElementById('ct-captain-display');
     const captainTransfer = document.getElementById('ct-captain-transfer');
 
@@ -227,59 +379,44 @@ Object.assign(App, {
         acceptToggle.checked = !t.eduSettings || t.eduSettings.acceptingStudents !== false;
       }
 
-      // 編輯模式：載入已有領隊（複數）
-      const users = ApiService.getAdminUsers();
-      this._teamFormState.leaders = [];
+      // 編輯模式：完整名錄尚未到齊時，也保留原始 UID 與名稱，避免儲存時誤清職位。
+      const users = ApiService.getUserDirectory?.() || [];
+      const staffState = this._buildTeamFormStaffState(t, users);
+      this._teamFormState.leaders = [...staffState.leaders];
+      this._teamFormState.captain = staffState.captain;
+      this._teamFormState.coaches = [...staffState.coaches];
+      this._teamFormState.staffNameHints = { ...staffState.staffNameHints };
+      this._teamFormState.unresolvedStaffNames = {
+        leaders: [...staffState.unresolvedStaffNames.leaders],
+        captain: staffState.unresolvedStaffNames.captain,
+        coaches: [...staffState.unresolvedStaffNames.coaches],
+      };
+
       document.getElementById('ct-leader-search').value = '';
       document.getElementById('ct-leader-suggest').innerHTML = '';
       document.getElementById('ct-leader-suggest').classList.remove('show');
-      const existingLeaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
-      existingLeaderUids.forEach(lUid => {
-        const found = users.find(u => u.uid === lUid || u._docId === lUid);
-        if (found) {
-          this._teamFormState.leaders.push(found.uid);
-        }
-      });
-      // 若只有 leader 名稱無 uid，嘗試反查
-      if (this._teamFormState.leaders.length === 0 && t.leader) {
-        const found = users.find(u => u.name === t.leader || u.displayName === t.leader);
-        if (found) this._teamFormState.leaders.push(found.uid);
-      }
       this._renderLeaderTags();
 
       // 編輯模式：俱樂部經理欄位，僅經理本人或 admin 可轉移
       const me = ApiService.getCurrentUser();
       const isAdmin = this.hasPermission('team.manage_all');
       const canTransferCaptain = isAdmin || (me && me.uid === t.captainUid);
+      const captainName = this._getTeamFormStaffDisplayName?.(staffState.captain)
+        || t.captainName
+        || t.captain
+        || '（未設定）';
       captainDisplay.style.display = '';
-      captainDisplay.innerHTML = `目前俱樂部經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
+      captainDisplay.innerHTML = `目前俱樂部經理：<span style="color:var(--accent)">${escapeHTML(captainName)}</span>`;
       captainTransfer.style.display = canTransferCaptain ? '' : 'none';
       document.getElementById('ct-captain-locked').style.display = canTransferCaptain ? 'none' : '';
       const captainHint = captainTransfer.querySelector('.ct-captain-hint');
       if (captainHint) captainHint.style.display = '';
-
-      // 預設保留原經理
-      this._teamFormState.captain = null;
       document.getElementById('ct-captain-search').value = '';
       document.getElementById('ct-captain-selected').innerHTML = '';
-      if (t.captain) {
-        const found = users.find(u => u.name === t.captain);
-        this._teamFormState.captain = found ? found.uid : null;
-      }
 
-      // Restore coaches
-      this._teamFormState.coaches = [];
       document.getElementById('ct-coach-search').value = '';
       document.getElementById('ct-coach-tags').innerHTML = '';
-      if (t.coaches && t.coaches.length) {
-        t.coaches.forEach(cName => {
-          const found = users.find(u => u.name === cName);
-          if (found) {
-            this.selectTeamCoach(found.uid);
-          }
-        });
-      }
-
+      this._renderCoachTags();
       const preview = document.getElementById('ct-team-preview');
       const previewImage = this._getTeamImageUrl?.(t, 'cover') || t.image;
       if (previewImage) {
@@ -327,6 +464,7 @@ Object.assign(App, {
     }
     this.bindTeamContactLinksToggle?.();
     this.showModal('create-team-modal');
+    return { ok: true };
   },
 
 });

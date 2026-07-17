@@ -213,6 +213,7 @@ describe('team detail club activity section', () => {
     const allowedApp = makeApp([event]);
     allowedApp._canCreateActivityByPermission = () => true;
     loadTeamDetailRender(allowedApp, [event], {
+      currentUser: { uid: 'viewer', role: 'coach' },
       teams: { teamA: { id: 'teamA', captainUid: 'viewer' } },
     });
 
@@ -223,6 +224,7 @@ describe('team detail club activity section', () => {
     const nonStaffApp = makeApp([event]);
     nonStaffApp._canCreateActivityByPermission = () => true;
     loadTeamDetailRender(nonStaffApp, [event], {
+      currentUser: { uid: 'viewer', role: 'coach' },
       teams: { teamA: { id: 'teamA', captainUid: 'other-user' } },
     });
 
@@ -241,6 +243,27 @@ describe('team detail club activity section', () => {
     expect(deniedHtml).not.toContain('openTeamDetailCreateEvent');
   });
 
+  test('club activity staff scope uses the authenticated UID and recognizes creator and owner fields', () => {
+    const app = makeApp([]);
+    app._canCreateActivityByPermission = () => true;
+    const currentUser = {
+      uid: 'viewer',
+      _docId: 'captain-uid',
+      displayName: 'Same Name',
+      role: 'coach',
+    };
+    loadTeamDetailRender(app, [], { currentUser });
+
+    expect(app._isCurrentUserTeamStaffForCreate({
+      id: 'team-name-only',
+      captainUid: 'captain-uid',
+      captainName: 'Same Name',
+    })).toBe(false);
+    expect(app._isCurrentUserTeamStaffForCreate({ id: 'team-creator', creatorUid: 'viewer' })).toBe(true);
+    expect(app._isCurrentUserTeamStaffForCreate({ id: 'team-owner', ownerUid: 'viewer' })).toBe(true);
+    expect(app._canCreateTeamDetailActivity({ id: 'team-name-only', captainName: 'Same Name' })).toBe(false);
+    expect(app._canCreateTeamDetailActivity({ id: 'team-creator', creatorUid: 'viewer' })).toBe(true);
+  });
   test('renders club tournaments that are hosted by or joined by the club', () => {
     const app = makeApp([]);
     const tournaments = [
@@ -1338,7 +1361,7 @@ describe('team detail club activity section', () => {
       },
     }, {
       ApiService: {
-        getCurrentUser: () => ({ uid: 'viewer' }),
+        getCurrentUser: () => ({ uid: 'viewer', role: 'coach' }),
         getTeam: () => ({ id: 'teamA', name: 'Club A', sportTag: 'basketball', captainUid: 'viewer' }),
       },
       getSportKeySafe: (value) => String(value || '').trim(),
@@ -1445,6 +1468,8 @@ describe('team detail club activity section', () => {
       hasPermission: () => true,
       _getEventCreatorTeam: () => ({ teamId: 'teamA', teamName: 'Club A' }),
       _resolveTeamOnlySelection: () => [{ id: 'teamA', name: 'Club A' }],
+      _isTeamOnlySelectionValidForSubmit: () => true,
+      _canCreateTeamOnlyActivityForSubmit: () => true,
       _getEventCreatorName: () => 'Creator',
       _getEventCreatorUid: () => 'creator_uid',
       _resolveEventCoverImage: jest.fn().mockResolvedValue('cover-url'),

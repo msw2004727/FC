@@ -11,6 +11,9 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
+const { createListUserDirectoryCallable } = require("./user-directory");
+const { createIncrementEventViewCountCallable } = require("./event-view-count");
+const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -45,6 +48,18 @@ initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
 const storageAdmin = getStorage();
+
+exports.listUserDirectory = createListUserDirectoryCallable({
+  onCall,
+  HttpsError,
+  db,
+});
+
+exports.incrementEventViewCount = createIncrementEventViewCountCallable({
+  onCall,
+  HttpsError,
+  db,
+});
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 const NEWS_API_KEY = defineSecret("NEWS_API_KEY");
@@ -3591,87 +3606,18 @@ exports.adjustExp = onCall(
   }
 );
 
-// ═══════════════════════════════════════════════════
-//  autoPromoteTeamRole — 俱樂部職位變動觸發的自動角色晉升/降級
-//  修復：原 client SDK 直寫 users.role 被 Firestore rules 擋住
-//  僅允許 user / coach / captain 三層角色變動
-// ═══════════════════════════════════════════════════
-const AUTO_PROMOTE_ALLOWED_ROLES = new Set(["user", "coach", "captain"]);
-
-exports.autoPromoteTeamRole = onCall(
-  { region: "asia-east1", timeoutSeconds: 15 },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Authentication required");
-    }
-
-    const callerUid = request.auth.uid;
-    const callerRole = await getCallerRoleWithFallback(request);
-    const callerLevel = ROLE_LEVELS[callerRole] ?? 0;
-
-    // 只有 coach 以上可以觸發（管理俱樂部的人）
-    if (callerLevel < ROLE_LEVELS.coach) {
-      throw new HttpsError("permission-denied", "Coach or above required");
-    }
-
-    const { targetUid, newRole } = request.data || {};
-    if (typeof targetUid !== "string" || !targetUid) {
-      throw new HttpsError("invalid-argument", "targetUid is required");
-    }
-    const safeNewRole = normalizeRole(newRole);
-    if (!AUTO_PROMOTE_ALLOWED_ROLES.has(safeNewRole)) {
-      throw new HttpsError("invalid-argument", `Role must be one of: ${[...AUTO_PROMOTE_ALLOWED_ROLES].join(", ")}`);
-    }
-
-    const targetUser = await findUserDocByUidOrLineUserId(targetUid);
-    if (!targetUser) {
-      throw new HttpsError("not-found", "Target user not found");
-    }
-
-    const targetData = targetUser.data || {};
-    const currentRole = normalizeRole(targetData.role);
-    const currentLevel = ROLE_LEVELS[currentRole] ?? 0;
-
-    // venue_owner 以上由管理員手動管理，不做自動變更
-    if (currentLevel >= ROLE_LEVELS.venue_owner) {
-      return { success: true, skipped: true, reason: "role_too_high", currentRole };
-    }
-
-    // 角色沒變就不寫
-    if (currentRole === safeNewRole) {
-      return { success: true, skipped: true, reason: "no_change", currentRole };
-    }
-
-    const resolvedTargetUid = getAuthUidFromUserDoc(targetUser, targetUid);
-
-    // 更新 Firestore
-    await db.collection("users").doc(targetUser.docId).update({
-      role: safeNewRole,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    // 同步 Auth custom claims
-    await ensureAuthUser(resolvedTargetUid);
-    await setRoleClaimMerged(resolvedTargetUid, safeNewRole);
-
-    console.log("[autoPromoteTeamRole]", {
-      callerUid,
-      callerRole,
-      targetUid: resolvedTargetUid,
-      targetDocId: targetUser.docId,
-      oldRole: currentRole,
-      newRole: safeNewRole,
-    });
-
-    return {
-      success: true,
-      targetUid: resolvedTargetUid,
-      targetDocId: targetUser.docId,
-      oldRole: currentRole,
-      newRole: safeNewRole,
-    };
-  }
-);
+// 俱樂部角色只由後端依已儲存的 UID 職位重新計算；忽略前端聲稱的角色。
+exports.autoPromoteTeamRole = createAutoPromoteTeamRoleCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  roleLevels: ROLE_LEVELS,
+  normalizeRole,
+  getCallerAccessContext,
+  ensureAuthUser,
+  setRoleClaimMerged,
+});
 
 exports.backfillRoleClaims = onCall(
   { region: "asia-east1", timeoutSeconds: 120 },
