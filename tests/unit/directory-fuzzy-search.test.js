@@ -411,6 +411,60 @@ describe('cache-first fuzzy search refresh', () => {
     dom.window.close();
   });
 
+  test('activity delegate search matches display names across user roles and assigns the verified display name', async () => {
+    const users = [
+      { uid: 'user-1', name: 'legacy-user', displayName: '\u738b\u4e00\u822c', role: 'user' },
+      { uid: 'coach-1', name: 'legacy-coach', displayName: '\u738b\u6559\u7df4', role: 'coach' },
+      { uid: 'admin-1', name: 'legacy-admin', displayName: '\u738b\u7ba1\u7406\u54e1', role: 'admin' },
+    ];
+    const App = {
+      _canManageEventDelegates: () => true,
+      _canManageCourseLinkedEventDelegates: () => false,
+      _getEventCreatorUid: () => 'viewer',
+      _formatUidForDisplay: uid => uid,
+      _userTag: name => name,
+      showToast: jest.fn(),
+    };
+    const ApiService = {
+      getCurrentUser: () => ({ uid: 'viewer' }),
+      getUserDirectory: () => users,
+      ensureUserDirectoryReady: jest.fn(async () => true),
+      verifyUserDirectorySelection: jest.fn(async uids => ({
+        ok: true,
+        users: users.filter(user => uids.includes(user.uid)),
+        missingUids: [],
+        reason: '',
+      })),
+    };
+    const dom = loadUiModule(
+      'js/modules/event/event-create-delegates.js',
+      '<div id="create-event-modal" class="open"></div><input id="ce-delegate-search" value="\u738b"><div id="ce-delegate-dropdown"></div><div id="ce-delegate-tags"></div>',
+      App,
+      ApiService
+    );
+    const dropdown = dom.window.document.getElementById('ce-delegate-dropdown');
+
+    App._initDelegateSearch();
+    expect(ApiService.ensureUserDirectoryReady).toHaveBeenCalledWith({ force: true });
+
+    await App._searchDelegates('\u738b');
+    expect(dropdown.textContent).toContain('\u738b\u4e00\u822c');
+    expect(dropdown.textContent).toContain('\u738b\u6559\u7df4');
+    expect(dropdown.textContent).toContain('\u738b\u7ba1\u7406\u54e1');
+
+    dropdown.querySelector('[data-uid="coach-1"]').dispatchEvent(
+      new dom.window.MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(ApiService.verifyUserDirectorySelection).toHaveBeenCalledWith(['coach-1']);
+    expect(App._delegates).toEqual([{ uid: 'coach-1', name: '\u738b\u6559\u7df4' }]);
+    await expect(App._verifySelectedEventDelegatesForSubmit()).resolves.toBe(true);
+    expect(App._delegates).toEqual([{ uid: 'coach-1', name: '\u738b\u6559\u7df4' }]);
+
+    dom.window.close();
+  });
+
   test('activity delegate search ignores an older response after the query changes', async () => {
     let users = [];
     let finish;

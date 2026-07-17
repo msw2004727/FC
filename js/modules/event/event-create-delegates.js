@@ -13,6 +13,18 @@ Object.assign(App, {
       || this._canManageCourseLinkedEventDelegates?.(eventRecord || null));
   },
 
+  _getEventDelegateDirectoryName(user) {
+    return String(user?.displayName || '').trim()
+      || String(user?.name || '').trim()
+      || String(user?.uid || '').trim();
+  },
+
+  _eventDelegateMatchesDirectoryQuery(user, query) {
+    const normalizedQuery = String(query || '').trim().toLowerCase();
+    return [user?.displayName, user?.name, user?.uid]
+      .some(value => String(value || '').toLowerCase().includes(normalizedQuery));
+  },
+
   _initDelegateSearch() {
     const input = document.getElementById('ce-delegate-search');
     const dropdown = document.getElementById('ce-delegate-dropdown');
@@ -23,7 +35,7 @@ Object.assign(App, {
       dropdown.classList.remove('open');
       dropdown.innerHTML = '';
     }
-    if (canManageDelegates) void ApiService.ensureUserDirectoryReady?.();
+    if (canManageDelegates) void ApiService.ensureUserDirectoryReady?.({ force: true });
 
     if (!this._delegateSearchBound) {
       this._delegateSearchBound = true;
@@ -75,7 +87,7 @@ Object.assign(App, {
     const results = allUsers.filter(u => {
       if (u.uid === myUid) return false;
       if (selectedUids.includes(u.uid)) return false;
-      return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
+      return this._eventDelegateMatchesDirectoryQuery(u, q);
     }).slice(0, 5);
 
     if (results.length === 0 && options.skipRefresh !== true) {
@@ -86,11 +98,12 @@ Object.assign(App, {
     } else {
       const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
       dropdown.innerHTML = results.map(u => {
+        const displayName = this._getEventDelegateDirectoryName(u);
         const roleLabel = roleLabels[u.role]?.label || u.role || '';
         const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
         const metaParts = [uidLabel, roleLabel].filter(Boolean).map(part => escapeHTML(part));
-        return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}" data-name="${escapeHTML(u.name)}">
-          <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
+        return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}" data-name="${escapeHTML(displayName)}">
+          <span class="ce-delegate-item-name">${escapeHTML(displayName)}</span>
           <span class="ce-delegate-item-meta">${metaParts.join(' · ')}</span>
         </div>`;
       }).join('');
@@ -132,7 +145,7 @@ Object.assign(App, {
     const refreshedUsers = ApiService.getUserDirectory?.() || [];
     const hasRefreshedMatch = refreshedUsers.some(u => {
       if (u.uid === myUid || selectedUids.includes(u.uid)) return false;
-      return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
+      return this._eventDelegateMatchesDirectoryQuery(u, q);
     });
     if (!directoryReady && !hasRefreshedMatch) {
       dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">\u7528\u6236\u8cc7\u6599\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u91cd\u8a66</div>';
@@ -174,7 +187,7 @@ Object.assign(App, {
     }
     if (!this._canCurrentEditManageDelegates()) return false;
     if (this._delegates.length >= 3 || this._delegates.some(d => d.uid === safeUid)) return false;
-    this._delegates.push({ uid: match.uid, name: match.name });
+    this._delegates.push({ uid: match.uid, name: this._getEventDelegateDirectoryName(match) });
     this._renderDelegateTags();
     this._updateDelegateInput();
     return true;
@@ -208,7 +221,10 @@ Object.assign(App, {
       return false;
     }
     const freshByUid = new Map(verification.users.map(user => [user.uid, user]));
-    this._delegates = requestedUids.map(uid => ({ uid, name: freshByUid.get(uid).name }));
+    this._delegates = requestedUids.map(uid => ({
+      uid,
+      name: this._getEventDelegateDirectoryName(freshByUid.get(uid)),
+    }));
     this._renderDelegateTags();
     this._updateDelegateInput();
     return true;
