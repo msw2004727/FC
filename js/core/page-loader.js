@@ -7,6 +7,18 @@
 
 const PageLoader = {
 
+  _getAssetVersion() {
+    if (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function') {
+      const runtimeVersion = String(window.getSportHubAssetVersion() || '').trim();
+      if (runtimeVersion) return runtimeVersion;
+    }
+    const indexVersion = (typeof window !== 'undefined' && window.__SPORTHUB_INDEX_VERSION__)
+      ? String(window.__SPORTHUB_INDEX_VERSION__).trim()
+      : '';
+    if (indexVersion) return indexVersion;
+    return typeof CACHE_VERSION !== 'undefined' ? String(CACHE_VERSION) : '';
+  },
+
   /** 啟動時必須載入的頁面（首頁 + 核心頁面） */
   _bootPages: ['home'],
 
@@ -126,9 +138,21 @@ const PageLoader = {
         controller = new AbortController();
         requestOptions.signal = controller.signal;
       }
-      const request = fetch(`pages/${fileName}.html?v=${CACHE_VERSION}`, requestOptions)
+      const requestUrl = `pages/${fileName}.html?v=${this._getAssetVersion()}`;
+      const request = fetch(requestUrl, requestOptions)
         .then(async (r) => {
           if (!r.ok) {
+            const versionMiss = r.status === 409
+              || (r.headers && typeof r.headers.get === 'function'
+                && r.headers.get('X-SportHub-Version-Miss') === '1');
+            if (versionMiss
+              && typeof window !== 'undefined'
+              && typeof window.recoverSportHubScriptFailure === 'function') {
+              window.recoverSportHubScriptFailure(requestUrl, {
+                resourceType: 'page-fragment',
+                versionMiss: true,
+              });
+            }
             console.warn(`[PageLoader] ${fileName} HTTP ${r.status}`);
             return '';
           }

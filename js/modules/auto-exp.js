@@ -5,7 +5,9 @@
   if (typeof App !== 'undefined' && typeof App._getAutoExpRules === 'function') return;
 
   function loadReplacement(path) {
-    var version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) || Date.now();
+    var version = (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function'
+      && window.getSportHubAssetVersion())
+      || (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) || Date.now();
     var xhr = new XMLHttpRequest();
     xhr.open('GET', path + '?v=' + encodeURIComponent(version), false);
     xhr.send(null);

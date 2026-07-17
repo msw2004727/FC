@@ -34,7 +34,10 @@ Object.assign(App, {
   },
 
   _getDefaultTeamCoverUrl() {
-    const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
+    const version = (typeof this._getAssetVersion === 'function' && this._getAssetVersion())
+      || (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function'
+        && window.getSportHubAssetVersion())
+      || ((typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '');
     try {
       const baseUrl = (typeof document !== 'undefined' && document.baseURI)
         || (typeof window !== 'undefined' && window.location?.href)

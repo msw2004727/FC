@@ -24,7 +24,10 @@ Object.assign(App, {
     };
     return {
       generatedAt: new Date(),
-      version: typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '',
+      version: (typeof this._getAssetVersion === 'function' && this._getAssetVersion())
+        || (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function'
+          && window.getSportHubAssetVersion())
+        || (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : ''),
       roles,
       catalog,
       majorChecks,

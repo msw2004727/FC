@@ -321,6 +321,21 @@ const App = {
   _swReloadOnceStorageKey: '_sporthubSwReloadOnce',
   _swVersionTransitionStorageKey: '_sporthubSwVersionTransition',
 
+  _getAssetVersion() {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    try {
+      if (typeof root.getSportHubAssetVersion === 'function') {
+        const version = String(root.getSportHubAssetVersion() || '').trim();
+        if (version) return version;
+      }
+    } catch (_) {}
+    try {
+      return typeof CACHE_VERSION === 'string' ? String(CACHE_VERSION).trim() : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
   _qrPopupLoading: false,
 
   _isAdminPlusRole(roleKey) {
@@ -420,6 +435,12 @@ const App = {
   },
 
   /** 複製 UID — profile-card.js 未載入時的安全 fallback */
+  _closeUidQrModal() {
+    const modal = document.getElementById('uid-qr-modal');
+    if (modal) modal.style.display = 'none';
+    this._maybeRunDeferredSwReload?.('uid-qr-close');
+  },
+
   _copyUidSafe(uid) {
     if (this._copyUidToClipboard) { this._copyUidToClipboard(uid); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -430,13 +451,15 @@ const App = {
   init() {
     // ── 版本同步偵測 ──
     try {
+      const canonicalVersion = this._getAssetVersion();
+      const configVersion = typeof CACHE_VERSION === 'string' ? String(CACHE_VERSION).trim() : '';
       const storedV = localStorage.getItem('sporthub_cache_ver');
-      if (storedV && storedV !== CACHE_VERSION) {
-        console.error(`[VERSION MISMATCH] index.html V="${storedV}" !== config.js CACHE_VERSION="${CACHE_VERSION}". 請同步更新 index.html 的 var V 及所有 ?v= 參數。`);
+      if (storedV && configVersion && storedV !== configVersion) {
+        console.warn(`[VERSION RECOVERY] index.html V="${storedV}" !== config.js CACHE_VERSION="${configVersion}". 本次載入已改用 index.html 版號。`);
       }
       if ('caches' in window) {
         caches.keys().then(keys => {
-          const currentCache = `sporthub-${CACHE_VERSION}`;
+          const currentCache = `sporthub-${canonicalVersion}`;
           const runtimeCaches = keys.filter(k => k.startsWith('sporthub-') && k !== 'sporthub-images-v2');
           const legacyCaches = runtimeCaches.filter(k => k !== currentCache);
           if (legacyCaches.length > 0) {
@@ -496,7 +519,7 @@ const App = {
     var _cachedRole = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.currentUser?.role) || 'user';
     this.applyRole(_cachedRole, true);
     // 清除開機看門狗（清快取後的自動重載保護）
-    try { clearTimeout(window._bootWatchdogTimer); sessionStorage.removeItem('_bootWatchdog'); } catch(_){}
+    try { clearTimeout(window._bootWatchdogTimer); sessionStorage.removeItem('_bootWatchdog'); window.markSportHubAssetRecoveryStable?.(); } catch(_){}
   },
 
   /** 啟動時只更新全域 shell，首頁內容改為 critical / deferred 分段渲染 */
@@ -589,7 +612,7 @@ const App = {
     const el = document.getElementById('home-version-tag');
     if (!el) return;
     if (visible === false && !el.closest('#side-drawer')) { el.style.display = 'none'; return; }
-    const ver = typeof CACHE_VERSION === 'string' ? CACHE_VERSION : '';
+    const ver = this._getAssetVersion();
     el.textContent = ver ? 'v' + ver : '';
     el.style.display = '';
   },
@@ -978,7 +1001,7 @@ const App = {
     if (!state) {
       try { state = JSON.parse(root.sessionStorage?.getItem(key) || 'null'); } catch (_) {}
     }
-    const currentVersion = typeof CACHE_VERSION !== 'undefined' ? String(CACHE_VERSION) : '';
+    const currentVersion = this._getAssetVersion();
     const expiresAt = Number(state?.expiresAt || 0);
     const active = !!state
       && expiresAt > now
@@ -1007,6 +1030,7 @@ const App = {
     const doc = typeof document !== 'undefined' ? document : null;
     const ignoreSwPending = options.ignoreSwPending === true;
     const ignorePageSafety = options.ignorePageSafety === true;
+    const ignoreBootPending = options.ignoreBootPending === true;
     const blocked = (reason, canPrompt = true) => ({ safe: false, reason, canPrompt });
     const ok = () => ({ safe: true, reason: 'safe', canPrompt: false });
     const hasEntries = (value) => {
@@ -1018,12 +1042,17 @@ const App = {
     };
 
     if (root._swReloading) return blocked('already-reloading', false);
+    if (root._sporthubAssetRecoveryManualRequired) return blocked('asset-recovery-manual', false);
+    if ((root._sporthubAssetRecoveryPending || root._sporthubAssetRecoveryRunning)
+      && root.navigator?.onLine === false) {
+      return blocked('offline', false);
+    }
     if (!ignoreSwPending && this._getSwVersionTransitionState().active) {
       return blocked('version-transition', false);
     }
-    if (root._appInitializing) return blocked('initializing', false);
-    if (root._contentReady === false) return blocked('boot-pending', false);
-    if (this._cloudReadyPromise && !this._cloudReady && !this._cloudReadyError) return blocked('boot-pending', false);
+    if (!ignoreBootPending && root._appInitializing) return blocked('initializing', false);
+    if (!ignoreBootPending && root._contentReady === false) return blocked('boot-pending', false);
+    if (!ignoreBootPending && this._cloudReadyPromise && !this._cloudReady && !this._cloudReadyError) return blocked('boot-pending', false);
     if (!ignoreSwPending
       && (this._pendingProtectedBootRoutePromise || this._pendingDeepLinkOpenPromise || root._bootHistoryNavPending)) {
       return blocked('route-pending');
@@ -1047,8 +1076,13 @@ const App = {
 
     if (doc) {
       if (doc.body?.classList?.contains('image-cropper-open')) return blocked('image-cropper-open');
+      const uidQrModal = doc.getElementById?.('uid-qr-modal');
+      if (uidQrModal && uidQrModal.style?.display && uidQrModal.style.display !== 'none') {
+        return blocked('modal-open');
+      }
       const modalSelector = [
         '.modal.open',
+        '.modal-overlay.open',
         '#modal-overlay.open',
         '#app-confirm-modal.open',
         '#uid-qr-modal.open',
@@ -1059,6 +1093,7 @@ const App = {
         '#pwa-ios-modal.open',
         '.pwa-modal-overlay.open',
         '.pwa-modal-overlay.show',
+        '.pwa-modal-overlay.visible',
         '#create-event-type-sheet',
         '.edu-session-form-overlay',
         '.edu-cp-form-v2',
@@ -1079,13 +1114,22 @@ const App = {
     if (this._attendanceEditingEventId || this._unregEditingEventId || this._waitlistEditingEventId) {
       return blocked('roster-editing');
     }
-    if (this._attendanceSubmittingEventId || this._unregSubmittingEventId || this._eventSubmitInFlight) {
+    if (this._attendanceSubmittingEventId || this._unregSubmittingEventId || this._eventSubmitInFlight
+      || this._identitySettingsWritePending || this._profileInfoWritePending
+      || doc?.querySelector?.('[data-btn-loading="1"]')) {
       return blocked('write-pending');
     }
     if (hasEntries(this._waitlistActionPending) || hasEntries(this._tsTeamSplitPendingOps) || hasEntries(this._tsTeamSplitPendingTokens)) {
       return blocked('write-pending');
     }
     if (this._scannerInstance) return blocked('scanner-active');
+
+    const profileInfoEdit = doc?.getElementById?.('profile-info-edit');
+    const profileInfoEditing = !!profileInfoEdit && profileInfoEdit.style.display !== 'none';
+    if (this.currentPage === 'page-profile'
+      && (profileInfoEditing || this._identitySettingsEditing || this._isIdentityFormDirty?.())) {
+      return blocked('profile-editing');
+    }
 
     const safePages = new Set(['page-home', 'page-activities', 'page-teams', 'page-profile']);
     if (!ignorePageSafety && !safePages.has(this.currentPage || '')) return blocked('unsafe-page');
@@ -1163,22 +1207,43 @@ const App = {
     if (root.location && typeof root.location.reload === 'function') root.location.reload();
   },
 
-  _reloadForServiceWorkerUpdate() {
+  _reloadForServiceWorkerUpdate(options = {}) {
     const root = typeof window !== 'undefined' ? window : globalThis;
     const now = Date.now();
-    const version = typeof CACHE_VERSION !== 'undefined' ? String(CACHE_VERSION) : 'unknown';
+    const version = this._getAssetVersion() || 'unknown';
     const markerKey = this._swReloadOnceStorageKey || '_sporthubSwReloadOnce';
-    try {
-      const marker = JSON.parse(root.sessionStorage?.getItem(markerKey) || 'null');
-      if (marker
-        && String(marker.version || '') === version
-        && now - Number(marker.at || 0) < Number(this._swReloadOnceTtlMs || 120000)) {
-        root._swReloadDeferred = false;
-        root._swReloadDeferredReason = '';
-        return { reloaded: false, deferred: false, reason: 'reload-already-attempted' };
+    const assetRecoveryActive = !!(root._sporthubAssetRecoveryPending || root._sporthubAssetRecoveryRunning);
+    if (assetRecoveryActive) {
+      try { root.sessionStorage?.removeItem(markerKey); } catch (_) {}
+    } else {
+      try {
+        let marker = null;
+        const rawMarker = root.sessionStorage?.getItem(markerKey) || '';
+        if (rawMarker) {
+          try { marker = JSON.parse(rawMarker); } catch (_) { marker = null; }
+        }
+        if (marker
+          && String(marker.version || '') === version
+          && now - Number(marker.at || 0) < Number(this._swReloadOnceTtlMs || 120000)) {
+          root._swReloadDeferred = false;
+          root._swReloadDeferredReason = '';
+          return { reloaded: false, deferred: false, reason: 'reload-already-attempted' };
+        }
+        const serialized = JSON.stringify({ version, at: now });
+        root.sessionStorage?.setItem(markerKey, serialized);
+        if (root.sessionStorage?.getItem(markerKey) !== serialized) {
+          throw new Error('reload marker');
+        }
+      } catch (_) {
+        if (options.manual !== true) {
+          root._swReloadDeferred = true;
+          if (!root._swReloadDeferredAt) root._swReloadDeferredAt = now;
+          root._swReloadDeferredReason = 'reload-marker-unavailable';
+          this._showSwReloadPrompt?.({ reason: 'reload-marker-unavailable', canPrompt: true });
+          return { reloaded: false, deferred: true, reason: 'reload-marker-unavailable' };
+        }
       }
-      root.sessionStorage?.setItem(markerKey, JSON.stringify({ version, at: now }));
-    } catch (_) {}
+    }
     this._clearSwVersionTransitionState();
     clearTimeout(root._swReloadRetryTimer);
     root._swReloadRetryTimer = null;
@@ -1188,18 +1253,21 @@ const App = {
     root._swReloadDeferredReason = '';
     root._swReloadPromptShown = false;
     this._performServiceWorkerReload();
-    return { reloaded: true, reason: 'safe' };
+    return { reloaded: true, reason: options.manual === true ? 'manual' : 'safe' };
   },
 
   _isHardSwReloadBlock(reason) {
     return [
       'already-reloading',
+      'asset-recovery-manual',
+      'offline',
       'version-transition',
       'initializing',
       'boot-pending',
       'auth-pending',
       'roster-editing',
       'write-pending',
+      'profile-editing',
       'scanner-active',
       'image-cropper-open',
       'modal-open',
@@ -1216,9 +1284,30 @@ const App = {
     ].includes(reason);
   },
 
+  _isPassiveRetrySwReloadReason(reason) {
+    return [
+      'auth-pending',
+      'roster-editing',
+      'write-pending',
+      'profile-editing',
+      'scanner-active',
+      'image-cropper-open',
+      'modal-open',
+    ].includes(reason);
+  },
+
   _scheduleDeferredSwReload(decision = {}) {
     const root = typeof window !== 'undefined' ? window : globalThis;
     if (!root._swReloadDeferred || root._swReloading || root._swReloadRetryTimer) return;
+    if (this._isPassiveRetrySwReloadReason(decision.reason)) {
+      const retryTimer = setTimeout(() => {
+        root._swReloadRetryTimer = null;
+        this._maybeRunDeferredSwReload('safe-state-poll');
+      }, Math.max(100, Number(this._swReloadPollMs || 500)));
+      root._swReloadRetryTimer = retryTimer;
+      retryTimer?.unref?.();
+      return;
+    }
     if (!this._isBoundedSwReloadReason(decision.reason)) return;
 
     const now = Date.now();
@@ -1248,8 +1337,14 @@ const App = {
   _maybeRunDeferredSwReload(trigger = '', options = {}) {
     const root = typeof window !== 'undefined' ? window : globalThis;
     if (!root._swReloadDeferred || root._swReloading) return { reloaded: false, deferred: false, reason: 'none' };
-    let decision = this._isSafeToAutoReload();
-    if (decision.safe) return this._reloadForServiceWorkerUpdate();
+    const assetRecoveryActive = !!(root._sporthubAssetRecoveryPending || root._sporthubAssetRecoveryRunning);
+    const assetRecoveryBootPending = assetRecoveryActive
+      && (root._appInitializing === true || root._contentReady === false);
+    const assetRecoverySafety = assetRecoveryActive
+      ? { ignoreSwPending: true, ignorePageSafety: assetRecoveryBootPending, ignoreBootPending: true }
+      : {};
+    let decision = this._isSafeToAutoReload(assetRecoverySafety);
+    if (decision.safe) return this._reloadForServiceWorkerUpdate({ manual: options?.force === true });
 
     if (options?.maxWaitElapsed && this._isBoundedSwReloadReason(decision.reason)) {
       const forceSafety = this._isSafeToAutoReload({
@@ -1267,7 +1362,7 @@ const App = {
         ignoreSwPending: true,
         ignorePageSafety: true,
       });
-      if (forceSafety.safe) return this._reloadForServiceWorkerUpdate();
+      if (forceSafety.safe) return this._reloadForServiceWorkerUpdate({ manual: true });
       decision = forceSafety;
     }
     root._swReloadDeferredReason = decision.reason || trigger || 'unsafe-page';
@@ -4017,7 +4112,7 @@ async function _loadCDNScripts() {
 // Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
-  console.log('[Boot] DOMContentLoaded fired, CACHE_VERSION=' + (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '(未定義)'));
+  console.log('[Boot] DOMContentLoaded fired, ASSET_VERSION=' + (App._getAssetVersion() || '(未定義)'));
 
   // 先解析 deep link，避免先看到首頁再跳轉
   try {
@@ -4203,14 +4298,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (initErr) {
     console.error('[Boot] Phase 3 App.init() 失敗:', initErr && initErr.message || initErr, initErr && initErr.stack || '');
     try {
-      var rb = document.getElementById('_recovery_btn');
-      if (!rb) {
-        rb = document.createElement('button');
-        rb.id = '_recovery_btn';
-        rb.textContent = '載入失敗，點此重新整理';
-        rb.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
-        rb.onclick = function() { location.reload(); };
-        document.body.appendChild(rb);
+      if (typeof window.recoverSportHubScriptFailure === 'function') {
+        void window.recoverSportHubScriptFailure('app-init', { stage: 'App.init' });
+      } else {
+        var rb = document.getElementById('_recovery_btn');
+        if (!rb) {
+          rb = document.createElement('button');
+          rb.id = '_recovery_btn';
+          rb.textContent = '載入失敗，連線後點此重新整理';
+          rb.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
+          rb.onclick = function() {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+            location.reload();
+          };
+          document.body.appendChild(rb);
+        }
       }
     } catch (e2) {}
   }

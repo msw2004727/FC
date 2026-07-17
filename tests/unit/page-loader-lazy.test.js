@@ -8,13 +8,18 @@ const source = fs.readFileSync(
   'utf8',
 );
 
-function createLoader(fragmentByName = {}) {
+function createLoader(fragmentByName = {}, options = {}) {
   document.body.innerHTML = '<main id="main-content"></main><div id="modal-container"></div>';
   sessionStorage.clear();
 
   const fetchCalls = [];
   const fetchImpl = jest.fn(async url => {
     fetchCalls.push(String(url));
+    if (options.response) {
+      return typeof options.response === 'function'
+        ? options.response(url)
+        : options.response;
+    }
     const match = String(url).match(/pages\/([^?]+)\.html/);
     const name = match ? match[1] : '';
     const html = fragmentByName[name]
@@ -83,6 +88,43 @@ describe('PageLoader true lazy loading', () => {
     expect(document.getElementById('page-activity')).not.toBeNull();
   });
 
+  test('index version stays canonical when config cache version is stale', async () => {
+    window.__SPORTHUB_INDEX_VERSION__ = '0.20260716c';
+    try {
+      const { loader, fetchCalls } = createLoader();
+
+      await loader.ensurePage('page-activities');
+
+      expect(fetchCalls).toHaveLength(1);
+      expect(fetchCalls[0]).toContain('pages/activity.html?v=0.20260716c');
+    } finally {
+      delete window.__SPORTHUB_INDEX_VERSION__;
+    }
+  });
+
+  test('version-miss fragment triggers the bounded asset recovery path', async () => {
+    const recovery = jest.fn();
+    window.recoverSportHubScriptFailure = recovery;
+    try {
+      const { loader } = createLoader({}, {
+        response: {
+          ok: false,
+          status: 409,
+          headers: { get: jest.fn(() => '1') },
+          text: jest.fn(),
+        },
+      });
+
+      await expect(loader._fetchPageFragment('activity')).resolves.toBe('');
+
+      expect(recovery).toHaveBeenCalledWith(
+        'pages/activity.html?v=test-version',
+        { resourceType: 'page-fragment', versionMiss: true },
+      );
+    } finally {
+      delete window.recoverSportHubScriptFailure;
+    }
+  });
   test('deep-link priority shares one in-flight fragment fetch', async () => {
     const { loader, fetchCalls } = createLoader({
       activity: '<section class="page" id="page-activity-detail"></section>',

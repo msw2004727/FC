@@ -6,11 +6,11 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260716b';
+const CACHE_NAME       = 'sporthub-0.20260717';
 const PRECACHE_VERSION = CACHE_NAME.replace('sporthub-', '');
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const RUNTIME_CACHE_NAME_RE = /^sporthub-\d+\.\d{8}[a-z0-9._-]*$/i;
-const RETAIN_PREVIOUS_RUNTIME_CACHES = 1;
+const RETAIN_PREVIOUS_RUNTIME_CACHES = 2;
 const MAX_IMAGE_CACHE  = 300;
 const MAX_IMAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const IMAGE_CACHE_TRIM_INTERVAL = 20;
@@ -76,6 +76,8 @@ const SPA_LIST_PATHS = new Set(['/activities', '/teams', '/tournaments', '/profi
 const SPA_DETAIL_ROOTS = new Set(['events', 'teams', 'tournaments']);
 const SPA_SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
 const VERSIONED_STATIC_RE = /\.(?:css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$/i;
+const VERSIONED_PAGE_FRAGMENT_RE = /^\/pages\/[A-Za-z0-9_-]+\.html$/i;
+const APP_ASSET_VERSION_RE = /^0\.\d{8}[a-z]*$/;
 
 function stripTrailingSlash(pathname) {
   if (!pathname || pathname === '/') return '/';
@@ -122,10 +124,59 @@ function isVersionedStaticRequest(url) {
     && VERSIONED_STATIC_RE.test(url.pathname);
 }
 
+function isVersionedPageFragmentRequest(url) {
+  return url.origin === location.origin
+    && url.searchParams.has('v')
+    && VERSIONED_PAGE_FRAGMENT_RE.test(url.pathname);
+}
+
 function isForeignAppVersionRequest(url) {
-  return isVersionedStaticRequest(url)
-    && /\.(?:css|js)$/i.test(url.pathname)
-    && String(url.searchParams.get('v') || '') !== PRECACHE_VERSION;
+  const requestedVersion = String(url.searchParams.get('v') || '');
+  const isAppCodeAsset = isVersionedStaticRequest(url)
+    && /\.(?:css|js)$/i.test(url.pathname);
+  return (isAppCodeAsset || isVersionedPageFragmentRequest(url))
+    && APP_ASSET_VERSION_RE.test(requestedVersion)
+    && requestedVersion !== PRECACHE_VERSION;
+}
+
+function createAppVersionMissResponse() {
+  return new Response('', {
+    status: 409,
+    statusText: 'App version cache miss',
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+      'X-SportHub-Version-Miss': '1',
+    },
+  });
+}
+
+function getRequestedRuntimeCacheName(url) {
+  const requestedVersion = String(url.searchParams.get('v') || '');
+  return APP_ASSET_VERSION_RE.test(requestedVersion)
+    ? `sporthub-${requestedVersion}`
+    : '';
+}
+
+async function matchRequestedRuntimeCache(request, url) {
+  const cacheName = getRequestedRuntimeCacheName(url);
+  if (!cacheName) return undefined;
+  const cacheNames = await caches.keys();
+  if (!cacheNames.includes(cacheName)) return undefined;
+  return caches.open(cacheName).then((cache) => cache.match(request));
+}
+
+async function matchRuntimeCachesNewestFirst(request, options = {}) {
+  const cacheNames = await caches.keys();
+  const orderedNames = [
+    CACHE_NAME,
+    ...cacheNames.filter(isLegacyRuntimeCacheName).sort().reverse(),
+  ];
+  for (const cacheName of orderedNames) {
+    if (!cacheNames.includes(cacheName)) continue;
+    const cached = await caches.open(cacheName).then((cache) => cache.match(request, options));
+    if (cached) return cached;
+  }
+  return undefined;
 }
 
 // ─── 圖片快取工具函式 ───
@@ -277,6 +328,31 @@ self.addEventListener('fetch', (event) => {
   }
 
   // ── 3. HTML：Network-first（確保 index.html 不卡舊版）──
+  if (event.request.mode !== 'navigate' && isVersionedPageFragmentRequest(url)) {
+    if (isForeignAppVersionRequest(url)) {
+      event.respondWith((async () => {
+        const cached = await matchRequestedRuntimeCache(event.request, url);
+        return cached || createAppVersionMissResponse();
+      })());
+      return;
+    }
+    const fragmentNetwork = fetch(event.request).then((response) => {
+      const cacheWrite = response && response.status === 200
+        ? caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()))
+        : Promise.resolve();
+      return { response, cacheWrite };
+    });
+    const fragmentResponse = fragmentNetwork
+      .then(({ response }) => response)
+      .catch(async () => {
+        const cached = await caches.open(CACHE_NAME).then((cache) => cache.match(event.request));
+        return cached || createAppVersionMissResponse();
+      });
+    event.respondWith(fragmentResponse);
+    event.waitUntil(fragmentNetwork.then(({ cacheWrite }) => cacheWrite).catch(() => {}));
+    return;
+  }
+
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     const normalizeToIndex = event.request.mode === 'navigate' && isSpaNavigationPath(url.pathname);
     const cacheRequest = normalizeToIndex ? getIndexCacheRequest(url) : event.request;
@@ -292,10 +368,12 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       } catch (err) {
-        const cached = await caches.match(cacheRequest, { ignoreSearch: !normalizeToIndex });
+        const cached = await matchRuntimeCachesNewestFirst(
+          cacheRequest,
+          { ignoreSearch: !normalizeToIndex },
+        );
         if (cached) return cached;
-        if (normalizeToIndex) return caches.match(getIndexCacheRequest(url));
-        return caches.match(event.request, { ignoreSearch: true });
+        return matchRuntimeCachesNewestFirst(event.request, { ignoreSearch: true });
       }
     })());
     return;
@@ -305,21 +383,15 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === location.origin) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
-        const versionedRequest = isVersionedStaticRequest(url);
-        const cached = versionedRequest
-          ? await caches.match(event.request)
+
+        const foreignAppVersion = isForeignAppVersionRequest(url);
+        const cached = foreignAppVersion
+          ? await matchRequestedRuntimeCache(event.request, url)
           : await cache.match(event.request);
         if (cached) return cached;
 
-        if (isForeignAppVersionRequest(url)) {
-          return new Response('', {
-            status: 409,
-            statusText: 'App version cache miss',
-            headers: {
-              'Cache-Control': 'no-store, max-age=0',
-              'X-SportHub-Version-Miss': '1',
-            },
-          });
+        if (foreignAppVersion) {
+          return createAppVersionMissResponse();
         }
 
         try {
@@ -329,6 +401,11 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         } catch (err) {
+          const requestedVersion = String(url.searchParams.get('v') || '');
+          const isCurrentAppCode = isVersionedStaticRequest(url)
+            && /\.(?:css|js)$/i.test(url.pathname)
+            && requestedVersion === PRECACHE_VERSION;
+          if (isCurrentAppCode) return createAppVersionMissResponse();
           if (isVersionedStaticRequest(url)) {
             const fallbackUrl = new URL(url.pathname, url.origin).toString();
             const fallback = await cache.match(fallbackUrl) || await caches.match(fallbackUrl);

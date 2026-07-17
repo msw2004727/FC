@@ -124,6 +124,49 @@ describe('Service Worker reload gate helper', () => {
     expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'image-cropper-open' });
   });
 
+  test('visible QR, PWA overlays and profile drafts block auto reload', () => {
+    const { App, document } = loadApp(
+      '<!doctype html><body><div id="toast"></div><div id="uid-qr-modal" style="display:none"></div></body>'
+    );
+    App.currentPage = 'page-profile';
+
+    const qrModal = document.getElementById('uid-qr-modal');
+    qrModal.style.display = 'flex';
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'modal-open' });
+
+    qrModal.style.display = 'none';
+    const pwaModal = document.createElement('div');
+    pwaModal.className = 'pwa-modal-overlay visible';
+    document.body.appendChild(pwaModal);
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'modal-open' });
+
+    pwaModal.remove();
+    App._identitySettingsEditing = true;
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'profile-editing' });
+
+    App._identitySettingsEditing = false;
+    App._isIdentityFormDirty = jest.fn(() => true);
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'profile-editing' });
+
+    App._isIdentityFormDirty.mockReturnValue(false);
+    App._identitySettingsWritePending = true;
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'write-pending' });
+  });
+
+  test('closing the UID QR modal retries a deferred reload', () => {
+    const { App, window, document } = loadApp(
+      '<!doctype html><body><div id="toast"></div><div id="uid-qr-modal" style="display:flex"></div></body>'
+    );
+    App.currentPage = 'page-profile';
+    window._swReloadDeferred = true;
+    App._reloadForServiceWorkerUpdate = jest.fn(() => ({ reloaded: true, reason: 'safe' }));
+
+    App._closeUidQrModal();
+
+    expect(document.getElementById('uid-qr-modal').style.display).toBe('none');
+    expect(App._reloadForServiceWorkerUpdate).toHaveBeenCalledTimes(1);
+  });
+
   test('pending writes, scanner and unsafe pages block auto reload', () => {
     const { App } = loadApp();
     App.currentPage = 'page-home';
@@ -314,6 +357,91 @@ describe('Service Worker reload gate helper', () => {
     expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
   });
 
+  test('malformed reload marker is repaired before reloading', () => {
+    const { App, window } = loadApp();
+    App._performServiceWorkerReload = jest.fn();
+    window.sessionStorage.setItem('_sporthubSwReloadOnce', '{broken-json');
+
+    expect(App._reloadForServiceWorkerUpdate()).toEqual({ reloaded: true, reason: 'safe' });
+    expect(JSON.parse(window.sessionStorage.getItem('_sporthubSwReloadOnce'))).toMatchObject({
+      version: 'test',
+    });
+    expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['silent-noop', 'throw'])(
+    'reload marker %s failure defers automatic reload but permits an explicit manual reload',
+    (failureMode) => {
+      const { App, window } = loadApp();
+      const storage = {
+        getItem: jest.fn(() => null),
+        setItem: failureMode === 'throw'
+          ? jest.fn(() => { throw new Error('storage denied'); })
+          : jest.fn(),
+        removeItem: jest.fn(),
+      };
+      Object.defineProperty(window, 'sessionStorage', {
+        configurable: true,
+        value: storage,
+      });
+      App._performServiceWorkerReload = jest.fn();
+      App._showSwReloadPrompt = jest.fn();
+
+      expect(App._reloadForServiceWorkerUpdate()).toEqual({
+        reloaded: false,
+        deferred: true,
+        reason: 'reload-marker-unavailable',
+      });
+      expect(App._performServiceWorkerReload).not.toHaveBeenCalled();
+      expect(App._showSwReloadPrompt).toHaveBeenCalledWith({
+        reason: 'reload-marker-unavailable',
+        canPrompt: true,
+      });
+
+      expect(App._reloadForServiceWorkerUpdate({ manual: true })).toEqual({
+        reloaded: true,
+        reason: 'manual',
+      });
+      expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test('asset recovery reload is not blocked by the controllerchange once marker', () => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-home';
+    App._performServiceWorkerReload = jest.fn();
+    window._sporthubAssetRecoveryPending = true;
+    window.sessionStorage.setItem('_sporthubSwReloadOnce', JSON.stringify({
+      version: 'test',
+      at: Date.now(),
+    }));
+
+    expect(App._reloadForServiceWorkerUpdate()).toEqual({ reloaded: true, reason: 'safe' });
+    expect(App._performServiceWorkerReload).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem('_sporthubSwReloadOnce')).toBeNull();
+  });
+
+  test('canonical index version drives the visible tag, transition and reload marker', () => {
+    const { App, window, document } = loadApp(
+      '<!doctype html><body><div id="toast"></div><div id="home-version-tag"></div></body>'
+    );
+    window.getSportHubAssetVersion = jest.fn(() => '0.index');
+    window._swVersionTransition = {
+      to: '0.index',
+      startedAt: Date.now(),
+      expiresAt: Date.now() + 1000,
+    };
+    App._performServiceWorkerReload = jest.fn();
+
+    App._renderHomeVersionTag();
+    expect(document.getElementById('home-version-tag').textContent).toBe('v0.index');
+    expect(App._getSwVersionTransitionState()).toMatchObject({ active: true, to: '0.index' });
+    expect(App._reloadForServiceWorkerUpdate()).toEqual({ reloaded: true, reason: 'safe' });
+    expect(JSON.parse(window.sessionStorage.getItem('_sporthubSwReloadOnce'))).toMatchObject({
+      version: '0.index',
+    });
+  });
+
   test('later button clears prompt flag so the prompt can be shown again', () => {
     const { App, window, document } = loadApp();
 
@@ -358,17 +486,24 @@ function createLocalStorageLike(initial = {}) {
   return storage;
 }
 
-function runCacheVersionBootstrap({ search = '', initialStorage = {} } = {}) {
+function runCacheVersionBootstrap({ search = '', initialStorage = {}, initialSessionStorage = {} } = {}) {
   const { script, version } = readCacheVersionBootstrapScript();
   const localStorage = createLocalStorageLike(initialStorage);
-  const sessionStorage = createLocalStorageLike();
+  const sessionStorage = createLocalStorageLike(initialSessionStorage);
   const caches = {
     keys: jest.fn(() => Promise.resolve(['sporthub-0.old', 'sporthub-images-v2'])),
     delete: jest.fn(() => Promise.resolve(true)),
   };
-  const registrations = [{ unregister: jest.fn() }];
+  const registrations = [{ unregister: jest.fn(), update: jest.fn(() => Promise.resolve()) }];
   const serviceWorker = {
     getRegistrations: jest.fn(() => Promise.resolve(registrations)),
+  };
+  const windowListeners = {};
+  const document = {
+    body: null,
+    addEventListener: jest.fn(),
+    getElementById: jest.fn(() => null),
+    createElement: jest.fn(),
   };
   const indexedDB = {
     databases: jest.fn(() => Promise.resolve([{ name: 'firebaseLocalStorageDb' }])),
@@ -376,8 +511,21 @@ function runCacheVersionBootstrap({ search = '', initialStorage = {} } = {}) {
   };
   const sandbox = {
     console,
+    URL,
     URLSearchParams,
-    location: { search, pathname: '/index.html', replace: jest.fn() },
+    Promise,
+    setTimeout,
+    clearTimeout,
+    document,
+    addEventListener: jest.fn((type, handler) => { windowListeners[type] = handler; }),
+    location: {
+      search,
+      pathname: '/index.html',
+      href: `https://toosterx.test/index.html${search}`,
+      origin: 'https://toosterx.test',
+      replace: jest.fn(),
+      reload: jest.fn(),
+    },
     localStorage,
     sessionStorage,
     navigator: { serviceWorker },
@@ -388,7 +536,7 @@ function runCacheVersionBootstrap({ search = '', initialStorage = {} } = {}) {
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(script, sandbox, { filename: 'index.html cache version bootstrap' });
-  return { ...sandbox, version, registrations };
+  return { ...sandbox, version, registrations, windowListeners };
 }
 
 function flushMicrotasks() {
@@ -423,8 +571,114 @@ describe('Cache version bootstrap behavior', () => {
     expect(ctx.localStorage.getItem('shub_ts_U1')).toBe('keep-uid-ts');
     expect(ctx.localStorage.getItem('shub_cache_ts')).toBe('keep-global-ts');
     expect(ctx.localStorage.setItem).toHaveBeenCalledWith('sporthub_cache_ver', ctx.version);
+    expect(ctx.getSportHubAssetVersion()).toBe(ctx.version);
   });
 
+  test('asset recovery attempts survive App init until the page stays stable', async () => {
+    jest.useFakeTimers();
+    try {
+      const previous = JSON.stringify({ attempts: 1, at: Date.now(), source: 'old.js' });
+      const ctx = runCacheVersionBootstrap({
+        initialSessionStorage: { _sporthubAssetRecovery: previous },
+      });
+
+      ctx.markSportHubAssetRecoveryStable();
+      const result = await ctx.recoverSportHubScriptFailure(
+        'https://toosterx.test/js/missing.js',
+        { resourceType: 'script' },
+      );
+      await flushMicrotasks();
+
+      expect(result).toMatchObject({ reloading: true, attempts: 2 });
+      expect(JSON.parse(ctx.sessionStorage.getItem('_sporthubAssetRecovery')))
+        .toMatchObject({ attempts: 2 });
+      expect(ctx.window._sporthubAssetRecoveryPending).toBe(true);
+      expect(ctx.caches.keys).not.toHaveBeenCalled();
+      expect(ctx.caches.delete).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(30000);
+      expect(ctx.sessionStorage.getItem('_sporthubAssetRecovery')).not.toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('asset recovery update timeout preserves offline caches and still reloads', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap();
+      ctx.registrations[0].update.mockImplementation(() => new Promise(() => {}));
+
+      const recovery = ctx.recoverSportHubScriptFailure(
+        'https://toosterx.test/js/missing.js',
+        { resourceType: 'script' },
+      );
+      await flushMicrotasks();
+
+      jest.advanceTimersByTime(1499);
+      await flushMicrotasks();
+      expect(ctx.location.reload).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(1);
+      await flushMicrotasks();
+      await expect(recovery).resolves.toMatchObject({ reloading: true, attempts: 1 });
+
+      jest.advanceTimersByTime(350);
+      expect(ctx.location.reload).toHaveBeenCalledTimes(1);
+      expect(ctx.caches.keys).not.toHaveBeenCalled();
+      expect(ctx.caches.delete).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('versioned same-origin stylesheet failures enter bounded recovery', async () => {
+    const ignored = runCacheVersionBootstrap();
+    ignored.windowListeners.error({
+      target: {
+        tagName: 'LINK',
+        rel: 'stylesheet',
+        href: 'https://toosterx.test/css/app.css',
+      },
+    });
+    expect(ignored.sessionStorage.getItem('_sporthubAssetRecovery')).toBeNull();
+
+    const ctx = runCacheVersionBootstrap();
+    ctx.windowListeners.error({
+      target: {
+        tagName: 'LINK',
+        rel: 'stylesheet',
+        href: 'https://toosterx.test/css/app.css?v=0.old',
+      },
+    });
+    await flushMicrotasks();
+
+    expect(JSON.parse(ctx.sessionStorage.getItem('_sporthubAssetRecovery'))).toMatchObject({
+      attempts: 1,
+      source: 'https://toosterx.test/css/app.css?v=0.old',
+    });
+    expect(ctx.registrations[0].update).toHaveBeenCalledTimes(1);
+    expect(ctx.caches.delete).not.toHaveBeenCalled();
+  });
+
+  test('stable boot clears old asset recovery state only after 30 seconds', () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap({
+        initialSessionStorage: {
+          _sporthubAssetRecovery: JSON.stringify({ attempts: 2, at: Date.now() }),
+        },
+      });
+
+      ctx.markSportHubAssetRecoveryStable();
+      jest.advanceTimersByTime(29999);
+      expect(ctx.sessionStorage.getItem('_sporthubAssetRecovery')).not.toBeNull();
+      jest.advanceTimersByTime(1);
+      expect(ctx.sessionStorage.getItem('_sporthubAssetRecovery')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
   test('clear query keeps the full reset escape hatch', async () => {
     const ctx = runCacheVersionBootstrap({
       search: '?clear=1&debug=1',
@@ -513,6 +767,76 @@ describe('Service Worker reload gate source wiring', () => {
     expect(serviceWorker.register).toHaveBeenCalledWith('./sw.js', { updateViaCache: 'none' });
   });
 
+  test('legacy controllerchange does not reload while offline or in manual-only recovery', () => {
+    const source = readProjectFile('index.html');
+    const match = source.match(
+      /<!-- Service Worker Registration \+ 版本更新 -->\s*<script>\s*([\s\S]*?)\s*<\/script>/
+    );
+    expect(match).toBeTruthy();
+
+    const listeners = {};
+    const recover = jest.fn();
+    const serviceWorker = {
+      addEventListener: jest.fn((type, handler) => { listeners[type] = handler; }),
+      register: jest.fn(() => Promise.resolve()),
+    };
+    const sandbox = {
+      navigator: { onLine: false, serviceWorker },
+      location: { reload: jest.fn() },
+      localStorage: createLocalStorageLike({ sporthub_cache_ver: 'test' }),
+      sessionStorage: createLocalStorageLike(),
+      console,
+      setTimeout,
+      clearTimeout,
+      recoverSportHubScriptFailure: recover,
+      _sporthubAssetRecoveryPending: true,
+      _sporthubAssetRecoveryLastFailure: { source: 'missing.js', options: { resourceType: 'script' } },
+    };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(match[1], sandbox, {
+      filename: 'index.html legacy controllerchange',
+      timeout: 1000,
+    });
+
+    listeners.controllerchange();
+    expect(sandbox.location.reload).not.toHaveBeenCalled();
+    expect(recover).toHaveBeenCalledWith('missing.js', { resourceType: 'script' });
+
+    recover.mockClear();
+    sandbox._sporthubAssetRecoveryPending = true;
+    sandbox._sporthubAssetRecoveryManualRequired = true;
+    listeners.controllerchange();
+    expect(sandbox.location.reload).not.toHaveBeenCalled();
+    expect(recover).not.toHaveBeenCalled();
+  });
+
+  test('same-origin asset failures self-heal before asking for a manual reload', () => {
+    const indexSource = readProjectFile('index.html');
+    const pageLoaderSource = readProjectFile('js/core/page-loader.js');
+    const swSource = readProjectFile('sw.js');
+
+    expect(indexSource).toContain('ASSET_RECOVERY_WINDOW_MS=120000');
+    expect(indexSource).toContain('ASSET_RECOVERY_MAX_AUTO_ATTEMPTS=2');
+    expect(indexSource).toContain('ASSET_RECOVERY_RELOAD_DELAY_MS=350');
+    expect(indexSource).toContain('ASSET_RECOVERY_UPDATE_TIMEOUT_MS=1500');
+    expect(indexSource).toContain('ASSET_RECOVERY_STABLE_MS=30000');
+    expect(indexSource).toContain('window._sporthubAssetRecoveryPending=true');
+    expect(readProjectFile('app.js')).toContain('window.markSportHubAssetRecoveryStable?.()');
+    expect(indexSource).toContain('window.recoverSportHubScriptFailure=function');
+    expect(indexSource).toContain("resourceType:isScript?'script':'stylesheet'");
+    expect(indexSource).not.toContain('clearRuntimeCaches');
+    expect(indexSource).toContain('載入仍未完成，點我重新載入最新版');
+    expect(indexSource).not.toContain('腳本載入失敗，點我清快取後重整');
+    expect(indexSource.indexOf('window.recoverSportHubScriptFailure=function')).toBeLessThan(
+      indexSource.indexOf('<script src="js/i18n.js'),
+    );
+    expect(pageLoaderSource).toContain('r.status === 409');
+    expect(pageLoaderSource).toContain("r.headers.get('X-SportHub-Version-Miss') === '1'");
+    expect(pageLoaderSource).toContain("resourceType: 'page-fragment'");
+    expect(swSource).toContain('const RETAIN_PREVIOUS_RUNTIME_CACHES = 2;');
+  });
   test('deferred reload is retried after route, modal, scanner and cropper completion', () => {
     expect(readProjectFile('js/core/navigation.js')).toContain("_maybeRunDeferredSwReload?.('route-complete')");
     expect(readProjectFile('js/core/navigation.js')).toContain("_maybeRunDeferredSwReload?.('modal-close')");
@@ -522,6 +846,10 @@ describe('Service Worker reload gate source wiring', () => {
     expect(readProjectFile('app.js')).toContain("_maybeRunDeferredSwReload?.('protected-boot-route-clear')");
     expect(readProjectFile('js/modules/event/event-create.js')).toContain("_maybeRunDeferredSwReload?.(trigger)");
     expect(readProjectFile('js/modules/education/edu-course-session-form.js')).toContain("_maybeRunDeferredSwReload?.('edu-session-form-close')");
+    expect(readProjectFile('js/modules/profile/profile-data-render.js')).toContain("_maybeRunDeferredSwReload?.('profile-identity-save-complete')");
+    expect(readProjectFile('js/modules/profile/profile-data-render.js')).toContain('_identitySettingsWritePending = true');
+    expect(readProjectFile('pages/modals.html')).toContain('App._closeUidQrModal()');
+    expect(readProjectFile('js/modules/pwa-install.js')).toContain("_maybeRunDeferredSwReload?.('pwa-modal-close')");
   });
 
   test('inline runtime mirrors app.js after adding the reload gate', () => {

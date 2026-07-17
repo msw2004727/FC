@@ -251,7 +251,10 @@
         if (vTag) titleRow.appendChild(vTag);
       }
       var vTagEl = document.getElementById('kg-version-tag');
-      if (vTagEl) vTagEl.textContent = 'v' + (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '');
+      var assetVersion = (typeof window.getSportHubAssetVersion === 'function')
+        ? window.getSportHubAssetVersion()
+        : (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '');
+      if (vTagEl) vTagEl.textContent = 'v' + assetVersion;
 
       try {
         await _loadThreeJs();

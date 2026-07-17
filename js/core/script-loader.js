@@ -7,6 +7,18 @@
 
 const ScriptLoader = {
 
+  _getAssetVersion() {
+    if (typeof window !== 'undefined' && typeof window.getSportHubAssetVersion === 'function') {
+      const runtimeVersion = String(window.getSportHubAssetVersion() || '').trim();
+      if (runtimeVersion) return runtimeVersion;
+    }
+    const indexVersion = (typeof window !== 'undefined' && window.__SPORTHUB_INDEX_VERSION__)
+      ? String(window.__SPORTHUB_INDEX_VERSION__).trim()
+      : '';
+    if (indexVersion) return indexVersion;
+    return typeof CACHE_VERSION !== 'undefined' ? String(CACHE_VERSION) : '';
+  },
+
   _loaded: {},
   _loading: {},
   _groupLoading: {},
@@ -97,7 +109,7 @@ const ScriptLoader = {
       rejectPending(err || this._createLoadError(src, 'script-load-failed'));
     };
 
-    s.src = src + '?v=' + CACHE_VERSION;
+    s.src = src + '?v=' + this._getAssetVersion();
     s.async = false;
     s.onload = () => finish(true);
     s.onerror = () => finish(false, this._createLoadError(
@@ -140,7 +152,7 @@ const ScriptLoader = {
       const link = document.createElement('link');
       link.rel = 'preload';
       link.as = 'script';
-      link.href = src + '?v=' + CACHE_VERSION;
+      link.href = src + '?v=' + this._getAssetVersion();
       document.head.appendChild(link);
     });
   },
@@ -154,7 +166,7 @@ const ScriptLoader = {
       const link = document.createElement('link');
       link.rel = 'prefetch';
       link.as = 'script';
-      link.href = src + '?v=' + CACHE_VERSION;
+      link.href = src + '?v=' + this._getAssetVersion();
       document.head.appendChild(link);
     });
   },

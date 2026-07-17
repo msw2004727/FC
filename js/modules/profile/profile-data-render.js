@@ -380,6 +380,7 @@ Object.assign(App, {
   },
 
   async saveIdentitySettings(options = {}) {
+    if (this._identitySettingsWritePending) return false;
     if (!this._canUseSecondaryIdentityFeature()) {
       this._warnSecondaryIdentityPermissionDenied();
       return false;
@@ -408,6 +409,7 @@ Object.assign(App, {
     const previousBaseline = this._identityFormBaseline ? { ...this._identityFormBaseline } : null;
     const previousEditing = !!this._identitySettingsEditing;
 
+    this._identitySettingsWritePending = true;
     try {
       this._mergeSecondaryIdentityLocalCache(secondary);
       if (typeof FirebaseService !== 'undefined' && FirebaseService?._cache?.currentUserIdentitySettings) {
@@ -443,6 +445,9 @@ Object.assign(App, {
       }
       this.showToast('第二身份儲存失敗');
       return false;
+    } finally {
+      this._identitySettingsWritePending = false;
+      this._maybeRunDeferredSwReload?.('profile-identity-save-complete');
     }
   },
 
@@ -564,6 +569,7 @@ Object.assign(App, {
       display.style.display = '';
       edit.style.display = 'none';
       if (btn) btn.textContent = '編輯';
+      this._maybeRunDeferredSwReload?.('profile-info-edit-close');
     } else {
       // 開啟編輯，預填現有值
       const user = ApiService.getCurrentUser();
@@ -610,7 +616,8 @@ Object.assign(App, {
     if (list) { list.innerHTML = ''; list.style.display = 'none'; }
   },
 
-  saveProfileInfo() {
+  async saveProfileInfo() {
+    if (this._profileInfoWritePending) return;
     const genderInput = document.getElementById('profile-edit-gender');
     const regionInput = document.getElementById('profile-edit-region');
     const phoneInput = document.getElementById('profile-edit-phone');
@@ -628,14 +635,22 @@ Object.assign(App, {
     }
     if (regionInput) updates.region = regionVal || null;
     if (phoneInput) updates.phone = phoneInput.value.trim() || null;
-    const updatedUser = ApiService.updateCurrentUser(updates);
-    if (updatedUser) {
+    this._profileInfoWritePending = true;
+    try {
+      const updatedUser = await ApiService.updateCurrentUserAwait(updates);
+      if (!updatedUser) return;
       this._pendingFirstLogin = !['gender', 'birthday', 'region'].every(key => String(updatedUser[key] || '').trim());
+      this.toggleProfileEdit();
+      this.renderProfileData();
+      this._refreshActivityCreateButton?.();
+      this.showToast('個人資料已更新');
+    } catch (err) {
+      console.error('[saveProfileInfo]', err);
+      this.showToast('個人資料更新失敗，請稍後再試');
+    } finally {
+      this._profileInfoWritePending = false;
+      this._maybeRunDeferredSwReload?.('profile-info-save-complete');
     }
-    this.toggleProfileEdit();
-    this.renderProfileData();
-    this._refreshActivityCreateButton?.();
-    this.showToast('個人資料已更新');
   },
 
   /** 收折切換：展開時 lazy load 對應區塊 */

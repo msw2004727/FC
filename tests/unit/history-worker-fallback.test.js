@@ -82,7 +82,7 @@ describe('history route hosting fallback contract', () => {
 
   test('service worker enables and consumes navigation preload for navigate requests', () => {
     const source = readProjectFile('sw.js');
-    const htmlBranchStart = source.indexOf('// ── 3. HTML');
+    const htmlBranchStart = source.indexOf("if (event.request.mode === 'navigate' || url.pathname.endsWith('.html'))");
     const htmlBranchEnd = source.indexOf('// ── 4. 同源有版號資源');
     const htmlBranch = source.slice(htmlBranchStart, htmlBranchEnd);
 
@@ -92,7 +92,8 @@ describe('history route hosting fallback contract', () => {
     expect(htmlBranch).toContain('await event.preloadResponse.catch(() => null)');
     expect(htmlBranch.indexOf('event.preloadResponse')).toBeLessThan(htmlBranch.indexOf('fetch(event.request)'));
     expect(htmlBranch).toContain('cache.put(cacheRequest, clone)');
-    expect(htmlBranch).toContain('caches.match(cacheRequest, { ignoreSearch: !normalizeToIndex })');
+    expect(htmlBranch).toContain('matchRuntimeCachesNewestFirst(');
+    expect(htmlBranch).toContain('{ ignoreSearch: !normalizeToIndex }');
   });
 
   test('service worker image cache limit and age match the A8 tuning', () => {

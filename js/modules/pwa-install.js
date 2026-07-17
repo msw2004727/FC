@@ -248,6 +248,7 @@ Object.assign(App, {
     var m = document.getElementById(id);
     if (!m) return;
     m.classList.remove('visible');
+    App._maybeRunDeferredSwReload?.('pwa-modal-close');
     m.addEventListener('transitionend', function handler() {
       m.removeEventListener('transitionend', handler);
       if (m.parentNode) m.parentNode.removeChild(m);

@@ -402,6 +402,7 @@ function loadRealScriptLoader({
   performanceFlags = {},
   immediateTimers = false,
   documentOverrides = {},
+  indexVersion = '',
 } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../../js/core/script-loader.js'), 'utf8');
   let SL = null;
@@ -416,7 +417,10 @@ function loadRealScriptLoader({
       if (k === 'detailAuxModulesOnDemand') return auxOnDemand;
       return false;
     },
-    window: { location: { origin: 'https://example.com', href: 'https://example.com/' } },
+    window: {
+      location: { origin: 'https://example.com', href: 'https://example.com/' },
+      __SPORTHUB_INDEX_VERSION__: indexVersion,
+    },
     document: {
       querySelectorAll: () => [],
       createElement: () => ({}),
@@ -469,6 +473,24 @@ describe('dynamic script timeout recovery', () => {
     await expect(retry).resolves.toBeUndefined();
     expect(SL._loaded['js/hung.js']).toBe(true);
     expect(SL.hasPendingLoads()).toBe(false);
+  });
+
+  test('index version stays canonical when config cache version is stale', async () => {
+    const appended = [];
+    const SL = loadRealScriptLoader({
+      indexVersion: '0.20260716c',
+      documentOverrides: {
+        createElement: () => ({ remove: jest.fn() }),
+        head: { appendChild: script => appended.push(script) },
+      },
+    });
+
+    const pending = SL._load('js/modules/event/event-create-delegates.js');
+
+    expect(appended).toHaveLength(1);
+    expect(appended[0].src).toBe('js/modules/event/event-create-delegates.js?v=0.20260716c');
+    appended[0].onload();
+    await expect(pending).resolves.toBeUndefined();
   });
 });
 

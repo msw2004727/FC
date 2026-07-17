@@ -58,6 +58,10 @@
 
   function _getShotGameAssetVersion() {
     try {
+      if (typeof window.getSportHubAssetVersion === 'function') {
+        const version = String(window.getSportHubAssetVersion() || '').trim();
+        if (version) return version;
+      }
       if (typeof CACHE_VERSION === 'string' && CACHE_VERSION) return CACHE_VERSION;
     } catch (_) {}
     return '';
