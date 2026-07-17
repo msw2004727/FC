@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ToosterX 權限系統參考文件</title>
-<meta name="description" content="ToosterX 後台權限系統各層級權限對照、缺失與無效開關審計報告">
+<meta name="description" content="ToosterX 前端、Cloud Functions 與 Firestore Rules 權限模型、角色邊界及已知 drift 參考文件">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://toosterx.com/permissions/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -136,459 +136,269 @@ section{margin-bottom:3rem}
 <!-- ════ Header ════ -->
 <header class="hero">
   <h1>ToosterX 權限系統參考文件</h1>
-  <p>統一權限架構：前端 hasPermission() + 後端 Firestore Rules hasPerm() 雙層驗證</p>
-  <span class="hero-date">最後更新：2026-03-30（Phase 1-4 重構完成 · 對照表已與 config.js 同步驗證）</span>
+  <p>角色權限、一般用戶活動能力、個別授權與前後端有效權限的現行架構</p>
+  <span class="hero-date">最後核實：2026-07-17（對照 config.js、api-service.js 與 firestore.rules）</span>
 </header>
 
 <main class="container">
 
-<!-- ════ Legend ════ -->
 <div class="legend">
-  <div class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>預設擁有（可切換）</div>
-  <div class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>固有權限（無法關閉）</div>
-  <div class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>角色鎖定（全開或全關）</div>
-  <div class="legend-item"><span class="legend-dot" style="background:var(--border)"></span>無此權限</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>前端／Functions 內建預設（Rules 另採 fail-closed）</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>不可剝奪保護</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>個別 UID 授權／平台活動能力</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--border)"></span>預設未開放</div>
 </div>
 
-<!-- ════ 1. Role Cards ════ -->
 <section>
-  <h2 class="section-title">各層級權限總覽</h2>
-  <p class="section-desc">六個內建層級的預設權限狀態與特殊規則一覽</p>
+  <h2 class="section-title">有效授權如何組成</h2>
+  <p class="section-desc">這四個來源用途不同，不能只看角色名稱或單一權限陣列判斷使用者能做什麼。</p>
 
-  <div class="role-grid">
-
-    <!-- Lv.0 一般用戶 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#6b7280">一般用戶</span>
-        <span class="role-lv">Lv.0 · user</span>
-        <div class="role-card-stats"><span class="stat-pill red">0 後台權限</span><span class="stat-pill">11 基礎功能</span></div>
-      </div>
-      <div class="role-card-body">
-        <div class="role-card-note" style="border-left:3px solid var(--danger)">
-          所有<b>後台</b>權限開關已鎖定為全部關閉，無法為此層級開啟任何後台功能。
-        </div>
-        <h4>永久保障的基礎功能（11 項）</h4>
-        <ul class="perm-list">
-          <li class="on">瀏覽活動列表與詳情</li>
-          <li class="on">報名活動</li>
-          <li class="on">取消報名</li>
-          <li class="on">候補排隊</li>
-          <li class="on">取消候補</li>
-          <li class="on">瀏覽俱樂部與詳情</li>
-          <li class="on">申請加入俱樂部</li>
-          <li class="on">退出俱樂部</li>
-          <li class="on">管理個人檔案</li>
-          <li class="on">收發站內信</li>
-          <li class="on">查看個人出席紀錄與成就</li>
-        </ul>
-        <div class="role-card-note">這 11 項功能<b>不受任何權限碼控制</b>，前端不檢查 hasPermission、後端僅驗證身分（isAuth / isOwner），永遠不會被阻擋。詳見下方「<a href="#user-basics" style="color:var(--accent)">基礎功能保障</a>」章節。</div>
-      </div>
+  <div class="audit-grid">
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">角色</span>rolePermissions</div>
+      <div class="audit-card-desc">後台入口與管理操作的角色層權限。前端與 Cloud Functions 在文件不存在或缺少 permissions 欄位時使用內建預設；Firestore Rules 的 <code>hasPerm()</code> 則要求文件存在且包含權限陣列，缺檔時直接拒絕。一旦已有有效儲存文件，空陣列仍代表空權限。</div>
+      <div class="audit-card-meta"><span>一般 user 固定回傳空陣列</span><span>缺檔可能 UI 允許／Rules 拒絕</span></div>
     </div>
 
-    <!-- Lv.1 教練 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#0d9488">教練</span>
-        <span class="role-lv">Lv.1 · coach</span>
-        <div class="role-card-stats"><span class="stat-pill">2 固有</span></div>
-      </div>
-      <div class="role-card-body">
-        <h4>固有權限（無法關閉）</h4>
-        <ul class="perm-list">
-          <li class="inherent">活動管理入口 <span class="tag tag-inherent">固有</span></li>
-          <li class="inherent">賽事管理入口 <span class="tag tag-inherent">固有</span></li>
-        </ul>
-        <h4>可由 super_admin 授予</h4>
-        <ul class="perm-list">
-          <li class="off">所有後台功能（用戶管理、廣告、俱樂部、儀表板等）</li>
-          <li class="off">活動子權限（建立、編輯、刪除等 9 項）</li>
-        </ul>
-        <div class="role-card-note">
-          Phase 1-2 重構後，<b>頁面鎖定已移除</b>。super_admin 可透過權限面板為教練開啟任何後台功能，前後端即時生效。固有權限仍無法關閉。
-        </div>
-      </div>
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity severity-high">個別</span>userPermissionGrants</div>
+      <div class="audit-card-desc">由 super_admin 對特定 UID 授予允許清單中的權限，不改變角色，也不改寫該角色的預設。一般 user 亦可被個別授權，例如活動黑名單管理。</div>
+      <div class="audit-card-meta"><span>前端：與角色權限合併</span><span>後端：hasUserPermissionGrant()</span></div>
     </div>
 
-    <!-- Lv.2 領隊/經理 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#7c3aed">領隊 / 經理</span>
-        <span class="role-lv">Lv.2 · captain</span>
-        <div class="role-card-stats"><span class="stat-pill">2 固有</span></div>
-      </div>
-      <div class="role-card-body">
-        <h4>固有權限（無法關閉）</h4>
-        <ul class="perm-list">
-          <li class="inherent">活動管理入口 <span class="tag tag-inherent">固有</span></li>
-          <li class="inherent">賽事管理入口 <span class="tag tag-inherent">固有</span></li>
-        </ul>
-        <h4>可由 super_admin 授予</h4>
-        <ul class="perm-list">
-          <li class="off">所有後台功能（與教練相同）</li>
-        </ul>
-        <div class="role-card-note">與教練相同：固有權限無法關閉，其餘所有後台功能可由 super_admin 授予。</div>
-      </div>
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity severity-medium">活動</span>roleActivityCapabilities</div>
+      <div class="audit-card-desc">只控制一般 user 的主辦人範圍活動能力，例如建立基本活動、編輯自己活動、現場操作與設定委託人；它不是後台角色權限。</div>
+      <div class="audit-card-meta"><span>7 項預設開啟</span><span>進階功能預設關閉</span></div>
     </div>
 
-    <!-- Lv.3 場主 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#d97706">場主</span>
-        <span class="role-lv">Lv.3 · venue_owner</span>
-        <div class="role-card-stats"><span class="stat-pill">2 固有</span></div>
-      </div>
-      <div class="role-card-body">
-        <h4>固有權限（無法關閉）</h4>
-        <ul class="perm-list">
-          <li class="inherent">活動管理入口 <span class="tag tag-inherent">固有</span></li>
-          <li class="inherent">賽事管理入口 <span class="tag tag-inherent">固有</span></li>
-        </ul>
-        <h4>可由 super_admin 授予</h4>
-        <ul class="perm-list">
-          <li class="off">所有後台功能（與教練相同）</li>
-        </ul>
-        <div class="role-card-note">與教練相同：固有權限無法關閉，其餘所有後台功能可由 super_admin 授予。</div>
-      </div>
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">有效</span>effective permissions</div>
+      <div class="audit-card-desc">前端以目前角色權限加上個別 UID 授權判斷；Firestore Rules 的 <code>hasEffectivePerm()</code> 同樣合併 <code>hasPerm()</code> 與個別授權。</div>
+      <div class="audit-card-meta"><span>前端：getCurrentUserEffectivePermissions()</span><span>後端：hasEffectivePerm()</span></div>
     </div>
 
-    <!-- Lv.4 管理員 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#2563eb">管理員</span>
-        <span class="role-lv">Lv.4 · admin</span>
-        <div class="role-card-stats"><span class="stat-pill">12 預設</span><span class="stat-pill red">35 可授予</span></div>
-      </div>
-      <div class="role-card-body">
-        <h4>預設擁有的權限（9 入口 + 3 額外操作）</h4>
-        <ul class="perm-list">
-          <li class="on">入口：活動管理、賽事管理、小遊戲、用戶管理</li>
-          <li class="on">入口：廣告管理、二手商品、站內信、俱樂部管理、補正管理</li>
-          <li class="on">操作：建立俱樂部 · 管理所有俱樂部 · 編輯所有活動</li>
-        </ul>
-        <h4>預設無、可由 super_admin 授予（8 入口 + 27 子權限）</h4>
-        <ul class="perm-list">
-          <li class="off">入口 8 項：儀表板 · 佈景主題 · 手動 EXP · 自動 EXP · 系統公告 · 成就/徽章 · 日誌中心 · 無效資料查詢</li>
-          <li class="off">活動子權限 8 項（建立、編輯自己、刪除自己、刪除所有、上架/下架、掃碼、手動簽到、查看報名名單）</li>
-          <li class="off">賽事 3 · 俱樂部 5 · 用戶管理 3 · 站內信 2 · 補正 3 · 日誌 3</li>
-        </ul>
-        <div class="role-card-note">
-          管理員預設擁有 9 個入口權限 + 3 個操作權限（team.create · team.manage_all · event.edit_all）。其餘 8 個 super_admin 級入口與所有模組子權限可由總管額外授予，前後端即時生效。
-        </div>
-      </div>
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity severity-medium">固有</span>INHERENT_ROLE_PERMISSIONS</div>
+      <div class="audit-card-desc">coach、captain、venue_owner 目前沒有不可剝奪權限。super_admin 的安全保護為 <code>admin.repair.event_blocklist</code> 與 <code>admin.seo.entry</code>。</div>
     </div>
 
-    <!-- Lv.5 總管 -->
-    <div class="role-card">
-      <div class="role-card-head">
-        <span class="role-badge" style="background:#dc2626">總管</span>
-        <span class="role-lv">Lv.5 · super_admin</span>
-        <div class="role-card-stats"><span class="stat-pill red">全部鎖定</span></div>
-      </div>
-      <div class="role-card-body">
-        <div class="role-card-note" style="border-left:3px solid var(--danger)">
-          所有權限開關已鎖定為<b>全部開啟</b>，無法為此層級關閉任何權限。權限面板中的所有開關僅供參考，切換無效。
-        </div>
-        <h4 style="margin-top:.7rem">額外說明</h4>
-        <ul class="perm-list">
-          <li class="locked">權限管理頁面 <span class="tag tag-locked">僅 super_admin</span></li>
-          <li class="locked">自訂層級建立 / 刪除 <span class="tag tag-locked">僅 super_admin</span></li>
-          <li class="locked">儲存預設權限 / 復原預設 <span class="tag tag-locked">僅 super_admin</span></li>
-        </ul>
-      </div>
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity severity-high">範圍</span>入口不等於動作</div>
+      <div class="audit-card-desc"><code>activity.manage.entry</code> 的目標契約是入口可見性，新路徑不得把它當泛用動作授權；但現行前端與 Rules 仍在多個 owner／delegate scoped helper 內接受 entry、coach+ 或個別授權 fallback。delegate 只界定活動範圍，各動作仍須逐項判斷；目前可依角色、權限或 capability 編輯、取消、重開／重新上架或操作現場，但不因 delegate 身分取得刪除權。</div>
     </div>
-
   </div>
 </section>
 
-<!-- ════ 2. Permission Matrix ════ -->
 <section>
-  <h2 class="section-title">完整權限對照表</h2>
-  <p class="section-desc">各層級對每項權限的實際效力。◉ 預設有 · ⚿ 固有 · — 無（可由 super_admin 授予）</p>
+  <h2 class="section-title">內建角色與目前預設</h2>
+  <p class="section-desc">以下是文件尚未儲存自訂值時的內建基準；實際執行仍須讀取線上設定、個別授權及動作範圍。</p>
 
-  <div class="swipe-hint"><span>👆 左右滑動查看更多</span></div>
+  <div class="role-grid">
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#6b7280">一般用戶</h3>
+        <span class="role-lv">Lv.0 · user</span>
+        <div class="role-card-stats"><span class="stat-pill">7 活動能力預設開啟</span><span class="stat-pill red">1 項預設關閉</span></div>
+      </div>
+      <div class="role-card-body">
+        <h4>角色層與活動能力</h4>
+        <ul class="perm-list">
+          <li class="off"><code>rolePermissions/user</code> 固定為空，不提供角色層後台權限</li>
+          <li class="on">建立基本活動與外部活動連結</li>
+          <li class="on">管理、編輯基本資料及取消自己主辦的活動</li>
+          <li class="on">自己主辦或受委託活動的現場操作；主辦人可設定委託人</li>
+          <li class="off">收費、私密、隊伍限定、分隊、早鳥與 GPS 等進階功能預設關閉</li>
+        </ul>
+        <div class="role-card-note">super_admin 可另外授予特定 UID 允許清單中的權限；這不會改變 user 角色或開啟整個角色層。</div>
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#0d9488">教練</h3>
+        <span class="role-lv">Lv.1 · coach</span>
+        <div class="role-card-stats"><span class="stat-pill">3 項內建預設</span></div>
+      </div>
+      <div class="role-card-body">
+        <h4>前端／Functions 文件不存在時的預設</h4>
+        <ul class="perm-list">
+          <li class="on">活動管理入口</li>
+          <li class="on">賽事管理入口</li>
+          <li class="on">查看放鴿子次數</li>
+        </ul>
+        <div class="role-card-note">這些是可由儲存 rolePermissions 取代的預設，不是 INHERENT_ROLE_PERMISSIONS。</div>
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#7c3aed">領隊 / 經理</h3>
+        <span class="role-lv">Lv.2 · captain</span>
+        <div class="role-card-stats"><span class="stat-pill">4 項內建預設</span></div>
+      </div>
+      <div class="role-card-body">
+        <h4>前端／Functions 文件不存在時的預設</h4>
+        <ul class="perm-list">
+          <li class="on">活動管理入口</li>
+          <li class="on">賽事管理入口</li>
+          <li class="on">俱樂部管理入口</li>
+          <li class="on">查看放鴿子次數</li>
+        </ul>
+        <div class="role-card-note">預設可調整；動作仍受俱樂部身分、活動擁有者與專用權限碼限制。</div>
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#d97706">場主</h3>
+        <span class="role-lv">Lv.3 · venue_owner</span>
+        <div class="role-card-stats"><span class="stat-pill">4 項內建預設</span></div>
+      </div>
+      <div class="role-card-body">
+        <h4>前端／Functions 文件不存在時的預設</h4>
+        <ul class="perm-list">
+          <li class="on">活動管理入口</li>
+          <li class="on">賽事管理入口</li>
+          <li class="on">俱樂部管理入口</li>
+          <li class="on">查看放鴿子次數</li>
+        </ul>
+        <div class="role-card-note">與 captain 相同，這些是可調整預設，不是不可關閉的固有權限。</div>
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#2563eb">管理員</h3>
+        <span class="role-lv">Lv.4 · admin</span>
+        <div class="role-card-stats"><span class="stat-pill">可調整內建預設</span></div>
+      </div>
+      <div class="role-card-body">
+        <h4>預設入口</h4>
+        <ul class="perm-list">
+          <li class="on">活動、賽事、俱樂部、小遊戲、用戶、首頁、二手商品與站內信管理</li>
+          <li class="on">SEO 儀表板與用戶補正管理</li>
+        </ul>
+        <h4>預設額外操作</h4>
+        <ul class="perm-list">
+          <li class="on">查看放鴿子次數、建立／管理所有俱樂部、編輯所有活動</li>
+          <li class="on">管理、結束、重開與刪除所有賽事</li>
+        </ul>
+        <div class="role-card-note">前端／Functions 在 rolePermissions 缺檔時使用上述內建基準；Rules 不套用此 fallback。若文件已儲存，自訂內容會取代前端／Functions 基準；不要用固定數量推斷線上有效權限。</div>
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-card-head">
+        <h3 class="role-badge" style="background:#dc2626">總管</h3>
+        <span class="role-lv">Lv.5 · super_admin</span>
+        <div class="role-card-stats"><span class="stat-pill red">全部有效權限</span></div>
+      </div>
+      <div class="role-card-body">
+        <div class="role-card-note" style="border-left:3px solid var(--danger)">前端有效權限會合併完整權限目錄，不能透過一般角色開關剝奪。</div>
+        <h4>專屬管理與安全保護</h4>
+        <ul class="perm-list">
+          <li class="locked">管理角色權限、一般 user 活動能力與個別 UID 授權</li>
+          <li class="locked">建立／刪除自訂層級與復原預設</li>
+          <li class="inherent"><code>admin.repair.event_blocklist</code> 與 <code>admin.seo.entry</code> 為不可剝奪保護</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2 class="section-title">一般 user 活動能力</h2>
+  <p class="section-desc">能力由 <code>roleActivityCapabilities/user</code> 控制。表中「開」是文件不存在時的內建預設，線上儲存值可調整。</p>
+
   <div class="matrix-wrap">
     <table class="matrix">
       <thead>
-        <tr>
-          <th>權限項目</th>
-          <th class="role-col-head"><span class="role-badge" style="background:#6b7280">用戶</span></th>
-          <th class="role-col-head"><span class="role-badge" style="background:#0d9488">教練</span></th>
-          <th class="role-col-head"><span class="role-badge" style="background:#7c3aed">領隊</span></th>
-          <th class="role-col-head"><span class="role-badge" style="background:#d97706">場主</span></th>
-          <th class="role-col-head"><span class="role-badge" style="background:#2563eb">管理員</span></th>
-          <th class="role-col-head"><span class="role-badge" style="background:#dc2626">總管</span></th>
-        </tr>
+        <tr><th>能力碼</th><th>預設</th><th>實際範圍</th></tr>
       </thead>
       <tbody>
-        <!-- 活動管理 -->
-        <tr class="cat-row"><td colspan="7"><span>活動管理</span></td></tr>
-        <tr><td>活動管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>編輯自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>編輯所有活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>刪除自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>刪除所有活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>上架 / 下架活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>掃碼簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>手動簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>查看報名名單</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 賽事管理 -->
-        <tr class="cat-row"><td colspan="7"><span>賽事管理</span></td></tr>
-        <tr><td>賽事管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>管理所有賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>審核參賽申請</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 俱樂部管理 -->
-        <tr class="cat-row"><td colspan="7"><span>俱樂部管理</span></td></tr>
-        <tr><td>俱樂部管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立俱樂部</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>管理所有俱樂部</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>管理自己的俱樂部</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>審核入隊申請</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>指派俱樂部教練</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立俱樂部專屬活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>切換活動公開性</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 用戶管理 -->
-        <tr class="cat-row"><td colspan="7"><span>用戶管理</span></td></tr>
-        <tr><td>用戶管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>編輯基本資料</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>修改用戶身分</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>限制 / 解除限制</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 站內信管理 -->
-        <tr class="cat-row"><td colspan="7"><span>站內信管理</span></td></tr>
-        <tr><td>站內信管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>撰寫廣播</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>刪除站內信</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 用戶補正 -->
-        <tr class="cat-row"><td colspan="7"><span>用戶補正管理</span></td></tr>
-        <tr><td>補正管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>歷史入隊補正</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>放鴿子修改</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>系統資料同步</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 日誌中心 -->
-        <tr class="cat-row"><td colspan="7"><span>日誌中心</span></td></tr>
-        <tr><td>日誌中心入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>錯誤日誌讀取</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>錯誤日誌清除</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>稽核日誌讀取</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <!-- 入口權限 -->
-        <tr class="cat-row"><td colspan="7"><span>其他後台入口</span></td></tr>
-        <tr><td>小遊戲管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>二手商品管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>廣告管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>數據儀表板</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>佈景主題</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>手動 EXP 管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>自動 EXP 管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>系統公告管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>成就 / 徽章管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>無效資料查詢</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td><code>user.activity.basic_create</code></td><td class="icon-on">開</td><td>建立不含進階功能的基本活動</td></tr>
+        <tr><td><code>user.activity.external_create</code></td><td class="icon-on">開</td><td>建立自己主辦的外部活動連結</td></tr>
+        <tr><td><code>user.activity.own_manage_entry</code></td><td class="icon-on">開</td><td>顯示自己活動管理入口；不授予任何動作本身</td></tr>
+        <tr><td><code>user.activity.own_edit_basic</code></td><td class="icon-on">開</td><td>編輯自己主辦或受委託活動的基本欄位</td></tr>
+        <tr><td><code>user.activity.own_cancel</code></td><td class="icon-on">開</td><td>取消自己主辦或受委託的活動</td></tr>
+        <tr><td><code>user.activity.site_operate</code></td><td class="icon-on">開</td><td>owner-scope 現場操作；明列 delegate 目前可無此 capability 進入現場操作，但從正取名單移除參與者另判</td></tr>
+        <tr><td><code>user.activity.delegate_assign</code></td><td class="icon-on">開</td><td>只有主辦人可設定委託人；delegate 身分本身不授予刪除或設定其他 delegate</td></tr>
+        <tr><td><code>user.activity.addons_use</code></td><td class="icon-off">關</td><td>收費、隊伍／性別限定、私密、分隊、社群連結、早鳥與 GPS 等進階功能</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<!-- ════ 3. Missing Permission Controls ════ -->
 <section>
-  <h2 class="section-title">缺少權限開關的功能</h2>
-  <p class="section-desc">以下後台功能已實作但尚未配置獨立的權限開關，僅依賴頁面層級的角色鎖定或入口權限</p>
+  <h2 class="section-title">管理與驗證原則</h2>
+  <p class="section-desc">權限判斷必須同時核對資料來源、作用範圍與前後端守衛。</p>
 
   <div class="audit-grid">
-
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-critical">嚴重</span>佈景主題操作</div>
-      <div class="audit-card-desc">儲存主題（saveThemeItem）與切換主題狀態（toggleThemeStatus）無任何權限檢查，僅依賴頁面的 data-min-role="super_admin"。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：admin.themes.entry（僅入口）</span>
-        <span>缺少：admin.themes.manage</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-high">預設</span>依授權層分開判斷</div>
+      <div class="audit-card-desc">角色權限缺檔時，前端與 Functions 使用內建預設，但 Rules 的 <code>hasPerm()</code> fail-closed；一般 user 活動能力缺檔時，前端、Functions 與 Rules 才都有對應預設。線上文件已存在時必須尊重儲存值，空陣列不得補回預設。</div>
     </div>
 
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-critical">嚴重</span>通知範本編輯</div>
-      <div class="audit-card-desc">開啟範本編輯器（showTemplateEditor）與儲存全部範本（saveAllTemplates）無權限檢查。範本變更影響全站推播通知。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：無</span>
-        <span>缺少：admin.messages.template_edit</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-medium">user</span>三套控制分離</div>
+      <div class="audit-card-desc">一般 user 的 rolePermissions 維持空白，但仍可透過 roleActivityCapabilities 管理主辦人範圍功能，或透過 userPermissionGrants 取得特定例外權限。</div>
     </div>
 
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-critical">嚴重</span>自動 EXP 回溯發放</div>
-      <div class="audit-card-desc">runAutoExpBackfill() 僅檢查入口權限 admin.auto_exp.entry，無獨立開關。此操作可回溯發放大量經驗值。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：admin.auto_exp.entry（僅入口）</span>
-        <span>缺少：admin.auto_exp.backfill</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-high">同步</span>前後端都要授權</div>
+      <div class="audit-card-desc">前端隱藏按鈕不能取代 Firestore Rules 或 Cloud Functions 驗證；後端允許也不能省略前端可見性與錯誤處理。兩端須使用相同權限碼與作用範圍。</div>
     </div>
 
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-high">高</span>錯誤日誌清除</div>
-      <div class="audit-card-desc">clearOldErrorLogs() 無任何權限檢查，可直接清除 30 天以上的錯誤日誌。現有 admin.logs.error_delete 開關存在但未被此函式檢查。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：無（admin.logs.error_delete 未使用）</span>
-        <span>需要：函式內加入 admin.logs.error_delete 檢查</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-high">動作</span>使用專用 predicate</div>
+      <div class="audit-card-desc">建立、編輯、刪除、重開、現場操作、黑名單與高敏感管理必須逐動作判斷。活動入口權限不得作為所有動作的通行證。</div>
     </div>
 
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-high">高</span>站內信撰寫表單</div>
-      <div class="audit-card-desc">showMsgCompose() 開啟廣播撰寫介面時不檢查 admin.messages.compose 權限。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：admin.messages.entry（僅入口）</span>
-        <span>需要：函式內加入 admin.messages.compose 檢查</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-medium">個別</span>授權不改角色</div>
+      <div class="audit-card-desc">個別 UID 授權只增加允許清單中的有效權限，不改使用者 role，也不擴張其他同角色使用者。寫入與刪除僅限 super_admin，並保留稽核資料。</div>
     </div>
 
     <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-high">高</span>成就管理表單</div>
-      <div class="audit-card-desc">showAchForm() 與 saveAchievement() 的 facade 入口未檢查權限，直接委派至管理模組。</div>
-      <div class="audit-card-meta">
-        <span>現有控制：admin.achievements.entry（僅入口）</span>
-        <span>需要：facade 加入權限檢查</span>
-      </div>
+      <div class="audit-card-title"><span class="severity severity-medium">委託</span>delegate 逐動作判斷</div>
+      <div class="audit-card-desc">一般 user delegate 有 <code>own_edit_basic</code>／<code>own_cancel</code> 時可編輯基本資料／取消；明列 delegate 現行可在沒有 <code>site_operate</code> 時進現場操作，但從正取名單移除參與者仍另判。staff delegate 受現有 entry／coach+ fallback 可編輯、取消、結束與重開／重新上架；delegate 身分本身不授予刪除。</div>
     </div>
 
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity severity-high">現況</span>活動守衛存在三端 drift</div>
+      <div class="audit-card-desc">前端與 Rules 的入口守衛仍接受角色 <code>activity.manage.entry</code>、個別 UID grant 與 coach+ fallback，Rules 多數活動更新仍另查 owner／delegate scope。Functions 的 <code>canOperateEventSiteForAccess()</code> 則會先讓 coach+、<code>activity.manage.entry</code> 或 <code>event.edit_all</code> 直接通過而不查該 scope，並被報名取消 Callable 的管理移除／容量調整使用；因此可能形成跨活動名單操作。這是待修的高風險授權差異，不是目標權限設計。</div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">查證</span>以實碼與線上設定為準</div>
+      <div class="audit-card-desc">權限目錄與預設看 <code>js/config.js</code>；前端有效權限看 <code>js/api-service.js</code>；Firestore 邊界看 <code>firestore.rules</code>；Callable 邊界另查 <code>functions/index.js</code>。線上實際值須再查 rolePermissions、roleActivityCapabilities 與 userPermissionGrants。</div>
+    </div>
   </div>
 </section>
 
-<!-- ════ 4. Ineffective Switches ════ -->
-<section>
-  <h2 class="section-title">權限系統已知限制</h2>
-  <p class="section-desc">Phase 1-4 重構已解決大部分問題，以下為仍然存在的設計限制</p>
-
-  <div class="audit-grid">
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-medium">中</span>固有權限覆蓋</div>
-      <div class="audit-card-desc">教練、領隊、場主的 <b>activity.manage.entry</b> 與 <b>admin.tournaments.entry</b> 是固有權限（INHERENT_ROLE_PERMISSIONS），即使在面板上關閉，系統仍會自動補回。</div>
-      <div class="affected-roles">
-        <span class="role-badge" style="background:#0d9488">教練</span>
-        <span class="role-badge" style="background:#7c3aed">領隊</span>
-        <span class="role-badge" style="background:#d97706">場主</span>
-      </div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-medium">中</span>活動子權限被入口回退覆蓋</div>
-      <div class="audit-card-desc">event.create、event.edit_self 等 9 項活動子權限在程式碼中以 <code>|| hasPermission('activity.manage.entry')</code> 做回退判斷。因教練/領隊/場主固有 activity.manage.entry，這些子權限的開關對它們<b>完全無效</b>。</div>
-      <div class="affected-roles">
-        <span class="role-badge" style="background:#0d9488">教練</span>
-        <span class="role-badge" style="background:#7c3aed">領隊</span>
-        <span class="role-badge" style="background:#d97706">場主</span>
-      </div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-low" style="background:var(--accent-bg);color:var(--accent)">已解決</span>頁面角色鎖定已移除</div>
-      <div class="audit-card-desc">Phase 1 已移除 17 個頁面的 <code>data-min-role</code> 屬性，改由 <code>hasPermission()</code> 控制存取。super_admin 可透過權限面板為任何角色授予任何後台頁面存取權。</div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-low" style="background:var(--accent-bg);color:var(--accent)">已解決</span>JS 硬角色檢查已替換</div>
-      <div class="audit-card-desc">Phase 2 已將 22 處 <code>ROLE_LEVEL_MAP</code> 硬編碼檢查替換為 <code>hasPermission()</code> 呼叫。權限面板的開關現在可以實際控制功能存取。保留 8 處 super_admin 專屬操作（清除資料、自訂層級管理等）。</div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-low">低</span>用戶角色全部鎖定關閉</div>
-      <div class="audit-card-desc">一般用戶（user）的權限永遠回傳空陣列，面板中所有開關已鎖定禁用。這是設計行為，但面板仍顯示全部開關可能造成混淆。</div>
-      <div class="affected-roles">
-        <span class="role-badge" style="background:#6b7280">用戶</span>
-      </div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity severity-low">低</span>總管角色全部鎖定開啟</div>
-      <div class="audit-card-desc">總管（super_admin）自動擁有所有權限，面板中所有開關已鎖定為開啟狀態。此外，部分程式碼以角色等級（roleLevel >= admin）取代權限檢查，進一步使開關無效。</div>
-      <div class="affected-roles">
-        <span class="role-badge" style="background:#dc2626">總管</span>
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<!-- ════ 5. User Basic Features ════ -->
 <section id="user-basics">
-  <h2 class="section-title">基礎功能保障（所有已登入用戶）</h2>
-  <p class="section-desc">以下 11 項功能不受權限系統控制，任何已登入用戶（包含一般用戶 Lv.0）永遠可以使用。前端不檢查 hasPermission()，後端僅驗證身分（isAuth / isOwner）。</p>
+  <h2 class="section-title">一般使用與擁有者範圍功能</h2>
+  <p class="section-desc">下列功能不依賴角色層後台權限，但仍受登入狀態、帳號限制、資料擁有者、活動狀態、可見性及 Firestore Rules 約束。</p>
 
-  <div class="audit-grid">
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>瀏覽活動列表與詳情</div>
-      <div class="audit-card-desc">所有活動列表與單一活動詳情頁為公開資料，任何人（含未登入訪客）皆可瀏覽。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：events read = true（公開）</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>報名活動</div>
-      <div class="audit-card-desc">任何已登入用戶可報名公開活動。系統僅驗證身分（userId === 登入者）與活動狀態（open/full）。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：registerForEvent — isAuth only</span><span>Firestore：registrations create = isRegistrationOwnerRequest</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>取消報名</div>
-      <div class="audit-card-desc">用戶可取消自己的報名。系統驗證 userId === 登入者，取消後自動觸發候補遞補。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：cancelRegistration — userId === callerUid</span><span>Firestore：registrations delete = isRegistrationOwnerResource</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>候補排隊</div>
-      <div class="audit-card-desc">活動額滿時自動進入候補。與報名使用同一個 registerForEvent 流程，系統自動判斷正取或候補。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：registerForEvent — 自動候補邏輯</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>取消候補</div>
-      <div class="audit-card-desc">候補中的用戶可取消候補。與取消報名使用同一個 cancelRegistration 流程。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：cancelRegistration — userId === callerUid</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>瀏覽俱樂部與詳情</div>
-      <div class="audit-card-desc">所有俱樂部列表與詳情頁為公開資料，任何人皆可瀏覽。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：teams read = true（公開）</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>申請加入俱樂部</div>
-      <div class="audit-card-desc">任何已登入用戶可提交入隊申請。系統發送站內信給俱樂部幹部審核，24 小時冷卻期防止重複申請。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：deliverToInbox — isAuth only</span><span>Firestore：messages create = isAuth + isMessageSenderRequest</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>退出俱樂部</div>
-      <div class="audit-card-desc">一般成員可自行退出俱樂部（經理/領隊除外，需先轉讓）。系統僅驗證用戶為該俱樂部成員。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users update = isOwner + isSafeTeamFieldUpdate</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>管理個人檔案</div>
-      <div class="audit-card-desc">用戶可編輯自己的暱稱、地區、性別、運動項目等個人資料。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users/{uid} update = isOwner + isSafeSelfProfileUpdate</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>收發站內信</div>
-      <div class="audit-card-desc">用戶可閱讀自己的站內信收件匣，並對系統通知進行操作（同意/拒絕入隊申請等）。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users/{uid}/inbox read = isOwner</span></div>
-    </div>
-
-    <div class="audit-card">
-      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>查看個人出席紀錄與成就</div>
-      <div class="audit-card-desc">用戶可查看自己的活動參與紀錄、出席率、完成場次、以及已獲得的成就徽章。</div>
-      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：attendanceRecords/activityRecords read = isAuth</span><span>Firestore：users/{uid}/achievements read = isAuth</span></div>
-    </div>
-
+  <div class="matrix-wrap">
+    <table class="matrix">
+      <thead><tr><th>功能</th><th>主要邊界</th><th>說明</th></tr></thead>
+      <tbody>
+        <tr><td>瀏覽公開活動與俱樂部</td><td>公開讀取</td><td>公開資料可供訪客瀏覽；私密或限定內容另依可見性判斷</td></tr>
+        <tr><td>報名、取消與候補</td><td>登入者本人＋活動狀態</td><td>只能以自己的身分操作，候補遞補由既有流程處理</td></tr>
+        <tr><td>申請加入或退出俱樂部</td><td>登入者本人＋成員規則</td><td>俱樂部幹部、領隊轉讓與冷卻限制另行判斷</td></tr>
+        <tr><td>管理個人資料與通知設定</td><td>資料擁有者</td><td>只可更新 Firestore Rules 允許的自有欄位</td></tr>
+        <tr><td>查看站內信、出席與成就</td><td>登入／擁有者範圍</td><td>依各 collection 的讀取規則與功能狀態提供</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
 </main>
 
 <footer class="footer">
-  <p>ToosterX Permission System Reference &middot; 僅供內部參考 &middot; 自動產生於 2026-03-30</p>
+  <p>ToosterX Permission System Reference &middot; 僅供內部參考 &middot; 核實於 2026-07-17</p>
 </footer>
 
 </body>

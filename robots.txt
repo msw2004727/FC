@@ -25,24 +25,48 @@ Allow: /
 Disallow: /pages/
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
+Disallow: /valuation/
+Disallow: /functions/
+Disallow: /test-
+Disallow: /GrowthGames.html
+Disallow: /game-lab.html
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /pages/
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
+Disallow: /valuation/
+Disallow: /functions/
+Disallow: /test-
+Disallow: /GrowthGames.html
+Disallow: /game-lab.html
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /pages/
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
+Disallow: /valuation/
+Disallow: /functions/
+Disallow: /test-
+Disallow: /GrowthGames.html
+Disallow: /game-lab.html
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /pages/
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
+Disallow: /valuation/
+Disallow: /functions/
+Disallow: /test-
+Disallow: /GrowthGames.html
+Disallow: /game-lab.html
 
 # Sitemap
 Sitemap: https://toosterx.com/sitemap.xml

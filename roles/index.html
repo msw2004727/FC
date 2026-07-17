@@ -234,10 +234,11 @@ tr:last-child td{border-bottom:none}
     <span class="card-badge" style="background:#6b7280">Lv.0</span>
     <div class="card-name">一般用戶</div>
     <div class="card-price"><span class="free">免費</span></div>
-    <div class="card-desc">加入 ToosterX 社群，探索你附近的運動活動。報名場次、加入球隊、累積個人數據 — 你的運動履歷從這裡開始。</div>
+    <div class="card-desc">加入 ToosterX 社群，探索附近活動，也能依平台目前開放的活動能力建立與管理自己主辦的場次。你的運動履歷從這裡開始。</div>
     <ul class="card-features">
       <li>瀏覽並報名所有公開活動</li>
       <li>加入俱樂部、參與團隊訓練</li>
+      <li>建立與管理自己的基本／外部活動（依平台活動能力設定）</li>
       <li>QR Code 簽到、自動出席統計</li>
       <li>個人經驗值、等級與成就徽章</li>
       <li>候補自動遞補、站內信通知</li>
@@ -265,7 +266,7 @@ tr:last-child td{border-bottom:none}
       <li>QR Code 掃碼簽到、出席管理</li>
       <li>舉辦俱樂部友誼賽</li>
       <li>學員分組與訓練進度追蹤</li>
-      <li>含一般用戶所有功能</li>
+      <li>另具一般用戶的基礎功能與活動能力</li>
     </ul>
     <button type="button" class="btn btn-outline" onclick="showApplyGuide('教練')">申請成為教練</button>
   </div>
@@ -291,7 +292,7 @@ tr:last-child td{border-bottom:none}
       <li>代表俱樂部報名友誼賽、盃賽、循環賽</li>
       <li>審核入隊申請、管理球員名單</li>
       <li>俱樂部動態牆與成員溝通</li>
-      <li>含教練所有功能</li>
+      <li>依實際授權包含教練與俱樂部管理工具</li>
     </ul>
     <button type="button" class="btn btn-primary" onclick="showApplyGuide('俱樂部')">立即申請</button>
   </div>
@@ -315,7 +316,7 @@ tr:last-child td{border-bottom:none}
     <ul class="card-features">
       <li>專屬場地標籤與場館展示</li>
       <li>經營主場俱樂部</li>
-      <li>含俱樂部方案所有功能</li>
+      <li>依實際授權包含俱樂部管理工具</li>
       <li>管理教練團隊與球員</li>
       <li>代表俱樂部參與各級賽事</li>
       <li>場地活動優先曝光（規劃中）</li>
@@ -328,7 +329,7 @@ tr:last-child td{border-bottom:none}
 <!-- ════ Comparison Table ════ -->
 <section class="compare-section">
   <h2>方案功能比較</h2>
-  <p>一目了然各身分方案的差異，選擇最適合你的角色</p>
+  <p>以下為目前預設能力摘要；實際功能仍依平台活動能力與個別授權設定為準</p>
 
   <div class="table-shell" id="compare-table-shell">
     <div class="swipe-hint" id="compare-swipe-hint"><span>👆 左右滑動查看更多</span></div>
@@ -358,10 +359,11 @@ tr:last-child td{border-bottom:none}
         <tr><td>經驗值與成就系統</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>個人數據統計</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr class="t-cat"><td colspan="5"><span>活動管理</span></td></tr>
-        <tr><td>建立公開活動</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>建立基本公開活動（依平台設定）</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>建立外部活動連結（依平台設定）</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>建立俱樂部專屬活動</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>開設教學課程</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
-        <tr><td>掃碼簽到 / 出席管理</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>自己主辦／受委託活動的現場操作</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr class="t-cat"><td colspan="5"><span>俱樂部經營</span></td></tr>
         <tr><td>建立俱樂部</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>管理教練團隊</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
@@ -378,6 +380,7 @@ tr:last-child td{border-bottom:none}
     </table>
     </div>
   </div>
+  <p>活動管理區的一般用戶勾選項目限自己主辦或受委託的活動，且可由總管調整；收費、隊伍限定、性別限定、私密活動、分隊、社群連結、早鳥與 GPS 地圖等進階功能預設不開放。</p>
 </section>
 
 </main>
