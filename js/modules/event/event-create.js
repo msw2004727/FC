@@ -958,6 +958,9 @@ Object.assign(App, {
       }
       if (this._requireActivityCreateProfileComplete?.()) return false;
       if (!canContinue()) return false;
+      if (options.directCustom === true) {
+        return this._openCreateCustomEventModal() === true;
+      }
       // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
       this._showCreateEventTypeSheet();
       return true;
@@ -1029,9 +1032,9 @@ Object.assign(App, {
     }
     if (!this._canCreateBasicActivity?.()) {
       this.showToast('權限不足：需要建立活動權限');
-      return;
+      return false;
     }
-    if (!this._ensureCreateEventDomContract()) return;
+    if (!this._ensureCreateEventDomContract()) return false;
     this._editEventId = null;
     this._beginEventFormSession(null);
     this._clearCourseLinkedEditLockState?.();
@@ -1103,6 +1106,7 @@ Object.assign(App, {
     this._renderRecentDelegateChips('ce-delegate-tags', 'ce');
     this._renderTemplateSelector();
     void this._ensureEventTemplatesReady();
+    return true;
   },
 
   // (Fee, Gender, Team-only, Reg open time, Delegates, Sport picker, External event

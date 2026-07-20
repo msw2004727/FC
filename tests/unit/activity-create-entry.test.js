@@ -480,6 +480,21 @@ describe('activity create capability refresh gate', () => {
     expect(App._activityRoleCapabilityRefreshPromise).toBeNull();
   });
 
+  test('direct custom entry shares the canonical preflight and skips only the type sheet', async () => {
+    const ensureCapabilities = jest.fn(async () => ['roleActivityCapabilities']);
+    const { App } = loadEventCreate({
+      _ensureActivityRoleCapabilitiesReady: ensureCapabilities,
+    });
+    App._showCreateEventTypeSheet = jest.fn();
+    App._openCreateCustomEventModal = jest.fn(() => true);
+
+    await expect(App.openCreateEventModal({ directCustom: true })).resolves.toBe(true);
+
+    expect(ensureCapabilities).toHaveBeenCalledWith({ force: true });
+    expect(App._openCreateCustomEventModal).toHaveBeenCalledTimes(1);
+    expect(App._showCreateEventTypeSheet).not.toHaveBeenCalled();
+  });
+
   test('timeout stays fail-closed and never opens the create sheet', async () => {
     jest.useFakeTimers();
     const ensureCapabilities = jest.fn(() => new Promise(() => {}));

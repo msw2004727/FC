@@ -1330,15 +1330,30 @@ describe('team detail club activity section', () => {
     expect(updates[0].id).toBe('docA');
   });
 
-  test('club activity create button opens custom event form with current club preselected and sport defaulted', async () => {
+  test('club activity create cold start loads the canonical form and presets the current club', async () => {
     const teamOnly = { checked: false };
     const teamSelect = { innerHTML: '', multiple: false };
     const sportInput = { value: '' };
-    const app = {
+    const pageLoader = { ensurePage: jest.fn(async () => true) };
+    const openCreateEventModal = jest.fn(async (options) => {
+      expect(options.directCustom).toBe(true);
+      expect(options.entryGuard()).toBe(true);
+      return true;
+    });
+    let app;
+    const scriptLoader = {
+      ensureGroup: jest.fn(async (group) => {
+        expect(group).toBe('activityCreate');
+        app.openCreateEventModal = openCreateEventModal;
+      }),
+    };
+    app = {
+      currentPage: 'page-team-detail',
+      _pageTransitionSeq: 7,
+      _activePageTransitionSeq: 7,
       _requireProtectedActionLogin: () => false,
       _canCreateActivityByPermission: () => true,
       _canCreateBasicActivity: () => true,
-      _openCreateCustomEventModal: jest.fn(),
       _initSportTagPicker: jest.fn((sportTag) => {
         sportInput.value = sportTag;
       }),
@@ -1364,12 +1379,17 @@ describe('team detail club activity section', () => {
         getCurrentUser: () => ({ uid: 'viewer', role: 'coach' }),
         getTeam: () => ({ id: 'teamA', name: 'Club A', sportTag: 'basketball', captainUid: 'viewer' }),
       },
+      PageLoader: pageLoader,
+      ScriptLoader: scriptLoader,
       getSportKeySafe: (value) => String(value || '').trim(),
     });
 
-    await app.openTeamDetailCreateEvent('teamA');
+    await expect(app.openTeamDetailCreateEvent('teamA')).resolves.toBe(true);
 
-    expect(app._openCreateCustomEventModal).toHaveBeenCalled();
+    expect(pageLoader.ensurePage).toHaveBeenCalledWith('page-activities');
+    expect(scriptLoader.ensureGroup).toHaveBeenCalledWith('activityCreate');
+    expect(openCreateEventModal).toHaveBeenCalledTimes(1);
+    expect(app.showToast).not.toHaveBeenCalled();
     expect(teamOnly.checked).toBe(true);
     expect(teamSelect.presetIds).toEqual(['teamA']);
     expect(teamSelect.presetNames).toEqual(['Club A']);
@@ -1378,12 +1398,72 @@ describe('team detail club activity section', () => {
     expect(sportInput.value).toBe('basketball');
   });
 
+  test('club activity create loader failure stays on the club page without opening a form', async () => {
+    const openCreateEventModal = jest.fn();
+    const app = {
+      currentPage: 'page-team-detail',
+      _pageTransitionSeq: 4,
+      _requireProtectedActionLogin: () => false,
+      _canCreateActivityByPermission: () => true,
+      _canCreateBasicActivity: () => true,
+      openCreateEventModal,
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getCurrentUser: () => ({ uid: 'viewer', role: 'coach' }),
+        getTeam: () => ({ id: 'teamA', name: 'Club A', captainUid: 'viewer' }),
+      },
+      PageLoader: { ensurePage: jest.fn(async () => { throw new Error('page failed'); }) },
+      ScriptLoader: { ensureGroup: jest.fn(async () => true) },
+    });
+
+    await expect(app.openTeamDetailCreateEvent('teamA')).resolves.toBe(false);
+
+    expect(openCreateEventModal).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u8f09\u5165\u5931\u6557'));
+    expect(app._teamDetailEventPreset).toBeUndefined();
+  });
+
+  test('club activity create cold start does not open after the user leaves the club page', async () => {
+    let resolvePage;
+    const pageReady = new Promise(resolve => { resolvePage = resolve; });
+    const openCreateEventModal = jest.fn(async () => true);
+    const app = {
+      currentPage: 'page-team-detail',
+      _pageTransitionSeq: 9,
+      _requireProtectedActionLogin: () => false,
+      _canCreateActivityByPermission: () => true,
+      _canCreateBasicActivity: () => true,
+      openCreateEventModal,
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getCurrentUser: () => ({ uid: 'viewer', role: 'coach' }),
+        getTeam: () => ({ id: 'teamA', name: 'Club A', captainUid: 'viewer' }),
+      },
+      PageLoader: { ensurePage: jest.fn(() => pageReady) },
+      ScriptLoader: { ensureGroup: jest.fn(async () => true) },
+    });
+
+    const opening = app.openTeamDetailCreateEvent('teamA');
+    app.currentPage = 'page-home';
+    app._pageTransitionSeq = 10;
+    resolvePage();
+
+    await expect(opening).resolves.toBe(false);
+    expect(openCreateEventModal).not.toHaveBeenCalled();
+    expect(app.showToast).not.toHaveBeenCalled();
+    expect(app._teamDetailEventPreset).toBeUndefined();
+  });
+
   test('club activity create entry blocks non-staff even with activity create permission', async () => {
     const app = {
       _requireProtectedActionLogin: () => false,
       _canCreateActivityByPermission: () => true,
       _canCreateBasicActivity: () => true,
-      _openCreateCustomEventModal: jest.fn(),
+      openCreateEventModal: jest.fn(),
       showToast: jest.fn(),
     };
     loadTeamDetailCore(app, null, {
@@ -1395,7 +1475,7 @@ describe('team detail club activity section', () => {
 
     await app.openTeamDetailCreateEvent('teamA');
 
-    expect(app._openCreateCustomEventModal).not.toHaveBeenCalled();
+    expect(app.openCreateEventModal).not.toHaveBeenCalled();
     expect(app.showToast).toHaveBeenCalledWith('\u53ea\u6709\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u65b0\u589e\u4ff1\u6a02\u90e8\u6d3b\u52d5');
   });
 

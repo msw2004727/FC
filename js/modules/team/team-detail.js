@@ -893,40 +893,54 @@ Object.assign(App, {
       this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u65b0\u589e\u4ff1\u6a02\u90e8\u6d3b\u52d5');
       return;
     }
-    if (typeof this._canCreateActivityByPermission !== 'function'
-      && typeof ScriptLoader !== 'undefined'
-      && typeof ScriptLoader.ensureGroup === 'function') {
-      try {
-        await ScriptLoader.ensureGroup('activity');
-      } catch (err) {
-        console.warn('[TeamDetail] load activity create failed:', err);
+    const sourcePageId = String(this.currentPage || '');
+    const sourcePageTransitionSeq = Number(this._pageTransitionSeq);
+    const sourceActiveTransitionSeq = Number(this._activePageTransitionSeq) || 0;
+    const isEntryCurrent = () => String(this.currentPage || '') === sourcePageId
+      && (!Number.isSafeInteger(sourcePageTransitionSeq)
+        || Number(this._pageTransitionSeq) === sourcePageTransitionSeq);
+    if (typeof PageLoader === 'undefined' || typeof PageLoader.ensurePage !== 'function'
+      || typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+      this.showToast('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return false;
+    }
+
+    try {
+      await Promise.all([
+        PageLoader.ensurePage('page-activities'),
+        ScriptLoader.ensureGroup('activityCreate'),
+      ]);
+    } catch (err) {
+      console.warn('[TeamDetail] load activity create failed:', err);
+      if (isEntryCurrent()) {
+        this.showToast('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       }
+      return false;
     }
-    if (!this._canCreateActivityByPermission?.()) {
-      this.showToast('\u6b0a\u9650\u4e0d\u8db3\uff1a\u9700\u8981\u5efa\u7acb\u6d3b\u52d5\u6b0a\u9650');
-      return;
+    if (!isEntryCurrent()) return false;
+    if (typeof this.openCreateEventModal !== 'function') {
+      this.showToast('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return false;
     }
-    if (this._canCreateBasicActivity?.() && typeof this._openCreateCustomEventModal === 'function') {
-      const presetTeamId = String(teamId || '').trim();
-      const sportTag = (typeof getSportKeySafe === 'function')
+
+    const presetTeamId = String(teamId || '').trim();
+    const preset = {
+      teamId: presetTeamId || teamId,
+      teamName: team?.name || teamId,
+      sportTag: (typeof getSportKeySafe === 'function')
         ? getSportKeySafe(team?.sportTag || '')
-        : String(team?.sportTag || '').trim();
-      this._teamDetailEventCreateTeamId = presetTeamId;
-      this._teamDetailEventCreateTransitionSeq = Number(this._activePageTransitionSeq) || 0;
-      this._teamDetailEventPreset = {
-        teamId: presetTeamId || teamId,
-        teamName: team?.name || teamId,
-        sportTag,
-      };
-      this._openCreateCustomEventModal();
-      this._applyTeamDetailEventPreset();
-      return;
-    }
-    if (typeof this.openCreateEventModal === 'function') {
-      this.openCreateEventModal();
-      return;
-    }
-    this.showToast('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        : String(team?.sportTag || '').trim(),
+    };
+    const opened = await this.openCreateEventModal({
+      directCustom: true,
+      entryGuard: isEntryCurrent,
+    });
+    if (opened !== true || !isEntryCurrent()) return false;
+
+    this._teamDetailEventCreateTeamId = presetTeamId;
+    this._teamDetailEventCreateTransitionSeq = sourceActiveTransitionSeq;
+    this._teamDetailEventPreset = preset;
+    return this._applyTeamDetailEventPreset();
   },
 
   _applyTeamDetailEventPreset() {
