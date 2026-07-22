@@ -79,8 +79,14 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1784611910711_0gu3d9</loc>
+    <loc>https://toosterx.com/events/ce_1784647957363_hgmo47</loc>
     <lastmod>2026-07-21</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1784693250558_a7pj26</loc>
+    <lastmod>2026-07-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
