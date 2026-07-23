@@ -50,6 +50,83 @@ Object.assign(App, {
     return String(value || '').trim().startsWith('comp_');
   },
 
+  _isCourseLinkedRegistrationForRoster(reg) {
+    return !!(reg && (
+      String(reg?.courseLinkSource || reg?.source || '').trim() === 'eduCourseLesson'
+      || String(reg?.courseLinkId || '').trim()
+      || String(reg?.courseStudentId || '').trim()
+    ));
+  },
+
+  _getAttendancePersonKey(person) {
+    const regDocId = String(person?.regDocId || '').trim();
+    if (person?.courseLinkedRegistration && regDocId) return 'course-' + regDocId;
+    return String(person?.uid || '').trim();
+  },
+
+  _decorateAttendanceRosterPeople(eventId, sourcePeople = []) {
+    const people = (Array.isArray(sourcePeople) ? sourcePeople : []).map(person => ({ ...person }));
+    const courseRegs = (ApiService.getRegistrationsByEvent(eventId) || [])
+      .filter(reg => reg?.status === 'confirmed')
+      .filter(reg => reg?.participantType !== 'companion')
+      .filter(reg => this._isCourseLinkedRegistrationForRoster(reg));
+    const courseRegById = new Map();
+    courseRegs.forEach(reg => {
+      const regDocId = String(reg?._docId || reg?.id || '').trim();
+      if (regDocId) courseRegById.set(regDocId, reg);
+    });
+    const representedRegistrationIds = new Set();
+    people.forEach(person => {
+      const regDocId = String(person?.regDocId || '').trim();
+      if (!regDocId) return;
+      representedRegistrationIds.add(regDocId);
+      const reg = courseRegById.get(regDocId);
+      if (!reg) return;
+      person.courseLinkedRegistration = true;
+      person.courseStudentId = String(reg?.courseStudentId || '').trim();
+      person.courseLinkId = String(reg?.courseLinkId || '').trim();
+    });
+    courseRegs.forEach(reg => {
+      const regDocId = String(reg?._docId || reg?.id || '').trim();
+      if (!regDocId || representedRegistrationIds.has(regDocId)) return;
+      const displayName = String(reg?.userName || reg?.courseStudentName || '課程學員').trim();
+      people.push({
+        name: displayName,
+        uid: String(reg?.userId || '').trim(),
+        isCompanion: false,
+        displayName,
+        hasSelfReg: true,
+        proxyOnly: false,
+        displayBadges: Array.isArray(reg?.displayBadges) ? reg.displayBadges : [],
+        teamKey: reg?.teamKey || null,
+        regDocId,
+        courseLinkedRegistration: true,
+        courseStudentId: String(reg?.courseStudentId || '').trim(),
+        courseLinkId: String(reg?.courseLinkId || '').trim(),
+        teamReservationTeamId: reg?.teamReservationTeamId || null,
+        teamReservationTeamName: reg?.teamReservationTeamName || null,
+        teamSeatSource: reg?.teamSeatSource || null,
+      });
+      representedRegistrationIds.add(regDocId);
+    });
+
+    const attendanceRowsByUid = new Map();
+    people.forEach(person => {
+      if (person?.isTeamHeader || person?.isTeamGeneralSeparator || person?.isTeamPlaceholder
+        || person?.proxyOnly || person?.isProxyOnly || person?.isCompanion) return;
+      const uid = String(person?.uid || '').trim();
+      if (!uid) return;
+      const rows = attendanceRowsByUid.get(uid) || [];
+      rows.push(person);
+      attendanceRowsByUid.set(uid, rows);
+    });
+    attendanceRowsByUid.forEach(rows => {
+      if (rows.length <= 1 || !rows.some(person => person.courseLinkedRegistration)) return;
+      rows.forEach(person => { person.attendanceAmbiguous = true; });
+    });
+    return people;
+  },
+
   _isActiveAttendanceRegistration(reg) {
     const status = String(reg?.status || 'confirmed').toLowerCase();
     return status !== 'cancelled' && status !== 'removed';
@@ -612,11 +689,20 @@ Object.assign(App, {
     const _t1 = _perfLog ? performance.now() : 0;
 
     const canManage = this._canOperateEventSite?.(e) === true;
+    const canRemoveConfirmed = this._canRemoveConfirmedParticipant?.(e) === true;
     const publicRosterOnly = options?.publicRosterOnly === true;
     const showAttendanceRecordColumns = publicRosterOnly !== true;
     const records = showAttendanceRecordColumns ? ApiService.getAttendanceRecords(eventId) : [];
     const summary = this._buildConfirmedParticipantSummary(eventId);
-    const people = summary.people;
+    const people = this._decorateAttendanceRosterPeople?.(eventId, summary.people)
+      || (Array.isArray(summary.people) ? [...summary.people] : []);
+    const renderedRosterCount = people.filter(person => (
+      !person?.isTeamHeader
+      && !person?.isTeamGeneralSeparator
+      && !person?.isTeamPlaceholder
+      && !person?.proxyOnly
+      && !person?.isProxyOnly
+    )).length;
     const _t2 = _perfLog ? performance.now() : 0;
     // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
     // 顯示限制：只在「管理名單」模式（tableEditing=true）才顯示，平時瀏覽名單一律隱藏
@@ -696,14 +782,14 @@ Object.assign(App, {
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
     const demoteStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid #8b5cf6;color:#8b5cf6;background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
-    const hasDemote = e.max > 0;
+    const hasDemote = canRemoveConfirmed && e.max > 0;
     const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'
       + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
     const disabledAttr = isSubmitting ? 'disabled' : '';
     const _attCb = (id, checked) =>
       `<input type="checkbox" id="${id}" class="att-cb" ${checked ? 'checked' : ''} ${disabledAttr}><label for="${id}" class="att-lbl"><span class="att-box"></span></label>`;
     const attendanceRecordColumnCount = showAttendanceRecordColumns ? 3 : 0;
-    const tableColspan = (tableEditing ? (1 + (hasDemote ? 1 : 0) + 1) : 1)
+    const tableColspan = (tableEditing ? ((canRemoveConfirmed ? 1 : 0) + (hasDemote ? 1 : 0) + 1) : 1)
       + (showNoShowColumn ? 1 : 0)
       + attendanceRecordColumnCount;
     let rows = people.map(p => {
@@ -740,14 +826,18 @@ Object.assign(App, {
       }
       const isPlaceholder = !!p.isTeamPlaceholder;
       const isProxyOnly = !!p.proxyOnly || !!p.isProxyOnly;
-      const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
-      const hasCheckin = (isPlaceholder || isProxyOnly) ? false : (pendingState
+      const attendanceBlocked = isPlaceholder || isProxyOnly || p.attendanceAmbiguous === true;
+      const attendanceKey = this._getAttendancePersonKey?.(p) || String(p.uid || '').trim();
+      const pendingState = !attendanceBlocked && pendingStateByUid
+        ? pendingStateByUid[String(p.uid)]
+        : null;
+      const hasCheckin = attendanceBlocked ? false : (pendingState
         ? !!pendingState.checkin
         : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin'));
-      const hasCheckout = (isPlaceholder || isProxyOnly) ? false : (pendingState
+      const hasCheckout = attendanceBlocked ? false : (pendingState
         ? !!pendingState.checkout
         : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout'));
-      const noteRec = (isPlaceholder || isProxyOnly) ? null : this._getLatestAttendanceRecord(records, p, 'note');
+      const noteRec = attendanceBlocked ? null : this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const noShowCount = (showNoShowColumn && !isProxyOnly) ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
       const noShowCell = showNoShowColumn
@@ -760,16 +850,21 @@ Object.assign(App, {
           <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
           <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${label}</td>`
         : '';
-      const editAttendanceRecordCells = showAttendanceRecordColumns
-        ? `<td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkin-' + escapeHTML(p.uid), hasCheckin)}</td>
-          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + escapeHTML(p.uid), hasCheckout)}</td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${escapeHTML(p.uid)}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>`
-        : '';
-      const readAttendanceRecordCells = showAttendanceRecordColumns
-        ? `<td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
-          <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
-          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>`
-        : '';
+      const ambiguousAttendanceLabel = p.attendanceAmbiguous ? '請至課程點名' : '';
+      const editAttendanceRecordCells = p.attendanceAmbiguous
+        ? emptyAttendanceRecordCells(ambiguousAttendanceLabel)
+        : (showAttendanceRecordColumns
+            ? `<td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkin-' + escapeHTML(attendanceKey), hasCheckin)}</td>
+              <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + escapeHTML(attendanceKey), hasCheckout)}</td>
+              <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${escapeHTML(attendanceKey)}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>`
+            : '');
+      const readAttendanceRecordCells = p.attendanceAmbiguous
+        ? emptyAttendanceRecordCells(ambiguousAttendanceLabel)
+        : (showAttendanceRecordColumns
+            ? `<td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+              <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+              <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>`
+            : '');
 
       // 徽章縮圖
       const badges = p.displayBadges || [];
@@ -815,35 +910,43 @@ Object.assign(App, {
 
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
+      const actionRegistrationId = p.courseLinkedRegistration ? (p.regDocId || '') : '';
+      const safeActionRegistrationId = escapeHTML(actionRegistrationId);
+      const safeAttendanceKey = escapeHTML(attendanceKey);
       const teamReservationRowAttr = p.teamReservationTeamId ? ' class="team-reservation-member-row"' : '';
 
       if (tableEditing) {
         if (isProxyOnly) {
+          const emptyKickTd = canRemoveConfirmed ? `<td style="padding:.35rem .2rem"></td>` : '';
           const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
-          return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border);background:linear-gradient(90deg, rgba(148,163,184,.16), rgba(148,163,184,.04) 55%, transparent)">
-          <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
+          return `<tr data-attendance-key="${safeAttendanceKey}" style="border-bottom:1px solid var(--border);background:linear-gradient(90deg, rgba(148,163,184,.16), rgba(148,163,184,.04) 55%, transparent)">
+          ${emptyKickTd}${emptyDemoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
           ${emptyAttendanceRecordCells('僅代報')}
         </tr>`;
         }
         if (p.isTeamPlaceholder) {
+          const emptyKickTd = canRemoveConfirmed ? `<td style="padding:.35rem .2rem"></td>` : '';
           const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
-          return `<tr data-uid="${safeUid}" class="team-reservation-placeholder-row">
-          <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
+          return `<tr data-attendance-key="${safeAttendanceKey}" class="team-reservation-placeholder-row">
+          ${emptyKickTd}${emptyDemoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
           ${emptyAttendanceRecordCells('保留席位')}
         </tr>`;
         }
-        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢</button></td>`;
-        const demotePending = !!this._isWaitlistActionPending?.('demote', eventId, p.uid);
+        const kickTd = canRemoveConfirmed
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion},'${safeActionRegistrationId}')">踢</button></td>`
+          : '';
+        const rosterActionKey = actionRegistrationId || p.uid;
+        const demotePending = !!this._isWaitlistActionPending?.('demote', eventId, rosterActionKey);
         const demoteDisabledAttr = (isSubmitting || demotePending) ? 'disabled' : '';
         const demoteBtnStyle = demoteStyle + (demotePending && !isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
         const demoteTd = hasDemote && !p.isCompanion
-          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteBtnStyle}" ${demoteDisabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">${demotePending ? '...' : '候'}</button></td>`
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteBtnStyle}" ${demoteDisabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion},'${safeActionRegistrationId}')">${demotePending ? '...' : '候'}</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
-        return `<tr data-uid="${safeUid}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
+        return `<tr data-attendance-key="${safeAttendanceKey}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
@@ -884,7 +987,7 @@ Object.assign(App, {
       : '';
 
     // 表頭：「報名名單（人數/上限）」欄含操作按鈕；編輯模式多「踢掉」欄
-    const regCountText = `報名名單（${summary.count}/${e.max}）`;
+    const regCountText = `報名名單（${renderedRosterCount}/${e.max}）`;
     const nameThContent = `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${_sortBtnSvg}${regCountText}${topBtn}</div>`;
     const noShowTh = showNoShowColumn
       ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束、正式報名且未完成簽到）">🕊</th>`
@@ -895,9 +998,12 @@ Object.assign(App, {
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>`
       : '';
+    const kickTh = canRemoveConfirmed
+      ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">踢</th>'
+      : '';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">踢</th>
+          ${kickTh}
           ${demoteTh}
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           ${noShowTh}

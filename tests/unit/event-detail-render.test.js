@@ -235,6 +235,7 @@ function loadEventManageWaitlistModule(context) {
     ApiService: context.ApiService,
     FirebaseService: context.FirebaseService,
     db: context.db,
+    ensureFirebaseFunctionsSdk: context.ensureFirebaseFunctionsSdk,
     Object,
     console,
     setTimeout,
@@ -264,7 +265,7 @@ function createRosterMutationContext({ event, registrations, activityRecords, ba
       participantsWithUid: confirmed.map(r => ({ uid: r.userId, name: nameOf(r) })).filter(x => x.uid && x.name),
       waitlistWithUid: waitlisted.map(r => ({ uid: r.userId, name: nameOf(r) })).filter(x => x.uid && x.name),
       teamReservationSummaries: _event.teamReservationSummaries || [],
-      status: confirmed.length >= (_event.max || 0) ? 'full' : 'open',
+      status: Number(_event.max || 0) > 0 && confirmed.length >= Number(_event.max || 0) ? 'full' : 'open',
     };
   };
   const ApiService = {
@@ -1283,6 +1284,302 @@ describe('Team reservation button loading contract', () => {
     expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
+  test('ordinary roster promotion treats self and companions as one uid group even when an id is supplied', async () => {
+    const event = {
+      id: 'evt-ordinary-group-promote',
+      _docId: 'evtDoc',
+      title: 'Ordinary group',
+      max: 4,
+      current: 1,
+      waitlist: 2,
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: event.id,
+        userId: 'u-keep',
+        userName: 'Keep',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'reg-keep',
+        _path: 'events/evtDoc/registrations/reg-keep',
+      },
+      {
+        eventId: event.id,
+        userId: 'u-group',
+        userName: 'Group owner',
+        participantType: 'self',
+        status: 'waitlisted',
+        _docId: 'reg-group-self',
+        _path: 'events/evtDoc/registrations/reg-group-self',
+      },
+      {
+        eventId: event.id,
+        userId: 'u-group',
+        userName: 'Group owner',
+        participantType: 'companion',
+        companionId: 'comp-1',
+        companionName: 'Buddy',
+        status: 'waitlisted',
+        _docId: 'reg-group-companion',
+        _path: 'events/evtDoc/registrations/reg-group-companion',
+      },
+    ];
+    const activityRecords = [
+      { eventId: event.id, uid: 'u-group', status: 'waitlisted', _docId: 'ar-group' },
+    ];
+    const batch = { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) };
+    const context = createRosterMutationContext({ event, registrations, activityRecords, batch });
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forcePromoteWaitlist(event.id, 'u-group', 'reg-group-companion');
+
+    expect(registrations.filter(reg => reg.userId === 'u-group').map(reg => reg.status))
+      .toEqual(['confirmed', 'confirmed']);
+    expect(context.ApiService.markEventMutationPending).toHaveBeenCalledWith(event.id, expect.objectContaining({
+      affectedRegistrationIds: ['reg-group-self', 'reg-group-companion'],
+    }));
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  test('ordinary roster demotion treats self and companions as one uid group even when an id is supplied', async () => {
+    const event = {
+      id: 'evt-ordinary-group-demote',
+      _docId: 'evtDoc',
+      title: 'Ordinary group',
+      max: 4,
+      current: 2,
+      waitlist: 0,
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: event.id,
+        userId: 'u-group',
+        userName: 'Group owner',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'reg-group-self',
+        _path: 'events/evtDoc/registrations/reg-group-self',
+      },
+      {
+        eventId: event.id,
+        userId: 'u-group',
+        userName: 'Group owner',
+        participantType: 'companion',
+        companionId: 'comp-1',
+        companionName: 'Buddy',
+        status: 'confirmed',
+        _docId: 'reg-group-companion',
+        _path: 'events/evtDoc/registrations/reg-group-companion',
+      },
+    ];
+    const activityRecords = [
+      { eventId: event.id, uid: 'u-group', status: 'registered', _docId: 'ar-group' },
+    ];
+    const batch = { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) };
+    const context = createRosterMutationContext({ event, registrations, activityRecords, batch });
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forceDemoteToWaitlist(event.id, 'u-group', 'Group owner', false, 'reg-group-companion');
+
+    expect(registrations.map(reg => reg.status)).toEqual(['waitlisted', 'waitlisted']);
+    expect(context.ApiService.markEventMutationPending).toHaveBeenCalledWith(event.id, expect.objectContaining({
+      affectedRegistrationIds: ['reg-group-self', 'reg-group-companion'],
+    }));
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  test('course roster actions target one exact registration and do not depend on activity records', async () => {
+    const event = {
+      id: 'evt-course-exact',
+      _docId: 'evtDoc',
+      title: 'Course exact identity',
+      max: 4,
+      current: 0,
+      waitlist: 2,
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: event.id,
+        userId: 'same-user',
+        userName: 'Student A',
+        participantType: 'self',
+        status: 'waitlisted',
+        _docId: 'course-reg-a',
+        courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-link-a',
+        courseStudentId: 'student-a',
+      },
+      {
+        eventId: event.id,
+        userId: 'same-user',
+        userName: 'Student B',
+        participantType: 'self',
+        status: 'waitlisted',
+        _docId: 'course-reg-b',
+        courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-link-b',
+        courseStudentId: 'student-b',
+      },
+    ];
+    const batch = { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) };
+    const context = createRosterMutationContext({
+      event,
+      registrations,
+      activityRecords: [],
+      batch,
+    });
+    context.App._ensureActivityRecordsReady = jest.fn(() => Promise.resolve(false));
+    const callable = jest.fn(() => Promise.resolve({ data: {} }));
+    context.ensureFirebaseFunctionsSdk = jest.fn(() => Promise.resolve({
+      httpsCallable: jest.fn(() => callable),
+    }));
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forcePromoteWaitlist(event.id, 'same-user', 'course-reg-a');
+
+    expect(registrations.map(reg => reg.status)).toEqual(['confirmed', 'waitlisted']);
+    expect(callable).toHaveBeenLastCalledWith({
+      eventId: event.id,
+      registrationId: 'course-reg-a',
+      action: 'promote',
+      allowOverCapacity: false,
+    });
+
+    await app._forceDemoteToWaitlist(event.id, 'same-user', 'Student A', false, 'course-reg-a');
+
+    expect(registrations.map(reg => reg.status)).toEqual(['waitlisted', 'waitlisted']);
+    expect(callable).toHaveBeenLastCalledWith({
+      eventId: event.id,
+      registrationId: 'course-reg-a',
+      action: 'demote',
+    });
+    expect(context.App._ensureActivityRecordsReady).not.toHaveBeenCalled();
+    expect(batch.commit).not.toHaveBeenCalled();
+  });
+
+  test('course roster promotion treats max=0 as unlimited without over-capacity confirmation', async () => {
+    const event = {
+      id: 'evt-course-unlimited',
+      _docId: 'evtDoc',
+      title: 'Unlimited course activity',
+      max: 0,
+      current: 0,
+      waitlist: 1,
+      teamReservationSummaries: [],
+    };
+    const registrations = [{
+      eventId: event.id,
+      userId: 'parent-uid',
+      userName: 'Student A',
+      participantType: 'self',
+      status: 'waitlisted',
+      _docId: 'course-reg-unlimited',
+      courseLinkSource: 'eduCourseLesson',
+      courseLinkId: 'course-link-unlimited',
+      courseStudentId: 'student-unlimited',
+    }];
+    const context = createRosterMutationContext({
+      event,
+      registrations,
+      activityRecords: [],
+      batch: { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) },
+    });
+    const callable = jest.fn(() => Promise.resolve({ data: {} }));
+    context.ensureFirebaseFunctionsSdk = jest.fn(() => Promise.resolve({
+      httpsCallable: jest.fn(() => callable),
+    }));
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forcePromoteWaitlist(event.id, 'parent-uid', 'course-reg-unlimited');
+
+    expect(context.App.appConfirm).not.toHaveBeenCalled();
+    expect(callable).toHaveBeenCalledWith({
+      eventId: event.id,
+      registrationId: 'course-reg-unlimited',
+      action: 'promote',
+      allowOverCapacity: false,
+    });
+    expect(registrations[0].status).toBe('confirmed');
+  });
+
+  test('same uid course registrations receive distinct attendance keys and are never uid-collapsed', () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    context.ApiService.getRegistrationsByEvent.mockReturnValue([
+      {
+        eventId: 'evt-course-attendance',
+        userId: 'same-user',
+        userName: 'Student A',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'course-reg-a',
+        courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-link-a',
+        courseStudentId: 'student-a',
+      },
+      {
+        eventId: 'evt-course-attendance',
+        userId: 'same-user',
+        userName: 'Student B',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'course-reg-b',
+        courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-link-b',
+        courseStudentId: 'student-b',
+      },
+    ]);
+
+    const rows = app._decorateAttendanceRosterPeople('evt-course-attendance', [{
+      name: 'Student A',
+      displayName: 'Student A',
+      uid: 'same-user',
+      isCompanion: false,
+      hasSelfReg: true,
+      regDocId: 'course-reg-a',
+    }]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map(row => app._getAttendancePersonKey(row)))
+      .toEqual(['course-course-reg-a', 'course-course-reg-b']);
+    expect(rows.every(row => row.attendanceAmbiguous === true)).toBe(true);
+  });
+
+  test('roster removal controls stay hidden without confirmed-removal permission', () => {
+    const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
+
+    expect(attendanceSource).toContain('const canRemoveConfirmed = this._canRemoveConfirmedParticipant?.(e) === true;');
+    expect(attendanceSource).toContain('const hasDemote = canRemoveConfirmed && e.max > 0;');
+    expect(attendanceSource).toContain('const kickTd = canRemoveConfirmed');
+    expect(attendanceSource).toContain('const renderedRosterCount = people.filter');
+    expect(attendanceSource).toContain('data-attendance-key=');
+  });
+
+  test('closing the cancellation chooser force-revalidates, while confirm avoids a premature fetch', () => {
+    document.body.innerHTML = '<div id="companion-cancel-overlay" class="open"></div>';
+    const { app } = loadEventDetailCompanionModule({
+      event: { id: 'evt-cancel-chooser', title: 'Cancel chooser' },
+    });
+    app._revalidateDetailRosterAfterMutation = jest.fn();
+    app._companionCancelEventId = 'evt-cancel-chooser';
+    app._companionCancelRegs = [{ _docId: 'reg-a' }];
+
+    app._closeCompanionCancelModal();
+
+    expect(app._revalidateDetailRosterAfterMutation).toHaveBeenCalledWith('evt-cancel-chooser');
+    expect(app._companionCancelEventId).toBeNull();
+
+    app._companionCancelEventId = 'evt-cancel-chooser';
+    app._closeCompanionCancelModal({ revalidate: false });
+    expect(app._revalidateDetailRosterAfterMutation).toHaveBeenCalledTimes(1);
+  });
+
   test('team reservation modal does not close from backdrop clicks', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
 
@@ -1402,6 +1699,15 @@ describe('Team reservation button loading contract', () => {
     expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
   });
 
+  test('max=0 never falls back to a full or waitlist state in event detail actions', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+
+    expect(detailSource).toContain('fallbackMaxCount > 0 && confirmedCount >= fallbackMaxCount');
+    expect(detailSource).not.toContain('capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max');
+    expect(signupSource).toContain('flipMaxCount > 0 && Number(ev.current || 0) >= flipMaxCount');
+    expect(signupSource).not.toContain(': ev.current >= ev.max);');
+  });
   test('team reservation members keep a signup CTA even when projected capacity is full', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');

@@ -62,6 +62,8 @@ Object.assign(App, {
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
+    this._setEventTitleInputLimit?.(e);
+    this._syncCourseLinkedTypeEditOption?.(e);
     document.getElementById('ce-title').value = e.title || '';
     document.getElementById('ce-type').value = e.type || 'friendly';
     document.getElementById('ce-location').value = e.location || '';
@@ -83,7 +85,7 @@ Object.assign(App, {
       this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0,
       Number(e?.fee || 0) > 0 ? e.fee : 0
     );
-    document.getElementById('ce-max').value = e.max || 20;
+    document.getElementById('ce-max').value = e.max ?? 20;
     document.getElementById('ce-waitlist').value = 0;
     if (typeof this._setEventAgeLimitState === 'function') {
       const minAge = Number(e.minAge || 0);
@@ -92,7 +94,7 @@ Object.assign(App, {
       document.getElementById('ce-min-age').value = e.minAge || 0;
     }
     document.getElementById('ce-notes').value = e.notes || '';
-    this._initSportTagPicker(e.sportTag || 'football');
+    this._initSportTagPicker(e.sportTag || (this._isCourseLinkedEvent?.(e) ? '' : 'football'));
     this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');
     this._setPrivateEventState?.(!!e.privateEvent);
     // 開放報名時間
@@ -341,13 +343,17 @@ Object.assign(App, {
   },
 
   // ── 管理者移除參加者 ──
-  async _removeParticipant(eventId, uid, name, isCompanion) {
+  async _removeParticipant(eventId, uid, name, isCompanion, registrationId = '') {
     if (!await this.appConfirm(`確定要將 ${name} 從報名名單中移除嗎？`)) return;
 
     const event = ApiService.getEvent(eventId);
     if (!event) return;
+    const exactRegistrationId = String(registrationId || '').trim();
     const targetRegsForPermission = (ApiService._src('registrations') || []).filter(r => {
       if (r.eventId !== eventId) return false;
+      if (exactRegistrationId) {
+        return String(r._docId || r.id || '').trim() === exactRegistrationId;
+      }
       if (isCompanion) return r.companionId === uid;
       return r.userId === uid && r.participantType !== 'companion';
     }).filter(r => r.status !== 'cancelled' && r.status !== 'removed');
@@ -362,9 +368,15 @@ Object.assign(App, {
       return;
     }
 
-    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+    let useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+    const touchesCourseLinkedRegistration = targetRegsForPermission.some(r => (
+      String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+      || String(r?.courseLinkId || '').trim()
+      || String(r?.courseStudentId || '').trim()
+    ));
+    if (touchesCourseLinkedRegistration) useCF = true;
 
     if (useCF) {
       // ═══ CF 路徑：呼叫 cancelRegistration（reason='manager_remove'）═══
@@ -372,7 +384,14 @@ Object.assign(App, {
         // 找到對應的 registration ID
         const allRegs = ApiService._src('registrations');
         let reg;
-        if (isCompanion) {
+        if (exactRegistrationId) {
+          reg = allRegs.find(r => (
+            r.eventId === eventId
+            && String(r._docId || r.id || '').trim() === exactRegistrationId
+            && r.status !== 'cancelled'
+            && r.status !== 'removed'
+          ));
+        } else if (isCompanion) {
           reg = allRegs.find(r => r.eventId === eventId && r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
         } else {
           reg = allRegs.find(r => r.eventId === eventId && r.userId === uid && r.participantType !== 'companion' && r.status !== 'cancelled' && r.status !== 'removed');
@@ -384,7 +403,7 @@ Object.assign(App, {
         const cfResult = await Promise.race([
           (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
             eventId,
-            registrationIds: [reg.id],
+            registrationIds: [reg._docId || reg.id],
             reason: 'manager_remove',
             requestId: `remove_${uid}_${eventId}_${Date.now()}`,
           }),
@@ -415,9 +434,11 @@ Object.assign(App, {
           EVENT_NOT_FOUND: '活動不存在',
           PERMISSION_DENIED: '無權限執行此操作',
         };
-        const errCode = err?.details || err?.message || '';
+        const errCode = this._getEventRegistrationErrorCode?.(err)
+          || String(err?.details?.code || err?.details || err?.message || '').trim();
+        const friendlyError = this._getEventRegistrationFriendlyErrorMessage?.(errCode) || '';
         const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
-        this.showToast('移除失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
+        this.showToast('移除失敗：' + (cfMsg[errCode] || friendlyError || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
         return;
       }
     } else {
@@ -455,7 +476,13 @@ Object.assign(App, {
 
       // 2. 模擬移除
       let simTarget;
-      if (isCompanion) {
+      if (exactRegistrationId) {
+        simTarget = simRegs.find(r => (
+          String(r._docId || r.id || '').trim() === exactRegistrationId
+          && r.status !== 'cancelled'
+          && r.status !== 'removed'
+        ));
+      } else if (isCompanion) {
         simTarget = simRegs.find(r => r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
       } else {
         simTarget = simRegs.find(r => r.userId === uid && r.participantType !== 'companion' && r.status !== 'cancelled' && r.status !== 'removed');
@@ -469,12 +496,15 @@ Object.assign(App, {
         if (ar && ar._docId) arRemoveDocId = ar._docId;
       }
 
-      // 4. 模擬遞補（Rule #7 排序，從 clone 找候補者）
-      if (wasConfirmed) {
+      // 4. 模擬遞補（Rule #7 排序，從 clone 找候補者；不限人數活動同時清理 legacy 候補）
+      const maxCount = Math.max(0, Number(event.max || 0) || 0);
+      if (wasConfirmed || maxCount <= 0) {
         const confirmedCount = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._countUniqueConfirmedRegistrations === 'function')
           ? FirebaseService._countUniqueConfirmedRegistrations(simRegs)
           : simRegs.filter(r => r.status === 'confirmed').length;
-        let slotsAvailable = (event.max || 0) - confirmedCount;
+        let slotsAvailable = maxCount <= 0
+          ? Number.POSITIVE_INFINITY
+          : maxCount - confirmedCount;
         const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
 
         while (slotsAvailable > 0) {
@@ -580,6 +610,7 @@ Object.assign(App, {
 
     this._manualEditingUid = null;
     this._manualEditingEventId = null;
+    this._reconcileRosterRegistrationsAfterWrite?.(eventId);
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
     this.showToast(`已將 ${name} 從報名名單中移除`);
   },

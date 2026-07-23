@@ -13,7 +13,7 @@
  *   - Capacity overflow → some entries waitlisted
  *   - All entries waitlisted when event is full
  *   - Empty companions array
- *   - Event with max=0 (unlimited → all waitlisted per existing logic)
+ *   - Event with max=0 (unlimited → all confirmed)
  */
 
 // ===========================================================================
@@ -55,9 +55,10 @@ function _rebuildOccupancy(event, registrations) {
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
+  const maxCount = Math.max(0, Number(event?.max || 0) || 0);
   let status = event.status;
   if (status !== 'ended' && status !== 'cancelled') {
-    status = current >= (event.max || 0) ? 'full' : 'open';
+    status = maxCount > 0 && current >= maxCount ? 'full' : 'open';
   }
   return { participants, waitlistNames, current, waitlist, status };
 }
@@ -99,7 +100,7 @@ function simulateBatchRegister(eventData, existingRegs, entries) {
   );
   if (hasActive) return { error: '已報名此活動' };
 
-  const maxCount = eventData.max || 0;
+  const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
 
   // Filter active regs from "Firestore" snapshot (line 1951-1953)
   const firestoreActiveRegs = existingRegs.filter(
@@ -125,7 +126,7 @@ function simulateBatchRegister(eventData, existingRegs, entries) {
     if (existing) { promotionIdx++; continue; }
 
     // Waitlist decision (line 1978-1979)
-    const isWaitlist = confirmedCount >= maxCount;
+    const isWaitlist = maxCount > 0 && confirmedCount >= maxCount;
     const status = isWaitlist ? 'waitlisted' : 'confirmed';
 
     const reg = {
@@ -322,16 +323,17 @@ describe('batchRegisterForEvent Decision Logic', () => {
     expect(result.waitlisted).toBe(0);
   });
 
-  test('event with max=0 sends all to waitlist', () => {
+  test('event with max=0 confirms every batch entry', () => {
     const zeroMaxEvent = { id: 'evt1', _docId: 'evt1', max: 0, status: 'open' };
     const entries = [
       { userId: 'u1', userName: 'Alice', participantType: 'self' },
       { userId: 'u1', userName: 'Alice', participantType: 'companion', companionId: 'c1', companionName: 'Bob' },
     ];
     const result = simulateBatchRegister(zeroMaxEvent, [], entries);
-    expect(result.confirmed).toBe(0);
-    expect(result.waitlisted).toBe(2);
-    expect(result.registrations.every(r => r.status === 'waitlisted')).toBe(true);
+    expect(result.confirmed).toBe(2);
+    expect(result.waitlisted).toBe(0);
+    expect(result.registrations.every(r => r.status === 'confirmed')).toBe(true);
+    expect(result.occupancy).toMatchObject({ current: 2, waitlist: 0, status: 'open' });
   });
 
   test('promotionOrder increments across entries', () => {

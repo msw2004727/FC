@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadFirebaseCrudHelpers() {
+function loadFirebaseCrudContext() {
   const apiState = { teams: [], adminUsers: [] };
   const context = {
     FirebaseService: {},
@@ -20,7 +20,11 @@ function loadFirebaseCrudHelpers() {
   const source = fs.readFileSync(path.resolve(__dirname, '../../js/firebase-crud.js'), 'utf8');
   vm.runInNewContext(source, context, { filename: 'js/firebase-crud.js' });
   context.FirebaseService.__testApiState = apiState;
-  return context.FirebaseService;
+  return context;
+}
+
+function loadFirebaseCrudHelpers() {
+  return loadFirebaseCrudContext().FirebaseService;
 }
 
 describe('team reservation occupancy helpers', () => {
@@ -201,5 +205,123 @@ describe('team reservation occupancy helpers', () => {
       usedSlots: 8,
       remainingSlots: 1,
     });
+  });
+
+  test('max=0 keeps occupancy open and confirms ordinary signups', () => {
+    const registration = { id: 'r-unlimited', userId: 'u-unlimited', userName: 'Unlimited', participantType: 'self' };
+    const decision = service._decideRegistrationSeat(
+      { max: 0, status: 'open', teamReservationSummaries: [] },
+      [],
+      registration,
+      { uid: 'u-unlimited' },
+    );
+    const occupancy = service._rebuildOccupancy(
+      { max: 0, status: 'open', teamReservationSummaries: [] },
+      [registration],
+    );
+
+    expect(decision.status).toBe('confirmed');
+    expect(registration.status).toBe('confirmed');
+    expect(occupancy).toMatchObject({ current: 1, realCurrent: 1, waitlist: 0, status: 'open' });
+  });
+
+  test('max=0 promotes every legacy waitlist row even when course candidates are normally excluded', () => {
+    const regs = [
+      { id: 'confirmed', userId: 'u1', userName: 'Confirmed', participantType: 'self', status: 'confirmed' },
+      { id: 'ordinary', userId: 'u2', userName: 'Ordinary', participantType: 'self', status: 'waitlisted', registeredAt: '2026-01-01T00:00:00.000Z' },
+      {
+        id: 'course', userId: 'parent', userName: 'Course student', participantType: 'self',
+        status: 'waitlisted', registeredAt: '2026-01-01T00:01:00.000Z',
+        courseLinkSource: 'eduCourseLesson', courseLinkId: 'course-link', courseStudentId: 'student-1',
+      },
+    ];
+
+    const promoted = service._promoteWaitlistForAvailableSeats(
+      { max: 0, status: 'open', courseLinked: true, teamReservationSummaries: [] },
+      regs,
+      { excludeCourseLinkedCandidates: true },
+    );
+    const occupancy = service._rebuildOccupancy(
+      { max: 0, status: 'open', teamReservationSummaries: [] },
+      regs,
+    );
+
+    expect(promoted.map(reg => reg.id)).toEqual(['ordinary', 'course']);
+    expect(regs.every(reg => reg.status === 'confirmed')).toBe(true);
+    expect(occupancy).toMatchObject({ current: 3, waitlist: 0, status: 'open' });
+  });
+
+  test('max=0 waitlisted-only companion cancellation syncs promoted activity record', async () => {
+    const context = loadFirebaseCrudContext();
+    const firebaseService = context.FirebaseService;
+    const event = { id: 'evt-unlimited-cancel', _docId: 'event-doc', max: 0, status: 'open', teamReservationSummaries: [] };
+    const registrations = [
+      {
+        id: 'cancel-companion', _docId: 'cancel-doc', eventId: event.id, userId: 'owner-1',
+        userName: 'Owner', participantType: 'companion', companionId: 'companion-1',
+        companionName: 'Companion', status: 'waitlisted', registeredAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'promote-self', _docId: 'promote-doc', eventId: event.id, userId: 'user-2',
+        userName: 'Promoted user', participantType: 'self', status: 'waitlisted',
+        registeredAt: '2026-01-01T00:01:00.000Z',
+      },
+    ];
+    const activityRecords = [{
+      id: 'ar-promote', _docId: 'ar-promote', eventId: event.id, uid: 'user-2', status: 'waitlisted',
+    }];
+    const collectionGetPaths = [];
+    const batchUpdates = [];
+
+    const snapshotDoc = (id, data, collectionPath) => ({
+      id,
+      ref: { path: `${collectionPath}/${id}` },
+      data: () => ({ ...data }),
+    });
+    const registrationDocs = registrations.map(reg => snapshotDoc(reg._docId, reg, `events/${event._docId}/registrations`));
+    const activityRecordDocs = activityRecords.map(record => snapshotDoc(record._docId, record, `events/${event._docId}/activityRecords`));
+    const makeDocRef = refPath => ({
+      path: refPath,
+      get: jest.fn().mockResolvedValue({ exists: false, data: () => ({}) }),
+      collection: name => makeCollectionRef(`${refPath}/${name}`),
+    });
+    const makeCollectionRef = refPath => ({
+      path: refPath,
+      doc: id => makeDocRef(`${refPath}/${id}`),
+      get: jest.fn(async () => {
+        collectionGetPaths.push(refPath);
+        if (refPath.endsWith('/registrations')) return { docs: registrationDocs };
+        if (refPath.endsWith('/activityRecords')) return { docs: activityRecordDocs };
+        return { docs: [] };
+      }),
+    });
+    const batch = {
+      update: jest.fn((ref, data) => { batchUpdates.push({ path: ref.path, data }); }),
+      delete: jest.fn(),
+      commit: jest.fn().mockResolvedValue(undefined),
+    };
+
+    context.db = {
+      collection: name => makeCollectionRef(name),
+      batch: jest.fn(() => batch),
+    };
+    context.auth = { currentUser: { uid: 'owner-1' } };
+    context.firebase = { firestore: { FieldValue: { serverTimestamp: () => ({ __serverTimestamp: true }) } } };
+    context.ApiService._src = name => (name === "activityRecords" ? activityRecords : []);
+    firebaseService.ensureAuthReadyForWrite = jest.fn().mockResolvedValue(true);
+    firebaseService._cache = { events: [event], registrations, activityRecords };
+    firebaseService._saveToLS = jest.fn();
+    firebaseService._mapSubcollectionDoc = doc => ({ ...doc.data(), id: doc.data().id || doc.id, _docId: doc.id });
+
+    const cancelled = await firebaseService.cancelCompanionRegistrations(['cancel-companion']);
+
+    expect(collectionGetPaths).toContain(`events/${event._docId}/activityRecords`);
+    expect(batchUpdates).toContainEqual({
+      path: `events/${event._docId}/activityRecords/ar-promote`,
+      data: { status: 'registered' },
+    });
+    expect(registrations.find(reg => reg.id === 'promote-self').status).toBe('confirmed');
+    expect(activityRecords[0].status).toBe('registered');
+    expect(cancelled[0]._promotedUserIds).toEqual(['user-2']);
   });
 });

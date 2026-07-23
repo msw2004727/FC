@@ -580,7 +580,8 @@ Object.assign(App, {
     if (!teams || !teams.length) return null;
     const mode = event.teamSplit.mode;
     if (mode === 'self-select' && candidate.teamKey) {
-      const cap = Math.ceil(event.max / teams.length);
+      const maxCount = Math.max(0, Number(event.max || 0) || 0);
+      const cap = maxCount > 0 ? Math.ceil(maxCount / teams.length) : Number.POSITIVE_INFINITY;
       const validKeys = new Set(teams.map(t => t.key));
       const load = simRegs.filter(r => r.status === 'confirmed' && r.teamKey === candidate.teamKey && validKeys.has(r.teamKey)).length;
       if (load < cap) return candidate.teamKey;

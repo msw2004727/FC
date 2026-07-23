@@ -686,6 +686,37 @@ describe('canonical registration/activity/attendance cache', () => {
     ]);
   });
 
+  test('getMyRegistrationsByEvent merges direct and courseOwnerUids ownership without collapsing siblings', () => {
+    const { FirebaseService, ApiService } = loadServices();
+    FirebaseService._cache.currentUser = { uid: 'parent-1' };
+    const makeRegistration = (id, data) => ({
+      eventId: 'course-event',
+      status: 'confirmed',
+      _docId: id,
+      _path: `events/eventDocA/registrations/${id}`,
+      _sourceKind: 'subcollection',
+      _sourceCollection: 'registrations',
+      ...data,
+    });
+    FirebaseService._cache.registrations = [
+      makeRegistration('self', { userId: 'parent-1' }),
+      makeRegistration('legacy-uid', { userId: 'child-legacy', uid: 'parent-1' }),
+      makeRegistration('child-a', { userId: 'child-a', courseOwnerUids: ['parent-1'] }),
+      makeRegistration('child-b', { userId: 'child-b', courseOwnerUids: ['parent-1', 'parent-2'] }),
+      makeRegistration('other', { userId: 'other', courseOwnerUids: ['parent-2'] }),
+      makeRegistration('cancelled-child', {
+        userId: 'child-cancelled',
+        courseOwnerUids: ['parent-1'],
+        status: 'cancelled',
+      }),
+    ];
+
+    expect(ApiService.getMyRegistrationsByEvent('course-event').map(reg => reg._docId))
+      .toEqual(['self', 'legacy-uid', 'child-a', 'child-b']);
+    expect(ApiService.getRegistrationHistoryByEventUser('course-event', 'parent-1').map(reg => reg._docId))
+      .toEqual(['self', 'legacy-uid', 'child-a', 'child-b', 'cancelled-child']);
+  });
+
   test('attendance cache keeps separate companions under the same owner uid', () => {
     const { FirebaseService } = loadServices();
     const records = [

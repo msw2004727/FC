@@ -760,7 +760,6 @@ describe("/users/{userId}", () => {
         updatedAt: serverTimestamp(),
       })
     );
-
     await assertSucceeds(
       setDoc(
         doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
@@ -2231,6 +2230,22 @@ describe("/events/{eventId}", () => {
       privateEvent: true,
       status: "open",
     });
+    await seedDoc("events", "event_private_owner_uid_only", {
+      id: "event_private_owner_uid_only",
+      title: "Private Owner UID",
+      creatorUid: "uidA",
+      ownerUid: "uidCoach",
+      privateEvent: true,
+      status: "open",
+    });
+    await seedDoc("events", "event_private_captain_uid_only", {
+      id: "event_private_captain_uid_only",
+      title: "Private Captain UID",
+      creatorUid: "uidA",
+      captainUid: "uidCoach",
+      privateEvent: true,
+      status: "open",
+    });
     await seedDoc("events", "event_private_delegated", {
       id: "event_private_delegated",
       title: "Private Delegated",
@@ -2279,6 +2294,16 @@ describe("/events/{eventId}", () => {
       })
     );
     await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_private_owner_uid_only"), {
+        title: "Private Owner UID Updated",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_private_captain_uid_only"), {
+        title: "Private Captain UID Updated",
+      })
+    );
+    await assertSucceeds(
       updateDoc(doc(coach(), "events", "event_private_delegated"), {
         title: "Private Delegated Updated",
       })
@@ -2286,6 +2311,20 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(coach(), "events", "event_private_coach_own", "attendanceRecords", "att_coach_own_private"), {
         eventId: "event_private_coach_own",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_private_owner_uid_only", "attendanceRecords", "att_owner_uid_private"), {
+        eventId: "event_private_owner_uid_only",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_private_captain_uid_only", "attendanceRecords", "att_captain_uid_private"), {
+        eventId: "event_private_captain_uid_only",
         uid: "uidA",
         type: "checkin",
       })
@@ -2687,6 +2726,42 @@ describe("course-linked event direct write guards", () => {
     );
   });
 
+  test("single-event scan permission matches callable and UI event scope", async () => {
+    await seedRoleActivityCapabilities([]);
+    await seedUserPermissionGrant("uidA", ["event.scan"]);
+    await seedDoc("events", "event_scan_grant_owned_private", {
+      id: "event_scan_grant_owned_private",
+      title: "Scan Grant Owned Private",
+      creatorUid: "uidOther",
+      ownerUid: "uidA",
+      privateEvent: true,
+      status: "open",
+    });
+    await seedDoc("events", "event_scan_grant_unrelated", {
+      id: "event_scan_grant_unrelated",
+      title: "Scan Grant Unrelated",
+      creatorUid: "uidOther",
+      ownerUid: "uidOther",
+      privateEvent: false,
+      status: "open",
+    });
+
+    await assertSucceeds(
+      setDoc(doc(memberA(), "events", "event_scan_grant_owned_private", "attendanceRecords", "att_scan_owned"), {
+        eventId: "event_scan_grant_owned_private",
+        uid: "uidB",
+        type: "checkin",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_scan_grant_unrelated", "attendanceRecords", "att_scan_unrelated"), {
+        eventId: "event_scan_grant_unrelated",
+        uid: "uidB",
+        type: "checkin",
+      })
+    );
+  });
+
   test("course-linked event owner staff can toggle visibility fields only", async () => {
     await seedDoc("events", "event_course_visibility", {
       id: "event_course_visibility",
@@ -2970,6 +3045,12 @@ describe("course-linked event direct write guards", () => {
       source: "eduCourseLesson",
       courseLinkState: "created_by_course",
     });
+    await seedPath(["events", "event_course_public_sub", "registrations", "reg_ordinary_sub"], {
+      eventId: "event_course_public_sub",
+      userId: "uidA",
+      status: "confirmed",
+      source: "manual",
+    });
 
     await assertFails(
       updateDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_course_sub"), {
@@ -2977,6 +3058,32 @@ describe("course-linked event direct write guards", () => {
       })
     );
     await assertFails(deleteDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_course_sub")));
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_fake_override"), {
+        eventId: "event_course_public_sub",
+        userId: "uidA",
+        status: "confirmed",
+        courseRosterOverride: "confirmed",
+        courseRosterOverrideSource: "manual",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_fake_owner"), {
+        eventId: "event_course_public_sub",
+        userId: "uidA",
+        status: "confirmed",
+        source: "manual",
+        courseOwnerUids: ["uidB"],
+      })
+    );
+    await assertFails(
+      updateDoc(
+        doc(memberA(), "events", "event_course_public_sub", "registrations", "reg_ordinary_sub"),
+        {
+          courseOwnerUids: ["uidB"],
+        }
+      )
+    );
   });
 
   test("private course-linked events allow ordinary subcollection registrations and activity side effects", async () => {

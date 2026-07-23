@@ -60,6 +60,14 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
+    oldMax = Math.max(0, Number(oldMax || 0) || 0);
+    newMax = Math.max(0, Number(newMax || 0) || 0);
+    const wasUnlimited = oldMax <= 0;
+    const isUnlimited = newMax <= 0;
+    const capacityIncreased = (!wasUnlimited && isUnlimited)
+      || (!wasUnlimited && !isUnlimited && newMax > oldMax);
+    const capacityDecreased = (wasUnlimited && !isUnlimited)
+      || (!wasUnlimited && !isUnlimited && newMax < oldMax);
     const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 
     if (useCF && newMax !== oldMax) {
@@ -106,7 +114,7 @@ Object.assign(App, {
       r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
     );
 
-    if (newMax > oldMax) {
+    if (capacityIncreased) {
       // ── 模擬先行：在副本上遞補，commit 成功後才寫入 live cache（Rule #10）──
       const simRegs = allRegs.map(r => ({ ...r }));
       const arSource = ApiService._src('activityRecords') || [];
@@ -114,7 +122,7 @@ Object.assign(App, {
       const occupancyBefore = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
         ? FirebaseService._rebuildOccupancy(eventForRebuild, simRegs)
         : null;
-      if (occupancyBefore && occupancyBefore.current >= newMax) return;
+      if (!isUnlimited && occupancyBefore && occupancyBefore.current >= newMax) return;
       let promotedSim = [];
       const arUpdates = [];
 
@@ -123,7 +131,9 @@ Object.assign(App, {
         promotedSim = FirebaseService._promoteWaitlistForAvailableSeats(eventForRebuild, simRegs);
       } else {
         const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
-        let slotsAvailable = newMax - simRegs.filter(r => r.status === 'confirmed').length;
+        let slotsAvailable = isUnlimited
+          ? Number.POSITIVE_INFINITY
+          : newMax - simRegs.filter(r => r.status === 'confirmed').length;
         while (slotsAvailable > 0) {
           const candidate = simRegs
             .filter(r => r.status === 'waitlisted')
@@ -220,7 +230,7 @@ Object.assign(App, {
       if (promotedSim.length > 0) {
         console.log(`[adjustWaitlist] 容量增加，已遞補 ${promotedSim.length} 位候補者`);
       }
-    } else if (newMax < oldMax) {
+    } else if (capacityDecreased) {
       // ── 模擬先行：在副本上降級，commit 成功後才寫入 live cache（Rule #10）──
       const simRegs = allRegs.map(r => ({ ...r }));
       const arSource = ApiService._src('activityRecords') || [];

@@ -274,8 +274,7 @@ service cloud.firestore {
     }
 
     function hasActivityManageEntry() {
-      return isAdmin()
-        || isCoachPlus()
+      return isCoachPlus()
         || hasPerm('activity.manage.entry')
         || hasPerm('event.edit_all')
         || hasUserPermissionGrant('activity.manage.entry')
@@ -342,7 +341,9 @@ service cloud.firestore {
       return [
         'courseLinkState', 'coursePriority', 'courseLinkSource', 'courseLinkId',
         'courseTeamId', 'coursePlanId', 'courseSessionId', 'courseStudentId',
-        'courseAttendanceId', 'coursePriorityAppliedAt', 'manualRegistrationPreserved',
+        'courseStudentDocId', 'courseOwnerUids', 'courseAttendanceId', 'courseAttendanceKind',
+        'courseRosterOverride', 'courseRosterOverrideSource', 'courseSyncSource',
+        'coursePriorityAppliedAt', 'manualRegistrationPreserved',
         'manualStatusBeforeCoursePriority', 'coursePriorityDisplacedBy',
         'displacedByCoursePriority', 'linkedAttendanceKey'
       ];
@@ -371,20 +372,18 @@ service cloud.firestore {
 
     function canOperatePrivateEventData(eventData) {
       return !isPrivateEventData(eventData)
-        || isAdmin()
-        || eventData.creatorUid == request.auth.uid
-        || eventDataHasDelegateUid(eventData, request.auth.uid);
+        || isEventOwnerOrDelegateForData(eventData)
+        || isAdmin();
     }
 
     function canBroadManageEventData(eventData) {
-      return (isSuperAdmin() || hasPerm('event.edit_all') || hasUserPermissionGrant('event.edit_all'))
-        && canOperatePrivateEventData(eventData);
+      return canOperatePrivateEventData(eventData)
+        && (isSuperAdmin() || hasPerm('event.edit_all') || hasUserPermissionGrant('event.edit_all'));
     }
 
     function canScopedManageEventData(eventData) {
-      return hasActivityManageEntry()
-        && canOperatePrivateEventData(eventData)
-        && isEventOwnerOrDelegateForData(eventData);
+      return isEventOwnerOrDelegateForData(eventData)
+        && hasActivityManageEntry();
     }
 
     function canBroadManageEventUpdate() {
@@ -394,17 +393,35 @@ service cloud.firestore {
     }
 
     function isEventOperatorForData(eventData) {
+      let role = authRole();
       return isAuth()
         && eventData != null
         && (
           (
-            authRole() == 'user'
+            role == 'super_admin'
+            || (
+              role == 'admin'
+              && (hasPerm('event.edit_all') || hasUserPermissionGrant('event.edit_all'))
+            )
+          )
+          || (
+            role == 'user'
             && hasActivityCap('user.activity.site_operate')
-            && canOperatePrivateEventData(eventData)
             && isEventOwnerOrDelegateForData(eventData)
           )
-          || canBroadManageEventData(eventData)
+          || (
+            role in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin']
+            && isEventOwnerOrDelegateForData(eventData)
+          )
+          || (
+            isEventOwnerOrDelegateForData(eventData)
+            && (
+              hasEffectivePerm('event.scan')
+              || hasEffectivePerm('event.manual_checkin')
+            )
+          )
           || canScopedManageEventData(eventData)
+          || canBroadManageEventData(eventData)
         );
     }
 
@@ -412,9 +429,8 @@ service cloud.firestore {
       return (
           isAuth()
           && eventData != null
-          && authRole() == 'user'
-          && canOperatePrivateEventData(eventData)
           && eventDataHasDelegateUid(eventData, request.auth.uid)
+          && authRole() in ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin']
         )
         || isEventOperatorForData(eventData);
     }
@@ -1131,17 +1147,13 @@ service cloud.firestore {
             resource.data.get('courseLinked', false) != true
             && request.resource.data.get('courseLinked', false) != true
             && (
-              isUserOwnerBasicUpdate()
-              || isScopedRoleBasicUpdate()
+              isScopedRoleBasicUpdate()
+              || isUserOwnerBasicUpdate()
               || canBroadManageEventUpdate()
               || (isEventOwner() && hasEffectivePerm('event.edit_self') && eventCourseLinkRootFieldsUnchanged())
               || isSignupFieldsOnly()
               || (isBlocklistFieldsOnly() && canManageEventBlocklist())
             )
-          )
-          || (
-            resource.data.get('courseLinked', false) == true
-            && isSignupFieldsOnly()
           )
           || (
             resource.data.get('courseLinked', false) == true
@@ -1154,6 +1166,10 @@ service cloud.firestore {
           || (
             resource.data.get('courseLinked', false) == true
             && isCourseLinkedManagerCancelUpdate()
+          )
+          || (
+            resource.data.get('courseLinked', false) == true
+            && isSignupFieldsOnly()
           )
         );
       allow delete: if isAdmin()
@@ -3005,19 +3021,39 @@ service cloud.firestore {
     }
 
     match /events/{eventId}/attendanceRecords/{recId} {
+      function attendanceEventData() {
+        return get(/databases/$(database)/documents/events/$(eventId)).data;
+      }
+
       function isSubAttendanceStatusUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly(['status', 'checkOutTime', 'removedAt', 'removedByUid', 'updatedAt']);
       }
 
+      function isSubAttendanceCreateAllowed() {
+        let eventData = attendanceEventData();
+        return !hasCourseLinkedSideEffectData(request.resource.data)
+          && eventData != null
+          && request.resource.data.eventId is string
+          && (
+            request.resource.data.eventId == eventId
+            || request.resource.data.eventId == eventData.id
+          )
+          && isEventSiteOperatorForData(eventData);
+      }
+
+      function isSubAttendanceUpdateAllowed() {
+        let eventData = attendanceEventData();
+        return !hasCourseLinkedSideEffectData(resource.data)
+          && !hasCourseLinkedSideEffectData(request.resource.data)
+          && eventData != null
+          && isEventSiteOperatorForData(eventData)
+          && isSubAttendanceStatusUpdate();
+      }
+
       allow read: if isAuth();
-      allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
-        && isEventSiteOperatorForPath(eventId)
-        && requestEventIdMatchesPath(eventId);
-      allow update: if !hasCourseLinkedSideEffectData(resource.data)
-        && !hasCourseLinkedSideEffectData(request.resource.data)
-        && isEventSiteOperatorForPath(eventId)
-        && isSubAttendanceStatusUpdate();
+      allow create: if isSubAttendanceCreateAllowed();
+      allow update: if isSubAttendanceUpdateAllowed();
       allow delete: if false;
     }
 

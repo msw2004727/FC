@@ -279,6 +279,103 @@ Object.assign(App, {
     return !!(source && this._isCourseLinkedEvent?.(source));
   },
 
+  _getEventTitleInputLimit(eventRecord = null) {
+    return this._isCourseLinkedEditMode?.(eventRecord) ? 120 : 16;
+  },
+
+  _setEventTitleInputLimit(eventRecord = null) {
+    const titleInput = document.getElementById('ce-title');
+    if (!titleInput) return;
+    titleInput.maxLength = this._getEventTitleInputLimit(eventRecord);
+  },
+
+  _removeCourseLinkedTypeEditOption() {
+    const typeSelect = document.getElementById('ce-type');
+    if (!typeSelect) return;
+    Array.from(typeSelect.options || [])
+      .filter(option => option?.dataset?.courseLinkedTransient === '1')
+      .forEach(option => option.remove?.());
+  },
+
+  _syncCourseLinkedTypeEditOption(eventRecord = null) {
+    const typeSelect = document.getElementById('ce-type');
+    if (!typeSelect) return;
+    this._removeCourseLinkedTypeEditOption();
+    if (!this._isCourseLinkedEditMode?.(eventRecord)) return;
+    const typeValue = String(eventRecord?.type || 'course').trim() || 'course';
+    const hasOption = Array.from(typeSelect.options || [])
+      .some(option => String(option?.value || '') === typeValue);
+    if (!hasOption) {
+      const option = document.createElement('option');
+      option.value = typeValue;
+      option.textContent = typeValue === 'course' ? '課程' : typeValue;
+      option.dataset.courseLinkedTransient = '1';
+      typeSelect.appendChild(option);
+    }
+    typeSelect.value = typeValue;
+  },
+
+  _pruneUnchangedCourseLinkedEventFields(updates, existingEvent) {
+    const next = { ...(updates || {}) };
+    if (!existingEvent) return next;
+    ['title', 'type', 'location', 'sportTag'].forEach(key => {
+      if (!Object.prototype.hasOwnProperty.call(next, key)) return;
+      if (String(next[key] ?? '') === String(existingEvent[key] ?? '')) delete next[key];
+    });
+    if (Object.prototype.hasOwnProperty.call(next, 'max')) {
+      const nextMax = Number(next.max);
+      const previousMax = Number(existingEvent.max);
+      if (Number.isFinite(nextMax) && Number.isFinite(previousMax) && nextMax === previousMax) {
+        delete next.max;
+      }
+    }
+    return next;
+  },
+
+  _applyCourseLinkedRosterUpdateResult(eventId, result = {}) {
+    const transitions = [
+      ...((Array.isArray(result?.promoted) ? result.promoted : []).map(item => ({ item, status: 'confirmed' }))),
+      ...((Array.isArray(result?.demoted) ? result.demoted : []).map(item => ({ item, status: 'waitlisted' }))),
+    ];
+    if (!transitions.length || typeof FirebaseService === 'undefined') return 0;
+    const source = Array.isArray(FirebaseService._cache?.registrations)
+      ? FirebaseService._cache.registrations
+      : [];
+    let changed = 0;
+    transitions.forEach(({ item, status }) => {
+      const docId = String(item?.docId || item?._docId || '').trim();
+      const publicId = String(item?.id || '').trim();
+      const live = source.find(reg => (
+        String(reg?.eventId || '').trim() === String(eventId || '').trim()
+        && (
+          (docId && String(reg?._docId || '').trim() === docId)
+          || (publicId && String(reg?.id || '').trim() === publicId)
+        )
+      ));
+      if (!live || live.status === status) return;
+      live.status = status;
+      changed++;
+    });
+    if (changed) FirebaseService._saveToLS?.('registrations', source);
+    return changed;
+  },
+
+  _reconcileCourseLinkedRosterAfterEdit(eventId, completedGeneration = 0) {
+    if (!eventId || typeof ApiService?.fetchRegistrationsIfMissing !== 'function') return;
+    Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId, { force: true, timeoutMs: 8000 }))
+      .catch(err => {
+        console.warn('[courseLinkedEventEdit] registration reconcile failed:', err);
+      })
+      .then(() => {
+        if (completedGeneration
+          && !this._isEventFormPostSaveGenerationCurrent?.(completedGeneration)) return;
+        if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === eventId) {
+          this._patchDetailTables?.(eventId, { skipFetch: true });
+          this._refreshSignupButton?.(eventId);
+        }
+      });
+  },
+
   _canManageCourseLinkedEventDelegates(eventRecord = null) {
     const source = eventRecord || (this._editEventId ? ApiService.getEvent?.(this._editEventId) : null);
     return !!(source
@@ -364,55 +461,7 @@ Object.assign(App, {
   },
 
   _applyCourseLinkedEditLockState(eventRecord = null) {
-    const modal = document.getElementById('create-event-modal');
-    if (!modal) return;
     this._clearCourseLinkedEditLockState();
-    if (!this._isCourseLinkedEditMode(eventRecord)) return;
-
-    modal.classList.add('ce-course-linked-edit');
-    this._syncCourseLinkedEditNotice(modal, true);
-    const valueSection = document.getElementById('ce-value-section');
-    if (valueSection) valueSection.open = true;
-    const privateRow = this._getCourseLinkedEditRowForElement(document.getElementById('ce-private-event'));
-    if (privateRow) {
-      privateRow.classList.add('ce-course-linked-editable-row');
-      privateRow.dataset.courseLinkedEditableRow = '1';
-    }
-
-    const canManageCourseLinkedDelegates = !!(this._canManageEventDelegates?.(eventRecord)
-      || this._canManageCourseLinkedEventDelegates?.(eventRecord));
-    const delegateEditableIds = new Set(canManageCourseLinkedDelegates ? ['ce-delegate-search', 'ce-delegate-tags'] : []);
-    delegateEditableIds.forEach(id => {
-      const row = this._getCourseLinkedEditRowForElement(document.getElementById(id));
-      if (!row) return;
-      row.classList.add('ce-course-linked-editable-row');
-      row.dataset.courseLinkedEditableRow = '1';
-    });
-    const unlockedIds = new Set(this._courseLinkedEditUnlockedIds || []);
-    (this._courseLinkedEditLockedIds || []).forEach(id => {
-      const element = document.getElementById(id);
-      if (!element) return;
-      const row = this._getCourseLinkedEditRowForElement(element);
-      if (delegateEditableIds.has(id)) {
-        if (row) {
-          row.classList.add('ce-course-linked-editable-row');
-          row.dataset.courseLinkedEditableRow = '1';
-        }
-        return;
-      }
-      if (row) {
-        row.classList.add('ce-course-linked-locked-row');
-        row.dataset.courseLinkedLockRow = '1';
-      }
-      const controls = element.matches?.(this._courseLinkedEditLockedControlSelector)
-        ? [element]
-        : Array.from(element.querySelectorAll?.(this._courseLinkedEditLockedControlSelector) || []);
-      controls.forEach(control => {
-        if (!control || unlockedIds.has(control.id || '') || delegateEditableIds.has(control.id || '')) return;
-        this._setCourseLinkedEditControlLocked(control, true);
-        control.dataset.courseLinkedLockControl = '1';
-      });
-    });
   },
 
   async _submitCourseLinkedEventVisibilityEdit(existingEvent, nextPrivateEvent) {
@@ -1042,6 +1091,8 @@ Object.assign(App, {
     this._delegates = [];
     this._setCreateEventModalMode(false);
     // 重置表單欄位，防止編輯後殘留資料
+    this._setEventTitleInputLimit?.(null);
+    this._removeCourseLinkedTypeEditOption?.();
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-type').value = 'play';
     document.getElementById('ce-location').value = '';
@@ -1152,18 +1203,19 @@ Object.assign(App, {
     if (!isSubmitCurrent()) return;
     const eventBeingEdited = editEventId ? ApiService.getEvent(editEventId) : null;
     const isCourseLinkedEdit = !!(editEventId && this._isCourseLinkedEvent?.(eventBeingEdited));
-    const canSubmitActivity = isCourseLinkedEdit
-      ? this._canSubmitCourseLinkedEventLimitedEdit?.(eventBeingEdited)
-      : (editEventId
-        ? this._canEditOwnActivityBasic?.(eventBeingEdited)
-        : this._canCreateBasicActivity?.());
+    const canSubmitActivity = editEventId
+      ? this._canEditOwnActivityBasic?.(eventBeingEdited)
+      : this._canCreateBasicActivity?.();
     if (!canSubmitActivity) {
       this.showToast('權限不足：需要建立活動權限'); return;
     }
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（主辦人資料會寫入活動文件）
     if (this._requireProfileComplete()) return;
     const title = document.getElementById('ce-title').value.trim();
-    const type = document.getElementById('ce-type').value;
+    const selectedType = document.getElementById('ce-type').value;
+    const type = isCourseLinkedEdit && !selectedType
+      ? String(eventBeingEdited?.type || 'course')
+      : selectedType;
     const location = document.getElementById('ce-location').value.trim();
     const dateVal = document.getElementById('ce-date').value
       || (this._multiDates && this._multiDates.length ? this._multiDates[0] : '');
@@ -1172,7 +1224,8 @@ Object.assign(App, {
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
     let feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
     let fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;
-    const max = parseInt(document.getElementById('ce-max').value) || 20;
+    const parsedMax = parseInt(document.getElementById('ce-max').value, 10);
+    const max = Number.isFinite(parsedMax) ? parsedMax : 20;
     const minAge = typeof this._getEventMinAgeFormValue === 'function'
       ? this._getEventMinAgeFormValue()
       : (parseInt(document.getElementById('ce-min-age').value, 10) || 0);
@@ -1194,11 +1247,6 @@ Object.assign(App, {
         name: String(delegate?.name || '').trim(),
       }))
       .filter(delegate => delegate.uid);
-    if (isCourseLinkedEdit) {
-      await this._submitCourseLinkedEventVisibilityEdit?.(eventBeingEdited, privateEvent);
-      if (!isSubmitCurrent()) return;
-      return;
-    }
     let teamSplitData = this._tsGetFormData?.() || null;
     let socialLinksData = this._getEventSocialLinksFormData?.({ validate: true }) || { enabled: false, links: [] };
     if (socialLinksData.error) { this.showToast(socialLinksData.error); return; }
@@ -1229,8 +1277,12 @@ Object.assign(App, {
     }
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
-    if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
-    if (!location) { this.showToast('請輸入地點'); return; }
+    const titleLimit = this._getEventTitleInputLimit?.(eventBeingEdited) || 16;
+    if (title.length > titleLimit) { this.showToast(`活動名稱不可超過 ${titleLimit} 字`); return; }
+    const unchangedEmptyCourseLocation = isCourseLinkedEdit
+      && !String(eventBeingEdited?.location || '').trim()
+      && !location;
+    if (!location && !unchangedEmptyCourseLocation) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇活動日期'); return; }
     if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
     if (regOpenTime === null) { this.showToast('請完整選擇開放報名日期與時間'); return; }
@@ -1254,7 +1306,10 @@ Object.assign(App, {
     }
     if (tEnd <= tStart) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
-    if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
+    const unchangedEmptyCourseSportTag = isCourseLinkedEdit
+      && !String(eventBeingEdited?.sportTag || '').trim()
+      && !sportTag;
+    if (!sportTag && !unchangedEmptyCourseSportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
     if (regionData.regionEnabled && !regionData.region) { this.showToast('請選擇活動地區'); return; }
     const locationPayload = this._buildEventLocationPayload?.('ce', location, { gpsEnabled }) || {};
@@ -1319,7 +1374,7 @@ Object.assign(App, {
     if (editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
       const existingEvent = eventBeingEdited || ApiService.getEvent(editEventId);
-      if (!this._hasActivityManageEntry?.() && !this._canManageAllActivities?.() && max < (Number(existingEvent?.current || 0) || 0)) {
+      if (!this._hasActivityManageEntry?.() && !this._canManageAllActivities?.() && max > 0 && max < (Number(existingEvent?.current || 0) || 0)) {
         this.showToast('\u540d\u984d\u4e0d\u53ef\u5c0f\u65bc\u5df2\u6b63\u53d6\u4eba\u6578');
         return;
       }
@@ -1354,7 +1409,9 @@ Object.assign(App, {
       const updates = {
         title, type, location, date: fullDate, startTimestamp, endTimestamp, fee, feeEnabled, max, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
-        gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
+        gradient: isCourseLinkedEdit && type === String(existingEvent?.type || '')
+          ? (existingEvent?.gradient || GRADIENT_MAP[type] || GRADIENT_MAP.friendly)
+          : (GRADIENT_MAP[type] || GRADIENT_MAP.friendly),
         teamOnly,
         genderRestrictionEnabled,
         allowedGender,
@@ -1413,12 +1470,56 @@ Object.assign(App, {
       const oldMax = existingEvent ? existingEvent.max : max;
       const shouldNotifyEventChange = this._hasEventChangeNotificationDiff(existingEvent, updates);
       const eventChangeNotifyData = { ...(existingEvent || {}), ...updates };
+      let courseLinkedUpdateResult = null;
+      let courseLinkedCallableUpdates = null;
       try {
         if (!isSubmitCurrent()) return;
-        await ApiService.updateEventAwait(editEventId, updates);
+        if (isCourseLinkedEdit) {
+          const callableUpdates = this._pruneUnchangedCourseLinkedEventFields?.(updates, existingEvent)
+            || { ...updates };
+          ['startTimestamp', 'endTimestamp', 'mapLocationUpdatedAt'].forEach(key => {
+            const value = callableUpdates[key];
+            if (value instanceof Date) callableUpdates[key] = value.toISOString();
+            else if (value && typeof value.toDate === 'function') {
+              callableUpdates[key] = value.toDate().toISOString();
+            }
+          });
+          const teamSplitLockAt = callableUpdates.teamSplit?.lockAt;
+          if (teamSplitLockAt instanceof Date) {
+            callableUpdates.teamSplit = {
+              ...callableUpdates.teamSplit,
+              lockAt: teamSplitLockAt.toISOString(),
+            };
+          } else if (teamSplitLockAt && typeof teamSplitLockAt.toDate === 'function') {
+            callableUpdates.teamSplit = {
+              ...callableUpdates.teamSplit,
+              lockAt: teamSplitLockAt.toDate().toISOString(),
+            };
+          }
+          const functionsSdk = await ensureFirebaseFunctionsSdk('asia-east1');
+          if (!isSubmitCurrent()) return;
+          courseLinkedCallableUpdates = callableUpdates;
+          const cfResult = await functionsSdk.httpsCallable('updateCourseLinkedEvent')({
+            eventId: editEventId,
+            updates: callableUpdates,
+          });
+          courseLinkedUpdateResult = cfResult?.data || {};
+          if (!isSubmitSessionCurrent()) return;
+          this._applyCourseLinkedRosterUpdateResult?.(editEventId, courseLinkedUpdateResult);
+        } else {
+          await ApiService.updateEventAwait(editEventId, updates);
+        }
         if (!isSubmitSessionCurrent()) return;
         const updatedEvent = ApiService.getEvent(editEventId);
-        if (updatedEvent) Object.assign(updatedEvent, updates);
+        if (updatedEvent) {
+          Object.assign(updatedEvent, isCourseLinkedEdit ? (courseLinkedCallableUpdates || {}) : updates);
+          if (courseLinkedUpdateResult?.event) {
+            Object.assign(updatedEvent, courseLinkedUpdateResult.event);
+          }
+          if (isCourseLinkedEdit) {
+            updatedEvent.courseEventDetailsManagedByEvent = true;
+          }
+        }
       } catch (err) {
         if (!isSubmitSessionCurrent()) return;
         if (!err?._toasted) this.showToast('活動更新失敗，請重試');
@@ -1434,7 +1535,7 @@ Object.assign(App, {
       this.showToast(`活動「${title}」已更新！`);
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
-        if (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) {
+        if (!isCourseLinkedEdit && (this._hasActivityManageEntry?.() || this._canManageAllActivities?.())) {
           await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
           if (!isPostSaveCurrent()) return;
         }
@@ -1455,6 +1556,9 @@ Object.assign(App, {
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderMyActivities(); } catch (_) {}
+      if (isCourseLinkedEdit) {
+        this._reconcileCourseLinkedRosterAfterEdit?.(editedId, completedSessionGeneration);
+      }
       try {
         if (this.currentPage === 'page-activity-detail'
           && this._currentDetailEventId === editedId

@@ -54,9 +54,10 @@ function _rebuildOccupancy(event, registrations) {
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
+  const maxCount = Math.max(0, Number(event?.max || 0) || 0);
   let status = event.status;
   if (status !== 'ended' && status !== 'cancelled') {
-    status = current >= (event.max || 0) ? 'full' : 'open';
+    status = maxCount > 0 && current >= maxCount ? 'full' : 'open';
   }
   return { participants, waitlistNames, current, waitlist, status };
 }
@@ -97,11 +98,19 @@ function simulateCapacityChange(allRegs, oldMax, newMax) {
   const regs = allRegs.map(r => ({ ...r }));
   const promoted = [];
   const demoted = [];
+  oldMax = Math.max(0, Number(oldMax || 0) || 0);
+  newMax = Math.max(0, Number(newMax || 0) || 0);
+  const wasUnlimited = oldMax <= 0;
+  const isUnlimited = newMax <= 0;
+  const capacityIncreased = (!wasUnlimited && isUnlimited)
+    || (!wasUnlimited && !isUnlimited && newMax > oldMax);
+  const capacityDecreased = (wasUnlimited && !isUnlimited)
+    || (!wasUnlimited && !isUnlimited && newMax < oldMax);
 
-  if (newMax > oldMax) {
+  if (capacityIncreased) {
     // Promotion path (line 106-127)
     const confirmedCount = regs.filter(r => r.status === 'confirmed').length;
-    let slotsAvailable = newMax - confirmedCount;
+    let slotsAvailable = isUnlimited ? Number.POSITIVE_INFINITY : newMax - confirmedCount;
     if (slotsAvailable <= 0) return { promoted, demoted, regs };
 
     const waitlistedCandidates = regs
@@ -116,7 +125,7 @@ function simulateCapacityChange(allRegs, oldMax, newMax) {
       slotsAvailable--;
       idx++;
     }
-  } else if (newMax < oldMax) {
+  } else if (capacityDecreased) {
     // Demotion path (line 158-193)
     const confirmedRegs = regs
       .filter(r => r.status === 'confirmed')
@@ -216,6 +225,36 @@ describe('_adjustWaitlistOnCapacityChange Decision Logic', () => {
       // Increase from 2 to 3, but already 3 confirmed — 0 slots
       const result = simulateCapacityChange(regs, 2, 3);
       expect(result.promoted).toHaveLength(0);
+    });
+  });
+
+  describe('Unlimited capacity transitions', () => {
+    test('changing a limited event to max=0 promotes every waitlisted registration', () => {
+      const regs = [
+        { id: 'r1', userId: 'u1', userName: 'A', status: 'confirmed', registeredAt: '2026-03-10T08:00:00Z' },
+        { id: 'r2', userId: 'u2', userName: 'B', status: 'waitlisted', registeredAt: '2026-03-10T09:00:00Z' },
+        { id: 'r3', userId: 'u3', userName: 'C', status: 'waitlisted', registeredAt: '2026-03-10T10:00:00Z' },
+      ];
+
+      const result = simulateCapacityChange(regs, 1, 0);
+
+      expect(result.promoted.map(reg => reg.id)).toEqual(['r2', 'r3']);
+      expect(result.demoted).toHaveLength(0);
+      expect(result.occupancy).toMatchObject({ current: 3, waitlist: 0, status: 'open' });
+    });
+
+    test('changing unlimited capacity to a finite max demotes only the excess', () => {
+      const regs = [
+        { id: 'r1', userId: 'u1', userName: 'A', status: 'confirmed', registeredAt: '2026-03-10T08:00:00Z' },
+        { id: 'r2', userId: 'u2', userName: 'B', status: 'confirmed', registeredAt: '2026-03-10T09:00:00Z' },
+        { id: 'r3', userId: 'u3', userName: 'C', status: 'confirmed', registeredAt: '2026-03-10T10:00:00Z' },
+      ];
+
+      const result = simulateCapacityChange(regs, 0, 2);
+
+      expect(result.promoted).toHaveLength(0);
+      expect(result.demoted.map(reg => reg.id)).toEqual(['r3']);
+      expect(result.occupancy).toMatchObject({ current: 2, waitlist: 1, status: 'full' });
     });
   });
 

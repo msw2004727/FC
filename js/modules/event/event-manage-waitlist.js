@@ -183,11 +183,23 @@ Object.assign(App, {
     if (waitlistedRegs.length > 0) {
       const groups = new Map();
       waitlistedRegs.forEach(r => {
-        if (!groups.has(r.userId)) groups.set(r.userId, []);
-        groups.get(r.userId).push(r);
+        const isCourseLinked = String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+          || String(r?.courseLinkId || '').trim()
+          || String(r?.courseStudentId || '').trim();
+        const groupKey = isCourseLinked
+          ? `course:${String(r.courseStudentId || r._docId || r.id || '').trim()}`
+          : `user:${String(r.userId || '').trim()}`;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey).push(r);
       });
-      groups.forEach((regs, userId) => {
+      groups.forEach(regs => {
         const selfReg = regs.find(r => r.participantType === 'self');
+        const isCourseLinked = regs.some(r => (
+          String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+          || String(r?.courseLinkId || '').trim()
+          || String(r?.courseStudentId || '').trim()
+        ));
+        const userId = String(selfReg?.userId || regs[0]?.userId || '').trim();
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const companionItems = companions.map(c => {
@@ -204,14 +216,23 @@ Object.assign(App, {
           );
           if (selfConfirmed) selfOrphanInfo = selfConfirmed.userName;
         }
-        items.push({ name: mainName, userId, companions: companionItems, selfOrphanInfo });
+        items.push({
+          name: mainName,
+          userId,
+          courseLinked: isCourseLinked,
+          registrationId: isCourseLinked
+            ? String(selfReg?._docId || selfReg?.id || '').trim()
+            : '',
+          companions: companionItems,
+          selfOrphanInfo,
+        });
         addedNames.add(mainName);
         companionItems.forEach(c => addedNames.add(c.name));
       });
     }
     this._getWaitlistFallbackNames(eventId, e, allActiveRegs).forEach(p => {
       if (!addedNames.has(p)) {
-        items.push({ name: p, userId: null, companions: [], selfOrphanInfo: null });
+        items.push({ name: p, userId: null, courseLinked: false, registrationId: '', companions: [], selfOrphanInfo: null });
         addedNames.add(p);
       }
     });
@@ -242,11 +263,14 @@ Object.assign(App, {
     let rows = '';
     items.forEach((item, idx) => {
       const safeUid = item.userId ? escapeHTML(item.userId) : '';
-      const promotePending = item.userId && this._isWaitlistActionPending?.('promote', eventId, item.userId);
+      const actionRegistrationId = item.courseLinked ? item.registrationId : '';
+      const safeRegistrationId = actionRegistrationId ? escapeHTML(actionRegistrationId) : '';
+      const rosterActionKey = actionRegistrationId || item.userId;
+      const promotePending = rosterActionKey && this._isWaitlistActionPending?.('promote', eventId, rosterActionKey);
       const promoteBtnStyle = promoteStyle + (promotePending ? ';opacity:.65;cursor:not-allowed' : '');
       const promoteTd = tableEditing
         ? (item.userId
-            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">${promotePending ? '...' : '正取'}</button></td>`
+            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}','${safeRegistrationId}')">${promotePending ? '...' : '正取'}</button></td>`
             : `<td></td>`)
         : '';
       rows += `<tr style="border-bottom:1px solid var(--border)">
@@ -302,28 +326,46 @@ Object.assign(App, {
     this._renderWaitlistSection(eventId, containerId);
   },
 
-  async _forcePromoteWaitlist(eventId, userId) {
+  async _forcePromoteWaitlist(eventId, userId, registrationId = '') {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
     if (!this._canOperateEventSite?.(e)) {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
       return;
     }
-    if (this._isWaitlistActionPending?.('promote', eventId, userId)) return;
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
-    const userWaitlistedRecords = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
+    const requestedRegistrationId = String(registrationId || '').trim();
+    const requestedRegistration = requestedRegistrationId
+      ? allRegs.find(r => (
+          String(r?._docId || r?.id || '').trim() === requestedRegistrationId
+          && r?.status === 'waitlisted'
+        ))
+      : null;
+    const exactRegistrationId = requestedRegistration
+      && (
+        String(requestedRegistration?.courseLinkSource || requestedRegistration?.source || '').trim() === 'eduCourseLesson'
+        || String(requestedRegistration?.courseLinkId || '').trim()
+        || String(requestedRegistration?.courseStudentId || '').trim()
+      )
+      ? requestedRegistrationId
+      : '';
+    const rosterActionKey = exactRegistrationId || userId;
+    if (this._isWaitlistActionPending?.('promote', eventId, rosterActionKey)) return;
+    const userWaitlistedRecords = exactRegistrationId
+      ? allRegs.filter(r => String(r._docId || r.id || '').trim() === exactRegistrationId && r.status === 'waitlisted')
+      : allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
     if (userWaitlistedRecords.length === 0) { this.showToast('找不到候補紀錄'); return; }
     const userWaitlisted = this._getRosterLiveRegistrationRefs?.(userWaitlistedRecords, eventId) || [];
     if (userWaitlisted.length !== userWaitlistedRecords.length) {
       this.showToast('名單資料同步中，請稍後重試');
       return;
     }
-    if (!await this._ensureActivityRecordsReady({ required: true })) return;
-
     // 容量檢查：正取後是否超額
     const currentConfirmed = allRegs.filter(r => r.status === 'confirmed').length;
     const afterCount = currentConfirmed + userWaitlistedRecords.length;
-    if (afterCount > (e.max || 0)) {
+    const maxCount = Math.max(0, Number(e.max || 0) || 0);
+    const hasLimitedCapacity = maxCount > 0;
+    if (hasLimitedCapacity && afterCount > maxCount) {
       if (!this._canRemoveConfirmedParticipant?.(e)) {
         this.showToast('\u6b0a\u9650\u4e0d\u8db3');
         return;
@@ -332,6 +374,49 @@ Object.assign(App, {
       if (!ok) return;
     }
 
+    const courseLinkedTarget = userWaitlistedRecords.length === 1 && (
+      String(userWaitlistedRecords[0]?.courseLinkSource || userWaitlistedRecords[0]?.source || '').trim() === 'eduCourseLesson'
+      || String(userWaitlistedRecords[0]?.courseLinkId || '').trim()
+      || String(userWaitlistedRecords[0]?.courseStudentId || '').trim()
+    );
+    if (courseLinkedTarget) {
+      this._setWaitlistActionPending('promote', eventId, rosterActionKey, true);
+      try {
+        const cfResult = await (await ensureFirebaseFunctionsSdk('asia-east1'))
+          .httpsCallable('manageCourseLinkedRegistrationStatus')({
+            eventId,
+            registrationId: userWaitlistedRecords[0]._docId || userWaitlistedRecords[0].id,
+            action: 'promote',
+            allowOverCapacity: hasLimitedCapacity && afterCount > maxCount,
+          });
+        const data = cfResult?.data || {};
+        userWaitlistedRecords[0].status = 'confirmed';
+        if (userWaitlisted[0]) userWaitlisted[0].status = 'confirmed';
+        if (data.event) this._applyEventOccupancy?.(e, data.event);
+        FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+        FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+        this.showToast('已正取');
+        ApiService._writeOpLog(
+          'force_promote',
+          '手動正取',
+          `活動「${e.title}」將 ${userWaitlistedRecords[0].userName || '課程學員'} 從候補升為正取`,
+          eventId
+        );
+      } catch (err) {
+        console.error('[forcePromote:courseLinked]', err);
+        const code = this._getEventRegistrationErrorCode?.(err)
+          || String(err?.details?.code || err?.details || err?.message || '').trim();
+        const friendlyError = this._getEventRegistrationFriendlyErrorMessage?.(code) || '';
+        this.showToast(code === 'CAPACITY_EXCEEDED' ? '正取後將超過名額上限' : (friendlyError || '儲存失敗，請重試'));
+      } finally {
+        this._setWaitlistActionPending('promote', eventId, rosterActionKey, false);
+        this._renderRosterTables?.(eventId, { skipFetch: true });
+        this._reconcileRosterRegistrationsAfterWrite?.(eventId);
+      }
+      return;
+    }
+
+    if (!await this._ensureActivityRecordsReady({ required: true })) return;
     this._setWaitlistActionPending('promote', eventId, userId, true);
     const mutationSeq = ApiService.markEventMutationPending?.(eventId, {
       mutationType: 'waitlist-promote',
@@ -374,7 +459,7 @@ Object.assign(App, {
         waitlistNames: waitlisted.map(r => this._getRegistrationParticipantName(r)).filter(Boolean),
         current: confirmed.length,
         waitlist: waitlisted.length,
-        status: confirmed.length >= (e.max || 0) ? 'full' : 'open',
+        status: Number(e.max || 0) > 0 && confirmed.length >= Number(e.max || 0) ? 'full' : 'open',
       };
     }
 
@@ -475,7 +560,7 @@ Object.assign(App, {
   },
 
   /** 強制將正取用戶下放至候補（含同行者），方案 A：自然排序 */
-  async _forceDemoteToWaitlist(eventId, userId, userName, isCompanion) {
+  async _forceDemoteToWaitlist(eventId, userId, userName, isCompanion, registrationId = '') {
     // 同行者不能單獨下放，必須從主報名者操作
     if (isCompanion) { this.showToast('請從主報名者操作下放'); return; }
     const e = ApiService.getEvent(eventId);
@@ -484,11 +569,29 @@ Object.assign(App, {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
       return;
     }
-    if (this._isWaitlistActionPending?.('demote', eventId, userId)) return;
+    const allRegs = ApiService.getRegistrationsByEvent(eventId);
+    const requestedRegistrationId = String(registrationId || '').trim();
+    const requestedRegistration = requestedRegistrationId
+      ? allRegs.find(r => (
+          String(r?._docId || r?.id || '').trim() === requestedRegistrationId
+          && r?.status === 'confirmed'
+        ))
+      : null;
+    const exactRegistrationId = requestedRegistration
+      && (
+        String(requestedRegistration?.courseLinkSource || requestedRegistration?.source || '').trim() === 'eduCourseLesson'
+        || String(requestedRegistration?.courseLinkId || '').trim()
+        || String(requestedRegistration?.courseStudentId || '').trim()
+      )
+      ? requestedRegistrationId
+      : '';
+    const rosterActionKey = exactRegistrationId || userId;
+    if (this._isWaitlistActionPending?.('demote', eventId, rosterActionKey)) return;
     if (!e.max || e.max <= 0) { this.showToast('此活動無名額上限，無法下放候補'); return; }
 
-    const allRegs = ApiService.getRegistrationsByEvent(eventId);
-    const userConfirmedRecords = allRegs.filter(r => r.userId === userId && r.status === 'confirmed');
+    const userConfirmedRecords = exactRegistrationId
+      ? allRegs.filter(r => String(r._docId || r.id || '').trim() === exactRegistrationId && r.status === 'confirmed')
+      : allRegs.filter(r => r.userId === userId && r.status === 'confirmed');
     if (userConfirmedRecords.length === 0) { this.showToast('找不到正取紀錄'); return; }
     const userConfirmed = this._getRosterLiveRegistrationRefs?.(userConfirmedRecords, eventId) || [];
     if (userConfirmed.length !== userConfirmedRecords.length) {
@@ -501,6 +604,47 @@ Object.assign(App, {
       ? `確定將 ${userName}（含 ${companionCount} 位同行者）下放到候補嗎？`
       : `確定將 ${userName} 下放到候補嗎？`;
     if (!await this.appConfirm(confirmMsg)) return;
+
+    const courseLinkedTarget = userConfirmedRecords.length === 1 && (
+      String(userConfirmedRecords[0]?.courseLinkSource || userConfirmedRecords[0]?.source || '').trim() === 'eduCourseLesson'
+      || String(userConfirmedRecords[0]?.courseLinkId || '').trim()
+      || String(userConfirmedRecords[0]?.courseStudentId || '').trim()
+    );
+    if (courseLinkedTarget) {
+      this._setWaitlistActionPending('demote', eventId, rosterActionKey, true);
+      try {
+        const cfResult = await (await ensureFirebaseFunctionsSdk('asia-east1'))
+          .httpsCallable('manageCourseLinkedRegistrationStatus')({
+            eventId,
+            registrationId: userConfirmedRecords[0]._docId || userConfirmedRecords[0].id,
+            action: 'demote',
+          });
+        const data = cfResult?.data || {};
+        userConfirmedRecords[0].status = 'waitlisted';
+        if (userConfirmed[0]) userConfirmed[0].status = 'waitlisted';
+        if (data.event) this._applyEventOccupancy?.(e, data.event);
+        FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+        FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+        this.showToast(`已將 ${userName} 下放至候補`);
+        ApiService._writeOpLog(
+          'force_demote',
+          '手動候補',
+          `活動「${e.title}」將 ${userName} 從正取下放至候補`,
+          eventId
+        );
+      } catch (err) {
+        console.error('[forceDemote:courseLinked]', err);
+        const code = this._getEventRegistrationErrorCode?.(err)
+          || String(err?.details?.code || err?.details || err?.message || '').trim();
+        const friendlyError = this._getEventRegistrationFriendlyErrorMessage?.(code) || '';
+        this.showToast(friendlyError || '儲存失敗，請重試');
+      } finally {
+        this._setWaitlistActionPending('demote', eventId, rosterActionKey, false);
+        this._renderRosterTables?.(eventId, { skipFetch: true });
+        this._reconcileRosterRegistrationsAfterWrite?.(eventId);
+      }
+      return;
+    }
 
     if (!await this._ensureActivityRecordsReady({ required: true })) return;
     this._setWaitlistActionPending('demote', eventId, userId, true);
@@ -542,7 +686,7 @@ Object.assign(App, {
         waitlistNames: waitlisted.map(r => this._getRegistrationParticipantName(r)).filter(Boolean),
         current: confirmed.length,
         waitlist: waitlisted.length,
-        status: confirmed.length >= (e.max || 0) ? 'full' : 'open',
+        status: Number(e.max || 0) > 0 && confirmed.length >= Number(e.max || 0) ? 'full' : 'open',
       };
     }
 

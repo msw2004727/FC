@@ -324,6 +324,50 @@ describe('_buildConfirmedParticipantSummary', () => {
     });
   });
 
+  test('keeps same-parent course students distinct while ordinary rows still group by uid', () => {
+    const event = {
+      id: 'evt-course-siblings',
+      current: 3,
+      realCurrent: 3,
+      max: 10,
+      participants: ['Student A', 'Student B', 'Parent ordinary'],
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        _docId: 'course-reg-a', eventId: event.id, userId: 'same-parent', userName: 'Student A',
+        participantType: 'self', status: 'confirmed', courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-a', courseStudentId: 'student-a', registeredAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        _docId: 'course-reg-b', eventId: event.id, userId: 'same-parent', userName: 'Student B',
+        participantType: 'self', status: 'confirmed', courseLinkSource: 'eduCourseLesson',
+        courseLinkId: 'course-b', courseStudentId: 'student-b', registeredAt: '2026-01-01T00:01:00Z',
+      },
+      {
+        _docId: 'ordinary-reg-first', eventId: event.id, userId: 'same-parent', userName: 'Parent ordinary',
+        participantType: 'self', status: 'confirmed', registeredAt: '2026-01-01T00:02:00Z',
+      },
+      {
+        _docId: 'ordinary-reg-duplicate', eventId: event.id, userId: 'same-parent', userName: 'Duplicate ordinary',
+        participantType: 'self', status: 'confirmed', registeredAt: '2026-01-01T00:03:00Z',
+      },
+    ];
+    const app = loadEventNoshowModule({ event, registrations });
+
+    const summary = app._buildConfirmedParticipantSummary(event.id);
+    const actionableRows = summary.people.filter(row => !row.proxyOnly && !row.isProxyOnly);
+
+    expect(summary.count).toBe(3);
+    expect(summary.realCount).toBe(3);
+    expect(actionableRows.map(row => row.name)).toEqual(['Student A', 'Student B', 'Parent ordinary']);
+    expect(actionableRows.map(row => row.regDocId)).toEqual([
+      'course-reg-a', 'course-reg-b', 'ordinary-reg-first',
+    ]);
+    expect(actionableRows.slice(0, 2).map(row => row.courseStudentId)).toEqual(['student-a', 'student-b']);
+    expect(actionableRows.slice(0, 2).every(row => row.courseLinkedRegistration === true)).toBe(true);
+  });
+
   test('no-show helpers return empty values while feature flag is disabled', () => {
     const event = { id: 'evt3', current: 0, realCurrent: 0, max: 10, teamReservationSummaries: [] };
     const app = loadEventNoshowModule({ event, registrations: [], noShowFeatureEnabled: false });

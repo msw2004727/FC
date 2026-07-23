@@ -1616,15 +1616,23 @@ const ApiService = {
     return expectedActive <= 0 ? cached.length > 0 : cached.length >= expectedActive;
   },
 
+  _isRegistrationOwnedByUser(registration, userId) {
+    const targetUid = String(userId || '').trim();
+    if (!registration || !targetUid) return false;
+    if (String(registration.userId || '').trim() === targetUid
+      || String(registration.uid || '').trim() === targetUid) return true;
+    return Array.isArray(registration.courseOwnerUids)
+      && registration.courseOwnerUids.some(uid => String(uid || '').trim() === targetUid);
+  },
+
   getRegistrationHistoryByEventUser(eventId, userId) {
     const targetEventId = String(eventId || '').trim();
     const targetUid = String(userId || '').trim();
     if (!targetEventId || !targetUid) return [];
     return this.getRegistrations({
       eventId: targetEventId,
-      userId: targetUid,
       includeTerminal: true,
-    });
+    }).filter(registration => this._isRegistrationOwnedByUser(registration, targetUid));
   },
 
   /**
@@ -2819,7 +2827,8 @@ const ApiService = {
     const uid = this.getCurrentUser()?.uid;
     if (!uid) return [];
     const targetUid = String(uid).trim();
-    return this.getRegistrations({ eventId, userId: targetUid });
+    return this.getRegistrations({ eventId })
+      .filter(registration => this._isRegistrationOwnedByUser(registration, targetUid));
   },
 
   async registerEventWithCompanions(eventId, participantList, opts = {}) {

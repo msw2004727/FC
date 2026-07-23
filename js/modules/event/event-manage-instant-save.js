@@ -23,11 +23,18 @@ Object.assign(App, {
   /** 進入編輯模式時初始化：建立 uid→person 查找表 */
   _initInstantSave(eventId) {
     const summary = this._buildConfirmedParticipantSummary(eventId);
+    const people = this._decorateAttendanceRosterPeople?.(eventId, summary.people)
+      || (Array.isArray(summary.people) ? summary.people : []);
     const map = new Map();
-    summary.people.forEach(p => map.set(String(p.uid), p));
+    people.forEach(p => {
+      if (p?.isTeamHeader || p?.isTeamGeneralSeparator || p?.isTeamPlaceholder
+        || p?.proxyOnly || p?.isProxyOnly || p?.attendanceAmbiguous) return;
+      const key = this._getAttendancePersonKey?.(p) || String(p.uid || '').trim();
+      if (key) map.set(key, { ...p, attendanceKey: key });
+    });
     // Phase 3 (2026-04-19): 優先從 participantsWithUid 補齊（消除同暱稱挑錯），不足再 fallback
     const e = ApiService.getEvent(eventId);
-    const addedNames = new Set(summary.people.map(p => p.name));
+    const addedNames = new Set(people.map(p => p.name));
     const wu = Array.isArray(e?.participantsWithUid) ? e.participantsWithUid : [];
     if (wu.length > 0) {
       wu.forEach(entry => {
@@ -79,19 +86,19 @@ Object.assign(App, {
   },
 
   /** 單人簽到/簽退寫入（per-UID sequential） */
-  async _writeInstantAttendance(eventId, uid) {
-    if (this._iSaveInFlight[uid]) {
-      this._iSaveQueued[uid] = true;
+  async _writeInstantAttendance(eventId, attendanceKey) {
+    if (this._iSaveInFlight[attendanceKey]) {
+      this._iSaveQueued[attendanceKey] = true;
       return;
     }
-    const person = this._iSavePeople?.get(String(uid));
+    const person = this._iSavePeople?.get(String(attendanceKey));
     if (!person) return;
 
-    const checkinBox = document.getElementById('manual-checkin-' + uid);
-    const checkoutBox = document.getElementById('manual-checkout-' + uid);
+    const checkinBox = document.getElementById('manual-checkin-' + attendanceKey);
+    const checkoutBox = document.getElementById('manual-checkout-' + attendanceKey);
     if (!checkinBox) return;
 
-    const noteInput = document.getElementById('manual-note-' + uid);
+    const noteInput = document.getElementById('manual-note-' + attendanceKey);
     const wanted = this._normalizeAttendanceSelection({
       checkin: !!checkinBox.checked,
       checkout: !!checkoutBox?.checked,
@@ -106,6 +113,9 @@ Object.assign(App, {
       name: person.name,
       isCompanion: !!person.isCompanion || this._isCompanionPseudoUid?.(person.uid),
       ownerUid: person.ownerUid || person.userId || '',
+      regDocId: person.regDocId || '',
+      courseStudentId: person.courseStudentId || '',
+      courseLinkedRegistration: person.courseLinkedRegistration === true,
     };
     let resolvedRecord = this._buildAttendanceBaseRecord?.(eventId, personObj, allActiveRegs);
     if (!resolvedRecord?.ok
@@ -135,9 +145,9 @@ Object.assign(App, {
 
     if (ops.adds.length === 0 && ops.removes.length === 0) return;
 
-    this._iSaveInFlight[uid] = true;
+    this._iSaveInFlight[attendanceKey] = true;
     const containerId = this._manualEditingContainerId || 'attendance-table-container';
-    const row = this._findAttendanceRow(containerId, uid);
+    const row = this._findAttendanceRow(containerId, attendanceKey);
     const rowCbs = row ? row.querySelectorAll('.att-cb') : [];
     rowCbs.forEach(cb => { cb.disabled = true; });
 
@@ -153,11 +163,11 @@ Object.assign(App, {
         setTimeout(() => row.classList.remove('att-row-saved'), 600);
       }
     } catch (err) {
-      console.error('[_writeInstantAttendance]', uid, err);
+      console.error('[_writeInstantAttendance]', attendanceKey, err);
       ApiService._writeErrorLog({
         fn: '_writeInstantAttendance',
         eventId,
-        uid,
+        uid: person.uid,
         participantType,
         adds: ops.adds.length,
         removes: ops.removes.length,
@@ -174,11 +184,11 @@ Object.assign(App, {
       }
       this.showToast((person.name || '') + ' 儲存失敗，已還原');
     } finally {
-      delete this._iSaveInFlight[uid];
+      delete this._iSaveInFlight[attendanceKey];
       rowCbs.forEach(cb => { cb.disabled = false; });
-      if (this._iSaveQueued[uid]) {
-        delete this._iSaveQueued[uid];
-        this._writeInstantAttendance(eventId, uid);
+      if (this._iSaveQueued[attendanceKey]) {
+        delete this._iSaveQueued[attendanceKey];
+        this._writeInstantAttendance(eventId, attendanceKey);
       }
     }
   },
@@ -328,13 +338,13 @@ Object.assign(App, {
 
   // ────────────────── 共用工具 ──────────────────
 
-  /** 透過 data-uid 查找表格行 */
-  _findAttendanceRow(containerId, uid) {
+  /** 透過 registration-aware action key 查找表格行；未報名單仍相容 data-uid。 */
+  _findAttendanceRow(containerId, key) {
     var container = document.getElementById(containerId);
     if (!container) return null;
-    var rows = container.querySelectorAll('tr[data-uid]');
+    var rows = container.querySelectorAll('tr[data-attendance-key], tr[data-uid]');
     for (var i = 0; i < rows.length; i++) {
-      if (rows[i].dataset.uid === uid) return rows[i];
+      if (rows[i].dataset.attendanceKey === key || rows[i].dataset.uid === key) return rows[i];
     }
     return null;
   },

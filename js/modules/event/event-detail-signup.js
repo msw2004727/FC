@@ -47,12 +47,83 @@ Object.assign(App, {
     return participantType !== 'companion' && !companionId && status !== 'cancelled' && status !== 'removed';
   },
 
+  _isRegistrationOwnedBySignupUser(reg, userId) {
+    const safeUid = String(userId || '').trim();
+    if (!reg || !safeUid) return false;
+    if (typeof ApiService?._isRegistrationOwnedByUser === 'function') {
+      return ApiService._isRegistrationOwnedByUser(reg, safeUid);
+    }
+    return String(reg?.userId || '').trim() === safeUid
+      || String(reg?.uid || '').trim() === safeUid
+      || (Array.isArray(reg?.courseOwnerUids)
+        && reg.courseOwnerUids.some(ownerUid => String(ownerUid || '').trim() === safeUid));
+  },
+
   _hasActiveSelfRegistrationForEvent(eventId, userId) {
     const regs = ApiService.getMyRegistrationsByEvent?.(eventId) || [];
     return regs.some(reg =>
       this._isActiveSelfRegistrationRecord(reg)
-      && (!userId || reg.userId === userId || reg.uid === userId)
+      && (!userId || this._isRegistrationOwnedBySignupUser(reg, userId))
     );
+  },
+
+  _isCourseLinkedOwnerProbeEvent(eventRecord) {
+    return !!(eventRecord && (
+      this._isCourseLinkedEvent?.(eventRecord)
+      || eventRecord.courseLinked === true
+      || String(eventRecord.courseLinkSource || '').trim() === 'eduCourseLesson'
+      || String(eventRecord.courseLinkId || '').trim()
+    ));
+  },
+
+  _mergeEventRegistrationQuerySnapshots(snapshots = []) {
+    const validSnapshots = (Array.isArray(snapshots) ? snapshots : []).filter(Boolean);
+    const docsById = new Map();
+    validSnapshots.forEach(snapshot => {
+      const docs = Array.isArray(snapshot?.docs) ? snapshot.docs : [];
+      docs.forEach((doc, index) => {
+        const key = String(doc?.id || doc?.ref?.path || '').trim()
+          || `anonymous:${validSnapshots.indexOf(snapshot)}:${index}`;
+        if (!docsById.has(key)) docsById.set(key, doc);
+      });
+    });
+    const docs = [...docsById.values()];
+    return {
+      docs,
+      empty: docs.length === 0,
+      metadata: {
+        fromCache: validSnapshots.some(snapshot => snapshot?.metadata?.fromCache === true),
+      },
+      forEach(callback) {
+        docs.forEach(callback);
+      },
+    };
+  },
+
+  async _queryEventRegistrationDocsForUser(regsRef, userId, options = {}) {
+    const safeUid = String(userId || '').trim();
+    if (!regsRef || !safeUid) return this._mergeEventRegistrationQuerySnapshots([]);
+    const getOptions = options?.getOptions;
+    const requestedDirectLimit = Number(options?.directLimit);
+    const directLimit = Number.isFinite(requestedDirectLimit) && requestedDirectLimit > 0
+      ? Math.floor(requestedDirectLimit)
+      : 0;
+    const execute = async (field, operator, limit = 0) => {
+      let query = regsRef.where(field, operator, safeUid);
+      if (limit > 0 && typeof query?.limit === 'function') query = query.limit(limit);
+      return getOptions ? query.get(getOptions) : query.get();
+    };
+
+    const snapshots = [];
+    const userIdSnapshot = await execute('userId', '==', directLimit);
+    snapshots.push(userIdSnapshot);
+    if (!userIdSnapshot || userIdSnapshot.empty || !userIdSnapshot.docs?.length) {
+      snapshots.push(await execute('uid', '==', directLimit));
+    }
+    if (options?.includeCourseOwners === true) {
+      snapshots.push(await execute('courseOwnerUids', 'array-contains'));
+    }
+    return this._mergeEventRegistrationQuerySnapshots(snapshots);
   },
 
   _isDuplicateSignupError(err) {
@@ -323,6 +394,23 @@ Object.assign(App, {
     return raw.replace(/^functions\//i, '');
   },
 
+  _getEventRegistrationFriendlyErrorMessage(errOrCode) {
+    const rawCode = typeof errOrCode === 'string'
+      ? errOrCode
+      : this._getEventRegistrationErrorCode(errOrCode);
+    const code = String(rawCode || '').trim().replace(/^functions\//i, '');
+    const messages = {
+      COURSE_ATTENDANCE_ALREADY_SIGNED_IN: '此課程學員已完成簽到，請先由課程管理員調整點名狀態',
+      INVALID_COURSE_LINKED_REGISTRATION: '課程報名資料有誤，請重新整理後再試',
+      COURSE_LINKED_REGISTRATION_NOT_FOUND: '找不到對應的課程報名，請重新整理後再試',
+      COURSE_LINKED_REGISTRATION_AMBIGUOUS: '找到多筆課程報名，請從對應的課程學員名單重新操作',
+      COURSE_STUDENT_NOT_FOUND: '找不到對應的課程學員資料，請重新整理後再試',
+      COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE: '課程活動報名狀態同步中，請重新整理後再試',
+      COURSE_LINKED_EVENT_MANAGED_BY_COURSE: '課程活動報名狀態同步中，請重新整理後再試',
+    };
+    return messages[code] || '';
+  },
+
   //  Signup & Cancel
   // ══════════════════════════════════
 
@@ -406,20 +494,16 @@ Object.assign(App, {
       const _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
       if (!_eventDocId) return ApiService.getMyRegistrationsByEvent(eventId);
       const regsRef = db.collection('events').doc(_eventDocId).collection('registrations');
-      let snapshot = await regsRef
-        .where('userId', '==', userId)
-        .get();
-      if (snapshot.empty) {
-        snapshot = await regsRef
-          .where('uid', '==', userId)
-          .get();
-      }
+      const eventRecord = ApiService.getEvent?.(eventId) || null;
+      const snapshot = await this._queryEventRegistrationDocsForUser(regsRef, userId, {
+        includeCourseOwners: this._isCourseLinkedOwnerProbeEvent(eventRecord),
+      });
 
       const allDocs = snapshot.docs.map(doc => FirebaseService._mapSubcollectionDoc(doc, 'registrations'));
       const activeDocs = allDocs.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
       const source = FirebaseService._cache.registrations || [];
       FirebaseService._cache.registrations = FirebaseService._canonicalizeRecordList('registrations', source
-        .filter(r => !(r.eventId === eventId && (r.userId === userId || r.uid === userId)))
+        .filter(r => !(r.eventId === eventId && this._isRegistrationOwnedBySignupUser(r, userId)))
         .concat(allDocs));
       FirebaseService._saveToLS?.('registrations', FirebaseService._cache.registrations);
       return activeDocs;
@@ -774,7 +858,9 @@ Object.assign(App, {
     const currentState = typeof this._getCurrentUserEventRegistrationState === 'function'
       ? this._getCurrentUserEventRegistrationState(e)
       : { signedUp: false };
-    if (currentState?.signedUp) return false;
+    // 課程活動即使 generic userId listener 已找到「本人」紀錄，仍可能漏掉同家長的其他學員。
+    // 必須等 event-specific owner-array probe（或完整活動名單 fetch）後才停止背景驗證。
+    if (currentState?.signedUp && !this._isCourseLinkedOwnerProbeEvent?.(e)) return false;
     if (this._hasEventSignupRegistrationServerProof?.(e, uid)) return false;
     if (typeof this._fetchCurrentUserRegistrationStateForEvent !== 'function'
       || typeof db === 'undefined') {
@@ -884,6 +970,10 @@ Object.assign(App, {
       return true;
     }
 
+    // 課程活動可能由家長透過 courseOwnerUids 擁有多筆學員報名；
+    // generic userId listener 並未涵蓋 owner-array，不可當成此活動的完整身分證明。
+    if (this._isCourseLinkedOwnerProbeEvent?.(e)) return false;
+
     return !!(typeof FirebaseService !== 'undefined'
       && FirebaseService._registrationsServerSnapshotReceived
       && String(FirebaseService._registrationListenerKey || '') === `user:${userId}`);
@@ -922,18 +1012,15 @@ Object.assign(App, {
       if (!authReady) return { ok: false, reason: 'auth-not-ready' };
     }
     const regsRef = db.collection('events').doc(eventDocId).collection('registrations');
+    const includeCourseOwners = this._isCourseLinkedOwnerProbeEvent(e || fallbackEvent);
     // 2026-06-10：主查詢改預設 get()（伺服器優先、SDK 判定離線時回快取），
     // 修復「快取名單看得到、按鈕卡在重新檢查報名狀態」的資料來源分裂（詳 docs/claude-memory.md 2026-06-10）
-    const readByField = (field, getOptions) => {
-      const query = regsRef.where(field, '==', userId).limit(5);
-      return getOptions ? query.get(getOptions) : query.get();
-    };
-
     const runRegistrationProbe = async (getOptions) => {
-      let snap = await readByField('userId', getOptions);
-      if (!snap || snap.empty || !snap.docs?.length) {
-        snap = await readByField('uid', getOptions);
-      }
+      const snap = await this._queryEventRegistrationDocsForUser(regsRef, userId, {
+        includeCourseOwners,
+        getOptions,
+        directLimit: 5,
+      });
       const docs = Array.isArray(snap?.docs) ? snap.docs : [];
       let activeCount = 0;
       docs.forEach(doc => {
@@ -948,9 +1035,12 @@ Object.assign(App, {
         if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._upsertCanonicalCacheRecord === 'function') {
           FirebaseService._upsertCanonicalCacheRecord('registrations', reg);
         }
-        if (this._isActiveSelfRegistrationRecord?.(reg)) activeCount++;
+        if (this._isActiveSelfRegistrationRecord?.(reg)
+          && this._isRegistrationOwnedBySignupUser(reg, userId)) activeCount++;
       });
-      this._markEventSignupRegistrationServerProof?.(eventId, userId);
+      if (!snap?.metadata?.fromCache) {
+        this._markEventSignupRegistrationServerProof?.(eventId, userId);
+      }
       return { ok: true, activeCount, recordCount: docs.length, fromCache: !!snap?.metadata?.fromCache };
     };
     const queryPromise = runRegistrationProbe();
@@ -1735,7 +1825,8 @@ Object.assign(App, {
       const confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
         ? this._buildConfirmedParticipantSummary(id).count
         : Number(e.current || 0);
-      if (confirmedCount >= (Number(e.max || 0) || 0)) {
+      const eventMaxCount = Math.max(0, Number(e.max || 0) || 0);
+      if (eventMaxCount > 0 && confirmedCount >= eventMaxCount) {
         this.showToast('早鳥名額已滿，正式開放後可依活動狀態候補報名');
         return;
       }
@@ -1993,8 +2084,8 @@ Object.assign(App, {
         GENDER_RESTRICTED: '此活動不符合目前性別限制',
         TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
         COURSE_LINKED_EVENT_PRIVATE_REGISTRATION: '此課程活動目前仍為不公開，請等待職員開啟公開後再報名',
-        COURSE_LINKED_EVENT_MANAGED_BY_COURSE: '課程學員名單由課程系統同步管理，請回到課程頁面操作',
-        COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE: '課程學員名單由課程系統同步管理，請回到課程頁面操作',
+        COURSE_LINKED_EVENT_MANAGED_BY_COURSE: '課程活動報名狀態同步中，請重新整理後再試',
+        COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE: '課程活動報名狀態同步中，請重新整理後再試',
         PROFILE_INCOMPLETE: '請先完善個人資料後再報名',
       };
       cfMsg.TEAM_RESERVATION_TEAM_DENIED = '你無法使用此俱樂部席位報名';
@@ -2087,14 +2178,10 @@ Object.assign(App, {
         const _eventDocId2 = await FirebaseService._getEventDocIdAsync(id);
         if (!_eventDocId2) throw new Error('eventDocId not found');
         const regsRef = db.collection('events').doc(_eventDocId2).collection('registrations');
-        let snap = await regsRef
-          .where('userId', '==', currentUserId)
-          .get();
-        if (snap.empty) {
-          snap = await regsRef
-            .where('uid', '==', currentUserId)
-            .get();
-        }
+        const eventRecord = ApiService.getEvent?.(id) || null;
+        const snap = await this._queryEventRegistrationDocsForUser(regsRef, currentUserId, {
+          includeCourseOwners: this._isCourseLinkedOwnerProbeEvent(eventRecord),
+        });
         const fetched = [];
         snap.forEach(doc => {
           const d = doc.data();
@@ -2130,6 +2217,14 @@ Object.assign(App, {
     const activeRegs = myRegs.filter(r => r && r.status !== 'cancelled' && r.status !== 'removed');
     const selfRegs = activeRegs.filter(r => this._isActiveSelfRegistrationRecord(r));
     const companionRegs = activeRegs.filter(r => r && !this._isActiveSelfRegistrationRecord(r) && (r.participantType === 'companion' || r.companionId));
+    const distinctSelfTargetKeys = new Set(selfRegs.map(reg => {
+      const courseStudentId = String(reg?.courseStudentId || '').trim();
+      const courseLinkId = String(reg?.courseLinkId || '').trim();
+      if (courseStudentId || courseLinkId) {
+        return `course:${courseLinkId}:${courseStudentId || String(reg?._docId || reg?.id || '').trim()}`;
+      }
+      return `ordinary:${String(reg?.userId || currentUserId || '').trim()}`;
+    }));
     if (selfRegs.length === 0) {
       this._logEventRegistrationFailure('event_cancel_no_self_registration', id, new Error('NO_ACTIVE_SELF_REGISTRATION'), {
         fn: 'handleCancelSignup.precheck',
@@ -2145,8 +2240,10 @@ Object.assign(App, {
       releaseCancelPrelock();
       return;
     }
-    if (companionRegs.length > 0) {
-      this._openCompanionCancelModal(id, selfRegs.concat(companionRegs));
+    if (companionRegs.length > 0 || distinctSelfTargetKeys.size > 1) {
+      this._openCompanionCancelModal(id, selfRegs.concat(companionRegs), {
+        selectAll: distinctSelfTargetKeys.size === 1,
+      });
       releaseCancelPrelock();
       return;
     }
@@ -2230,9 +2327,16 @@ Object.assign(App, {
       || myRegs[0]
       || null;
     const regCancelId = reg ? (reg.id || reg._docId) : null;
-    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+    let useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+    if (myRegs.some(courseReg => (
+      String(courseReg?.courseLinkSource || courseReg?.source || '').trim() === 'eduCourseLesson'
+      || String(courseReg?.courseLinkId || '').trim()
+      || String(courseReg?.courseStudentId || '').trim()
+    ))) {
+      useCF = true;
+    }
     let cancelRequestId = '';
     let cancelRegistrationIds = [];
     let cancelMutationSeq = null;
@@ -2366,9 +2470,10 @@ Object.assign(App, {
           const flipper = cancelGlowWrap.querySelector('.signup-flipper');
           if (flipper) {
             const ev = ApiService.getEvent(id);
+            const flipMaxCount = Math.max(0, Number(ev?.max || 0) || 0);
             const stillFull = ev && (typeof this._isEventTrulyFull === 'function'
               ? this._isEventTrulyFull(ev)
-              : ev.current >= ev.max);
+              : (flipMaxCount > 0 && Number(ev.current || 0) >= flipMaxCount));
             const backEl = document.createElement('div');
             backEl.className = 'signup-flip-back';
             backEl.style.cssText = stillFull
@@ -2528,8 +2633,9 @@ Object.assign(App, {
           EVENT_NOT_FOUND: '活動不存在',
           PERMISSION_DENIED: '無權限執行此操作',
         };
+        const friendlyError = this._getEventRegistrationFriendlyErrorMessage(errCode);
         const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
-        this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
+        this.showToast('取消失敗：' + (cfMsg[errCode] || friendlyError || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
         this._logEventRegistrationFailure('event_cancel_failed', id, err, {
           fn: 'handleCancelSignup',
           stage: useCF ? 'cloud_function' : 'firestore_fallback',
@@ -2679,7 +2785,10 @@ Object.assign(App, {
     var capacityStats = typeof this._getEventParticipantStats === 'function'
       ? this._getEventParticipantStats(e)
       : null;
-    var isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= (e.max || 0);
+    var fallbackMaxCount = Math.max(0, Number(e.max || 0) || 0);
+    var isMainFull = capacityStats
+      ? capacityStats.isCapacityFull
+      : (fallbackMaxCount > 0 && confirmedCount >= fallbackMaxCount);
     var hasTeamReservationSignup = typeof this._hasAvailableTeamReservationSignup === 'function'
       && this._hasAvailableTeamReservationSignup(e);
 

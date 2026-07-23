@@ -13,7 +13,9 @@ describe('registration ops guard', () => {
     const source = read('functions/index.js');
 
     expect(source).toContain('REGISTRATION_CALLABLE_NAMES');
-    expect(source).toContain('"registerForEvent", "cancelRegistration"');
+    expect(source).toContain('"registerForEvent"');
+    expect(source).toContain('"cancelRegistration"');
+    expect(source).toContain('"manageCourseLinkedRegistrationStatus"');
     expect(source).toContain('REGISTRATION_ERROR_LOG_CONTEXTS');
     expect(source).toContain('"handleSignup"');
     expect(source).toContain('"_confirmCompanionRegister"');
@@ -53,7 +55,7 @@ describe('registration ops guard', () => {
     expect(deployWorkflow).toContain('GCP_SERVICE_ACCOUNT_JSON');
   });
 
-  test('course lesson conversion phase 1 guards are wired', () => {
+  test('course lesson conversion guards and atomic activity cancellation are wired', () => {
     const source = read('functions/index.js');
 
     expect(source).toContain('const COURSE_LINK_SOURCE_EDU_LESSON = "eduCourseLesson";');
@@ -76,10 +78,15 @@ describe('registration ops guard', () => {
     expect(source).toContain('gpsEnabled: false');
     expect(source).toContain('privateEvent: true');
     expect(source).toContain('assertOrdinaryEventRegistrationAllowed(ed);');
-    expect(source).toContain('assertCourseLinkedRegistrationNotManagedByCourse(permissionCheckRegs);');
-    expect(source).toContain('registrations must still work for private/link-shared course events.');
+    expect(source).toContain('loadCourseCancellationAttendanceContextsInTransaction(');
+    expect(source).toContain('writeCourseCancellationAttendanceInTransaction(');
+    expect(source).toContain('courseAttendanceKind: "leave"');
+    expect(source).toContain('source: "eventRegistrationCancellation"');
+    expect(source).toContain('exports.updateCourseLinkedEvent');
+    expect(source).toContain('exports.manageCourseLinkedRegistrationStatus');
+    expect(source).not.toContain('assertCourseLinkedRegistrationNotManagedByCourse');
+    expect(source).not.toContain('COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE');
     expect(source).not.toContain('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
-    expect(source).toContain('COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE');
     expect(source).toContain('source: "saveEduCourseSelfAttendance"');
     expect(source).toContain('source: "saveEduCourseSelfLeave"');
     expect(source).toContain('phase: "phase2_roster_sync"');
@@ -93,6 +100,8 @@ describe('registration ops guard', () => {
     expect(crudSource).toContain('return `course_student_${courseStudentId}`');
     expect(crudSource).toContain('return `course_${encode(courseStudentId)}`');
     expect(crudSource).toContain('excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event)');
+    expect(crudSource).toContain('if (wasPreviouslyConfirmed || maxCount <= 0) {');
+    expect(crudSource).toContain('if (!hadConfirmed.has(eventId) && maxCount > 0) continue;');
     expect(crudSource).toContain('!excludeCourseLinkedCandidates || !this._isCourseLinkedRegistrationData(r)');
     expect(crudSource).toContain('_hasCourseLinkedActivityRecordData');
     expect(crudSource).toContain('_findActivityRecordsForRegistration');
@@ -106,10 +115,14 @@ describe('registration ops guard', () => {
     expect(crudSource).not.toContain("a.uid === candidate.userId && a.status === 'waitlisted'");
     expect(crudSource).not.toContain("a.eventId === eventId && a.uid === item.userId && a.status === 'waitlisted'");
 
+    const lifecycleSource = read('js/modules/event/event-manage-lifecycle.js');
+    expect(lifecycleSource).toContain('if (wasConfirmed || maxCount <= 0) {');
+
     const rulesSource = read('firestore.rules');
     expect(rulesSource).toContain('!hasCourseLinkedRegistrationData(request.resource.data)');
     expect(rulesSource).toContain('&& isSignupFieldsOnly()');
   });
+
   test('registration ops guard script passes', () => {
     const output = execFileSync(process.execPath, ['scripts/check-registration-ops-guard.js'], {
       cwd: ROOT,

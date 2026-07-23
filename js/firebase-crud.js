@@ -1049,6 +1049,7 @@ Object.assign(FirebaseService, {
 
   _decideRegistrationSeat(eventData, activeRegs, registration, userData = {}) {
     const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+    const hasUnlimitedCapacity = maxCount <= 0;
     const reservation = registration?.participantType === 'companion'
       ? null
       : this._findTeamReservationForUser(eventData, userData);
@@ -1063,14 +1064,14 @@ Object.assign(FirebaseService, {
       if (usedSlots < reservedSlots) {
         status = 'confirmed';
         source = 'reserved';
-      } else if (occupancyBefore.current < maxCount) {
+      } else if (hasUnlimitedCapacity || occupancyBefore.current < maxCount) {
         status = 'confirmed';
         source = 'overflow';
       } else {
         source = 'waitlist';
       }
       this._applyTeamReservationFields(registration, reservation, source);
-    } else if (occupancyBefore.current < maxCount) {
+    } else if (hasUnlimitedCapacity || occupancyBefore.current < maxCount) {
       status = 'confirmed';
     }
 
@@ -1154,6 +1155,7 @@ Object.assign(FirebaseService, {
     const promoted = [];
     const excludeCourseLinkedCandidates = options.excludeCourseLinkedCandidates === true;
     const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+    const hasUnlimitedCapacity = maxCount <= 0;
 
     while (true) {
       const activeRegs = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
@@ -1162,7 +1164,7 @@ Object.assign(FirebaseService, {
       const waitlisted = this._sortWaitlistCandidates(
         activeRegs
           .filter(r => r.status === 'waitlisted')
-          .filter(r => !excludeCourseLinkedCandidates || !this._isCourseLinkedRegistrationData(r))
+          .filter(r => hasUnlimitedCapacity || !excludeCourseLinkedCandidates || !this._isCourseLinkedRegistrationData(r))
       );
       let candidateToPromote = null;
       let source = null;
@@ -1178,7 +1180,7 @@ Object.assign(FirebaseService, {
         }
       }
 
-      if (!candidateToPromote && occupancy.current < maxCount) {
+      if (!candidateToPromote && (hasUnlimitedCapacity || occupancy.current < maxCount)) {
         candidateToPromote = waitlisted[0] || null;
         if (candidateToPromote && this._getRegistrationTeamReservationTeamId(candidateToPromote)) {
           source = 'overflow';
@@ -1284,10 +1286,12 @@ Object.assign(FirebaseService, {
     );
     const waitlist = waitlistNames.length;
 
-    // status: ended/cancelled 不變；current >= max → full；否則 → open
+    // status: ended/cancelled 不變；有限名額額滿才 full；max <= 0（不限人數）維持 open
+    const maxCount = Math.max(0, Number(event?.max || 0) || 0);
+    const hasUnlimitedCapacity = maxCount <= 0;
     let status = event.status;
     if (status !== 'ended' && status !== 'cancelled') {
-      status = current >= (event.max || 0) ? 'full' : 'open';
+      status = !hasUnlimitedCapacity && current >= maxCount ? 'full' : 'open';
     }
 
     return {
@@ -1706,8 +1710,9 @@ Object.assign(FirebaseService, {
 
     let occupancy = null;
     if (event) {
+      const maxCount = Math.max(0, Number(event.max || 0) || 0);
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
-      if (wasPreviouslyConfirmed) {
+      if (wasPreviouslyConfirmed || maxCount <= 0) {
         promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegs, {
           excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event),
         }));
@@ -3371,9 +3376,10 @@ Object.assign(FirebaseService, {
     // 候補遞補（模擬）
     const promotedCandidates = [];
     for (const eventId of affectedEventIds) {
-      if (!hadConfirmed.has(eventId)) continue;
       const event = this._cache.events.find(e => e.id === eventId);
       if (!event) continue;
+      const maxCount = Math.max(0, Number(event.max || 0) || 0);
+      if (!hadConfirmed.has(eventId) && maxCount > 0) continue;
 
       promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegsByEvent[eventId], {
         excludeCourseLinkedCandidates: this._isCourseLinkedEventData(event),
@@ -3415,9 +3421,12 @@ Object.assign(FirebaseService, {
       }
     }
 
+    const promotedEventIds = new Set(
+      promotedCandidates.map(candidate => String(candidate.eventId || '').trim()).filter(Boolean)
+    );
     const arsByEvent = {};
     for (const _evId of affectedEventIds) {
-      if (!hadConfirmed.has(_evId)) continue;
+      if (!promotedEventIds.has(String(_evId || '').trim())) continue;
       try {
         const arSnap = await db.collection('events').doc(eventDocIds[_evId]).collection('activityRecords').get();
         arsByEvent[_evId] = arSnap.docs.map(d => this._mapSubcollectionDoc(d, 'activityRecords'));

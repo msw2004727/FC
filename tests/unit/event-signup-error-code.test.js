@@ -40,4 +40,37 @@ describe('event signup error code handling', () => {
       details: { code: 'COURSE_LINKED_EVENT_PRIVATE_REGISTRATION' },
     })).toBe('COURSE_LINKED_EVENT_PRIVATE_REGISTRATION');
   });
+
+  test('maps signed-in course cancellation failures to an actionable message', () => {
+    const App = loadSignupModule();
+
+    expect(App._getEventRegistrationFriendlyErrorMessage({
+      details: { code: 'COURSE_ATTENDANCE_ALREADY_SIGNED_IN' },
+    })).toContain('已完成簽到');
+  });
+
+  test('never renders callable detail objects as raw object text', () => {
+    const App = loadSignupModule();
+    const error = {
+      code: 'functions/failed-precondition',
+      message: '',
+      details: { code: 'INVALID_COURSE_LINKED_REGISTRATION' },
+    };
+
+    expect(App._getEventRegistrationErrorCode(error)).toBe('INVALID_COURSE_LINKED_REGISTRATION');
+    expect(App._getEventRegistrationFriendlyErrorMessage(error)).not.toContain('[object Object]');
+    expect(App._getEventRegistrationFriendlyErrorMessage(error)).toContain('課程報名資料');
+  });
+  test('legacy course-managed errors never direct users back to the course page', () => {
+    const App = loadSignupModule();
+    const source = fs.readFileSync(path.join(ROOT, 'js/modules/event/event-detail-signup.js'), 'utf8');
+    const codes = ['COURSE_LINKED_EVENT_MANAGED_BY_COURSE', 'COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE'];
+
+    codes.forEach(code => {
+      const message = App._getEventRegistrationFriendlyErrorMessage(code);
+      expect(message).toContain('重新整理');
+      expect(message).not.toContain('課程頁面');
+    });
+    expect(source).not.toContain('請回到課程頁面操作');
+  });
 });

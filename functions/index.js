@@ -221,6 +221,9 @@ const ALLOWED_AUDIT_ACTIONS = new Set([
   "team_join_reject",
   "role_change",
   "admin_user_edit",
+  "course_linked_event_edit",
+  "event_waitlist_promote",
+  "event_waitlist_demote",
 ]);
 const ALLOWED_AUDIT_TARGET_TYPES = new Set([
   "system",
@@ -247,6 +250,10 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "refundPolicy",
   "refundedCount",
   "refundedPoints",
+  "appliedFields",
+  "demotedCount",
+  "registrationId",
+  "courseStudentId",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const LOGIN_FAILURE_AUDIT_DEDUPE_WINDOW_MS = 60 * 1000;
@@ -267,7 +274,11 @@ const OPS_MONITOR_COLLECTION = "opsMonitorState";
 const OPS_MONITOR_CONFIG_COLLECTION = "opsMonitorConfig";
 const REGISTRATION_CALLABLE_HEALTH_DOC_ID = "registrationCallableHealth";
 const REGISTRATION_SYNTHETIC_SMOKE_DOC_ID = "registrationSyntheticSmoke";
-const REGISTRATION_CALLABLE_NAMES = Object.freeze(["registerForEvent", "cancelRegistration"]);
+const REGISTRATION_CALLABLE_NAMES = Object.freeze([
+  "registerForEvent",
+  "cancelRegistration",
+  "manageCourseLinkedRegistrationStatus",
+]);
 const REGISTRATION_ERROR_LOG_CONTEXTS = Object.freeze([
   "handleSignup",
   "_confirmCompanionRegister",
@@ -1721,9 +1732,7 @@ function isEventDelegateForUid(eventData, uid) {
   const safeUid = String(uid || "").trim();
   if (!safeUid || !eventData) return false;
   const delegateUids = Array.isArray(eventData.delegateUids) ? eventData.delegateUids : [];
-  if (delegateUids.map((item) => String(item || "").trim()).includes(safeUid)) return true;
-  return Array.isArray(eventData.delegates)
-    && eventData.delegates.some((item) => String(item?.uid || "").trim() === safeUid);
+  return delegateUids.map((item) => String(item || "").trim()).includes(safeUid);
 }
 
 function hasActivityManageEntryAccess(access) {
@@ -1734,16 +1743,102 @@ function hasActivityManageEntryAccess(access) {
     || access.hasPermission("event.edit_all");
 }
 
-function canOperateEventSiteForAccess(access, eventData, uid) {
-  if (!access || !eventData || !uid) return false;
-  if (hasActivityManageEntryAccess(access)) return true;
-  return access.role === "user"
-    && access.hasActivityCapability("user.activity.site_operate")
-    && (eventData.creatorUid === uid || isEventDelegateForUid(eventData, uid));
+function isEventOwnerForUid(eventData, uid) {
+  const safeUid = sanitizeStr(uid, 128);
+  if (!eventData || !safeUid) return false;
+  return [eventData.creatorUid, eventData.ownerUid, eventData.captainUid]
+    .map((value) => sanitizeStr(value, 128))
+    .filter(Boolean)
+    .includes(safeUid);
 }
 
-function canManageSingleEventRosterForAccess(access, eventData, uid) {
-  return canOperateEventSiteForAccess(access, eventData, uid);
+function canOperatePrivateEventForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (eventData.privateEvent !== true) return true;
+  if (access.isSuperAdmin || (ROLE_LEVELS[access.role] || 0) >= ROLE_LEVELS.admin) return true;
+  return isEventOwnerForUid(eventData, uid) || isEventDelegateForUid(eventData, uid);
+}
+
+function canBroadManageEventForAccess(access, eventData, uid) {
+  return !!access
+    && (access.isSuperAdmin || access.hasPermission("event.edit_all"))
+    && canOperatePrivateEventForAccess(access, eventData, uid);
+}
+
+function canManageScopedEventForAccess(eventData, uid) {
+  return isEventOwnerForUid(eventData, uid) || isEventDelegateForUid(eventData, uid);
+}
+
+function canOperateEventSiteForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (!canOperatePrivateEventForAccess(access, eventData, uid)) return false;
+  if (canBroadManageEventForAccess(access, eventData, uid)) return true;
+  const scoped = canManageScopedEventForAccess(eventData, uid);
+  if (!scoped) return false;
+  if (hasActivityManageEntryAccess(access)) return true;
+  if (access.hasPermission("event.scan") || access.hasPermission("event.manual_checkin")) return true;
+  if (access.role !== "user") return false;
+  if (isEventDelegateForUid(eventData, uid)) return true;
+  return access.hasActivityCapability("user.activity.site_operate");
+}
+
+function canRemoveConfirmedParticipantForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (!canOperatePrivateEventForAccess(access, eventData, uid)) return false;
+  if (canBroadManageEventForAccess(access, eventData, uid)) return true;
+  const scoped = canManageScopedEventForAccess(eventData, uid);
+  if (!scoped) return false;
+  if (hasActivityManageEntryAccess(access)) return true;
+  return access.role === "user"
+    && access.hasActivityCapability("user.activity.site_operate");
+}
+
+function canManageSingleEventRosterForAccess(access, eventData, uid, regs = []) {
+  const targets = Array.isArray(regs) ? regs : [];
+  const touchesConfirmed = targets.some((reg) => reg?.status === "confirmed" || reg?.status === "registered");
+  const touchesWaitlisted = targets.some((reg) => reg?.status === "waitlisted");
+  if (touchesConfirmed && !canRemoveConfirmedParticipantForAccess(access, eventData, uid)) return false;
+  if (touchesWaitlisted && !canOperateEventSiteForAccess(access, eventData, uid)) return false;
+  if (!touchesConfirmed && !touchesWaitlisted) {
+    return canOperateEventSiteForAccess(access, eventData, uid)
+      || canRemoveConfirmedParticipantForAccess(access, eventData, uid);
+  }
+  return true;
+}
+
+function canEditEventBasicForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (!canOperatePrivateEventForAccess(access, eventData, uid)) return false;
+  if (canBroadManageEventForAccess(access, eventData, uid)) return true;
+  if (!canManageScopedEventForAccess(eventData, uid)) return false;
+  if (hasActivityManageEntryAccess(access) || access.hasPermission("event.edit_self")) return true;
+  return access.role === "user"
+    && access.hasActivityCapability("user.activity.own_edit_basic");
+}
+
+function canUseEventAddonsForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (!canOperatePrivateEventForAccess(access, eventData, uid)) return false;
+  if (canBroadManageEventForAccess(access, eventData, uid)) return true;
+  if (
+    (hasActivityManageEntryAccess(access) || access.hasPermission("team.create_event"))
+    && canManageScopedEventForAccess(eventData, uid)
+  ) {
+    return true;
+  }
+  return access.role === "user"
+    && isEventOwnerForUid(eventData, uid)
+    && access.hasActivityCapability("user.activity.addons_use");
+}
+
+function canManageEventDelegatesForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (!canOperatePrivateEventForAccess(access, eventData, uid)) return false;
+  if (canBroadManageEventForAccess(access, eventData, uid)) return true;
+  if (!isEventOwnerForUid(eventData, uid)) return false;
+  if (hasActivityManageEntryAccess(access)) return true;
+  return access.role === "user"
+    && access.hasActivityCapability("user.activity.delegate_assign");
 }
 
 async function roleExists(roleKey) {
@@ -1827,6 +1922,15 @@ function sanitizeAuditMeta(rawMeta) {
   for (const [key, value] of Object.entries(rawMeta)) {
     if (!ALLOWED_AUDIT_META_KEYS.has(key)) continue;
     if (value == null) continue;
+    if (Array.isArray(value)) {
+      const sanitizedItems = value
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim().slice(0, 80))
+        .filter(Boolean)
+        .slice(0, 50);
+      if (sanitizedItems.length) next[key] = sanitizedItems;
+      continue;
+    }
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (trimmed) next[key] = trimmed.slice(0, 120);
@@ -3877,18 +3981,9 @@ function courseLinkedEventManagedByCourseError() {
 
 function assertOrdinaryEventRegistrationAllowed(eventData) {
   if (!isCourseLinkedEventData(eventData)) return;
-  // Course-linked student registrations remain protected by
-  // assertCourseLinkedRegistrationNotManagedByCourse(); ordinary activity
-  // registrations must still work for private/link-shared course events.
-}
-
-function assertCourseLinkedRegistrationNotManagedByCourse(regs = []) {
-  const protectedReg = regs.find((reg) => isCourseLinkedRegistrationData(reg));
-  if (!protectedReg) return;
-  throw new HttpsError("failed-precondition", "COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE", {
-    code: "COURSE_LINKED_REGISTRATION_MANAGED_BY_COURSE",
-    registrationId: sanitizeStr(protectedReg.id || protectedReg._docId, 100),
-  });
+  // Ordinary registrations remain allowed on shared course-linked events.
+  // Course-owned registrations are reconciled server-side by their exact
+  // courseStudentId whenever attendance or roster state changes.
 }
 
 function normalizeCourseDatePart(value) {
@@ -4080,20 +4175,23 @@ function buildCourseConvertedEventRepairPatch({ plan, session, requestData, call
     displayName: creatorDisplayName,
   };
   const courseImage = getCourseConvertedEventImage(plan, session, requestData);
+  const detailsManagedByEvent = existing.courseEventDetailsManagedByEvent === true;
   return {
-    type: "course",
-    gradient: "linear-gradient(135deg,#0284c7,#075985)",
+    ...(detailsManagedByEvent ? {} : {
+      type: "course",
+      gradient: "linear-gradient(135deg,#0284c7,#075985)",
+      privateEvent: true,
+      ...buildCourseConvertedEventImageFields(courseImage, existing.imageVariants),
+    }),
     courseLinked: true,
     courseLinkSource: COURSE_LINK_SOURCE_EDU_LESSON,
     courseLinkId,
     courseLinkStatus: existing.courseLinkStatus || "active",
-    privateEvent: true,
     creatorUid,
     creator: creatorDisplayName,
     creatorName: creatorDisplayName,
     organizer: creatorDisplayName,
     creatorSnapshot: nextCreatorSnapshot,
-    ...buildCourseConvertedEventImageFields(courseImage, existing.imageVariants),
     updatedAt: FieldValue.serverTimestamp(),
   };
 }
@@ -4272,6 +4370,15 @@ function getCourseLinkedRegistrationUserId(student, fallbackStudentId) {
   ], 128) || `course_student_${courseLinkedDocIdPart(fallbackStudentId, "student")}`;
 }
 
+function getCourseLinkedRegistrationOwnerUids(student) {
+  return Array.from(new Set([
+    sanitizeStr(student?.selfUid, 128),
+    sanitizeStr(student?.parentUid, 128),
+    sanitizeStr(student?.uid, 128),
+    sanitizeStr(student?.lineUserId, 128),
+  ].filter(Boolean)));
+}
+
 function getCourseLinkedStudentIds(student, fallbackStudentId) {
   return Array.from(new Set([
     sanitizeStr(fallbackStudentId, 100),
@@ -4302,17 +4409,6 @@ function findCourseLinkedRegistrationForStudent(regs = [], courseLinkId, student
   }) || null;
 }
 
-function findManualRegistrationToAdoptForCourse(regs = [], userId) {
-  const safeUserId = sanitizeStr(userId, 128);
-  if (!safeUserId) return null;
-  return (Array.isArray(regs) ? regs : []).find((reg) => {
-    if (!isActiveRegistration(reg)) return false;
-    if (isCourseLinkedRegistrationData(reg)) return false;
-    if (reg.participantType === "companion") return false;
-    return sanitizeStr(reg.userId, 128) === safeUserId;
-  }) || null;
-}
-
 function findCourseLinkedActivityRecordForStudent(records = [], courseLinkId, studentIds = []) {
   const safeLinkId = sanitizeStr(courseLinkId, 128);
   const ids = new Set((Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean));
@@ -4329,17 +4425,6 @@ function hasCourseLinkedActivityRecordData(record = {}) {
     || sanitizeStr(record.courseLinkState, 80) === COURSE_LINK_STATE_CREATED_BY_COURSE
     || !!sanitizeStr(record.courseLinkId, 128)
     || !!sanitizeStr(record.courseStudentId, 100);
-}
-
-function findManualActivityRecordForCourseAdoption(records = [], userId) {
-  const safeUserId = sanitizeStr(userId, 128);
-  if (!safeUserId) return null;
-  return (Array.isArray(records) ? records : []).find((record) => {
-    if (hasCourseLinkedActivityRecordData(record)) return false;
-    if (sanitizeStr(record.uid, 128) !== safeUserId) return false;
-    const status = sanitizeStr(record.status, 32);
-    return status !== "cancelled" && status !== "removed";
-  }) || null;
 }
 
 function getRegistrationRegisteredAtMillis(reg = {}, fallback = Number.NEGATIVE_INFINITY) {
@@ -4376,6 +4461,7 @@ function findLatestCourseLinkedConfirmedRegistration(simRegs = [], protectedDocI
 function demoteConfirmedRegistrationsToCapacity(eventData = {}, simRegs = [], protectedDocIds = new Set()) {
   const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
   const demoted = [];
+  if (maxCount <= 0) return demoted;
   while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount) {
     const candidate = findLatestDisplaceableConfirmedRegistration(simRegs, protectedDocIds)
       || findLatestCourseLinkedConfirmedRegistration(simRegs, protectedDocIds);
@@ -4422,6 +4508,7 @@ function buildCourseLinkedRegistrationData({
     courseSessionId: sessionId,
     courseStudentId: studentId,
     courseStudentDocId: sanitizeStr(student?._docId, 100) || null,
+    courseOwnerUids: getCourseLinkedRegistrationOwnerUids(student),
     linkedAttendanceKey: `${teamId}|${planId}|${sessionId}|${studentId}`,
     courseAttendanceKind: normalizeCourseLinkAttendanceKind(status === "cancelled" ? "leave" : "registered"),
     coursePriorityAppliedAt: FieldValue.serverTimestamp(),
@@ -4480,7 +4567,10 @@ function buildCourseLinkedActivityRecordData({
 
 function rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs = []) {
   const activeRegs = simRegs.filter((reg) => reg.status === "confirmed" || reg.status === "waitlisted");
-  const occupancy = rebuildOccupancy({ ...eventData, max: eventData.max || 0, status: eventData.status }, activeRegs);
+  const occupancy = preserveUpcomingEventOccupancyStatus(
+    eventData,
+    rebuildOccupancy({ ...eventData, max: eventData.max || 0, status: eventData.status }, activeRegs)
+  );
   return {
     current: occupancy.current,
     realCurrent: occupancy.realCurrent,
@@ -4494,6 +4584,16 @@ function rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs = []) {
     status: occupancy.status,
     updatedAt: FieldValue.serverTimestamp(),
   };
+}
+
+function preserveUpcomingEventOccupancyStatus(eventData, occupancy) {
+  if (
+    sanitizeStr(eventData?.status, 32) === "upcoming"
+    && !["ended", "cancelled"].includes(sanitizeStr(occupancy?.status, 32))
+  ) {
+    return { ...(occupancy || {}), status: "upcoming" };
+  }
+  return occupancy;
 }
 
 function findActivityRecordForRegistration(records = [], reg = {}, requiredStatus = "") {
@@ -4516,6 +4616,197 @@ function findActivityRecordForRegistration(records = [], reg = {}, requiredStatu
     if (!uid) return false;
     return sanitizeStr(record.uid, 128) === uid;
   }) || null;
+}
+
+function courseLinkedAttendanceLeaveDocId(courseLinkId, studentId) {
+  return `event_leave_${courseLinkedDocIdPart(courseLinkId, "link").slice(0, 32)}_${courseLinkedDocIdPart(studentId, "student")}`;
+}
+
+async function getCourseLinkedStudentInTransaction(transaction, teamRef, reg) {
+  const studentsRef = teamRef.collection("students");
+  const requestedStudentId = sanitizeStr(reg?.courseStudentId, 100);
+  const requestedDocId = sanitizeStr(reg?.courseStudentDocId, 100);
+  if (!requestedStudentId) return null;
+
+  if (requestedDocId) {
+    const docSnap = await transaction.get(studentsRef.doc(requestedDocId));
+    if (docSnap.exists) {
+      const student = { id: docSnap.id, _docId: docSnap.id, ...(docSnap.data() || {}) };
+      if (getCourseLinkedStudentIds(student, requestedStudentId).includes(requestedStudentId)) {
+        return student;
+      }
+    }
+  }
+
+  const directSnap = await transaction.get(studentsRef.doc(requestedStudentId));
+  if (directSnap.exists) {
+    return { id: directSnap.id, _docId: directSnap.id, ...(directSnap.data() || {}) };
+  }
+
+  const querySnap = await transaction.get(studentsRef.where("id", "==", requestedStudentId).limit(1));
+  if (querySnap.empty) return null;
+  const docSnap = querySnap.docs[0];
+  return { id: docSnap.id, _docId: docSnap.id, ...(docSnap.data() || {}) };
+}
+
+async function loadCourseCancellationAttendanceContextsInTransaction(
+  transaction,
+  { eventDoc, eventData, regs, callerUid, cancelReason },
+) {
+  const courseRegs = (Array.isArray(regs) ? regs : []).filter((reg) => isCourseLinkedRegistrationData(reg));
+  if (!courseRegs.length) return [];
+  if (cancelReason === "capacity_change") {
+    throw courseLinkedEventManagedByCourseError();
+  }
+  if (!isCourseLinkedEventData(eventData)) {
+    throw new HttpsError("failed-precondition", "INVALID_COURSE_LINKED_REGISTRATION", {
+      code: "INVALID_COURSE_LINKED_REGISTRATION",
+    });
+  }
+
+  const firstReg = courseRegs[0];
+  const courseLinkId = sanitizeStr(eventData.courseLinkId || firstReg.courseLinkId, 128);
+  const teamId = sanitizeStr(eventData.courseTeamId || firstReg.courseTeamId, 100);
+  const planId = sanitizeStr(eventData.coursePlanId || firstReg.coursePlanId, 100);
+  const sessionId = sanitizeStr(eventData.courseSessionId || firstReg.courseSessionId, 100);
+  if (!courseLinkId || !teamId || !planId || !sessionId) {
+    throw new HttpsError("failed-precondition", "INVALID_COURSE_LINKED_REGISTRATION", {
+      code: "INVALID_COURSE_LINKED_REGISTRATION",
+    });
+  }
+  const mismatchedReg = courseRegs.find((reg) => (
+    sanitizeStr(reg.courseLinkId, 128) !== courseLinkId
+    || sanitizeStr(reg.courseTeamId, 100) !== teamId
+    || sanitizeStr(reg.coursePlanId, 100) !== planId
+    || sanitizeStr(reg.courseSessionId, 100) !== sessionId
+    || !sanitizeStr(reg.courseStudentId, 100)
+  ));
+  if (mismatchedReg) {
+    throw new HttpsError("failed-precondition", "INVALID_COURSE_LINKED_REGISTRATION", {
+      code: "INVALID_COURSE_LINKED_REGISTRATION",
+      registrationId: sanitizeStr(mismatchedReg._docId || mismatchedReg.id, 100),
+    });
+  }
+
+  const teamDoc = await getTeamDocByTeamIdInTransaction(transaction, teamId);
+  if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+  const planRef = teamDoc.ref.collection("coursePlans").doc(planId);
+  const sessionRef = planRef.collection("sessions").doc(sessionId);
+  const linkRef = planRef.collection("sessionEventLinks").doc(sessionId);
+  const planSnap = await transaction.get(planRef);
+  const sessionSnap = await transaction.get(sessionRef);
+  const linkSnap = await transaction.get(linkRef);
+  if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+  if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+  if (!linkSnap.exists) {
+    throw new HttpsError("failed-precondition", "INVALID_COURSE_EVENT_LINK", {
+      code: "INVALID_COURSE_EVENT_LINK",
+    });
+  }
+  const linkData = linkSnap.data() || {};
+  const eventPublicId = sanitizeStr(eventData.id || eventDoc.id, 100);
+  const linkedEventId = sanitizeStr(linkData.eventId, 100);
+  if (
+    sanitizeStr(linkData.courseLinkId, 128) !== courseLinkId
+    || (linkedEventId !== eventPublicId && linkedEventId !== eventDoc.id)
+  ) {
+    throw new HttpsError("failed-precondition", "INVALID_COURSE_EVENT_LINK", {
+      code: "INVALID_COURSE_EVENT_LINK",
+    });
+  }
+
+  const attendanceSnap = await transaction.get(
+    db.collection("eduAttendance")
+      .where("teamId", "==", teamId)
+      .where("sessionId", "==", sessionId)
+  );
+  const attendanceDocs = attendanceSnap.docs.map((docSnap) => ({
+    ref: docSnap.ref,
+    id: docSnap.id,
+    data: docSnap.data() || {},
+  }));
+  const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+  const seenStudents = new Set();
+  const contexts = [];
+
+  for (const reg of courseRegs) {
+    const requestedStudentId = sanitizeStr(reg.courseStudentId, 100);
+    if (seenStudents.has(requestedStudentId)) continue;
+    const student = await getCourseLinkedStudentInTransaction(transaction, teamDoc.ref, reg);
+    if (!student) throw createEduCourseHttpsError("STUDENT_NOT_FOUND");
+    const studentAliases = getCourseLinkedStudentIds(student, requestedStudentId);
+    if (!studentAliases.includes(requestedStudentId)) {
+      throw new HttpsError("failed-precondition", "INVALID_COURSE_STUDENT_LINK", {
+        code: "INVALID_COURSE_STUDENT_LINK",
+        studentId: requestedStudentId,
+      });
+    }
+    if (cancelReason === "user_cancel" && !isStudentOwnedByUid(student, callerUid)) {
+      throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+    }
+
+    const activeAttendance = attendanceDocs.filter((item) => {
+      const record = item.data;
+      const status = sanitizeStr(record.status, 32).toLowerCase();
+      return sanitizeStr(record.coursePlanId, 100) === planId
+        && studentAliases.includes(sanitizeStr(record.studentId, 100))
+        && !["removed", "cancelled", "canceled"].includes(status);
+    });
+    if (activeAttendance.some((item) => getEduAttendanceRecordKind(item.data) === "signin")) {
+      throw new HttpsError("failed-precondition", "COURSE_ATTENDANCE_ALREADY_SIGNED_IN", {
+        code: "COURSE_ATTENDANCE_ALREADY_SIGNED_IN",
+        studentId: requestedStudentId,
+      });
+    }
+    const canonicalStudentId = getCourseLinkedCanonicalStudentId(student, requestedStudentId);
+    contexts.push({
+      courseLinkId,
+      teamId,
+      planId,
+      sessionId,
+      session,
+      student,
+      studentId: canonicalStudentId,
+      activeLeave: activeAttendance.find((item) => getEduAttendanceRecordKind(item.data) === "leave") || null,
+      activeRegistered: activeAttendance.filter((item) => getEduAttendanceRecordKind(item.data) === "registered"),
+      leaveRef: db.collection("eduAttendance").doc(courseLinkedAttendanceLeaveDocId(courseLinkId, canonicalStudentId)),
+    });
+    seenStudents.add(requestedStudentId);
+  }
+  return contexts;
+}
+
+function writeCourseCancellationAttendanceInTransaction(transaction, contexts = [], callerUid = "") {
+  const now = FieldValue.serverTimestamp();
+  for (const context of contexts) {
+    for (const item of context.activeRegistered) {
+      transaction.update(item.ref, { status: "removed", updatedAt: now });
+    }
+    if (context.activeLeave) continue;
+    transaction.set(context.leaveRef, {
+      id: context.leaveRef.id,
+      teamId: context.teamId,
+      groupId: "",
+      coursePlanId: context.planId,
+      sessionId: context.sessionId,
+      studentId: context.studentId,
+      studentName: getCourseLinkedStudentName(context.student, context.studentId),
+      parentUid: sanitizeStr(context.student.parentUid, 128) || null,
+      selfUid: sanitizeStr(context.student.selfUid, 128) || null,
+      kind: "leave",
+      date: sanitizeStr(context.session.date, 20),
+      time: new Date().toISOString().slice(11, 16),
+      sessionNumber: Number.isFinite(Number(context.session.sessionNumber))
+        ? Number(context.session.sessionNumber)
+        : null,
+      status: "active",
+      source: "eventRegistrationCancellation",
+      courseLinkId: context.courseLinkId,
+      createdByUid: sanitizeStr(callerUid, 128) || null,
+      createdAt: now,
+      updatedAt: now,
+    }, { merge: true });
+  }
 }
 
 async function syncCourseAttendanceToLinkedEvent(context = {}) {
@@ -4575,17 +4866,11 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
     const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
     const eventPublicId = sanitizeStr(eventData.id || eventSnap.id, 100);
     const existingCourseReg = findCourseLinkedRegistrationForStudent(allRegs, courseLinkId, studentAliases);
-    const manualRegToAdopt = !existingCourseReg && syncKind === "registered"
-      ? findManualRegistrationToAdoptForCourse(allRegs, userId)
-      : null;
-    const targetExistingReg = existingCourseReg || manualRegToAdopt || null;
+    const targetExistingReg = existingCourseReg || null;
     const targetRegDocId = sanitizeStr(targetExistingReg?._docId, 100) || courseLinkedRegistrationDocId(courseLinkId, canonicalStudentId);
     const targetRegRef = eventRef.collection("registrations").doc(targetRegDocId);
     const existingCourseAr = findCourseLinkedActivityRecordForStudent(allArs, courseLinkId, studentAliases);
-    const manualArToAdopt = !existingCourseAr && manualRegToAdopt
-      ? findManualActivityRecordForCourseAdoption(allArs, userId)
-      : null;
-    const targetArRecord = existingCourseAr || manualArToAdopt || null;
+    const targetArRecord = existingCourseAr || null;
     const targetArDocId = sanitizeStr(targetArRecord?._docId, 100) || courseLinkedActivityRecordDocId(courseLinkId, canonicalStudentId);
     const targetArRef = eventRef.collection("activityRecords").doc(targetArDocId);
     const nowTimestamp = Timestamp.now();
@@ -4596,7 +4881,11 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
     const protectedDocIds = new Set([targetRegDocId]);
     const promoted = [];
     const displaced = [];
-    let courseRegistrationStatus = "confirmed";
+    const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
+    const existingRosterOverride = ["confirmed", "waitlisted"].includes(
+      sanitizeStr(existingCourseReg?.courseRosterOverride, 32)
+    ) ? sanitizeStr(existingCourseReg.courseRosterOverride, 32) : "";
+    let courseRegistrationStatus = maxCount <= 0 ? "confirmed" : (existingRosterOverride || "confirmed");
     let changed = false;
 
     if (syncKind === "leave") {
@@ -4610,6 +4899,9 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
         transaction.update(targetRegRef, {
           status: "cancelled",
           courseAttendanceKind: "leave",
+          courseRosterOverride: null,
+          courseRosterOverrideSource: null,
+          courseSyncSource: source,
           cancelledAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -4627,7 +4919,10 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
         existingRecord: targetArRecord,
       }), { merge: true });
       if (wasConfirmed) {
-        promoted.push(...promoteWaitlistForAvailableSeats(eventData, simRegs, { prioritizeCourseLinkedCandidates: true }));
+        promoted.push(...promoteWaitlistForAvailableSeats(eventData, simRegs, {
+          prioritizeCourseLinkedCandidates: true,
+          excludeManualCourseRosterOverrides: true,
+        }));
         for (const candidate of promoted) {
           const update = {
             status: "confirmed",
@@ -4635,6 +4930,10 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
             updatedAt: FieldValue.serverTimestamp(),
           };
           if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+          if (isCourseLinkedRegistrationData(candidate)) {
+            update.courseRosterOverride = "confirmed";
+            update.courseRosterOverrideSource = "capacity";
+          }
           transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
           const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
           if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered", updatedAt: FieldValue.serverTimestamp() });
@@ -4679,19 +4978,20 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
     if (targetIndex >= 0) simRegs[targetIndex] = simCourseReg;
     else simRegs.push(simCourseReg);
 
-    const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
-    while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount) {
-      const candidate = findLatestDisplaceableConfirmedRegistration(simRegs, protectedDocIds);
-      if (!candidate) {
-        const targetReg = simRegs.find((reg) => sanitizeStr(reg._docId, 100) === targetRegDocId);
-        if (!targetAlreadyConfirmed && targetReg && targetReg.status === "confirmed") {
-          targetReg.status = "waitlisted";
-          courseRegistrationStatus = "waitlisted";
+    if (maxCount > 0) {
+      while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount) {
+        const candidate = findLatestDisplaceableConfirmedRegistration(simRegs, protectedDocIds);
+        if (!candidate) {
+          const targetReg = simRegs.find((reg) => sanitizeStr(reg._docId, 100) === targetRegDocId);
+          if (!targetAlreadyConfirmed && targetReg && targetReg.status === "confirmed") {
+            targetReg.status = "waitlisted";
+            courseRegistrationStatus = "waitlisted";
+          }
+          break;
         }
-        break;
+        candidate.status = "waitlisted";
+        displaced.push(candidate);
       }
-      candidate.status = "waitlisted";
-      displaced.push(candidate);
     }
     regData.status = courseRegistrationStatus;
     transaction.set(targetRegRef, regData, { merge: true });
@@ -4726,7 +5026,6 @@ async function syncCourseAttendanceToLinkedEvent(context = {}) {
       courseLinkId,
       studentId: canonicalStudentId,
       registrationId: targetRegDocId,
-      adoptedManualRegistration: !!manualRegToAdopt,
       promotedCount: 0,
       displacedCount: displaced.length,
       displaced: displaced.map((reg) => ({ id: reg.id, docId: reg._docId, userId: reg.userId, userName: reg.userName })),
@@ -4920,6 +5219,8 @@ async function cancelCourseLinkedRegistrationsOutsideRoster({
       transaction.update(eventRef.collection("registrations").doc(docId), {
         status: "cancelled",
         courseAttendanceKind: "leave",
+        courseRosterOverride: null,
+        courseRosterOverrideSource: null,
         courseSyncSource: sanitizeStr(source, 80) || "roster_sync",
         cancelledAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -4933,7 +5234,10 @@ async function cancelCourseLinkedRegistrationsOutsideRoster({
       }
     }
 
-    const promoted = hadConfirmed ? promoteWaitlistForAvailableSeats(eventData, simRegs, { prioritizeCourseLinkedCandidates: true }) : [];
+    const promoted = hadConfirmed ? promoteWaitlistForAvailableSeats(eventData, simRegs, {
+      prioritizeCourseLinkedCandidates: true,
+      excludeManualCourseRosterOverrides: true,
+    }) : [];
     for (const candidate of promoted) {
       const update = {
         status: "confirmed",
@@ -4941,6 +5245,10 @@ async function cancelCourseLinkedRegistrationsOutsideRoster({
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+      if (isCourseLinkedRegistrationData(candidate)) {
+        update.courseRosterOverride = "confirmed";
+        update.courseRosterOverrideSource = "capacity";
+      }
       transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
       const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
       if (ar) {
@@ -5065,30 +5373,52 @@ async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId,
     const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
     const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
     const simRegs = allRegs.map((reg) => ({ ...reg }));
-    const demoted = demoteConfirmedRegistrationsToCapacity({ ...eventData, max }, simRegs);
-    const promoted = statusUpdate
+    const detailsManagedByEvent = eventData.courseEventDetailsManagedByEvent === true;
+    const effectiveMax = detailsManagedByEvent
+      ? normalizeNonNegativeInteger(eventData.max, 0)
+      : max;
+    const demoted = detailsManagedByEvent
       ? []
-      : promoteWaitlistForAvailableSeats({ ...eventData, max }, simRegs, { prioritizeCourseLinkedCandidates: true });
+      : demoteConfirmedRegistrationsToCapacity({ ...eventData, max: effectiveMax }, simRegs);
+    const promoted = detailsManagedByEvent || statusUpdate
+      ? []
+      : promoteWaitlistForAvailableSeats(
+        { ...eventData, max: effectiveMax },
+        simRegs,
+        {
+          prioritizeCourseLinkedCandidates: true,
+          excludeManualCourseRosterOverrides: true,
+        }
+      );
     const update = {
-      title: buildCourseLessonEventTitle(plan, session),
-      location: firstSanitizedString([session.location, plan.location], 160),
-      max,
-      notes: firstSanitizedString([session.notes, plan.notes], 500),
-      sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
       courseSyncSource: sanitizeStr(source, 80) || "session_update",
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (eventDate && startDate) {
-      update.date = eventDate;
-      update.startTimestamp = Timestamp.fromDate(startDate);
-      update.endTimestamp = endDate ? Timestamp.fromDate(endDate) : null;
+    if (!detailsManagedByEvent) {
+      Object.assign(update, {
+        title: buildCourseLessonEventTitle(plan, session),
+        location: firstSanitizedString([session.location, plan.location], 160),
+        max: effectiveMax,
+        notes: firstSanitizedString([session.notes, plan.notes], 500),
+        sportTag: firstSanitizedString([session.sportTag, plan.sportTag, plan.sport], 80),
+      });
+      if (eventDate && startDate) {
+        update.date = eventDate;
+        update.startTimestamp = Timestamp.fromDate(startDate);
+        update.endTimestamp = endDate ? Timestamp.fromDate(endDate) : null;
+      }
     }
     for (const candidate of demoted) {
-      transaction.update(eventRef.collection("registrations").doc(candidate._docId), {
+      const regUpdate = {
         status: "waitlisted",
         demotedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+      if (isCourseLinkedRegistrationData(candidate)) {
+        regUpdate.courseRosterOverride = "waitlisted";
+        regUpdate.courseRosterOverrideSource = "capacity";
+      }
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), regUpdate);
       const ar = findActivityRecordForRegistration(allArs, candidate, "registered");
       if (ar) {
         transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
@@ -5104,6 +5434,10 @@ async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId,
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (candidate.teamSeatSource) regUpdate.teamSeatSource = candidate.teamSeatSource;
+      if (isCourseLinkedRegistrationData(candidate)) {
+        regUpdate.courseRosterOverride = "confirmed";
+        regUpdate.courseRosterOverrideSource = "capacity";
+      }
       transaction.update(eventRef.collection("registrations").doc(candidate._docId), regUpdate);
       const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
       if (ar) {
@@ -5113,8 +5447,8 @@ async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId,
         });
       }
     }
-    const occupancyStatus = statusUpdate || "open";
-    Object.assign(update, rebuildCourseLinkedEventOccupancyUpdate({ ...eventData, status: occupancyStatus, ...update }, simRegs));
+    const occupancyStatus = statusUpdate || sanitizeStr(eventData.status, 32) || "open";
+    Object.assign(update, rebuildCourseLinkedEventOccupancyUpdate({ ...eventData, max: effectiveMax, status: occupancyStatus, ...update }, simRegs));
     if (statusUpdate) update.status = statusUpdate;
     transaction.update(eventRef, update);
     return {
@@ -5122,7 +5456,7 @@ async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId,
       synced: true,
       eventId,
       courseLinkId,
-      max,
+      max: effectiveMax,
       demotedCount: demoted.length,
       promotedCount: promoted.length,
     };
@@ -11268,6 +11602,7 @@ function applyTeamReservationFields(registration, reservation, source) {
 
 function decideRegistrationSeat(eventData, activeRegs, registration, userData = {}, staffTeams = []) {
   const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+  const unlimited = maxCount <= 0;
   const reservation = registration?.participantType === "companion"
     ? null
     : findTeamReservationForUser(eventData, userData, staffTeams);
@@ -11282,14 +11617,14 @@ function decideRegistrationSeat(eventData, activeRegs, registration, userData = 
     if (usedSlots < reservedSlots) {
       status = "confirmed";
       source = "reserved";
-    } else if (occupancyBefore.current < maxCount) {
+    } else if (unlimited || occupancyBefore.current < maxCount) {
       status = "confirmed";
       source = "overflow";
     } else {
       source = "waitlist";
     }
     applyTeamReservationFields(registration, reservation, source);
-  } else if (occupancyBefore.current < maxCount) {
+  } else if (unlimited || occupancyBefore.current < maxCount) {
     status = "confirmed";
   }
 
@@ -11325,7 +11660,9 @@ function promoteWaitlistForAvailableSeats(eventData, simRegs = [], options = {})
   const promoted = [];
   const excludeCourseLinkedCandidates = options.excludeCourseLinkedCandidates === true;
   const prioritizeCourseLinkedCandidates = options.prioritizeCourseLinkedCandidates === true;
+  const excludeManualCourseRosterOverrides = options.excludeManualCourseRosterOverrides === true;
   const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+  const unlimited = maxCount <= 0;
 
   while (true) {
     const activeRegs = simRegs.filter((r) => r.status === "confirmed" || r.status === "waitlisted");
@@ -11335,6 +11672,11 @@ function promoteWaitlistForAvailableSeats(eventData, simRegs = [], options = {})
       activeRegs
         .filter((r) => r.status === "waitlisted")
         .filter((r) => !excludeCourseLinkedCandidates || !isCourseLinkedRegistrationData(r))
+        .filter((r) => unlimited || !excludeManualCourseRosterOverrides || !(
+          isCourseLinkedRegistrationData(r)
+          && sanitizeStr(r.courseRosterOverride, 32) === "waitlisted"
+          && sanitizeStr(r.courseRosterOverrideSource, 32) === "manual"
+        ))
     );
     if (prioritizeCourseLinkedCandidates) {
       waitlisted = waitlisted.slice().sort((a, b) => {
@@ -11356,7 +11698,7 @@ function promoteWaitlistForAvailableSeats(eventData, simRegs = [], options = {})
       }
     }
 
-    if (!candidateToPromote && occupancy.current < maxCount) {
+    if (!candidateToPromote && (unlimited || occupancy.current < maxCount)) {
       candidateToPromote = waitlisted[0] || null;
       if (candidateToPromote && registrationTeamReservationTeamId(candidateToPromote)) {
         source = "overflow";
@@ -11731,8 +12073,9 @@ function rebuildOccupancy(event, registrations) {
   const waitlist = waitlistNames.length;
 
   let status = event.status;
+  const maxCount = Math.max(0, Number(event.max || 0) || 0);
   if (status !== "ended" && status !== "cancelled") {
-    status = current >= (event.max || 0) ? "full" : "open";
+    status = maxCount > 0 && current >= maxCount ? "full" : "open";
   }
 
   return {
@@ -12932,7 +13275,7 @@ exports.registerForEvent = onCall(
     }
 
     // 非同步執行所有後置操作
-    Promise.allSettled(postOps).catch((err) => console.error("[registerForEvent postOps]", err));
+    await settleBestEffortPostCommitOps("registerForEvent", postOps);
 
     return {
       success: true,
@@ -12943,6 +13286,785 @@ exports.registerForEvent = onCall(
       earlyBirdCharged: result.earlyBirdCharged === true,
       earlyBirdCost: result.earlyBirdCost || 0,
     };
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  Course-linked event editing and roster management
+// ═══════════════════════════════════════════════════════════════
+
+const COURSE_LINKED_EVENT_EDIT_ALLOWED_KEYS = new Set([
+  "title", "type", "location", "date", "startTimestamp", "endTimestamp",
+  "fee", "feeEnabled", "max", "minAge", "notes", "image", "imageVariants",
+  "sportTag", "regOpenTime", "gradient", "teamOnly",
+  "genderRestrictionEnabled", "allowedGender", "privateEvent",
+  "socialLinksEnabled", "socialLinks", "earlyBirdEnabled", "earlyBirdCost",
+  "earlyBirdPolicyVersion", "regionEnabled", "region", "cities",
+  "creatorTeamId", "creatorTeamName", "creatorTeamIds", "creatorTeamNames",
+  "delegates", "delegateUids", "teamSplit",
+  "gpsEnabled", "lat", "lng", "mapAddress", "mapPlaceId", "mapProvider",
+  "mapLocationConfirmed", "mapLocationUpdatedAt", "status",
+]);
+const COURSE_LINKED_EVENT_ADDON_KEYS = new Set([
+  "fee", "feeEnabled", "genderRestrictionEnabled", "allowedGender", "privateEvent",
+  "teamSplit", "socialLinksEnabled", "socialLinks", "earlyBirdEnabled",
+  "earlyBirdCost", "earlyBirdPolicyVersion", "gpsEnabled", "lat", "lng",
+  "mapAddress", "mapPlaceId", "mapProvider", "mapLocationConfirmed",
+  "mapLocationUpdatedAt",
+]);
+const COURSE_LINKED_EVENT_TEAM_SCOPE_KEYS = new Set([
+  "teamOnly", "creatorTeamId", "creatorTeamName", "creatorTeamIds", "creatorTeamNames",
+]);
+const COURSE_LINKED_EVENT_DELEGATE_KEYS = new Set(["delegates", "delegateUids"]);
+
+async function settleBestEffortPostCommitOps(label, postOps = []) {
+  try {
+    const outcomes = await Promise.allSettled(Array.isArray(postOps) ? postOps : []);
+    const failures = outcomes
+      .filter((outcome) => outcome.status === "rejected")
+      .map((outcome) => ({
+        code: sanitizeStr(outcome.reason?.code, 80) || "unknown",
+        message: sanitizeStr(outcome.reason?.message || outcome.reason, 500) || "unknown",
+      }));
+    if (failures.length) {
+      console.error("[bestEffortPostCommitOps]", {
+        label: sanitizeStr(label, 80) || "post_commit",
+        failureCount: failures.length,
+        failures: failures.slice(0, 10),
+      });
+    }
+    return { failureCount: failures.length, outcomes };
+  } catch (error) {
+    console.error("[bestEffortPostCommitOpsInspection]", {
+      label: sanitizeStr(label, 80) || "post_commit",
+      code: sanitizeStr(error?.code, 80) || "unknown",
+      message: sanitizeStr(error?.message || error, 500) || "unknown",
+    });
+    return { failureCount: 1, outcomes: [] };
+  }
+}
+
+function sanitizeJsonValue(value, maxLength, fieldName) {
+  if (value === null) return null;
+  try {
+    const json = JSON.stringify(value);
+    if (!json || json.length > maxLength) {
+      throw new HttpsError("invalid-argument", `${fieldName} is invalid`);
+    }
+    return JSON.parse(json);
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("invalid-argument", `${fieldName} is invalid`);
+  }
+}
+
+function normalizeCallableEventTimestamp(value, fieldName, allowNull = true) {
+  if (value === null && allowNull) return null;
+  if (value instanceof Timestamp) return value;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return Timestamp.fromDate(value);
+  if (value && Number.isFinite(value.seconds ?? value._seconds)) {
+    return new Timestamp(
+      Number(value.seconds ?? value._seconds),
+      Number(value.nanoseconds ?? value._nanoseconds ?? 0)
+    );
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) {
+    throw new HttpsError("invalid-argument", `${fieldName} is invalid`);
+  }
+  return Timestamp.fromDate(parsed);
+}
+
+function normalizeCallableEventIsoString(value, fieldName) {
+  if (value === null) return null;
+  let parsed = null;
+  if (value instanceof Timestamp) parsed = value.toDate();
+  else if (value instanceof Date) parsed = value;
+  else if (value && Number.isFinite(value.seconds ?? value._seconds)) {
+    const seconds = Number(value.seconds ?? value._seconds);
+    const nanoseconds = Number(value.nanoseconds ?? value._nanoseconds ?? 0);
+    parsed = new Date((seconds * 1000) + Math.floor(nanoseconds / 1_000_000));
+  } else if (typeof value === "string" && value.trim()) {
+    parsed = new Date(value.trim());
+  }
+  if (!parsed || !Number.isFinite(parsed.getTime())) {
+    throw new HttpsError("invalid-argument", `${fieldName} is invalid`);
+  }
+  return parsed.toISOString();
+}
+
+function sanitizeCourseLinkedEventTeamSplit(rawTeamSplit) {
+  if (rawTeamSplit === null) return null;
+  if (!rawTeamSplit || typeof rawTeamSplit !== "object" || Array.isArray(rawTeamSplit)) {
+    throw new HttpsError("invalid-argument", "teamSplit is invalid");
+  }
+  let serialized = "";
+  try {
+    serialized = JSON.stringify(rawTeamSplit);
+  } catch (_) {
+    throw new HttpsError("invalid-argument", "teamSplit is invalid");
+  }
+  if (!serialized || serialized.length > 100_000) {
+    throw new HttpsError("invalid-argument", "teamSplit is invalid");
+  }
+  const allowedKeys = new Set([
+    "enabled", "mode", "balanceCap", "selfSelectLockHours", "lockAt", "teams",
+  ]);
+  if (Object.keys(rawTeamSplit).some((key) => !allowedKeys.has(key))) {
+    throw new HttpsError("invalid-argument", "teamSplit is invalid");
+  }
+  if (typeof rawTeamSplit.enabled !== "boolean") {
+    throw new HttpsError("invalid-argument", "teamSplit.enabled is invalid");
+  }
+  const mode = sanitizeStr(rawTeamSplit.mode, 32);
+  if (!["random", "self-select", "manual"].includes(mode)) {
+    throw new HttpsError("invalid-argument", "teamSplit.mode is invalid");
+  }
+  if (typeof rawTeamSplit.balanceCap !== "boolean") {
+    throw new HttpsError("invalid-argument", "teamSplit.balanceCap is invalid");
+  }
+  const lockHours = Number(rawTeamSplit.selfSelectLockHours ?? 0);
+  if (!Number.isInteger(lockHours) || lockHours < 0 || lockHours > 168) {
+    throw new HttpsError("invalid-argument", "teamSplit.selfSelectLockHours is invalid");
+  }
+  if (!Array.isArray(rawTeamSplit.teams) || rawTeamSplit.teams.length < 2 || rawTeamSplit.teams.length > 4) {
+    throw new HttpsError("invalid-argument", "teamSplit.teams is invalid");
+  }
+  const seenKeys = new Set();
+  const teams = rawTeamSplit.teams.map((team) => {
+    if (!team || typeof team !== "object" || Array.isArray(team)) {
+      throw new HttpsError("invalid-argument", "teamSplit.teams is invalid");
+    }
+    const key = sanitizeStr(team.key, 8).toUpperCase();
+    const color = sanitizeStr(team.color, 32);
+    const name = sanitizeStr(team.name, 40);
+    if (!/^[A-D]$/.test(key) || seenKeys.has(key) || !color || !name) {
+      throw new HttpsError("invalid-argument", "teamSplit.teams is invalid");
+    }
+    seenKeys.add(key);
+    return { key, color, name };
+  });
+  const lockAt = mode === "self-select" && rawTeamSplit.lockAt != null
+    ? normalizeCallableEventTimestamp(rawTeamSplit.lockAt, "teamSplit.lockAt")
+    : null;
+  return {
+    enabled: rawTeamSplit.enabled,
+    mode,
+    balanceCap: rawTeamSplit.balanceCap,
+    selfSelectLockHours: lockHours,
+    lockAt,
+    teams,
+  };
+}
+
+function sanitizeCourseLinkedEventUpdates(rawUpdates) {
+  if (!rawUpdates || typeof rawUpdates !== "object" || Array.isArray(rawUpdates)) {
+    throw new HttpsError("invalid-argument", "updates is required");
+  }
+  const rawKeys = Object.keys(rawUpdates);
+  const unknownKey = rawKeys.find((key) => !COURSE_LINKED_EVENT_EDIT_ALLOWED_KEYS.has(key));
+  if (unknownKey) {
+    throw new HttpsError("invalid-argument", "UNSUPPORTED_EVENT_UPDATE_FIELD", {
+      code: "UNSUPPORTED_EVENT_UPDATE_FIELD",
+      field: sanitizeStr(unknownKey, 80),
+    });
+  }
+  if (!rawKeys.length) throw new HttpsError("invalid-argument", "updates is required");
+
+  const updates = {};
+  const stringLimits = {
+    title: 120,
+    type: 40,
+    location: 160,
+    date: 80,
+    notes: 500,
+    image: 4_000_000,
+    sportTag: 80,
+    regOpenTime: 120,
+    gradient: 240,
+    allowedGender: 20,
+    region: 80,
+    creatorTeamId: 100,
+    creatorTeamName: 120,
+    mapAddress: 240,
+    mapPlaceId: 180,
+    mapProvider: 40,
+  };
+  for (const [key, maxLength] of Object.entries(stringLimits)) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    if (rawUpdates[key] === null && ["image", "regOpenTime", "creatorTeamId", "creatorTeamName", "mapAddress", "mapPlaceId", "mapProvider"].includes(key)) {
+      updates[key] = null;
+      continue;
+    }
+    if (typeof rawUpdates[key] !== "string") {
+      throw new HttpsError("invalid-argument", `${key} is invalid`);
+    }
+    updates[key] = sanitizeStr(rawUpdates[key], maxLength);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "mapProvider") && updates.mapProvider !== null && !["google", "manual"].includes(updates.mapProvider)) {
+    throw new HttpsError("invalid-argument", "mapProvider is invalid");
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "title") && !updates.title) {
+    throw new HttpsError("invalid-argument", "title is required");
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "location") && !updates.location) {
+    throw new HttpsError("invalid-argument", "location is required");
+  }
+
+  const booleanKeys = [
+    "feeEnabled", "teamOnly", "genderRestrictionEnabled", "privateEvent",
+    "socialLinksEnabled", "earlyBirdEnabled", "regionEnabled", "gpsEnabled",
+    "mapLocationConfirmed",
+  ];
+  for (const key of booleanKeys) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    if (typeof rawUpdates[key] !== "boolean") {
+      throw new HttpsError("invalid-argument", `${key} is invalid`);
+    }
+    updates[key] = rawUpdates[key];
+  }
+
+  const nonNegativeNumberKeys = ["fee", "max", "minAge"];
+  for (const key of nonNegativeNumberKeys) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    const numberValue = Number(rawUpdates[key]);
+    if (!Number.isFinite(numberValue) || numberValue < 0 || numberValue > 100000 || (["max", "minAge"].includes(key) && !Number.isInteger(numberValue))) {
+      throw new HttpsError("invalid-argument", `${key} is invalid`);
+    }
+    updates[key] = numberValue;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "earlyBirdCost")) {
+    const numberValue = Number(rawUpdates.earlyBirdCost);
+    if (!Number.isInteger(numberValue) || numberValue < 0 || numberValue > 500) {
+      throw new HttpsError("invalid-argument", "earlyBirdCost is invalid");
+    }
+    updates.earlyBirdCost = numberValue;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "earlyBirdPolicyVersion")) {
+    const value = rawUpdates.earlyBirdPolicyVersion;
+    if (value === null) updates.earlyBirdPolicyVersion = null;
+    else if (Number.isFinite(Number(value))) updates.earlyBirdPolicyVersion = Math.trunc(Number(value));
+    else throw new HttpsError("invalid-argument", "earlyBirdPolicyVersion is invalid");
+  }
+  for (const key of ["lat", "lng"]) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    if (rawUpdates[key] === null) updates[key] = null;
+    else {
+      const numberValue = Number(rawUpdates[key]);
+      const min = key === "lat" ? -90 : -180;
+      const max = key === "lat" ? 90 : 180;
+      if (!Number.isFinite(numberValue) || numberValue < min || numberValue > max) {
+        throw new HttpsError("invalid-argument", `${key} is invalid`);
+      }
+      updates[key] = numberValue;
+    }
+  }
+
+  for (const key of ["startTimestamp", "endTimestamp"]) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    updates[key] = normalizeCallableEventTimestamp(rawUpdates[key], key);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "mapLocationUpdatedAt")) {
+    updates.mapLocationUpdatedAt = normalizeCallableEventIsoString(rawUpdates.mapLocationUpdatedAt, "mapLocationUpdatedAt");
+  }
+
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "imageVariants")) {
+    updates.imageVariants = sanitizeJsonValue(rawUpdates.imageVariants, 100_000, "imageVariants");
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "teamSplit")) {
+    updates.teamSplit = sanitizeCourseLinkedEventTeamSplit(rawUpdates.teamSplit);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "socialLinks")) {
+    const links = Array.isArray(rawUpdates.socialLinks) ? rawUpdates.socialLinks.slice(0, 10) : null;
+    if (!links) throw new HttpsError("invalid-argument", "socialLinks is invalid");
+    updates.socialLinks = sanitizeJsonValue(links, 20_000, "socialLinks");
+  }
+  for (const key of ["cities", "creatorTeamIds", "creatorTeamNames", "delegateUids"]) {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, key)) continue;
+    if (!Array.isArray(rawUpdates[key])) throw new HttpsError("invalid-argument", `${key} is invalid`);
+    const maxItems = key === "delegateUids" ? 3 : 50;
+    const maxLength = key === "creatorTeamNames" ? 120 : 100;
+    updates[key] = Array.from(new Set(rawUpdates[key]
+      .map((value) => sanitizeStr(value, maxLength))
+      .filter(Boolean)))
+      .slice(0, maxItems);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "delegates")) {
+    if (!Array.isArray(rawUpdates.delegates)) throw new HttpsError("invalid-argument", "delegates is invalid");
+    updates.delegates = rawUpdates.delegates
+      .map((delegate) => ({
+        uid: sanitizeStr(delegate?.uid, 128),
+        name: sanitizeStr(delegate?.name, 80),
+      }))
+      .filter((delegate) => delegate.uid)
+      .slice(0, 3);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUpdates, "status")) {
+    const status = sanitizeStr(rawUpdates.status, 32);
+    if (!["upcoming", "open", "full"].includes(status)) {
+      throw new HttpsError("invalid-argument", "status is invalid");
+    }
+    updates.status = status;
+  }
+  return updates;
+}
+
+function validateCourseLinkedEventProjection(eventData, updates) {
+  const projected = { ...(eventData || {}), ...(updates || {}) };
+  const earlyBirdKeys = new Set(["earlyBirdEnabled", "earlyBirdCost", "earlyBirdPolicyVersion"]);
+  if (Object.keys(updates).some((key) => earlyBirdKeys.has(key)) && projected.earlyBirdEnabled === true) {
+    const cost = Number(projected.earlyBirdCost);
+    if (!Number.isInteger(cost) || cost < 10 || cost > 500) {
+      throw new HttpsError("invalid-argument", "earlyBirdCost is invalid");
+    }
+  }
+  const mapKeys = new Set([
+    "gpsEnabled", "lat", "lng", "mapAddress", "mapPlaceId", "mapProvider",
+    "mapLocationConfirmed", "mapLocationUpdatedAt",
+  ]);
+  if (Object.keys(updates).some((key) => mapKeys.has(key))) {
+    const lat = projected.lat;
+    const lng = projected.lng;
+    const validLat = typeof lat === "number" && Number.isFinite(lat) && lat >= -90 && lat <= 90;
+    const validLng = typeof lng === "number" && Number.isFinite(lng) && lng >= -180 && lng <= 180;
+    const provider = projected.mapProvider;
+    if (provider != null && !["google", "manual"].includes(provider)) {
+      throw new HttpsError("invalid-argument", "mapProvider is invalid");
+    }
+    if (projected.mapLocationConfirmed === true && (projected.gpsEnabled !== true || !validLat || !validLng)) {
+      throw new HttpsError("invalid-argument", "mapLocationConfirmed is invalid");
+    }
+  }
+  return projected;
+}
+
+function validateCourseLinkedEventDelegateProjection(updates) {
+  const hasDelegates = Object.prototype.hasOwnProperty.call(updates, "delegates");
+  const hasDelegateUids = Object.prototype.hasOwnProperty.call(updates, "delegateUids");
+  if (!hasDelegates && !hasDelegateUids) return;
+  if (!hasDelegates || !hasDelegateUids) {
+    throw new HttpsError("invalid-argument", "DELEGATE_FIELDS_MUST_BE_UPDATED_TOGETHER", {
+      code: "DELEGATE_FIELDS_MUST_BE_UPDATED_TOGETHER",
+    });
+  }
+  const delegateUids = updates.delegateUids
+    .map((uid) => sanitizeStr(uid, 128))
+    .filter(Boolean);
+  const metadataUids = updates.delegates
+    .map((delegate) => sanitizeStr(delegate?.uid, 128))
+    .filter(Boolean);
+  const delegateUidSet = new Set(delegateUids);
+  const metadataUidSet = new Set(metadataUids);
+  if (
+    delegateUidSet.size !== delegateUids.length
+    || metadataUidSet.size !== metadataUids.length
+    || delegateUidSet.size !== metadataUidSet.size
+    || delegateUids.some((uid) => !metadataUidSet.has(uid))
+  ) {
+    throw new HttpsError("invalid-argument", "DELEGATE_FIELDS_MISMATCH", {
+      code: "DELEGATE_FIELDS_MISMATCH",
+    });
+  }
+}
+
+function courseLinkedEventUpdateTouchesAny(updates, keySet) {
+  return Object.keys(updates).some((key) => keySet.has(key));
+}
+
+function courseRosterMutationResult(reg) {
+  return {
+    id: reg.id,
+    docId: reg._docId,
+    userId: reg.userId,
+    userName: reg.userName,
+    courseLinked: isCourseLinkedRegistrationData(reg),
+  };
+}
+
+exports.updateCourseLinkedEvent = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Authentication required");
+    const callerUid = request.auth.uid;
+    const eventId = sanitizeStr(request.data?.eventId, 100);
+    if (!eventId) throw new HttpsError("invalid-argument", "eventId is required");
+    const updates = sanitizeCourseLinkedEventUpdates(request.data?.updates);
+    validateCourseLinkedEventDelegateProjection(updates);
+    const access = await getCallerAccessContext(request);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      if (!eventDoc) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
+      const eventRef = eventDoc.ref;
+      const eventData = eventDoc.data() || {};
+      if (!isCourseLinkedEventData(eventData)) {
+        throw new HttpsError("failed-precondition", "EVENT_NOT_COURSE_LINKED", {
+          code: "EVENT_NOT_COURSE_LINKED",
+        });
+      }
+      const projectedEventData = validateCourseLinkedEventProjection(eventData, updates);
+      if (!canEditEventBasicForAccess(access, eventData, callerUid)) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (
+        courseLinkedEventUpdateTouchesAny(updates, COURSE_LINKED_EVENT_ADDON_KEYS)
+        && !canUseEventAddonsForAccess(access, eventData, callerUid)
+      ) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (
+        courseLinkedEventUpdateTouchesAny(updates, COURSE_LINKED_EVENT_TEAM_SCOPE_KEYS)
+        && !canBroadManageEventForAccess(access, eventData, callerUid)
+      ) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (
+        courseLinkedEventUpdateTouchesAny(updates, COURSE_LINKED_EVENT_DELEGATE_KEYS)
+        && !canManageEventDelegatesForAccess(access, eventData, callerUid)
+      ) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(updates, "status")
+        && !(
+          canBroadManageEventForAccess(access, eventData, callerUid)
+          || (
+            hasActivityManageEntryAccess(access)
+            && canManageScopedEventForAccess(eventData, callerUid)
+          )
+        )
+      ) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (!canOperatePrivateEventForAccess(access, projectedEventData, callerUid)) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      if (["ended", "cancelled"].includes(sanitizeStr(eventData.status, 32)) && Object.prototype.hasOwnProperty.call(updates, "status")) {
+        throw new HttpsError("failed-precondition", "EVENT_LIFECYCLE_LOCKED", {
+          code: "EVENT_LIFECYCLE_LOCKED",
+        });
+      }
+
+      const regsSnap = await transaction.get(eventRef.collection("registrations"));
+      const arsSnap = await transaction.get(eventRef.collection("activityRecords"));
+      const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+      const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+      const simRegs = allRegs.map((reg) => ({ ...reg }));
+      const oldMax = normalizeNonNegativeInteger(eventData.max, 0);
+      const nextMax = Object.prototype.hasOwnProperty.call(updates, "max")
+        ? normalizeNonNegativeInteger(updates.max, oldMax)
+        : oldMax;
+      const shouldDemoteForCapacity = nextMax > 0 && (oldMax <= 0 || nextMax < oldMax);
+      const shouldPromoteForCapacity = (
+        (nextMax <= 0 && oldMax > 0)
+        || (nextMax > 0 && (oldMax <= 0 || nextMax > oldMax))
+      );
+      const demoted = shouldDemoteForCapacity
+        ? demoteConfirmedRegistrationsToCapacity({ ...eventData, max: nextMax }, simRegs)
+        : [];
+      const promoted = shouldPromoteForCapacity
+        ? promoteWaitlistForAvailableSeats(
+          { ...eventData, max: nextMax },
+          simRegs,
+          {
+            prioritizeCourseLinkedCandidates: true,
+            excludeManualCourseRosterOverrides: true,
+          }
+        )
+        : [];
+
+      for (const candidate of demoted) {
+        const regUpdate = {
+          status: "waitlisted",
+          demotedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (isCourseLinkedRegistrationData(candidate)) {
+          regUpdate.courseRosterOverride = "waitlisted";
+          regUpdate.courseRosterOverrideSource = "capacity";
+        }
+        transaction.update(eventRef.collection("registrations").doc(candidate._docId), regUpdate);
+        const ar = findActivityRecordForRegistration(allArs, candidate, "registered");
+        if (ar) {
+          transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+            status: "waitlisted",
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      for (const candidate of promoted) {
+        const regUpdate = {
+          status: "confirmed",
+          promotedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (candidate.teamSeatSource) regUpdate.teamSeatSource = candidate.teamSeatSource;
+        if (isCourseLinkedRegistrationData(candidate)) {
+          regUpdate.courseRosterOverride = "confirmed";
+          regUpdate.courseRosterOverrideSource = "capacity";
+        }
+        transaction.update(eventRef.collection("registrations").doc(candidate._docId), regUpdate);
+        const ar = findActivityRecordForRegistration(allArs, candidate, "waitlisted");
+        if (ar) {
+          transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+            status: "registered",
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      const eventUpdate = {
+        ...updates,
+        courseEventDetailsManagedByEvent: true,
+        courseEventDetailsUpdatedByUid: callerUid,
+        courseSyncSource: "updateCourseLinkedEvent",
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (nextMax !== oldMax) {
+        Object.assign(
+          eventUpdate,
+          rebuildCourseLinkedEventOccupancyUpdate(
+            { ...eventData, ...updates, max: nextMax },
+            simRegs
+          )
+        );
+        if (updates.status === "upcoming") {
+          eventUpdate.status = "upcoming";
+        }
+      }
+      transaction.update(eventRef, eventUpdate);
+
+      const projectedEvent = nextMax !== oldMax
+        ? preserveUpcomingEventOccupancyStatus(
+          { ...eventData, ...updates, max: nextMax },
+          rebuildOccupancy(
+            { ...eventData, ...updates, max: nextMax },
+            simRegs.filter((reg) => isActiveRegistration(reg))
+          )
+        )
+        : {
+          current: eventData.current,
+          realCurrent: eventData.realCurrent,
+          waitlist: eventData.waitlist,
+          participants: eventData.participants,
+          waitlistNames: eventData.waitlistNames,
+          participantsWithUid: eventData.participantsWithUid,
+          waitlistWithUid: eventData.waitlistWithUid,
+          teamReservationSummaries: eventData.teamReservationSummaries,
+          status: updates.status || eventData.status,
+        };
+      return {
+        event: projectedEvent,
+        eventData: {
+          title: updates.title || eventData.title || "",
+          date: updates.date || eventData.date || "",
+          location: updates.location || eventData.location || "",
+        },
+        promoted: promoted.map(courseRosterMutationResult),
+        demoted: demoted.map(courseRosterMutationResult),
+        appliedFields: Object.keys(updates),
+      };
+    });
+
+    const postOps = [];
+    for (const promoted of result.promoted) {
+      postOps.push(writeInboxNotification({
+        recipientUid: promoted.userId,
+        title: "候補遞補通知",
+        body:
+          `恭喜！您已從候補升為正取：\n\n` +
+          `活動名稱：${result.eventData.title}\n` +
+          `活動時間：${result.eventData.date}\n` +
+          `活動地點：${result.eventData.location}`,
+        category: "activity",
+        categoryLabel: "活動",
+      }));
+      if (!promoted.courseLinked) {
+        postOps.push(adjustExpInternal({
+          targetUid: promoted.userId,
+          amount: 10,
+          reason: `候補遞補報名：${result.eventData.title}`,
+          ruleKey: "register_activity",
+          operatorUid: callerUid,
+        }));
+      }
+    }
+    for (const demoted of result.demoted) {
+      postOps.push(writeInboxNotification({
+        recipientUid: demoted.userId,
+        title: "報名已調整為候補",
+        body:
+          `活動名稱：${result.eventData.title}\n` +
+          `活動時間：${result.eventData.date}\n` +
+          `活動地點：${result.eventData.location}`,
+        category: "activity",
+        categoryLabel: "活動",
+      }));
+    }
+    postOps.push(writeAuditEntryInternal({
+      action: "course_linked_event_edit",
+      targetType: "event",
+      targetId: eventId,
+      targetLabel: result.eventData.title,
+      result: "success",
+      source: "cloud_function",
+      meta: {
+        appliedFields: result.appliedFields,
+        promotedCount: result.promoted.length,
+        demotedCount: result.demoted.length,
+      },
+      actorUid: callerUid,
+    }));
+    await settleBestEffortPostCommitOps("updateCourseLinkedEvent", postOps);
+    return { success: true, ...result };
+  }
+);
+
+exports.manageCourseLinkedRegistrationStatus = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Authentication required");
+    const callerUid = request.auth.uid;
+    const eventId = sanitizeStr(request.data?.eventId, 100);
+    const registrationId = sanitizeStr(request.data?.registrationId, 120);
+    const action = sanitizeStr(request.data?.action, 32);
+    const allowOverCapacity = request.data?.allowOverCapacity === true;
+    if (!eventId || !registrationId) {
+      throw new HttpsError("invalid-argument", "eventId and registrationId are required");
+    }
+    if (!["promote", "demote"].includes(action)) {
+      throw new HttpsError("invalid-argument", "action is invalid");
+    }
+    const access = await getCallerAccessContext(request);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      if (!eventDoc) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
+      const eventRef = eventDoc.ref;
+      const eventData = eventDoc.data() || {};
+      const regsSnap = await transaction.get(eventRef.collection("registrations"));
+      const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+      const target = allRegs.find((reg) => reg._docId === registrationId)
+        || allRegs.find((reg) => sanitizeStr(reg.id, 120) === registrationId);
+      if (!target) throw new HttpsError("not-found", "REG_NOT_FOUND");
+      if (!isCourseLinkedRegistrationData(target) || !isCourseLinkedEventData(eventData)) {
+        throw new HttpsError("failed-precondition", "REGISTRATION_NOT_COURSE_LINKED", {
+          code: "REGISTRATION_NOT_COURSE_LINKED",
+        });
+      }
+      if (getCourseLinkedEventValidationFailure(eventData, target.courseLinkId)) {
+        throw new HttpsError("failed-precondition", "INVALID_COURSE_EVENT_LINK", {
+          code: "INVALID_COURSE_EVENT_LINK",
+        });
+      }
+      const maxCount = normalizeNonNegativeInteger(eventData.max, 0);
+      if (action === "promote") {
+        if (target.status !== "waitlisted") {
+          throw new HttpsError("failed-precondition", "REGISTRATION_NOT_WAITLISTED", {
+            code: "REGISTRATION_NOT_WAITLISTED",
+          });
+        }
+        if (!canOperateEventSiteForAccess(access, eventData, callerUid)) {
+          throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+      } else {
+        if (target.status !== "confirmed") {
+          throw new HttpsError("failed-precondition", "REGISTRATION_NOT_CONFIRMED", {
+            code: "REGISTRATION_NOT_CONFIRMED",
+          });
+        }
+        if (!canRemoveConfirmedParticipantForAccess(access, eventData, callerUid)) {
+          throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+        if (maxCount <= 0) {
+          throw new HttpsError("failed-precondition", "WAITLIST_DISABLED", {
+            code: "WAITLIST_DISABLED",
+          });
+        }
+      }
+
+      const simRegs = allRegs.map((reg) => ({ ...reg }));
+      const simTarget = simRegs.find((reg) => reg._docId === target._docId);
+      const nextStatus = action === "promote" ? "confirmed" : "waitlisted";
+      simTarget.status = nextStatus;
+      const confirmedCount = simRegs.filter((reg) => reg.status === "confirmed").length;
+      if (action === "promote" && maxCount > 0 && confirmedCount > maxCount) {
+        if (!allowOverCapacity) {
+          throw new HttpsError("failed-precondition", "CAPACITY_EXCEEDED", {
+            code: "CAPACITY_EXCEEDED",
+          });
+        }
+        if (!canRemoveConfirmedParticipantForAccess(access, eventData, callerUid)) {
+          throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+      }
+
+      const arsSnap = await transaction.get(eventRef.collection("activityRecords"));
+      const allArs = arsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+      const targetRef = eventRef.collection("registrations").doc(target._docId);
+      transaction.update(targetRef, {
+        status: nextStatus,
+        courseRosterOverride: nextStatus,
+        courseRosterOverrideSource: "manual",
+        [`${action === "promote" ? "promoted" : "demoted"}At`]: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const ar = findActivityRecordForRegistration(
+        allArs,
+        target,
+        action === "promote" ? "waitlisted" : "registered"
+      );
+      if (ar) {
+        transaction.update(eventRef.collection("activityRecords").doc(ar._docId), {
+          status: action === "promote" ? "registered" : "waitlisted",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      const occupancy = preserveUpcomingEventOccupancyStatus(
+        eventData,
+        rebuildOccupancy(
+          { ...eventData, max: eventData.max || 0, status: eventData.status },
+          simRegs.filter((reg) => isActiveRegistration(reg))
+        )
+      );
+      const occupancyUpdate = rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs);
+      transaction.update(eventRef, occupancyUpdate);
+      return {
+        event: occupancy,
+        registration: courseRosterMutationResult({ ...target, status: nextStatus }),
+        eventData: {
+          title: eventData.title || "",
+          date: eventData.date || "",
+          location: eventData.location || "",
+        },
+      };
+    });
+
+    const notificationTitle = action === "promote" ? "候補遞補通知" : "報名已調整為候補";
+    const postOps = [
+      writeInboxNotification({
+        recipientUid: result.registration.userId,
+        title: notificationTitle,
+        body:
+          `活動名稱：${result.eventData.title}\n` +
+          `活動時間：${result.eventData.date}\n` +
+          `活動地點：${result.eventData.location}`,
+        category: "activity",
+        categoryLabel: "活動",
+      }),
+      writeAuditEntryInternal({
+        action: action === "promote" ? "event_waitlist_promote" : "event_waitlist_demote",
+        targetType: "event",
+        targetId: eventId,
+        targetLabel: result.eventData.title,
+        result: "success",
+        source: "cloud_function",
+        meta: { registrationId: result.registration.docId },
+        actorUid: callerUid,
+      }),
+    ];
+    await settleBestEffortPostCommitOps("manageCourseLinkedRegistrationStatus", postOps);
+    return { success: true, ...result };
   }
 );
 
@@ -13039,27 +14161,60 @@ exports.cancelRegistration = onCall(
       // 權限檢查：user_cancel 只能取消自己的；manager_remove / capacity_change 需管理者權限
       const permissionCheckRegs = targetRegs.concat(alreadyCancelledRegs);
       if (cancelReason === "user_cancel") {
-        const unauthorized = permissionCheckRegs.find((r) => r.userId !== callerUid);
+        // Course-linked registrations are student-scoped. Parent/self ownership is
+        // verified against the exact course student inside the same transaction.
+        const unauthorized = permissionCheckRegs.find((r) => (
+          !isCourseLinkedRegistrationData(r) && sanitizeStr(r.userId, 128) !== callerUid
+        ));
         if (unauthorized) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
       } else {
-        const hasSingleEventRosterAccess = canManageSingleEventRosterForAccess(callerAccess, ed, callerUid);
+        const hasSingleEventRosterAccess = canManageSingleEventRosterForAccess(
+          callerAccess,
+          ed,
+          callerUid,
+          permissionCheckRegs
+        );
         if (!hasSingleEventRosterAccess) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
       }
 
-      assertCourseLinkedRegistrationNotManagedByCourse(permissionCheckRegs);
+      const courseAttendanceContexts = await loadCourseCancellationAttendanceContextsInTransaction(
+        transaction,
+        {
+          eventDoc,
+          eventData: ed,
+          regs: permissionCheckRegs,
+          callerUid,
+          cancelReason,
+        }
+      );
+
+      // Firestore transactions require every read before the first write.
+      const arSnap = await transaction.get(
+        eventDoc.ref.collection("activityRecords")
+      );
+      const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
 
       if (targetRegs.length === 0) {
+        writeCourseCancellationAttendanceInTransaction(transaction, courseAttendanceContexts, callerUid);
         const allActive = allEventRegs.filter(
           (r) => r.status === "confirmed" || r.status === "waitlisted"
         );
-        const occupancy = rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive);
+        const occupancy = preserveUpcomingEventOccupancyStatus(
+          ed,
+          rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive)
+        );
         return {
           cancelled: [],
-          alreadyCancelled: alreadyCancelledRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
+          alreadyCancelled: alreadyCancelledRegs.map((r) => ({
+            id: r.id,
+            docId: r._docId,
+            userId: r.userId,
+            courseLinked: isCourseLinkedRegistrationData(r),
+          })),
           promoted: [],
           event: occupancy,
           eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
@@ -13069,6 +14224,7 @@ exports.cancelRegistration = onCall(
       // T4: 標記取消/移除
       const newStatus = cancelReason === "manager_remove" ? "removed" : "cancelled";
       const hadConfirmed = targetRegs.some((r) => r.status === "confirmed");
+      const shouldNormalizeUnlimitedWaitlist = normalizeNonNegativeInteger(ed.max, 0) <= 0;
 
       // 在副本上操作
       const simRegs = allEventRegs.map((r) => ({ ...r }));
@@ -13079,33 +14235,54 @@ exports.cancelRegistration = onCall(
         }
       }
 
-      // Firestore transactions require every read before the first write.
-      const arSnap = await transaction.get(
-        eventDoc.ref.collection("activityRecords")
-      );
-      const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
-
       // 寫入 Firestore
+      writeCourseCancellationAttendanceInTransaction(transaction, courseAttendanceContexts, callerUid);
       for (const reg of targetRegs) {
-        transaction.update(eventDoc.ref.collection("registrations").doc(reg._docId), {
+        const regUpdate = {
           status: newStatus,
           [`${newStatus}At`]: FieldValue.serverTimestamp(),
-        });
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (isCourseLinkedRegistrationData(reg)) {
+          regUpdate.courseAttendanceKind = "leave";
+          regUpdate.courseRosterOverride = null;
+          regUpdate.courseRosterOverrideSource = null;
+          regUpdate.courseSyncSource = "cancelRegistration";
+        }
+        transaction.update(eventDoc.ref.collection("registrations").doc(reg._docId), regUpdate);
         transaction.delete(eventDoc.ref.collection("registrationLocks").doc(registrationLockId(reg)));
       }
 
       // T5: 候補遞補
       const promotedCandidates = [];
-      if (hadConfirmed) {
-        promotedCandidates.push(...promoteWaitlistForAvailableSeats(ed, simRegs, {
-          excludeCourseLinkedCandidates: isCourseLinkedEventData(ed),
-        }));
+      if (hadConfirmed || shouldNormalizeUnlimitedWaitlist) {
+        const hasCourseLinkedTarget = targetRegs.some((reg) => isCourseLinkedRegistrationData(reg));
+        const promotionOptions = shouldNormalizeUnlimitedWaitlist
+          ? { prioritizeCourseLinkedCandidates: true }
+          : (
+            hasCourseLinkedTarget
+              ? {
+                prioritizeCourseLinkedCandidates: true,
+                excludeManualCourseRosterOverrides: true,
+              }
+              : { excludeCourseLinkedCandidates: isCourseLinkedEventData(ed) }
+          );
+        promotedCandidates.push(...promoteWaitlistForAvailableSeats(
+          ed,
+          simRegs,
+          promotionOptions
+        ));
         for (const candidate of promotedCandidates) {
           const promoUpdate = {
             status: "confirmed",
             promotedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           };
           if (candidate.teamSeatSource) promoUpdate.teamSeatSource = candidate.teamSeatSource;
+          if (isCourseLinkedRegistrationData(candidate)) {
+            promoUpdate.courseRosterOverride = "confirmed";
+            promoUpdate.courseRosterOverrideSource = "capacity";
+          }
           transaction.update(eventDoc.ref.collection("registrations").doc(candidate._docId), promoUpdate);
         }
       }
@@ -13133,7 +14310,10 @@ exports.cancelRegistration = onCall(
       const allActive = simRegs.filter(
         (r) => r.status === "confirmed" || r.status === "waitlisted"
       );
-      const occupancy = rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive);
+      const occupancy = preserveUpcomingEventOccupancyStatus(
+        ed,
+        rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive)
+      );
 
       transaction.update(eventRef, {
         current: occupancy.current,
@@ -13149,9 +14329,25 @@ exports.cancelRegistration = onCall(
       });
 
       return {
-        cancelled: targetRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
-        alreadyCancelled: alreadyCancelledRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
-        promoted: promotedCandidates.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId, userName: r.userName })),
+        cancelled: targetRegs.map((r) => ({
+          id: r.id,
+          docId: r._docId,
+          userId: r.userId,
+          courseLinked: isCourseLinkedRegistrationData(r),
+        })),
+        alreadyCancelled: alreadyCancelledRegs.map((r) => ({
+          id: r.id,
+          docId: r._docId,
+          userId: r.userId,
+          courseLinked: isCourseLinkedRegistrationData(r),
+        })),
+        promoted: promotedCandidates.map((r) => ({
+          id: r.id,
+          docId: r._docId,
+          userId: r.userId,
+          userName: r.userName,
+          courseLinked: isCourseLinkedRegistrationData(r),
+        })),
         event: occupancy,
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
       };
@@ -13192,20 +14388,23 @@ exports.cancelRegistration = onCall(
         })
       );
       // 升補者補發 EXP
-      postOps.push(
-        adjustExpInternal({
-          targetUid: candidate.userId,
-          amount: 10,
-          reason: `候補遞補報名：${result.eventData.title}`,
-          ruleKey: "register_activity",
-          operatorUid: callerUid,
-        })
-      );
+      if (!candidate.courseLinked) {
+        postOps.push(
+          adjustExpInternal({
+            targetUid: candidate.userId,
+            amount: 10,
+            reason: `候補遞補報名：${result.eventData.title}`,
+            ruleKey: "register_activity",
+            operatorUid: callerUid,
+          })
+        );
+      }
     }
 
     // P3: 取消者扣 EXP（僅 user_cancel）
     if (cancelReason === "user_cancel") {
       for (const reg of result.cancelled) {
+        if (reg.courseLinked) continue;
         postOps.push(
           adjustExpInternal({
             targetUid: reg.userId,
@@ -13257,7 +14456,7 @@ exports.cancelRegistration = onCall(
       );
     }
 
-    Promise.allSettled(postOps).catch((err) => console.error("[cancelRegistration postOps]", err));
+    await settleBestEffortPostCommitOps("cancelRegistration", postOps);
 
     return {
       success: true,
@@ -13632,7 +14831,7 @@ exports.adjustTeamReservation = onCall(
         createdAt: FieldValue.serverTimestamp(),
       })
     );
-    Promise.allSettled(postOps).catch((err) => console.error("[adjustTeamReservation postOps]", err));
+    await settleBestEffortPostCommitOps("adjustTeamReservation", postOps);
 
     return {
       success: true,

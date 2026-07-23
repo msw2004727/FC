@@ -9,8 +9,7 @@ Object.assign(App, {
 
   _canCurrentEditManageDelegates() {
     const eventRecord = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
-    return !!(this._canManageEventDelegates?.(eventRecord || null)
-      || this._canManageCourseLinkedEventDelegates?.(eventRecord || null));
+    return !!this._canManageEventDelegates?.(eventRecord || null);
   },
 
   _getEventDelegateDirectoryName(user) {
@@ -197,8 +196,7 @@ Object.assign(App, {
     const submitSession = options.submitSession || null;
     const isCurrent = () => !submitSession || this._isEventFormSubmitSessionCurrent?.(submitSession) === true;
     if (!isCurrent()) return false;
-    const canManage = !!(this._canManageEventDelegates?.(eventRecord)
-      || this._canManageCourseLinkedEventDelegates?.(eventRecord));
+    const canManage = !!this._canManageEventDelegates?.(eventRecord);
     if (!canManage) return true;
     const requestedUids = [...new Set((this._delegates || [])
       .map(delegate => String(delegate?.uid || '').trim())

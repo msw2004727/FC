@@ -53,12 +53,24 @@ Object.assign(App, {
 
     if (confirmedRegs.length > 0) {
       const groups = new Map();
-      confirmedRegs.forEach(r => {
-        if (!groups.has(r.userId)) groups.set(r.userId, []);
-        groups.get(r.userId).push(r);
+      confirmedRegs.forEach((r, index) => {
+        const isCourseLinked = String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+          || String(r?.courseLinkId || '').trim()
+          || String(r?.courseStudentId || '').trim();
+        const registrationIdentity = String(r?._docId || r?.id || r?._path || '').trim();
+        const groupKey = isCourseLinked
+          ? `course:${String(r?.courseStudentId || registrationIdentity || `row-${index}`).trim()}`
+          : `user:${String(r?.userId || r?.uid || '').trim()}`;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey).push(r);
       });
       groups.forEach(regs => {
         const selfReg = regs.find(r => r.participantType === 'self');
+        const isCourseLinked = regs.some(r => (
+          String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+          || String(r?.courseLinkId || '').trim()
+          || String(r?.courseStudentId || '').trim()
+        ));
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainUid = regs[0].userId;
         if (selfReg) {
@@ -70,6 +82,8 @@ Object.assign(App, {
             teamReservationTeamId: selfReg.teamReservationTeamId || null,
             teamReservationTeamName: selfReg.teamReservationTeamName || null,
             teamSeatSource: selfReg.teamSeatSource || null,
+            courseLinkedRegistration: isCourseLinked,
+            courseStudentId: isCourseLinked ? String(selfReg.courseStudentId || '').trim() : '',
           });
           addedUids.add(mainUid);
           addedNames.add(mainName);

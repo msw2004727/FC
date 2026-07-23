@@ -472,7 +472,15 @@ Object.assign(App, {
   _getCompanionCancelTargetLabel(reg) {
     const isCompanion = String(reg?.participantType || '').trim() === 'companion'
       || String(reg?.companionId || '').trim();
-    if (!isCompanion) return '\u672C\u4EBA';
+    if (!isCompanion) {
+      const isCourseStudent = String(reg?.courseLinkSource || reg?.source || '').trim() === 'eduCourseLesson'
+        || String(reg?.courseLinkId || '').trim()
+        || String(reg?.courseStudentId || '').trim();
+      const name = String(reg?.userName || reg?.courseStudentName || '').trim();
+      return isCourseStudent
+        ? (`課程學員${name ? `「${name}」` : ''}`)
+        : '\u672C\u4EBA';
+    }
     const name = String(reg?.companionName || reg?.userName || '').trim();
     return name ? ('\u5925\u4F34' + name) : '\u5925\u4F34';
   },
@@ -502,7 +510,7 @@ Object.assign(App, {
       : '\u6CE8\u610F\uFF1A\u8ACB\u81F3\u5C11\u52FE\u9078\u4E00\u4F4D\u8981\u53D6\u6D88\u7684\u5C0D\u8C61';
   },
 
-  _openCompanionCancelModal(eventId, myRegs) {
+  _openCompanionCancelModal(eventId, myRegs, options = {}) {
     this._companionCancelEventId = eventId;
     this._companionCancelRegs = myRegs;
     const overlay = document.getElementById('companion-cancel-overlay');
@@ -522,6 +530,7 @@ Object.assign(App, {
       warnEl.style.display = companionCount > 0 ? '' : 'none';
     }
     const statusLabel = { confirmed: '正取', waitlisted: '候補' };
+    const selectAll = options.selectAll !== false;
     if (warnEl) {
       warnEl.textContent = '';
       warnEl.style.display = '';
@@ -531,9 +540,15 @@ Object.assign(App, {
       const cancelId = r.id || r._docId || '';
       const tag = statusLabel[r.status] || r.status;
       const tagColor = r.status === 'confirmed' ? 'var(--success)' : 'var(--warning)';
+      const isCourseStudent = !r.companionId && (
+        String(r?.courseLinkSource || r?.source || '').trim() === 'eduCourseLesson'
+        || String(r?.courseLinkId || '').trim()
+        || String(r?.courseStudentId || '').trim()
+      );
+      const identityLabel = r.companionId ? '' : (isCourseStudent ? '（課程學員）' : '（本人）');
       return `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" name="cc-reg" value="${escapeHTML(cancelId)}" checked ${cancelId ? '' : 'disabled'} style="width:16px;height:16px" onchange="App._updateCompanionCancelWarn()">
-        <span style="flex:1;font-size:.85rem">${escapeHTML(displayName)}${r.companionId ? '' : '（本人）'}</span>
+        <input type="checkbox" name="cc-reg" value="${escapeHTML(cancelId)}" ${selectAll ? 'checked' : ''} ${cancelId ? '' : 'disabled'} style="width:16px;height:16px" onchange="App._updateCompanionCancelWarn()">
+        <span style="flex:1;font-size:.85rem">${escapeHTML(displayName)}${identityLabel}</span>
         <span style="font-size:.72rem;padding:.1rem .3rem;border-radius:3px;background:${tagColor}22;color:${tagColor}">${tag}</span>
       </label>`;
     }).join('');
@@ -547,13 +562,27 @@ Object.assign(App, {
     this._updateCompanionCancelWarn();
   },
 
-  _closeCompanionCancelModal() {
+  _closeCompanionCancelModal(options = {}) {
+    const eventId = this._companionCancelEventId;
     const overlay = document.getElementById('companion-cancel-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'none';
-    overlay.classList.remove('open');
+    if (overlay) {
+      overlay.style.display = 'none';
+      overlay.classList.remove('open');
+    }
     this._companionCancelEventId = null;
     this._companionCancelRegs = [];
+    if (options.revalidate !== false && eventId) {
+      this._revalidateDetailRosterAfterMutation?.(eventId);
+    }
+  },
+
+  _refreshAfterCompanionCancellation(eventId) {
+    if (typeof this._patchDetailAfterCancel === 'function') {
+      this._patchDetailAfterCancel(eventId);
+      return;
+    }
+    this._revalidateDetailRosterAfterMutation?.(eventId);
+    this.showEventDetail?.(eventId);
   },
 
   async _confirmCompanionCancel() {
@@ -574,15 +603,24 @@ Object.assign(App, {
     const checked = [...document.querySelectorAll('#companion-cancel-list input[name="cc-reg"]:checked')].map(cb => cb.value);
     if (checked.length === 0) { this.showToast('請選擇要取消的報名'); return; }
 
-    this._closeCompanionCancelModal();
+    const selectedRegs = (this._companionCancelRegs || [])
+      .filter(reg => checked.includes(reg.id || reg._docId));
+    this._closeCompanionCancelModal({ revalidate: false });
 
     const user = ApiService.getCurrentUser();
     const userId = user?.uid || 'unknown';
 
-    const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id || r._docId)).some(r => !r.companionId);
-    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+    const hasSelfCancel = selectedRegs.some(r => !r.companionId);
+    let useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+    if (selectedRegs.some(reg => (
+      String(reg?.courseLinkSource || reg?.source || '').trim() === 'eduCourseLesson'
+      || String(reg?.courseLinkId || '').trim()
+      || String(reg?.courseStudentId || '').trim()
+    ))) {
+      useCF = true;
+    }
 
     let companionCancelMutationSeq = null;
     let companionCancelRequestId = '';
@@ -692,7 +730,7 @@ Object.assign(App, {
       });
       this.invalidateHomeNextActivityCache?.();
       this.showToast(`已取消 ${checked.length} 筆報名`);
-      this.showEventDetail(eventId);
+      this._refreshAfterCompanionCancellation(eventId);
     } catch (err) {
       console.error('[_confirmCompanionCancel]', err);
       const cfMsg = {
@@ -701,7 +739,8 @@ Object.assign(App, {
         EVENT_NOT_FOUND: '活動不存在',
         PERMISSION_DENIED: '無權限執行此操作',
       };
-      const errCode = err?.details || err?.message || '';
+      const errCode = this._getEventRegistrationErrorCode?.(err)
+        || String(err?.details?.code || err?.details || err?.message || '').trim();
       if (this._isAlreadyCancelledRegistrationError?.(err)) {
         ApiService.markEventMutationServerConfirmed?.(eventId, companionCancelMutationSeq, {
           mutationType: 'companion-cancel',
@@ -713,7 +752,7 @@ Object.assign(App, {
         this._markLocalRegistrationsTerminal?.(eventId, checked, 'cancelled');
         try { await this._syncMyEventRegistrations?.(eventId, userId); } catch (_) {}
         this.showToast(`已取消 ${checked.length} 筆報名`);
-        this.showEventDetail(eventId);
+        this._refreshAfterCompanionCancellation(eventId);
         return;
       }
       ApiService.markEventMutationError?.(eventId, companionCancelMutationSeq, err, {
@@ -722,8 +761,9 @@ Object.assign(App, {
         requestId: companionCancelRequestId,
         affectedRegistrationIds: checked,
       });
+      const friendlyError = this._getEventRegistrationFriendlyErrorMessage?.(errCode) || '';
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
-      this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
+      this.showToast('取消失敗：' + (cfMsg[errCode] || friendlyError || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
       ApiService._writeErrorLog({
         fn: '_confirmCompanionCancel',
         eventId,
@@ -790,7 +830,10 @@ Object.assign(App, {
       ? this._getEventParticipantStats(e)
       : null;
     const occupiedCount = capacityStats ? capacityStats.occupiedCount : Number(e.current || 0);
-    const remaining = Math.max(0, Number(e.max || 0) - occupiedCount);
+    const maxCount = Math.max(0, Number(e.max || 0) || 0);
+    const hasUnlimitedCapacity = maxCount <= 0;
+    const remaining = hasUnlimitedCapacity ? 0 : Math.max(0, maxCount - occupiedCount);
+    const remainingDisplay = hasUnlimitedCapacity ? '\u4e0d\u9650' : `${remaining}/${maxCount}`;
     const allowedGender = this._getEventAllowedGender?.(e) || '';
 
     const infoEl = document.getElementById('companion-select-event-info');
@@ -799,7 +842,7 @@ Object.assign(App, {
       const genderText = allowedGender
         ? `<br><span style="color:#dc2626;font-weight:700">\u6027\u5225\u9650\u5236\uff1a${escapeHTML(this._getEventGenderDetailText?.(e) || '')}</span>`
         : '';
-      infoEl.innerHTML = `<b>${escapeHTML(e.title || '')}</b><br>${[feeText, `\u5269\u9918\u540d\u984d\uff1a${remaining}/${e.max || 0}`].filter(Boolean).join('\u3000')}${genderText}`;
+      infoEl.innerHTML = `<b>${escapeHTML(e.title || '')}</b><br>${[feeText, `\u5269\u9918\u540d\u984d\uff1a${remainingDisplay}`].filter(Boolean).join('\u3000')}${genderText}`;
     }
 
     const statusText = (status) => status === 'waitlisted' ? '\u5019\u88dc\u4e2d' : '\u5df2\u5831\u540d';
@@ -872,7 +915,9 @@ Object.assign(App, {
       ? this._getEventParticipantStats(e)
       : null;
     const occupiedCount = capacityStats ? capacityStats.occupiedCount : Number(e?.current || 0);
-    const remaining = Math.max(0, Number(e?.max || 0) - occupiedCount);
+    const maxCount = Math.max(0, Number(e?.max || 0) || 0);
+    const hasUnlimitedCapacity = maxCount <= 0;
+    const remaining = hasUnlimitedCapacity ? toRegister : Math.max(0, maxCount - occupiedCount);
     const summaryEl = document.getElementById('companion-select-summary');
     if (summaryEl) {
       const feeHtml = feeEnabled && fee > 0 && toRegister > 0
@@ -885,7 +930,7 @@ Object.assign(App, {
         `<span>\u5df2\u52fe\u9078 <b>${selected}</b></span>`,
         `<span>\u65b0\u589e <b>${toRegister}</b></span>`,
         `<span>\u53d6\u6d88 <b>${toCancel}</b></span>`,
-        `<span>\u5269\u9918 <b>${remaining}</b></span>`,
+        `<span>\u5269\u9918 <b>${hasUnlimitedCapacity ? '\u4e0d\u9650' : remaining}</b></span>`,
         feeHtml,
         waitlistWarning,
       ].filter(Boolean).join('');

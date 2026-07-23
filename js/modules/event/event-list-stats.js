@@ -394,7 +394,15 @@ Object.assign(App, {
     if (!uid || !e?.id) return { signedUp: false, onWaitlist: false };
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
     const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';
-    const isMine = r => String(r?.userId || r?.uid || '').trim() === uid;
+    const isMine = r => (
+      ApiService._isRegistrationOwnedByUser?.(r, uid)
+      ?? (
+        String(r?.userId || '').trim() === uid
+        || String(r?.uid || '').trim() === uid
+        || (Array.isArray(r?.courseOwnerUids)
+          && r.courseOwnerUids.some(ownerUid => String(ownerUid || '').trim() === uid))
+      )
+    );
     const isSelf = r => String(r?.participantType || '').trim() !== 'companion'
       && !String(r?.companionId || '').trim();
     const myRegs = regs.filter(r => isActive(r) && isMine(r) && isSelf(r));

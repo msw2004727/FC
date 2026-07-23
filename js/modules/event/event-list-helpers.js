@@ -30,7 +30,8 @@ Object.assign(App, {
   },
 
   _getEventDisplayTypeKey(eventRecord) {
-    if (this._isCourseLinkedEvent?.(eventRecord)) return 'course';
+    if (this._isCourseLinkedEvent?.(eventRecord)
+      && eventRecord?.courseEventDetailsManagedByEvent !== true) return 'course';
     const rawType = String(eventRecord?.type || '').trim();
     if (rawType && typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG?.[rawType]) return rawType;
     return 'friendly';
@@ -269,11 +270,9 @@ Object.assign(App, {
 
   /** 判斷當前用戶是否為該活動委託人 */
   _isEventDelegate(e) {
-    const myUid = this._getEventCreatorUid();
-    if (!myUid || !e) return false;
-    if (Array.isArray(e.delegateUids) && e.delegateUids.map(String).includes(String(myUid))) return true;
-    if (!e.delegates || !e.delegates.length) return false;
-    return e.delegates.some(d => d.uid === myUid);
+    const myUid = String(this._getEventCreatorUid() || '').trim();
+    if (!myUid || !e || !Array.isArray(e.delegateUids)) return false;
+    return e.delegateUids.some(uid => String(uid || '').trim() === myUid);
   },
 
   _getCurrentActivityRoleKey() {
@@ -365,7 +364,6 @@ Object.assign(App, {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
     if (this._canManageAllActivities()) return true;
-    if (this._isCourseLinkedEvent?.(e) && this._isEventOwner?.(e)) return true;
     if (!this._canManageScopedActivity(e)) return false;
     if (this._hasActivityManageEntry() || this.hasPermission('event.edit_self')) return true;
     return this._getCurrentActivityRoleKey() === 'user'

@@ -169,6 +169,20 @@ describe('private activity visibility for admin-below managers', () => {
     expect(app._canManageEvent(privateDelegated)).toBe(true);
   });
 
+  test('delegate authorization only trusts canonical delegateUids, not delegates display metadata', () => {
+    const app = makeRuntime({ role: 'coach' });
+    const metadataOnly = {
+      ...privateOther,
+      delegates: [{ uid: 'viewer', name: 'Viewer' }],
+      delegateUids: [],
+    };
+
+    expect(app._isEventDelegate(metadataOnly)).toBe(false);
+    expect(app._canListPrivateEvent(metadataOnly)).toBe(false);
+    expect(app._isEventDelegate(privateDelegated)).toBe(true);
+    expect(app._canListPrivateEvent(privateDelegated)).toBe(true);
+  });
+
   test('user delegate with site_operate can manage assigned roster but still cannot delete activity', () => {
     const app = makeRuntime({
       role: 'user',

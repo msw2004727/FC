@@ -559,7 +559,7 @@ function readCloudFunctionSource(functionName) {
   const source = fs.readFileSync(
     path.join(__dirname, '..', '..', 'functions', 'index.js'),
     'utf8'
-  );
+  ).replace(/\r\n/g, '\n');
   const start = source.indexOf(`exports.${functionName}`);
   expect(start).toBeGreaterThanOrEqual(0);
   const nextExport = source.indexOf('\nexports.', start + 1);
@@ -570,7 +570,7 @@ function readSourceBetween(startNeedle, endNeedle) {
   const source = fs.readFileSync(
     path.join(__dirname, '..', '..', 'functions', 'index.js'),
     'utf8'
-  );
+  ).replace(/\r\n/g, '\n');
   const start = source.indexOf(startNeedle);
   expect(start).toBeGreaterThanOrEqual(0);
   const end = endNeedle ? source.indexOf(endNeedle, start + startNeedle.length) : -1;
@@ -1520,7 +1520,7 @@ describe('registration callable source contracts', () => {
     );
     expect(wholeSource).not.toContain('allArs.find((item) => item.uid === candidate.userId');
     expect(source).toContain('eventDoc.ref.collection("registrationLocks").doc(registrationLockId(reg))');
-    expect(source).toContain('promoteWaitlistForAvailableSeats(ed, simRegs, {');
+    expect(source).toContain('promotedCandidates.push(...promoteWaitlistForAvailableSeats(');
     expect(source).toContain('excludeCourseLinkedCandidates: isCourseLinkedEventData(ed)');
     expect(source).toContain('{ status: newStatus }');
     expect(source).toContain('{ status: "registered" }');
@@ -1549,11 +1549,12 @@ describe('registration callable source contracts', () => {
       'function courseEnrollmentDocId'
     );
     expect(source).toContain('courseLinkedRegistrationDocId');
-    expect(source).toContain('findManualRegistrationToAdoptForCourse');
+    expect(source).not.toContain('findManualRegistrationToAdoptForCourse');
+    expect(source).toContain('const targetExistingReg = existingCourseReg || null');
     expect(source).toContain('findLatestDisplaceableConfirmedRegistration');
     expect(source).toContain('const targetAlreadyConfirmed = sanitizeStr(targetExistingReg?.status, 32) === "confirmed"');
     expect(source).toContain('while (simRegs.filter((reg) => reg.status === "confirmed").length > maxCount)');
-    expect(source).not.toContain('if (maxCount > 0)');
+    expect(source).toContain('if (maxCount > 0)');
     expect(source).toContain('courseRegistrationStatus = "waitlisted"');
     expect(source).toContain('transaction.set(targetRegRef, regData, { merge: true })');
     expect(source).toContain('status: "waitlisted"');
@@ -1729,7 +1730,8 @@ describe('registration callable source contracts', () => {
     expect(rosterSource).toContain('status: "cancelled"');
     expect(rosterSource).toContain('rebuildCourseLinkedEventOccupancyUpdate(eventData, simRegs)');
     expect(rosterSource).toContain('demoteConfirmedRegistrationsToCapacity');
-    expect(rosterSource).toContain('promoteWaitlistForAvailableSeats({ ...eventData, max }, simRegs, { prioritizeCourseLinkedCandidates: true })');
+    expect(rosterSource).toContain('promoteWaitlistForAvailableSeats(');
+    expect(rosterSource).toContain('excludeManualCourseRosterOverrides: true');
     expect(rosterSource).toContain('promotedCount: promoted.length');
     expect(rosterSource).toContain('if (result?.success === false)');
     expect(rosterSource).toContain('COURSE_EVENT_ATTENDANCE_SYNC_FAILED');
@@ -1837,9 +1839,11 @@ describe('cancelRegistration CF transaction ordering', () => {
 
   test('allows assigned single-event roster managers to touch confirmed registrations', () => {
     const source = readCloudFunctionSource('cancelRegistration');
-    expect(source).toContain('canManageSingleEventRosterForAccess(callerAccess, ed, callerUid)');
+    expect(source).toContain('canManageSingleEventRosterForAccess(');
+    expect(source).toContain('permissionCheckRegs');
     expect(source).not.toContain('CONFIRMED_MANAGER_RESTRICTED');
-    expect(source).not.toContain('touchesConfirmed');
+    expect(source).toContain('callerAccess');
+    expect(source).toContain('callerUid');
   });
 
   test('treats already-cancelled targets as idempotent no-ops', () => {

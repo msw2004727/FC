@@ -41,9 +41,10 @@ function loadSignupModule({
   lineReady = !lineSessionResolving,
   lineProfile = null,
   lineProfileLoading = lineSessionResolving,
-  registrationDocsByField = { userId: [], uid: [] },
+  registrationDocsByField = { userId: [], uid: [], courseOwnerUids: [] },
   registrationQueryImpl = null,
   currentRegistrationState = { signedUp: false },
+  cachedRegistrations = [],
 } = {}) {
   const queryCalls = [];
   const makeSnap = docs => ({
@@ -52,6 +53,7 @@ function loadSignupModule({
       id: data.id || `reg-${index + 1}`,
       data: () => data,
     })),
+    metadata: { fromCache: false },
   });
   const app = {
     currentPage: 'page-activity-detail',
@@ -71,8 +73,12 @@ function loadSignupModule({
     },
     FirebaseService: {
       ensureAuthReadyForWrite,
+      _cache: { registrations: cachedRegistrations },
+      _getEventDocIdAsync: jest.fn(() => Promise.resolve(event._docId)),
       _mapSubcollectionDoc: jest.fn((doc) => ({ ...doc.data(), _docId: doc.id, id: doc.id })),
       _upsertCanonicalCacheRecord: jest.fn(),
+      _canonicalizeRecordList: jest.fn((_name, records) => records),
+      _saveToLS: jest.fn(),
       _registrationListenerKey: registrationListenerKey,
       _registrationsServerSnapshotReceived: registrationsServerSnapshotReceived,
     },
@@ -89,15 +95,17 @@ function loadSignupModule({
       collection: jest.fn(() => ({
         doc: jest.fn(() => ({
           collection: jest.fn(() => ({
-            where: (field, op, value) => ({
-              limit: limit => ({
+            where: (field, op, value) => {
+              const makeQuery = limit => ({
+                limit: nextLimit => makeQuery(nextLimit),
                 get: options => {
                   queryCalls.push({ field, op, value, limit, options });
                   if (registrationQueryImpl) return registrationQueryImpl({ field, op, value, limit, options });
                   return Promise.resolve(makeSnap(registrationDocsByField[field] || []));
                 },
-              }),
-            }),
+              });
+              return makeQuery(undefined);
+            },
           })),
         })),
       })),
@@ -791,6 +799,254 @@ describe('event detail signup registration loading gate', () => {
     app._refreshSignupButton('evt-1');
 
     expect(document.querySelector('.detail-action-primary').textContent).toContain('取消報名');
+  });
+
+  test.each([
+    {
+      label: 'course self-only',
+      courseLinked: true,
+      docs: {
+        userId: [{ id: 'self', eventId: 'evt-1', userId: 'user-1', status: 'confirmed' }],
+        uid: [],
+        courseOwnerUids: [],
+      },
+      expectedIds: ['self'],
+      ownerProbe: true,
+    },
+    {
+      label: 'course parent-only',
+      courseLinked: true,
+      docs: {
+        userId: [],
+        uid: [],
+        courseOwnerUids: [{
+          id: 'child-a',
+          eventId: 'evt-1',
+          userId: 'child-a',
+          courseOwnerUids: ['user-1'],
+          status: 'confirmed',
+        }],
+      },
+      expectedIds: ['child-a'],
+      ownerProbe: true,
+    },
+    {
+      label: 'course self plus parent registration',
+      courseLinked: true,
+      docs: {
+        userId: [{
+          id: 'self',
+          eventId: 'evt-1',
+          userId: 'user-1',
+          courseOwnerUids: ['user-1'],
+          status: 'confirmed',
+        }],
+        uid: [],
+        courseOwnerUids: [
+          {
+            id: 'self',
+            eventId: 'evt-1',
+            userId: 'user-1',
+            courseOwnerUids: ['user-1'],
+            status: 'confirmed',
+          },
+          {
+            id: 'child-a',
+            eventId: 'evt-1',
+            userId: 'child-a',
+            courseOwnerUids: ['user-1'],
+            status: 'waitlisted',
+          },
+        ],
+      },
+      expectedIds: ['self', 'child-a'],
+      ownerProbe: true,
+    },
+    {
+      label: 'same parent with multiple course students',
+      courseLinked: true,
+      docs: {
+        userId: [],
+        uid: [],
+        courseOwnerUids: ['a', 'b', 'c'].map(id => ({
+          id: `child-${id}`,
+          eventId: 'evt-1',
+          userId: `child-${id}`,
+          courseOwnerUids: ['user-1'],
+          status: 'confirmed',
+        })),
+      },
+      expectedIds: ['child-a', 'child-b', 'child-c'],
+      ownerProbe: true,
+    },
+    {
+      label: 'ordinary registration',
+      courseLinked: false,
+      docs: {
+        userId: [{ id: 'ordinary-self', eventId: 'evt-1', userId: 'user-1', status: 'confirmed' }],
+        uid: [],
+        courseOwnerUids: [{
+          id: 'must-not-query',
+          eventId: 'evt-1',
+          userId: 'child-a',
+          courseOwnerUids: ['user-1'],
+          status: 'confirmed',
+        }],
+      },
+      expectedIds: ['ordinary-self'],
+      ownerProbe: false,
+    },
+  ])('precise hydrate merges and deduplicates $label ownership', async ({
+    courseLinked,
+    docs,
+    expectedIds,
+    ownerProbe,
+  }) => {
+    const event = {
+      id: 'evt-1',
+      _docId: 'evt-doc-1',
+      status: 'open',
+      max: 10,
+      current: 0,
+      courseLinked,
+      courseLinkSource: courseLinked ? 'eduCourseLesson' : '',
+    };
+    const { app, context, queryCalls } = loadSignupModule({
+      event,
+      registrationDocsByField: docs,
+    });
+
+    const result = await app._fetchCurrentUserRegistrationStateForEvent(event, 'user-1');
+    const cachedIds = context.FirebaseService._upsertCanonicalCacheRecord.mock.calls
+      .map(call => call[1]._docId);
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeCount: expectedIds.length,
+      recordCount: expectedIds.length,
+      fromCache: false,
+    });
+    expect(cachedIds).toEqual(expectedIds);
+    expect(queryCalls.some(call => call.field === 'courseOwnerUids'
+      && call.op === 'array-contains'
+      && call.limit === undefined)).toBe(ownerProbe);
+  });
+
+  test('course-linked signed state still starts the owner-array probe for sibling students', async () => {
+    const courseEvent = {
+      id: 'evt-1',
+      _docId: 'evt-doc-1',
+      status: 'open',
+      courseLinked: true,
+      courseLinkSource: 'eduCourseLesson',
+    };
+    const { app, queryCalls } = loadSignupModule({
+      event: courseEvent,
+      currentRegistrationState: { signedUp: true, onWaitlist: false },
+      registrationListenerKey: 'user:user-1',
+      registrationsServerSnapshotReceived: true,
+      registrationDocsByField: {
+        userId: [{ id: 'self', userId: 'user-1', status: 'confirmed' }],
+        uid: [],
+        courseOwnerUids: [{
+          id: 'child-a',
+          userId: 'child-a',
+          courseOwnerUids: ['user-1'],
+          status: 'confirmed',
+        }],
+      },
+    });
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._maybeStartEventSignupRegistrationProofRefresh(courseEvent)).toBe(true);
+    await flushMicrotasks(10);
+
+    expect(queryCalls.some(call => call.field === 'courseOwnerUids'
+      && call.op === 'array-contains')).toBe(true);
+  });
+
+  test('course-linked registration proof does not trust the generic userId listener', () => {
+    const courseEvent = {
+      id: 'evt-1',
+      _docId: 'evt-doc-1',
+      status: 'open',
+      courseLinked: true,
+      courseLinkSource: 'eduCourseLesson',
+    };
+    const { app } = loadSignupModule({
+      event: courseEvent,
+      registrationListenerKey: 'user:user-1',
+      registrationsServerSnapshotReceived: true,
+    });
+
+    expect(app._hasEventSignupRegistrationServerProof(courseEvent, 'user-1')).toBe(false);
+    expect(app._hasEventSignupRegistrationServerProof({
+      ...courseEvent,
+      courseLinked: false,
+      courseLinkSource: '',
+    }, 'user-1')).toBe(true);
+  });
+
+  test('active self-registration detection accepts a parent courseOwnerUid but not a companion', () => {
+    const ownerRegistration = {
+      eventId: 'evt-1',
+      userId: 'child-a',
+      courseOwnerUids: ['user-1'],
+      participantType: 'self',
+      status: 'confirmed',
+    };
+    const { app } = loadSignupModule({ registrations: [ownerRegistration] });
+    expect(app._hasActiveSelfRegistrationForEvent('evt-1', 'user-1')).toBe(true);
+
+    ownerRegistration.participantType = 'companion';
+    expect(app._hasActiveSelfRegistrationForEvent('evt-1', 'user-1')).toBe(false);
+  });
+
+  test('_syncMyEventRegistrations replaces stale parent-owned rows and preserves all current students', async () => {
+    const event = {
+      id: 'evt-1',
+      _docId: 'evt-doc-1',
+      status: 'open',
+      courseLinked: true,
+      courseLinkSource: 'eduCourseLesson',
+    };
+    const stale = {
+      id: 'stale-child',
+      _docId: 'stale-child',
+      eventId: 'evt-1',
+      userId: 'old-child',
+      courseOwnerUids: ['user-1'],
+      status: 'confirmed',
+    };
+    const unrelated = {
+      id: 'unrelated',
+      _docId: 'unrelated',
+      eventId: 'evt-1',
+      userId: 'someone-else',
+      status: 'confirmed',
+    };
+    const docs = {
+      userId: [],
+      uid: [],
+      courseOwnerUids: ['a', 'b'].map(id => ({
+        id: `child-${id}`,
+        eventId: 'evt-1',
+        userId: `child-${id}`,
+        courseOwnerUids: ['user-1'],
+        status: 'confirmed',
+      })),
+    };
+    const { app, context } = loadSignupModule({
+      event,
+      registrationDocsByField: docs,
+      cachedRegistrations: [stale, unrelated],
+    });
+
+    const active = await app._syncMyEventRegistrations('evt-1', 'user-1');
+
+    expect(active.map(reg => reg._docId)).toEqual(['child-a', 'child-b']);
+    expect(context.FirebaseService._cache.registrations.map(reg => reg._docId))
+      .toEqual(['unrelated', 'child-a', 'child-b']);
   });
 
   test('post-mutation detail patch renders roster from cache first then revalidates in background', async () => {

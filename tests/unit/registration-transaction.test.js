@@ -71,9 +71,10 @@ function _rebuildOccupancy(event, registrations) {
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
+  const maxCount = Math.max(0, Number(event?.max || 0) || 0);
   let status = event.status;
   if (status !== 'ended' && status !== 'cancelled') {
-    status = current >= (event.max || 0) ? 'full' : 'open';
+    status = maxCount > 0 && current >= maxCount ? 'full' : 'open';
   }
   return { participants, waitlistNames, current, waitlist, status };
 }
@@ -103,7 +104,7 @@ function promotionSort(a, b) {
 // Simulated Transaction logic: registerForEvent (firebase-crud.js:741-790)
 // ===========================================================================
 function simulateRegisterTransaction(eventData, existingRegs, newUserId, newUserName) {
-  const maxCount = eventData.max || 0;
+  const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
 
   // Duplicate check (same as line 755-760)
   if (hasActiveDuplicate(existingRegs, newUserId)) {
@@ -115,7 +116,7 @@ function simulateRegisterTransaction(eventData, existingRegs, newUserId, newUser
   );
   const confirmedCount = countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
-  const isWaitlist = confirmedCount >= maxCount;
+  const isWaitlist = maxCount > 0 && confirmedCount >= maxCount;
   const status = isWaitlist ? 'waitlisted' : 'confirmed';
 
   const registration = {
@@ -159,13 +160,16 @@ function simulateCancelTransaction(event, firestoreRegs, cancelRegId) {
   if (simTarget) simTarget.status = 'cancelled';
 
   const promotedCandidates = [];
+  const maxCount = Math.max(0, Number(event.max || 0) || 0);
 
-  if (wasPreviouslyConfirmed && event.max) {
+  if (wasPreviouslyConfirmed || maxCount <= 0) {
     const activeRegs = simRegs.filter(
       r => r.status === 'confirmed' || r.status === 'waitlisted'
     );
     const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
-    const slotsAvailable = event.max - confirmedCount;
+    const slotsAvailable = maxCount <= 0
+      ? Number.POSITIVE_INFINITY
+      : maxCount - confirmedCount;
 
     if (slotsAvailable > 0) {
       const waitlistedCandidates = activeRegs
@@ -253,10 +257,11 @@ describe('registerForEvent Transaction Logic', () => {
     expect(result.status).toBe('confirmed');
   });
 
-  test('max=0 event sends all to waitlist', () => {
+  test('max=0 event confirms ordinary registrations', () => {
     const zeroMaxEvent = { ...baseEvent, max: 0 };
     const result = simulateRegisterTransaction(zeroMaxEvent, [], 'user1', 'Alice');
-    expect(result.status).toBe('waitlisted');
+    expect(result.status).toBe('confirmed');
+    expect(result.occupancy.status).toBe('open');
   });
 
   test('occupancy status becomes full when reaching max', () => {
@@ -319,6 +324,33 @@ describe('cancelRegistration Transaction Logic', () => {
     expect(result.occupancy.waitlist).toBe(0);
   });
 
+  test('unlimited events promote every legacy waitlisted registration after a cancellation', () => {
+    const unlimitedEvent = { ...baseEvent, max: 0, status: 'open' };
+    const regs = [
+      { id: 'r1', userId: 'u1', userName: 'Alice', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:00:00Z' },
+      { id: 'r2', userId: 'u2', userName: 'Bob', status: 'waitlisted', participantType: 'self', registeredAt: '2026-03-10T09:00:00Z' },
+      { id: 'r3', userId: 'u3', userName: 'Charlie', status: 'waitlisted', participantType: 'self', registeredAt: '2026-03-10T10:00:00Z' },
+    ];
+
+    const result = simulateCancelTransaction(unlimitedEvent, regs, 'r1');
+
+    expect(result.promotedCandidates.map(reg => reg.id)).toEqual(['r2', 'r3']);
+    expect(result.occupancy).toMatchObject({ current: 2, waitlist: 0, status: 'open' });
+  });
+
+  test('unlimited events normalize remaining legacy waitlist when a waitlisted row cancels', () => {
+    const unlimitedEvent = { ...baseEvent, max: 0, status: 'open' };
+    const regs = [
+      { id: 'r1', userId: 'u1', userName: 'Alice', status: 'waitlisted', participantType: 'self', registeredAt: '2026-03-10T08:00:00Z' },
+      { id: 'r2', userId: 'u2', userName: 'Bob', status: 'waitlisted', participantType: 'self', registeredAt: '2026-03-10T09:00:00Z' },
+      { id: 'r3', userId: 'u3', userName: 'Charlie', status: 'waitlisted', participantType: 'self', registeredAt: '2026-03-10T10:00:00Z' },
+    ];
+
+    const result = simulateCancelTransaction(unlimitedEvent, regs, 'r1');
+
+    expect(result.promotedCandidates.map(reg => reg.id)).toEqual(['r2', 'r3']);
+    expect(result.occupancy).toMatchObject({ current: 2, waitlist: 0, status: 'open' });
+  });
   test('earliest waitlisted is promoted first (registeredAt ASC)', () => {
     const regs = [
       { id: 'r1', userId: 'u1', userName: 'Alice', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:00:00Z', _docId: 'd1' },

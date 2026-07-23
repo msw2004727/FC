@@ -1207,7 +1207,10 @@ Object.assign(App, {
     const capacityStats = typeof this._getEventParticipantStats === 'function'
       ? this._getEventParticipantStats(e)
       : null;
-    const isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max;
+    const fallbackMaxCount = Math.max(0, Number(e.max || 0) || 0);
+    const isMainFull = capacityStats
+      ? capacityStats.isCapacityFull
+      : (fallbackMaxCount > 0 && confirmedCount >= fallbackMaxCount);
     const optimisticSignupActions = !isGuestView
       && typeof this._canOptimisticallyRenderEventSignupActions === 'function'
       && this._canOptimisticallyRenderEventSignupActions(e) === true;
@@ -1273,17 +1276,24 @@ Object.assign(App, {
         var _self = this;
         var _safetyEventId = e.id;
         var _regsRef = db.collection('events').doc(e._docId).collection('registrations');
-        var _safetyQuery = _regsRef
-          .where('userId', '==', _safetyUid)
-          .limit(1)
-          .get({ source: 'server' });
-        _safetyQuery.then(function(snap) {
-          if (!snap.empty) return snap;
-          return _regsRef
-            .where('uid', '==', _safetyUid)
-            .limit(1)
-            .get({ source: 'server' });
-        })
+        var _safetyQuery = typeof _self._queryEventRegistrationDocsForUser === 'function'
+          ? _self._queryEventRegistrationDocsForUser(_regsRef, _safetyUid, {
+              includeCourseOwners: _self._isCourseLinkedOwnerProbeEvent?.(e) === true,
+              getOptions: { source: 'server' },
+              directLimit: 1,
+            })
+          : _regsRef
+              .where('userId', '==', _safetyUid)
+              .limit(1)
+              .get({ source: 'server' })
+              .then(function(snap) {
+                if (!snap.empty) return snap;
+                return _regsRef
+                  .where('uid', '==', _safetyUid)
+                  .limit(1)
+                  .get({ source: 'server' });
+              });
+        _safetyQuery
           .then(function(snap) {
             var active = snap.docs.filter(function(d) {
               var s = d.data().status;

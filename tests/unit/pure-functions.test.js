@@ -74,9 +74,10 @@ function _rebuildOccupancy(event, registrations) {
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
+  const maxCount = Math.max(0, Number(event?.max || 0) || 0);
   let status = event.status;
   if (status !== 'ended' && status !== 'cancelled') {
-    status = current >= (event.max || 0) ? 'full' : 'open';
+    status = maxCount > 0 && current >= maxCount ? 'full' : 'open';
   }
 
   return {
@@ -246,16 +247,15 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
     expect(result.participants).toEqual(['Valid']);
   });
 
-  test('max=0 edge case → any confirmed makes it full', () => {
+  test('max=0 means unlimited and never marks the event full', () => {
     const result = _rebuildOccupancy({ max: 0, status: 'open' }, []);
-    // 0 >= 0 is true → full
-    expect(result.status).toBe('full');
+    expect(result.status).toBe('open');
 
     const result2 = _rebuildOccupancy(
       { max: 0, status: 'open' },
       [{ status: 'confirmed', userName: 'A' }]
     );
-    expect(result2.status).toBe('full');
+    expect(result2.status).toBe('open');
     expect(result2.current).toBe(1);
   });
 

@@ -37,7 +37,8 @@ function _assignTeamKeyForPromotion(event, simRegs, candidate) {
 
   // self-select: try to preserve candidate's choice, fallback if over cap
   if (mode === 'self-select' && candidate.teamKey) {
-    const cap = Math.ceil(event.max / teams.length);
+    const maxCount = Math.max(0, Number(event.max || 0) || 0);
+    const cap = maxCount > 0 ? Math.ceil(maxCount / teams.length) : Number.POSITIVE_INFINITY;
     const load = simRegs.filter(r => r.status === 'confirmed' && r.teamKey === candidate.teamKey).length;
     if (load < cap) return candidate.teamKey;
     // fallback to balanced
@@ -312,6 +313,14 @@ describe('_assignTeamKeyForPromotion', () => {
       const candidate = { teamKey: null }; // never chose
       // balanced: A=2, B=1 → B
       expect(_assignTeamKeyForPromotion(ev, regs, candidate)).toBe('B');
+    });
+  });
+
+  describe('unlimited capacity', () => {
+    test('preserves a self-selected team when max=0', () => {
+      const ev = makeEvent('self-select', 2, 0);
+      const regs = makeRegs([{ teamKey: 'A' }, { teamKey: 'A' }]);
+      expect(_assignTeamKeyForPromotion(ev, regs, { teamKey: 'A' })).toBe('A');
     });
   });
 
