@@ -10,6 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const {
   createSportsApiProScoreboardExports,
   __test: sportsApiProTest,
@@ -601,6 +602,515 @@ class TestHttpsError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+const PM_TEST_UID_A = `U${'a'.repeat(32)}`;
+const PM_TEST_UID_B = `U${'b'.repeat(32)}`;
+const PM_TEST_CONVERSATION_ID = `pm_${[PM_TEST_UID_A, PM_TEST_UID_B].sort().join('_')}`;
+
+function loadPrivateMessageCallables(db, consoleImpl = console) {
+  const helperSource = readSourceBetween('const PM_UID_RE', 'async function pmGetUserByUid');
+  const markReadSource = readSourceBetween(
+    'exports.markPrivateConversationRead',
+    'async function pmUpdateOwnMessage'
+  );
+  const updateSource = readSourceBetween(
+    'async function pmUpdateOwnMessage',
+    'exports.getPrivateMessageSettings'
+  );
+  const sandbox = {
+    db,
+    crypto: require('crypto'),
+    HttpsError: TestHttpsError,
+    onCall: (options, handler) => ({ options, handler }),
+    Timestamp: {
+      fromDate: date => ({
+        millis: date.getTime(),
+        toDate: () => new Date(date.getTime()),
+        toMillis: () => date.getTime(),
+      }),
+      fromMillis: millis => ({
+        millis,
+        toDate: () => new Date(millis),
+        toMillis: () => millis,
+      }),
+    },
+    exports: {},
+    console: consoleImpl,
+  };
+  vm.runInNewContext(`
+    const PM_DEFAULT_SETTINGS = Object.freeze({ allowUserToUserPm: false });
+    const PM_MAX_BODY_LENGTH = 300;
+    const PM_MESSAGE_LIMIT = 50;
+    const PM_AUDIT_RETENTION_DAYS = 180;
+    ${helperSource}
+    ${markReadSource}
+    ${updateSource}
+    globalThis.__pmCallables = {
+      markPrivateConversationRead: exports.markPrivateConversationRead,
+      editPrivateMessage: exports.editPrivateMessage,
+      recallPrivateMessage: exports.recallPrivateMessage,
+    };
+  `, sandbox, { filename: 'private-message-callables.vm.js' });
+  return sandbox.__pmCallables;
+}
+
+function pmTestClone(value) {
+  if (Array.isArray(value)) return value.map(pmTestClone);
+  if (!value || typeof value !== 'object') return value;
+  if (value instanceof Date) return new Date(value.getTime());
+  return Object.entries(value).reduce((copy, [key, item]) => {
+    copy[key] = pmTestClone(item);
+    return copy;
+  }, {});
+}
+
+function pmTestReadField(data, fieldPath) {
+  return String(fieldPath || '').split('.').reduce(
+    (value, key) => (value == null ? undefined : value[key]),
+    data
+  );
+}
+
+function pmTestSetField(target, fieldPath, value) {
+  const parts = String(fieldPath || '').split('.');
+  let cursor = target;
+  parts.slice(0, -1).forEach(part => {
+    if (!cursor[part] || typeof cursor[part] !== 'object' || Array.isArray(cursor[part])) {
+      cursor[part] = {};
+    }
+    cursor = cursor[part];
+  });
+  cursor[parts[parts.length - 1]] = pmTestClone(value);
+}
+
+function pmTestMergeData(existing, patch, merge) {
+  const next = merge ? pmTestClone(existing || {}) : {};
+  Object.entries(patch || {}).forEach(([key, value]) => {
+    if (key.includes('.')) pmTestSetField(next, key, value);
+    else next[key] = pmTestClone(value);
+  });
+  return next;
+}
+
+class PmMemoryDocumentReference {
+  constructor(db, pathValue) {
+    this._db = db;
+    this.path = pathValue;
+    this.id = pathValue.split('/').pop();
+  }
+
+  collection(name) {
+    return new PmMemoryCollectionReference(this._db, `${this.path}/${name}`);
+  }
+}
+
+class PmMemoryCollectionReference {
+  constructor(db, pathValue) {
+    this._db = db;
+    this.path = pathValue;
+  }
+
+  doc(id) {
+    return new PmMemoryDocumentReference(this._db, `${this.path}/${id}`);
+  }
+
+  where(field, operator, value) {
+    return new PmMemoryQuery(this._db, this.path, [{ field, operator, value }], null);
+  }
+}
+
+class PmMemoryQuery {
+  constructor(db, pathValue, filters = [], queryLimit = null) {
+    this._db = db;
+    this.path = pathValue;
+    this.filters = filters;
+    this.queryLimit = queryLimit;
+  }
+
+  where(field, operator, value) {
+    return new PmMemoryQuery(
+      this._db,
+      this.path,
+      [...this.filters, { field, operator, value }],
+      this.queryLimit
+    );
+  }
+
+  limit(value) {
+    return new PmMemoryQuery(this._db, this.path, this.filters, Number(value));
+  }
+}
+
+function pmMemoryDocumentSnapshot(ref, data) {
+  const exists = data !== undefined;
+  return {
+    id: ref.id,
+    ref,
+    exists,
+    data: () => (exists ? pmTestClone(data) : undefined),
+  };
+}
+
+class PmMemoryTransaction {
+  constructor(db, attempt) {
+    this.db = db;
+    this.attempt = attempt;
+    this.operations = [];
+    this.readVersions = new Map();
+    this.queryVersions = new Map();
+    this.writes = [];
+    this.hasWrites = false;
+  }
+
+  async get(target) {
+    if (this.hasWrites) throw new Error('transaction read attempted after write');
+    if (target instanceof PmMemoryQuery) {
+      this.queryVersions.set(target.path, this.db._collectionVersion(target.path));
+      const docs = this.db._query(target);
+      docs.forEach(doc => this.readVersions.set(doc.ref.path, this.db._version(doc.ref.path)));
+      this.operations.push({
+        type: 'read-query',
+        path: target.path,
+        limit: target.queryLimit,
+        size: docs.length,
+      });
+      return { docs, size: docs.length, empty: docs.length === 0 };
+    }
+    this.readVersions.set(target.path, this.db._version(target.path));
+    this.operations.push({ type: 'read-doc', path: target.path });
+    return pmMemoryDocumentSnapshot(target, this.db._raw(target.path));
+  }
+
+  set(ref, data, options = {}) {
+    this.hasWrites = true;
+    this.operations.push({ type: 'write', path: ref.path });
+    this.writes.push({ type: 'set', ref, data: pmTestClone(data), merge: options.merge === true });
+    return this;
+  }
+
+  update(ref, data) {
+    this.hasWrites = true;
+    this.operations.push({ type: 'write', path: ref.path });
+    this.writes.push({ type: 'set', ref, data: pmTestClone(data), merge: true });
+    return this;
+  }
+
+  hasConflict() {
+    for (const [pathValue, version] of this.readVersions) {
+      if (this.db._version(pathValue) !== version) return true;
+    }
+    for (const [pathValue, version] of this.queryVersions) {
+      if (this.db._collectionVersion(pathValue) !== version) return true;
+    }
+    return false;
+  }
+
+  apply() {
+    this.writes.forEach(write => {
+      this.db._writeDirect(
+        write.ref.path,
+        pmTestMergeData(this.db._raw(write.ref.path), write.data, write.merge)
+      );
+    });
+  }
+}
+
+function createPmMemoryFirestore() {
+  const db = {
+    _docs: new Map(),
+    _versions: new Map(),
+    _collectionVersions: new Map(),
+    _beforeCommit: null,
+    _commitFailure: null,
+    _barrier: null,
+    _transactionSequence: 0,
+    attempts: [],
+    commits: [],
+
+    collection(name) {
+      return new PmMemoryCollectionReference(this, name);
+    },
+
+    _raw(pathValue) {
+      return this._docs.get(pathValue);
+    },
+
+    _version(pathValue) {
+      return this._versions.get(pathValue) || 0;
+    },
+
+    _collectionVersion(pathValue) {
+      return this._collectionVersions.get(pathValue) || 0;
+    },
+
+    _writeDirect(pathValue, data) {
+      this._docs.set(pathValue, pmTestClone(data));
+      this._versions.set(pathValue, this._version(pathValue) + 1);
+      const collectionPath = pathValue.split('/').slice(0, -1).join('/');
+      this._collectionVersions.set(
+        collectionPath,
+        this._collectionVersion(collectionPath) + 1
+      );
+    },
+
+    _query(query) {
+      const prefix = `${query.path}/`;
+      const docs = [];
+      for (const [pathValue, data] of this._docs) {
+        if (!pathValue.startsWith(prefix)) continue;
+        const relativePath = pathValue.slice(prefix.length);
+        if (!relativePath || relativePath.includes('/')) continue;
+        const matches = query.filters.every(filter => {
+          if (filter.operator !== '==') throw new Error(`unsupported operator ${filter.operator}`);
+          return pmTestReadField(data, filter.field) === filter.value;
+        });
+        if (!matches) continue;
+        docs.push(pmMemoryDocumentSnapshot(
+          new PmMemoryDocumentReference(this, pathValue),
+          data
+        ));
+      }
+      docs.sort((left, right) => left.id.localeCompare(right.id));
+      return Number.isFinite(query.queryLimit)
+        ? docs.slice(0, query.queryLimit)
+        : docs;
+    },
+
+    seed(pathValue, data) {
+      this._writeDirect(pathValue, data);
+      return this;
+    },
+
+    get(pathValue) {
+      return pmTestClone(this._raw(pathValue));
+    },
+
+    has(pathValue) {
+      return this._docs.has(pathValue);
+    },
+
+    directCollection(pathValue) {
+      const prefix = `${pathValue}/`;
+      return Array.from(this._docs.entries())
+        .filter(([itemPath]) => {
+          if (!itemPath.startsWith(prefix)) return false;
+          const relativePath = itemPath.slice(prefix.length);
+          return !!relativePath && !relativePath.includes('/');
+        })
+        .map(([itemPath, data]) => ({ path: itemPath, data: pmTestClone(data) }));
+    },
+
+    interleaveBeforeCommitOnce(callback) {
+      this._beforeCommit = callback;
+    },
+
+    failNextCommit(err) {
+      this._commitFailure = err;
+    },
+
+    holdNextTransactions(count) {
+      let release;
+      this._barrier = {
+        count,
+        waiting: 0,
+        promise: new Promise(resolve => { release = resolve; }),
+        release,
+      };
+    },
+
+    async _waitAtBarrier(attempt) {
+      const barrier = this._barrier;
+      if (!barrier || attempt !== 1) return;
+      barrier.waiting += 1;
+      if (barrier.waiting >= barrier.count) barrier.release();
+      await barrier.promise;
+      if (this._barrier === barrier) this._barrier = null;
+    },
+
+    async runTransaction(callback) {
+      const transactionId = ++this._transactionSequence;
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        const tx = new PmMemoryTransaction(this, attempt);
+        const result = await callback(tx);
+        this.attempts.push({ transactionId, attempt, operations: tx.operations.slice() });
+        if (this._beforeCommit) {
+          const beforeCommit = this._beforeCommit;
+          this._beforeCommit = null;
+          await beforeCommit(this);
+        }
+        await this._waitAtBarrier(attempt);
+        if (tx.hasConflict()) continue;
+        if (this._commitFailure) {
+          const commitFailure = this._commitFailure;
+          this._commitFailure = null;
+          throw commitFailure;
+        }
+        tx.apply();
+        this.commits.push({ transactionId, attempt, writeCount: tx.writes.length });
+        return result;
+      }
+      const retryError = new Error('transaction retry limit exceeded');
+      retryError.code = 'aborted';
+      throw retryError;
+    },
+  };
+  return db;
+}
+
+function pmTestThreadPath(uid) {
+  return `users/${uid}/pmThreads/${PM_TEST_CONVERSATION_ID}`;
+}
+
+function pmTestStatePath(uid) {
+  return `users/${uid}/pmMeta/state`;
+}
+
+function pmTestMessagePath(uid, messageId) {
+  return `${pmTestThreadPath(uid)}/messages/${messageId}`;
+}
+
+function pmTestAuditMessagePath(messageId) {
+  return `pmAuditConversations/${PM_TEST_CONVERSATION_ID}/messages/${messageId}`;
+}
+
+function pmTestMessageId(index) {
+  return `pmmsg_${String(index).padStart(4, '0')}`;
+}
+
+function pmSeedIncomingMessage(db, index) {
+  const messageId = pmTestMessageId(index);
+  const baseMessage = {
+    id: messageId,
+    messageId,
+    conversationId: PM_TEST_CONVERSATION_ID,
+    fromUid: PM_TEST_UID_B,
+    toUid: PM_TEST_UID_A,
+    body: `message ${index}`,
+    preview: `message ${index}`,
+    status: 'active',
+    peerRead: false,
+    createdAt: { millis: index },
+    updatedAt: { millis: index },
+  };
+  db.seed(pmTestMessagePath(PM_TEST_UID_A, messageId), {
+    ...baseMessage,
+    direction: 'in',
+    read: false,
+  });
+  db.seed(pmTestMessagePath(PM_TEST_UID_B, messageId), {
+    ...baseMessage,
+    direction: 'out',
+    read: true,
+  });
+  db.seed(pmTestAuditMessagePath(messageId), {
+    ...baseMessage,
+    readBy: { [PM_TEST_UID_B]: { millis: index } },
+    editHistory: [],
+  });
+  return messageId;
+}
+
+function pmSeedUnreadScenario(db, count, options = {}) {
+  const includeThread = options.includeThread !== false;
+  const includeMeta = options.includeMeta !== false;
+  const threadUnread = options.threadUnread == null ? count : options.threadUnread;
+  const metaUnread = options.metaUnread == null ? count : options.metaUnread;
+  let lastMessageId = '';
+  for (let index = 1; index <= count; index += 1) {
+    lastMessageId = pmSeedIncomingMessage(db, index);
+  }
+  if (includeThread) {
+    db.seed(pmTestThreadPath(PM_TEST_UID_A), {
+      conversationId: PM_TEST_CONVERSATION_ID,
+      peerUid: PM_TEST_UID_B,
+      lastMessageId,
+      unreadCount: threadUnread,
+    });
+  }
+  if (includeMeta) {
+    db.seed(pmTestStatePath(PM_TEST_UID_A), { unreadTotal: metaUnread, threadCount: 1 });
+  }
+  return db;
+}
+
+function pmApplyConcurrentIncomingSend(db, index) {
+  const messageId = pmSeedIncomingMessage(db, index);
+  const thread = db.get(pmTestThreadPath(PM_TEST_UID_A)) || {};
+  const state = db.get(pmTestStatePath(PM_TEST_UID_A)) || {};
+  db.seed(pmTestThreadPath(PM_TEST_UID_A), {
+    ...thread,
+    lastMessageId: messageId,
+    unreadCount: Number(thread.unreadCount || 0) + 1,
+  });
+  db.seed(pmTestStatePath(PM_TEST_UID_A), {
+    ...state,
+    unreadTotal: Number(state.unreadTotal || 0) + 1,
+  });
+}
+
+function pmSeedEditableScenario(db, options = {}) {
+  const messageId = options.messageId || 'pmmsg_edit_target';
+  const ownLastMessageId = options.ownLastMessageId || messageId;
+  const peerLastMessageId = options.peerLastMessageId || messageId;
+  const baseMessage = {
+    id: messageId,
+    messageId,
+    conversationId: PM_TEST_CONVERSATION_ID,
+    fromUid: PM_TEST_UID_A,
+    toUid: PM_TEST_UID_B,
+    body: 'original body',
+    preview: 'original body',
+    status: 'active',
+    peerRead: false,
+    editVersion: 0,
+  };
+  db.seed(pmTestMessagePath(PM_TEST_UID_A, messageId), {
+    ...baseMessage,
+    direction: 'out',
+    read: true,
+  });
+  db.seed(pmTestMessagePath(PM_TEST_UID_B, messageId), {
+    ...baseMessage,
+    direction: 'in',
+    read: options.peerRead === true,
+  });
+  db.seed(pmTestAuditMessagePath(messageId), {
+    ...baseMessage,
+    readBy: { [PM_TEST_UID_A]: { millis: 1 } },
+    editHistory: [],
+  });
+  db.seed(`pmAuditConversations/${PM_TEST_CONVERSATION_ID}`, {
+    conversationId: PM_TEST_CONVERSATION_ID,
+    lastMessageId: peerLastMessageId,
+  });
+  if (options.includeOwnThread !== false) {
+    db.seed(pmTestThreadPath(PM_TEST_UID_A), {
+      lastMessageId: ownLastMessageId,
+      lastMessageBody: options.ownPreview || 'own latest preview',
+      lastMessageStatus: 'active',
+    });
+  }
+  if (options.includePeerThread !== false) {
+    db.seed(pmTestThreadPath(PM_TEST_UID_B), {
+      lastMessageId: peerLastMessageId,
+      lastMessageBody: options.peerPreview || 'peer latest preview',
+      lastMessageStatus: 'active',
+    });
+  }
+  return messageId;
+}
+
+function expectPmReadsBeforeWrites(db) {
+  db.attempts.forEach(attempt => {
+    const firstWrite = attempt.operations.findIndex(operation => operation.type === 'write');
+    if (firstWrite < 0) return;
+    const lastRead = attempt.operations.reduce(
+      (index, operation, currentIndex) => operation.type.startsWith('read-') ? currentIndex : index,
+      -1
+    );
+    expect(lastRead).toBeLessThan(firstWrite);
+  });
 }
 
 describe('education course enrollment callable source contracts', () => {
@@ -1908,11 +2418,26 @@ describe('private message callable source contracts', () => {
     expect(source).toContain('if (!request.auth?.uid)');
     expect(source).toContain('pmAssertConversationParticipant(request.data?.conversationId, uid)');
     expect(source).toContain('pmOtherParticipant(parsed, uid)');
+    expect(source).toContain('const markReadInTransaction = async (tx) => {');
+    expect(source).toContain('return pmRunPrivateMessageTransaction(');
+    expect(source).toContain('"markPrivateConversationRead"');
+    expect(source).toContain('const threadDoc = await tx.get(threadRef)');
+    expect(source).toContain('const stateDoc = await tx.get(stateRef)');
     expect(source).toContain('.where("direction", "==", "in")');
     expect(source).toContain('.where("read", "==", false)');
+    expect(source).toContain('.limit(PM_MESSAGE_LIMIT + 1)');
     expect(source).toContain('{ peerRead: true, peerReadAt: nowTs, updatedAt: nowTs }');
     expect(source).toContain('{ [`readBy.${uid}`]: nowTs, updatedAt: nowTs }');
-    expect(source).toContain('unreadTotal: FieldValue.increment(-unreadSnap.size)');
+    expect(source).toContain('unreadCount: remainingUnread');
+    expect(source).toContain('unreadTotal: Math.max(0, currentMetaUnread - readCount)');
+    expect(source).toContain('return { ok: true, readCount, hasMore, remainingUnread }');
+    expect(source).not.toContain('FieldValue.increment(-unreadSnap.size)');
+    const runnerSource = readSourceBetween(
+      'async function pmRunPrivateMessageTransaction',
+      'function pmMessageSortMs'
+    );
+    expect(runnerSource).toContain('return await db.runTransaction(callback)');
+    expect(runnerSource).toContain('pmThrowSanitizedCallableError(functionName, conversationId, err)');
   });
 
   test('edit and recall share sender-only guard, read guard, and audit trail', () => {
@@ -1925,6 +2450,11 @@ describe('private message callable source contracts', () => {
     expect(helperSource).toContain('if (oldData.status === "recalled")');
     expect(helperSource).toContain('if (peerHasRead)');
     expect(helperSource).toContain('editHistory');
+    expect(helperSource).toContain('const ownThreadSnap = await tx.get(ownThreadRef)');
+    expect(helperSource).toContain('const peerThreadSnap = await tx.get(peerThreadRef)');
+    expect(helperSource).toContain('ownThreadSnap.data()?.lastMessageId === messageId');
+    expect(helperSource).toContain('peerThreadSnap.data()?.lastMessageId === messageId');
+    expect(helperSource).toContain('return pmRunPrivateMessageTransaction(');
     expect(helperSource).toContain('action: mode');
     expect(readCloudFunctionSource('editPrivateMessage')).toContain('pmUpdateOwnMessage(request, "edit")');
     expect(readCloudFunctionSource('recallPrivateMessage')).toContain('pmUpdateOwnMessage(request, "recall")');
@@ -1936,6 +2466,388 @@ describe('private message callable source contracts', () => {
     expect(source).toContain('db.collection("siteConfig").doc(PM_SETTINGS_DOC_ID).set');
     expect(source).toContain('allowUserToUserPm');
     expect(source).toContain('pmWriteAuditLog("settings_update"');
+  });
+});
+
+describe('private message callable transaction behavior', () => {
+  const markReadRequest = () => ({
+    auth: { uid: PM_TEST_UID_A },
+    data: { conversationId: PM_TEST_CONVERSATION_ID },
+  });
+
+  test.each([
+    { count: 0, readCount: 0, hasMore: false, remainingUnread: 0, writes: 0 },
+    { count: 1, readCount: 1, hasMore: false, remainingUnread: 0, writes: 6 },
+    { count: 49, readCount: 49, hasMore: false, remainingUnread: 0, writes: 150 },
+    { count: 50, readCount: 50, hasMore: false, remainingUnread: 0, writes: 153 },
+    { count: 51, readCount: 50, hasMore: true, remainingUnread: 1, writes: 153 },
+    { count: 120, readCount: 50, hasMore: true, remainingUnread: 70, writes: 153 },
+  ])(
+    'marks the first 50 of $count unread messages atomically',
+    async ({ count, readCount, hasMore, remainingUnread, writes }) => {
+      const db = pmSeedUnreadScenario(createPmMemoryFirestore(), count);
+      const callable = loadPrivateMessageCallables(db).markPrivateConversationRead;
+
+      expect(callable.options).toMatchObject({
+        region: 'asia-east1',
+        timeoutSeconds: 20,
+        memory: '256MiB',
+      });
+      const result = await callable.handler(markReadRequest());
+
+      expect({ ...result }).toEqual({ ok: true, readCount, hasMore, remainingUnread });
+      expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).unreadCount).toBe(remainingUnread);
+      expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(remainingUnread);
+      expect(db.commits[db.commits.length - 1].writeCount).toBe(writes);
+      expect(Math.max(...db.commits.map(commit => commit.writeCount))).toBeLessThanOrEqual(153);
+      const queryRead = db.attempts[0].operations.find(operation => operation.type === 'read-query');
+      expect(queryRead).toMatchObject({ limit: 51, size: Math.min(count, 51) });
+      expectPmReadsBeforeWrites(db);
+
+      if (readCount > 0) {
+        for (let index = 1; index <= readCount; index += 1) {
+          const messageId = pmTestMessageId(index);
+          expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).read).toBe(true);
+          expect(db.get(pmTestMessagePath(PM_TEST_UID_B, messageId)).peerRead).toBe(true);
+          expect(db.get(pmTestAuditMessagePath(messageId)).readBy[PM_TEST_UID_A]).toBeTruthy();
+        }
+        expect(db.directCollection('pmAuditLogs')).toHaveLength(1);
+      } else {
+        expect(db.directCollection('pmAuditLogs')).toHaveLength(0);
+      }
+
+      if (count > readCount) {
+        expect(db.get(pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(readCount + 1))).read).toBe(false);
+      }
+    }
+  );
+
+  test('drains 120 unread messages in 50/50/20 transactions without exceeding 153 writes', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 120);
+    const handler = loadPrivateMessageCallables(db).markPrivateConversationRead.handler;
+
+    const results = [];
+    results.push(await handler(markReadRequest()));
+    results.push(await handler(markReadRequest()));
+    results.push(await handler(markReadRequest()));
+
+    expect(results.map(result => ({
+      readCount: result.readCount,
+      hasMore: result.hasMore,
+      remainingUnread: result.remainingUnread,
+    }))).toEqual([
+      { readCount: 50, hasMore: true, remainingUnread: 70 },
+      { readCount: 50, hasMore: true, remainingUnread: 20 },
+      { readCount: 20, hasMore: false, remainingUnread: 0 },
+    ]);
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).unreadCount).toBe(0);
+    expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(0);
+    expect(Math.max(...db.commits.map(commit => commit.writeCount))).toBe(153);
+    expect(db.directCollection('pmAuditLogs')).toHaveLength(3);
+  });
+
+  test('missing own thread performs all reads but does not mutate orphan messages or meta', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 3, { includeThread: false });
+    const handler = loadPrivateMessageCallables(db).markPrivateConversationRead.handler;
+
+    const result = await handler(markReadRequest());
+
+    expect({ ...result }).toEqual({ ok: true, readCount: 0, hasMore: false, remainingUnread: 0 });
+    expect(db.commits[0].writeCount).toBe(0);
+    expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(3);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(1))).read).toBe(false);
+    expect(db.attempts[0].operations.map(operation => operation.type)).toEqual([
+      'read-doc',
+      'read-doc',
+      'read-query',
+    ]);
+  });
+
+  test('skips a malformed participant copy and never trusts its messageId for mirror paths', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 2);
+    const malformedPath = pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(1));
+    db.seed(malformedPath, {
+      ...db.get(malformedPath),
+      messageId: '../unsafe',
+      toUid: PM_TEST_UID_B,
+    });
+    const handler = loadPrivateMessageCallables(db).markPrivateConversationRead.handler;
+
+    const result = await handler(markReadRequest());
+
+    expect(result.readCount).toBe(1);
+    expect(result.remainingUnread).toBe(1);
+    expect(db.get(malformedPath).read).toBe(false);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, pmTestMessageId(1))).peerRead).toBe(false);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(2))).read).toBe(true);
+  });
+
+  test('retries against a concurrent incoming send and preserves the newly incremented counters', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 1);
+    db.interleaveBeforeCommitOnce(memoryDb => pmApplyConcurrentIncomingSend(memoryDb, 2));
+    const handler = loadPrivateMessageCallables(db).markPrivateConversationRead.handler;
+
+    const result = await handler(markReadRequest());
+
+    expect({ ...result }).toEqual({ ok: true, readCount: 2, hasMore: false, remainingUnread: 0 });
+    expect(db.attempts).toHaveLength(2);
+    expect(db.commits).toHaveLength(1);
+    expect(db.commits[0].attempt).toBe(2);
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).unreadCount).toBe(0);
+    expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(0);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(2))).read).toBe(true);
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('serializes concurrent double-mark transactions without double-decrementing counters', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 3);
+    db.holdNextTransactions(2);
+    const handler = loadPrivateMessageCallables(db).markPrivateConversationRead.handler;
+
+    const results = await Promise.all([
+      handler(markReadRequest()),
+      handler(markReadRequest()),
+    ]);
+
+    expect(results.map(result => result.readCount).sort((left, right) => left - right)).toEqual([0, 3]);
+    expect(db.attempts).toHaveLength(3);
+    expect(db.commits).toHaveLength(2);
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).unreadCount).toBe(0);
+    expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(0);
+    expect(db.directCollection('pmAuditLogs')).toHaveLength(1);
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('commit failure leaves every mirror unchanged and emits only de-identified structured context', async () => {
+    const db = pmSeedUnreadScenario(createPmMemoryFirestore(), 1);
+    const failure = new Error(`backend failure ${PM_TEST_UID_A} secret body`);
+    failure.code = 'internal';
+    db.failNextCommit(failure);
+    const consoleImpl = { error: jest.fn(), warn: jest.fn(), log: jest.fn() };
+    const handler = loadPrivateMessageCallables(db, consoleImpl).markPrivateConversationRead.handler;
+
+    await expect(handler(markReadRequest())).rejects.toMatchObject({ code: 'unavailable' });
+
+    expect(db.commits).toHaveLength(0);
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).unreadCount).toBe(1);
+    expect(db.get(pmTestStatePath(PM_TEST_UID_A)).unreadTotal).toBe(1);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, pmTestMessageId(1))).read).toBe(false);
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, pmTestMessageId(1))).peerRead).toBe(false);
+    expect(db.get(pmTestAuditMessagePath(pmTestMessageId(1))).readBy[PM_TEST_UID_A]).toBeUndefined();
+    expect(db.directCollection('pmAuditLogs')).toHaveLength(0);
+    expect(consoleImpl.error).toHaveBeenCalledTimes(1);
+    const logged = consoleImpl.error.mock.calls[0][0];
+    expect(logged).toMatchObject({
+      event: 'private_message_callable_error',
+      functionName: 'markPrivateConversationRead',
+      errorCode: 'internal',
+    });
+    expect(logged.conversationKey).toMatch(/^[a-f0-9]{16}$/);
+    expect(JSON.stringify(logged)).not.toContain(PM_TEST_UID_A);
+    expect(JSON.stringify(logged)).not.toContain(PM_TEST_CONVERSATION_ID);
+    expect(JSON.stringify(logged)).not.toContain('secret body');
+  });
+});
+
+describe('private message edit and recall transaction behavior', () => {
+  function updateRequest(messageId, body = 'updated body') {
+    return {
+      auth: { uid: PM_TEST_UID_A },
+      data: {
+        conversationId: PM_TEST_CONVERSATION_ID,
+        messageId,
+        body,
+      },
+    };
+  }
+
+  test('edits all message mirrors and both previews when the target is latest on each side', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db);
+    const callable = loadPrivateMessageCallables(db).editPrivateMessage;
+
+    expect(callable.options).toMatchObject({
+      region: 'asia-east1',
+      timeoutSeconds: 20,
+      memory: '256MiB',
+    });
+    const result = await callable.handler(updateRequest(messageId));
+
+    expect(result.status).toBe('edited');
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId))).toMatchObject({
+      body: 'updated body',
+      preview: 'updated body',
+      status: 'edited',
+      editVersion: 1,
+    });
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, messageId)).body).toBe('updated body');
+    expect(db.get(pmTestAuditMessagePath(messageId)).editHistory).toHaveLength(1);
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A))).toMatchObject({
+      lastMessageBody: 'updated body',
+      lastMessageStatus: 'edited',
+    });
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_B))).toMatchObject({
+      lastMessageBody: 'updated body',
+      lastMessageStatus: 'edited',
+    });
+    expect(db.commits[0].writeCount).toBe(7);
+    expect(db.attempts[0].operations.slice(0, 5).map(operation => operation.type)).toEqual([
+      'read-doc',
+      'read-doc',
+      'read-doc',
+      'read-doc',
+      'read-doc',
+    ]);
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('editing an older message leaves both newer thread previews unchanged', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db, {
+      ownLastMessageId: 'pmmsg_newer_own',
+      peerLastMessageId: 'pmmsg_newer_peer',
+      ownPreview: 'newer own preview',
+      peerPreview: 'newer peer preview',
+    });
+    const handler = loadPrivateMessageCallables(db).editPrivateMessage.handler;
+
+    await handler(updateRequest(messageId));
+
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).body).toBe('updated body');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).lastMessageBody).toBe('newer own preview');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_B)).lastMessageBody).toBe('newer peer preview');
+    expect(db.commits[0].writeCount).toBe(5);
+  });
+
+  test('preview updates are independent when thread state has drifted or one side is missing', async () => {
+    const driftDb = createPmMemoryFirestore();
+    const driftMessageId = pmSeedEditableScenario(driftDb, {
+      peerLastMessageId: 'pmmsg_newer_peer',
+      peerPreview: 'peer still newer',
+    });
+    const driftHandler = loadPrivateMessageCallables(driftDb).editPrivateMessage.handler;
+
+    await driftHandler(updateRequest(driftMessageId, 'drift edit'));
+
+    expect(driftDb.get(pmTestThreadPath(PM_TEST_UID_A)).lastMessageBody).toBe('drift edit');
+    expect(driftDb.get(pmTestThreadPath(PM_TEST_UID_B)).lastMessageBody).toBe('peer still newer');
+    expect(driftDb.commits[0].writeCount).toBe(6);
+
+    const missingDb = createPmMemoryFirestore();
+    const missingMessageId = pmSeedEditableScenario(missingDb, { includeOwnThread: false });
+    const missingHandler = loadPrivateMessageCallables(missingDb).editPrivateMessage.handler;
+
+    await missingHandler(updateRequest(missingMessageId, 'missing edit'));
+
+    expect(missingDb.has(pmTestThreadPath(PM_TEST_UID_A))).toBe(false);
+    expect(missingDb.get(pmTestThreadPath(PM_TEST_UID_B)).lastMessageBody).toBe('missing edit');
+  });
+
+  test('recall uses the same latest-only transaction and updates message/audit status', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db);
+    const handler = loadPrivateMessageCallables(db).recallPrivateMessage.handler;
+
+    const result = await handler(updateRequest(messageId, 'ignored'));
+
+    expect(result.status).toBe('recalled');
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId))).toMatchObject({
+      body: '',
+      status: 'recalled',
+      recalledByUid: PM_TEST_UID_A,
+    });
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, messageId)).status).toBe('recalled');
+    expect(db.get(pmTestAuditMessagePath(messageId)).editHistory[0].action).toBe('recall');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).lastMessageStatus).toBe('recalled');
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('recalling an older message keeps both newer previews while updating every message mirror', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db, {
+      ownLastMessageId: 'pmmsg_newer_own',
+      peerLastMessageId: 'pmmsg_newer_peer',
+      ownPreview: 'newer own preview',
+      peerPreview: 'newer peer preview',
+    });
+    const handler = loadPrivateMessageCallables(db).recallPrivateMessage.handler;
+
+    await handler(updateRequest(messageId));
+
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).status).toBe('recalled');
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, messageId)).status).toBe('recalled');
+    expect(db.get(pmTestAuditMessagePath(messageId)).editHistory[0].action).toBe('recall');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A))).toMatchObject({
+      lastMessageBody: 'newer own preview',
+      lastMessageStatus: 'active',
+    });
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_B))).toMatchObject({
+      lastMessageBody: 'newer peer preview',
+      lastMessageStatus: 'active',
+    });
+    expect(db.commits[0].writeCount).toBe(5);
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('recall updates only the matching thread preview when lastMessageId has drifted', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db, {
+      peerLastMessageId: 'pmmsg_newer_peer',
+      peerPreview: 'peer newer preview',
+    });
+    const handler = loadPrivateMessageCallables(db).recallPrivateMessage.handler;
+
+    await handler(updateRequest(messageId));
+
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).status).toBe('recalled');
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_B, messageId)).status).toBe('recalled');
+    expect(db.get(pmTestAuditMessagePath(messageId)).editHistory[0].action).toBe('recall');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).lastMessageStatus).toBe('recalled');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_B))).toMatchObject({
+      lastMessageBody: 'peer newer preview',
+      lastMessageStatus: 'active',
+    });
+    expect(db.commits[0].writeCount).toBe(6);
+    expectPmReadsBeforeWrites(db);
+  });
+
+  test('preserves domain HttpsError objects without logging or mutating when the peer already read', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db, { peerRead: true });
+    const consoleImpl = { error: jest.fn(), warn: jest.fn(), log: jest.fn() };
+    const handler = loadPrivateMessageCallables(db, consoleImpl).editPrivateMessage.handler;
+
+    await expect(handler(updateRequest(messageId))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: 'message already read',
+    });
+
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).body).toBe('original body');
+    expect(db.commits).toHaveLength(0);
+    expect(consoleImpl.error).not.toHaveBeenCalled();
+  });
+
+  test('edit commit failure is atomic and logs only the hashed conversation context', async () => {
+    const db = createPmMemoryFirestore();
+    const messageId = pmSeedEditableScenario(db);
+    const failure = new Error(`edit failure ${PM_TEST_CONVERSATION_ID}`);
+    failure.code = 'deadline-exceeded';
+    db.failNextCommit(failure);
+    const consoleImpl = { error: jest.fn(), warn: jest.fn(), log: jest.fn() };
+    const handler = loadPrivateMessageCallables(db, consoleImpl).editPrivateMessage.handler;
+
+    await expect(handler(updateRequest(messageId))).rejects.toMatchObject({ code: 'unavailable' });
+
+    expect(db.get(pmTestMessagePath(PM_TEST_UID_A, messageId)).body).toBe('original body');
+    expect(db.get(pmTestThreadPath(PM_TEST_UID_A)).lastMessageBody).toBe('own latest preview');
+    expect(db.commits).toHaveLength(0);
+    const logged = consoleImpl.error.mock.calls[0][0];
+    expect(logged).toMatchObject({
+      event: 'private_message_callable_error',
+      functionName: 'editPrivateMessage',
+      errorCode: 'deadline-exceeded',
+    });
+    expect(JSON.stringify(logged)).not.toContain(PM_TEST_CONVERSATION_ID);
   });
 });
 

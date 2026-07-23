@@ -16515,6 +16515,54 @@ function pmServerTimestampIso(date = new Date()) {
   return date.toISOString();
 }
 
+function pmNonNegativeUnreadCount(value) {
+  const count = Number(value);
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+}
+
+function pmIsCanonicalIncomingMessage(docSnap, data, uid, peerUid, conversationId) {
+  const messageId = typeof docSnap?.id === "string" ? docSnap.id : "";
+  return !!messageId
+    && messageId.length <= 80
+    && messageId !== "."
+    && messageId !== ".."
+    && !messageId.includes("/")
+    && data?.id === messageId
+    && data?.messageId === messageId
+    && data?.conversationId === conversationId
+    && data?.fromUid === peerUid
+    && data?.toUid === uid
+    && data?.direction === "in"
+    && data?.read === false;
+}
+
+function pmThrowSanitizedCallableError(functionName, conversationId, err) {
+  if (err instanceof HttpsError) throw err;
+  const rawErrorCode = String(err?.code || err?.name || "unknown")
+    .replace(/^functions\//i, "")
+    .toLowerCase();
+  const errorCode = /^[a-z0-9._-]{1,80}$/.test(rawErrorCode) ? rawErrorCode : "unknown";
+  const conversationKey = crypto.createHash("sha256")
+    .update(String(conversationId || ""))
+    .digest("hex")
+    .slice(0, 16);
+  console.error({
+    event: "private_message_callable_error",
+    functionName,
+    conversationKey,
+    errorCode,
+  });
+  throw new HttpsError("unavailable", "private message service temporarily unavailable");
+}
+
+async function pmRunPrivateMessageTransaction(functionName, conversationId, callback) {
+  try {
+    return await db.runTransaction(callback);
+  } catch (err) {
+    pmThrowSanitizedCallableError(functionName, conversationId, err);
+  }
+}
+
 function pmMessageSortMs(data) {
   const createdAt = data?.createdAt;
   if (createdAt?.toDate) return createdAt.toDate().getTime();
@@ -16755,48 +16803,74 @@ exports.markPrivateConversationRead = onCall(
     const now = new Date();
     const nowTs = Timestamp.fromDate(now);
     const threadRef = db.collection("users").doc(uid).collection("pmThreads").doc(cId);
-    const threadDoc = await threadRef.get();
-    if (!threadDoc.exists) return { ok: true, readCount: 0 };
-    const unreadSnap = await threadRef.collection("messages")
-      .where("direction", "==", "in")
-      .where("read", "==", false)
-      .limit(PM_MESSAGE_LIMIT)
-      .get();
-    if (unreadSnap.empty) {
-      await threadRef.set({ unreadCount: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      return { ok: true, readCount: 0 };
-    }
-    const batch = db.batch();
-    unreadSnap.docs.forEach((docSnap) => {
-      const data = docSnap.data() || {};
-      const messageId = data.messageId || docSnap.id;
-      batch.set(docSnap.ref, { read: true, readAt: nowTs, updatedAt: nowTs }, { merge: true });
-      batch.set(
-        db.collection("users").doc(peerUid).collection("pmThreads").doc(cId).collection("messages").doc(messageId),
-        { peerRead: true, peerReadAt: nowTs, updatedAt: nowTs },
-        { merge: true },
+    const stateRef = db.collection("users").doc(uid).collection("pmMeta").doc("state");
+    const markReadInTransaction = async (tx) => {
+      const threadDoc = await tx.get(threadRef);
+      const stateDoc = await tx.get(stateRef);
+      const unreadSnap = await tx.get(
+        threadRef.collection("messages")
+          .where("direction", "==", "in")
+          .where("read", "==", false)
+          .limit(PM_MESSAGE_LIMIT + 1),
       );
-      batch.set(
-        db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId),
-        { [`readBy.${uid}`]: nowTs, updatedAt: nowTs },
-        { merge: true },
-      );
-    });
-    batch.set(threadRef, { unreadCount: 0, updatedAt: nowTs }, { merge: true });
-    batch.set(db.collection("users").doc(uid).collection("pmMeta").doc("state"), { unreadTotal: FieldValue.increment(-unreadSnap.size), updatedAt: nowTs }, { merge: true });
-    batch.set(db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
-      action: "read",
-      actorUid: uid,
-      targetUid: peerUid,
-      conversationId: cId,
-      result: "success",
-      source: "cloud_function",
-      createdAt: nowTs,
-      createdAtIso: pmServerTimestampIso(now),
-      retentionDeleteAfter: pmRetentionTimestamp(now),
-    });
-    await batch.commit();
-    return { ok: true, readCount: unreadSnap.size };
+      if (!threadDoc.exists) {
+        return { ok: true, readCount: 0, hasMore: false, remainingUnread: 0 };
+      }
+
+      const candidateDocs = unreadSnap.docs.slice(0, PM_MESSAGE_LIMIT);
+      const unreadDocs = candidateDocs.filter((docSnap) => pmIsCanonicalIncomingMessage(
+        docSnap,
+        docSnap.data() || {},
+        uid,
+        peerUid,
+        cId,
+      ));
+      const readCount = unreadDocs.length;
+      const hasMore = unreadSnap.docs.length > PM_MESSAGE_LIMIT;
+      const currentThreadUnread = pmNonNegativeUnreadCount(threadDoc.data()?.unreadCount);
+      const currentMetaUnread = pmNonNegativeUnreadCount(stateDoc.data()?.unreadTotal);
+      const remainingUnread = Math.max(0, currentThreadUnread - readCount);
+      if (readCount === 0) {
+        return { ok: true, readCount, hasMore, remainingUnread };
+      }
+
+      unreadDocs.forEach((docSnap) => {
+        const messageId = docSnap.id;
+        tx.set(docSnap.ref, { read: true, readAt: nowTs, updatedAt: nowTs }, { merge: true });
+        tx.set(
+          db.collection("users").doc(peerUid).collection("pmThreads").doc(cId).collection("messages").doc(messageId),
+          { peerRead: true, peerReadAt: nowTs, updatedAt: nowTs },
+          { merge: true },
+        );
+        tx.set(
+          db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId),
+          { [`readBy.${uid}`]: nowTs, updatedAt: nowTs },
+          { merge: true },
+        );
+      });
+      tx.set(threadRef, { unreadCount: remainingUnread, updatedAt: nowTs }, { merge: true });
+      tx.set(stateRef, {
+        unreadTotal: Math.max(0, currentMetaUnread - readCount),
+        updatedAt: nowTs,
+      }, { merge: true });
+      tx.set(db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
+        action: "read",
+        actorUid: uid,
+        targetUid: peerUid,
+        conversationId: cId,
+        result: "success",
+        source: "cloud_function",
+        createdAt: nowTs,
+        createdAtIso: pmServerTimestampIso(now),
+        retentionDeleteAfter: pmRetentionTimestamp(now),
+      });
+      return { ok: true, readCount, hasMore, remainingUnread };
+    };
+    return pmRunPrivateMessageTransaction(
+      "markPrivateConversationRead",
+      cId,
+      markReadInTransaction,
+    );
   },
 );
 
@@ -16814,13 +16888,17 @@ async function pmUpdateOwnMessage(request, mode) {
   }
   const now = new Date();
   const nowTs = Timestamp.fromDate(now);
-  return db.runTransaction(async (tx) => {
-    const ownMsgRef = db.collection("users").doc(uid).collection("pmThreads").doc(cId).collection("messages").doc(messageId);
-    const peerMsgRef = db.collection("users").doc(peerUid).collection("pmThreads").doc(cId).collection("messages").doc(messageId);
-    const auditMsgRef = db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId);
+  const ownThreadRef = db.collection("users").doc(uid).collection("pmThreads").doc(cId);
+  const peerThreadRef = db.collection("users").doc(peerUid).collection("pmThreads").doc(cId);
+  const ownMsgRef = ownThreadRef.collection("messages").doc(messageId);
+  const peerMsgRef = peerThreadRef.collection("messages").doc(messageId);
+  const auditMsgRef = db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId);
+  const updateInTransaction = async (tx) => {
     const ownMsgSnap = await tx.get(ownMsgRef);
     const peerMsgSnap = await tx.get(peerMsgRef);
     const auditMsgSnap = await tx.get(auditMsgRef);
+    const ownThreadSnap = await tx.get(ownThreadRef);
+    const peerThreadSnap = await tx.get(peerThreadRef);
     if (!ownMsgSnap.exists || !peerMsgSnap.exists) throw new HttpsError("not-found", "message not found");
     const oldData = ownMsgSnap.data() || {};
     const peerData = peerMsgSnap.data() || {};
@@ -16872,8 +16950,12 @@ async function pmUpdateOwnMessage(request, mode) {
       lastMessageStatus: commonUpdate.status,
       updatedAt: nowTs,
     };
-    tx.set(db.collection("users").doc(uid).collection("pmThreads").doc(cId), threadUpdate, { merge: true });
-    tx.set(db.collection("users").doc(peerUid).collection("pmThreads").doc(cId), threadUpdate, { merge: true });
+    if (ownThreadSnap.exists && ownThreadSnap.data()?.lastMessageId === messageId) {
+      tx.set(ownThreadRef, threadUpdate, { merge: true });
+    }
+    if (peerThreadSnap.exists && peerThreadSnap.data()?.lastMessageId === messageId) {
+      tx.set(peerThreadRef, threadUpdate, { merge: true });
+    }
     tx.set(db.collection("pmAuditConversations").doc(cId), { updatedAt: nowTs }, { merge: true });
     tx.set(db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
       action: mode,
@@ -16888,7 +16970,12 @@ async function pmUpdateOwnMessage(request, mode) {
       retentionDeleteAfter: pmRetentionTimestamp(now),
     });
     return { ok: true, conversationId: cId, messageId, status: commonUpdate.status };
-  });
+  };
+  return pmRunPrivateMessageTransaction(
+    mode === "edit" ? "editPrivateMessage" : "recallPrivateMessage",
+    cId,
+    updateInTransaction,
+  );
 }
 
 exports.editPrivateMessage = onCall(

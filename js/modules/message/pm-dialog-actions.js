@@ -3,9 +3,25 @@
    ================================================ */
 
 Object.assign(App, {
+  _isPmDialogConversationVisible(conversationId) {
+    const cId = String(conversationId || '').trim();
+    const overlay = document.getElementById('pm-dialog-overlay');
+    return !!(
+      cId
+      && this._currentPmDialog?.conversationId === cId
+      && overlay
+      && overlay.style.display !== 'none'
+    );
+  },
+
   async sendPmMessage() {
     const state = this._currentPmDialog;
     if (!state?.targetUid || !state?.conversationId) return;
+    const conversationId = state.conversationId;
+    const targetUid = state.targetUid;
+    const requestSeq = state.requestSeq;
+    const isCurrent = () => this._isPmDialogRequestCurrent?.(conversationId, requestSeq) === true;
+    const isConversationVisible = () => this._isPmDialogConversationVisible?.(conversationId) === true;
     const overlay = document.getElementById('pm-dialog-overlay');
     const input = overlay?.querySelector('.pm-dialog-input');
     const maxLength = Number(this.PM_MAX_BODY_LENGTH || 300);
@@ -23,37 +39,44 @@ Object.assign(App, {
       input.value = '';
       this._resizePmDialogInput?.(input);
     }
-    const localId = this._addPmOptimisticMessage?.(state.conversationId, state.targetUid, body) || '';
-    this._renderPmDialogMessages(
-      this._getPmDialogRenderMessages?.(state.conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
-    );
+    const localId = this._addPmOptimisticMessage?.(conversationId, targetUid, body) || '';
+    if (isCurrent()) {
+      this._renderPmDialogMessages(
+        this._getPmDialogRenderMessages?.(conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
+      );
+    }
 
     try {
       const fn = this._pmCallable?.('sendPrivateMessage');
       if (!fn) throw new Error('sendPrivateMessage missing');
-      const result = await fn({ toUid: state.targetUid, body });
+      const result = await fn({ toUid: targetUid, body });
       const serverMessageId = result?.data?.messageId || result?.messageId || '';
       if (localId) {
-        this._markPmOptimisticMessage?.(state.conversationId, localId, {
+        this._markPmOptimisticMessage?.(conversationId, localId, {
           status: 'sent',
           _optimisticAck: true,
           _serverMessageId: serverMessageId,
         });
+      }
+      if (localId && isConversationVisible()) {
         this._renderPmDialogMessages(
-          this._getPmDialogRenderMessages?.(state.conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
+          this._getPmDialogRenderMessages?.(conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
         );
       }
     } catch (err) {
       console.warn('[sendPmMessage]', err);
       if (localId) {
-        this._markPmOptimisticMessage?.(state.conversationId, localId, {
+        this._markPmOptimisticMessage?.(conversationId, localId, {
           status: 'failed',
           _optimisticFailed: true,
         });
+      }
+      if (localId && isConversationVisible()) {
         this._renderPmDialogMessages(
-          this._getPmDialogRenderMessages?.(state.conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
+          this._getPmDialogRenderMessages?.(conversationId, this._pmDialogMessages || []) || this._pmDialogMessages || [],
         );
       }
+      if (!isCurrent()) return;
       if (input && !input.value) {
         input.value = body;
         this._resizePmDialogInput?.(input);
@@ -128,6 +151,10 @@ Object.assign(App, {
   async editPmMessage(messageId) {
     const state = this._currentPmDialog;
     if (!state?.conversationId || !messageId) return;
+    const conversationId = state.conversationId;
+    const requestSeq = state.requestSeq;
+    const isCurrent = () => this._isPmDialogRequestCurrent?.(conversationId, requestSeq) === true;
+    const isConversationVisible = () => this._isPmDialogConversationVisible?.(conversationId) === true;
     const current = this._getPmDialogMessage?.(messageId);
     if (!current || current._optimistic) {
       this.showToast?.('\u8a0a\u606f\u9001\u51fa\u5b8c\u6210\u5f8c\u624d\u80fd\u7de8\u8f2f');
@@ -145,7 +172,7 @@ Object.assign(App, {
       this.showToast?.(`\u8a0a\u606f\u6700\u591a ${maxLength} \u5b57`);
       return;
     }
-    this._setPmPendingMessageUpdate?.(state.conversationId, messageId, {
+    this._setPmPendingMessageUpdate?.(conversationId, messageId, {
       body,
       preview: body,
       status: 'edited',
@@ -153,15 +180,16 @@ Object.assign(App, {
       _expectedBody: body,
       _expectedStatus: 'edited',
     });
-    this._renderCurrentPmDialogMessages?.();
+    if (isCurrent()) this._renderCurrentPmDialogMessages?.();
     try {
       const fn = this._pmCallable?.('editPrivateMessage');
       if (!fn) throw new Error('editPrivateMessage missing');
-      await fn({ conversationId: state.conversationId, messageId, body });
+      await fn({ conversationId, messageId, body });
     } catch (err) {
       console.warn('[editPmMessage]', err);
-      this._clearPmPendingMessageUpdate?.(state.conversationId, messageId);
-      this._renderCurrentPmDialogMessages?.();
+      this._clearPmPendingMessageUpdate?.(conversationId, messageId);
+      if (isConversationVisible()) this._renderCurrentPmDialogMessages?.();
+      if (!isCurrent()) return;
       const code = String(err?.code || '');
       const message = String(err?.message || '');
       if (code.includes('failed-precondition') && message.includes('already read')) this._showPmMessageAlreadyRead?.();
@@ -173,6 +201,10 @@ Object.assign(App, {
   async recallPmMessage(messageId) {
     const state = this._currentPmDialog;
     if (!state?.conversationId || !messageId) return;
+    const conversationId = state.conversationId;
+    const requestSeq = state.requestSeq;
+    const isCurrent = () => this._isPmDialogRequestCurrent?.(conversationId, requestSeq) === true;
+    const isConversationVisible = () => this._isPmDialogConversationVisible?.(conversationId) === true;
     const current = this._getPmDialogMessage?.(messageId);
     if (!current || current._optimistic) {
       this.showToast?.('\u8a0a\u606f\u9001\u51fa\u5b8c\u6210\u5f8c\u624d\u80fd\u64a4\u56de');
@@ -183,22 +215,23 @@ Object.assign(App, {
       return;
     }
     if (!confirm('\u78ba\u5b9a\u8981\u64a4\u56de\u9019\u5247\u8a0a\u606f\u55ce\uff1f')) return;
-    this._setPmPendingMessageUpdate?.(state.conversationId, messageId, {
+    this._setPmPendingMessageUpdate?.(conversationId, messageId, {
       body: '',
       preview: '\u8a0a\u606f\u5df2\u64a4\u56de',
       status: 'recalled',
       _pmPendingAction: 'recalling',
       _expectedStatus: 'recalled',
     });
-    this._renderCurrentPmDialogMessages?.();
+    if (isCurrent()) this._renderCurrentPmDialogMessages?.();
     try {
       const fn = this._pmCallable?.('recallPrivateMessage');
       if (!fn) throw new Error('recallPrivateMessage missing');
-      await fn({ conversationId: state.conversationId, messageId });
+      await fn({ conversationId, messageId });
     } catch (err) {
       console.warn('[recallPmMessage]', err);
-      this._clearPmPendingMessageUpdate?.(state.conversationId, messageId);
-      this._renderCurrentPmDialogMessages?.();
+      this._clearPmPendingMessageUpdate?.(conversationId, messageId);
+      if (isConversationVisible()) this._renderCurrentPmDialogMessages?.();
+      if (!isCurrent()) return;
       const code = String(err?.code || '');
       const message = String(err?.message || '');
       if (code.includes('failed-precondition') && message.includes('already read')) this._showPmMessageAlreadyRead?.();

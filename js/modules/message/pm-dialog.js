@@ -8,7 +8,8 @@ Object.assign(App, {
   _pmOptimisticMessages: {},
   _pmPendingMessageUpdates: {},
   _pmOptimisticSeq: 0,
-  _pmReadTimers: {},
+  _pmDialogRequestSeq: 0,
+  _pmReadJobs: {},
   _currentPmDialog: null,
   _pmDialogViewportCleanup: null,
   _pmDialogViewportFrame: 0,
@@ -23,6 +24,13 @@ Object.assign(App, {
       this.showToast?.('無法開啟私訊');
       return;
     }
+    const requestSeq = ++this._pmDialogRequestSeq;
+    const previousConversationId = this._currentPmDialog?.conversationId || '';
+    this._cancelPmQueuedRead?.(previousConversationId);
+    if (typeof this._pmDialogUnsub === 'function') {
+      try { this._pmDialogUnsub(); } catch (_) {}
+    }
+    this._pmDialogUnsub = null;
     const thread = ApiService.getPmThreadByConversationId?.(cId);
     const peer = ApiService.getUserByUid?.(targetUid) || {
       uid: targetUid,
@@ -30,7 +38,15 @@ Object.assign(App, {
       pictureUrl: thread?.peerAvatar || '',
     };
     const overlay = this._ensurePmDialog();
-    this._currentPmDialog = { targetUid, conversationId: cId, peerName: peer.name || targetUid };
+    this._pmDialogMessages = [];
+    const messageList = overlay.querySelector('.pm-dialog-messages');
+    if (messageList) messageList.innerHTML = '';
+    this._currentPmDialog = {
+      targetUid,
+      conversationId: cId,
+      peerName: peer.name || targetUid,
+      requestSeq,
+    };
     this._pmDialogSearchKeyword = '';
     this._pmDialogSearchExpanded = false;
     overlay.querySelector('.pm-dialog-peer-name').textContent = peer.name || targetUid;
@@ -56,9 +72,20 @@ Object.assign(App, {
     if (dialogInput) this._resizePmDialogInput?.(dialogInput);
     document.body.classList.add('pm-dialog-open');
     this._installPmDialogViewportGuard?.(overlay);
-    const initialMessages = await this._loadPmMessages(cId, 50);
-    this._renderPmDialogMessages(this._getPmDialogRenderMessages(cId, initialMessages));
-    this._startPmConversationListener(cId);
+    this._startPmConversationListener(cId, requestSeq);
+  },
+
+  _isPmDialogRequestCurrent(conversationId, requestSeq) {
+    const state = this._currentPmDialog;
+    const overlay = document.getElementById('pm-dialog-overlay');
+    return !!(
+      state
+      && state.conversationId === conversationId
+      && state.requestSeq === requestSeq
+      && this._pmDialogRequestSeq === requestSeq
+      && overlay
+      && overlay.style.display !== 'none'
+    );
   },
 
   _ensurePmDialog() {
@@ -258,62 +285,130 @@ Object.assign(App, {
     });
   },
 
-  async _loadPmMessages(conversationId, limit = 50) {
-    try {
-      const messages = await ApiService.getPmMessages?.(conversationId, limit);
-      this._pmDialogMessages = Array.isArray(messages) ? messages : [];
-      return this._pmDialogMessages;
-    } catch (err) {
-      console.warn('[_loadPmMessages]', err);
-      this.showToast?.('私訊載入失敗');
-      this._pmDialogMessages = [];
-      return [];
-    }
-  },
-
-  _startPmConversationListener(conversationId) {
+  _startPmConversationListener(conversationId, requestSeq) {
     if (typeof this._pmDialogUnsub === 'function') {
       try { this._pmDialogUnsub(); } catch (_) {}
     }
     const uid = this._pmCurrentUid?.() || '';
     if (!this.pmIsValidConversationId?.(conversationId, uid)) return;
+    let hasReceivedSnapshot = false;
     this._pmDialogUnsub = db.collection('users').doc(uid).collection('pmThreads')
       .doc(conversationId).collection('messages')
-      .orderBy('createdAt', 'asc')
+      .orderBy('createdAt', 'desc')
       .limit(50)
       .onSnapshot(snapshot => {
-        const rawMessages = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
-        const shouldMarkRead = rawMessages.some(m => m.direction === 'in' && m.read === false);
-        const messages = this._pmOptimisticReadThreads?.[conversationId]
-          ? rawMessages.map(message => (
-              message?.direction === 'in' && message.read === false
-                ? { ...message, read: true }
-                : message
-            ))
-          : rawMessages;
+        if (!this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) return;
+        hasReceivedSnapshot = true;
+        const messages = snapshot.docs
+          .map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }))
+          .reverse();
+        const shouldMarkRead = messages.some(m => m.direction === 'in' && m.read === false);
         this._pmDialogMessages = messages;
         this._renderPmDialogMessages(this._getPmDialogRenderMessages(conversationId, messages));
         if (shouldMarkRead) {
-          this._schedulePmMarkRead(conversationId);
+          this._schedulePmMarkRead(conversationId, requestSeq);
+        } else {
+          this._cancelPmQueuedRead(conversationId);
         }
       }, err => {
+        if (!this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) return;
         console.warn('[_startPmConversationListener]', err);
+        if (!hasReceivedSnapshot) this.showToast?.('私訊載入失敗');
       });
   },
 
-  _schedulePmMarkRead(conversationId) {
-    this._optimisticallyMarkPmConversationRead?.(conversationId);
-    clearTimeout(this._pmReadTimers[conversationId]);
-    this._pmReadTimers[conversationId] = setTimeout(async () => {
-      try {
-        const fn = this._pmCallable?.('markPrivateConversationRead');
-        if (fn) await fn({ conversationId });
-        setTimeout(() => this._clearPmOptimisticReadThread?.(conversationId), 3000);
-      } catch (err) {
-        this._clearPmOptimisticReadThread?.(conversationId, true);
-        console.warn('[_schedulePmMarkRead]', err);
+  _getPmReadJob(conversationId) {
+    const cId = String(conversationId || '').trim();
+    if (!cId) return null;
+    if (!this._pmReadJobs) this._pmReadJobs = {};
+    if (!this._pmReadJobs[cId]) {
+      this._pmReadJobs[cId] = {
+        timer: 0,
+        inFlight: false,
+        inFlightRequestSeq: 0,
+        pendingRequestSeq: 0,
+      };
+    }
+    return this._pmReadJobs[cId];
+  },
+
+  _cancelPmQueuedRead(conversationId) {
+    const cId = String(conversationId || '').trim();
+    const job = cId ? this._pmReadJobs?.[cId] : null;
+    if (!job) return;
+    if (job.timer) clearTimeout(job.timer);
+    job.timer = 0;
+    job.pendingRequestSeq = 0;
+    if (!job.inFlight) delete this._pmReadJobs[cId];
+  },
+
+  _queuePmMarkRead(conversationId, requestSeq, job) {
+    const readJob = job || this._getPmReadJob(conversationId);
+    if (!readJob) return;
+    if (readJob.timer) clearTimeout(readJob.timer);
+    readJob.pendingRequestSeq = requestSeq;
+    readJob.timer = setTimeout(() => {
+      readJob.timer = 0;
+      const queuedRequestSeq = readJob.pendingRequestSeq;
+      readJob.pendingRequestSeq = 0;
+      if (!this._isPmDialogRequestCurrent?.(conversationId, queuedRequestSeq)) {
+        if (!readJob.inFlight && this._pmReadJobs?.[conversationId] === readJob) {
+          delete this._pmReadJobs[conversationId];
+        }
+        return;
       }
+      this._runPmMarkRead(conversationId, queuedRequestSeq, readJob);
     }, this.PM_MARK_READ_DEBOUNCE_MS || 500);
+  },
+
+  _schedulePmMarkRead(conversationId, requestSeq) {
+    if (!this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) return;
+    const job = this._getPmReadJob(conversationId);
+    if (!job) return;
+    if (job.inFlight) {
+      job.pendingRequestSeq = requestSeq;
+      return;
+    }
+    this._queuePmMarkRead(conversationId, requestSeq, job);
+  },
+
+  async _runPmMarkRead(conversationId, requestSeq, job) {
+    if (!job || job.inFlight || !this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) return;
+    job.inFlight = true;
+    job.inFlightRequestSeq = requestSeq;
+    try {
+      const fn = this._pmCallable?.('markPrivateConversationRead');
+      if (!fn) throw new Error('markPrivateConversationRead missing');
+      while (this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) {
+        const result = await fn({ conversationId });
+        if (!this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) break;
+        const data = result?.data ?? result ?? {};
+        const parsedReadCount = Number(data.readCount || 0);
+        const readCount = Number.isFinite(parsedReadCount) ? Math.max(0, parsedReadCount) : 0;
+        const hasMore = data.hasMore === true;
+        if (!hasMore) break;
+        if (readCount <= 0) {
+          console.warn('[_runPmMarkRead] stopped because the server made no progress');
+          break;
+        }
+      }
+    } catch (err) {
+      if (this._isPmDialogRequestCurrent?.(conversationId, requestSeq)) {
+        console.warn('[_runPmMarkRead]', err);
+      }
+    } finally {
+      if (job.inFlightRequestSeq === requestSeq) {
+        job.inFlight = false;
+        job.inFlightRequestSeq = 0;
+      }
+      const pendingRequestSeq = job.pendingRequestSeq;
+      job.pendingRequestSeq = 0;
+      if (pendingRequestSeq && this._isPmDialogRequestCurrent?.(conversationId, pendingRequestSeq)) {
+        this._queuePmMarkRead(conversationId, pendingRequestSeq, job);
+      } else if (!job.timer && !job.inFlight && this._pmReadJobs?.[conversationId] === job) {
+        delete this._pmReadJobs[conversationId];
+      }
+    }
   },
 
   _getPmDialogRenderMessages(conversationId, messages = []) {
@@ -533,13 +628,21 @@ Object.assign(App, {
   },
 
   _closePmDialog() {
+    const closingConversationId = this._currentPmDialog?.conversationId || '';
+    ++this._pmDialogRequestSeq;
+    this._cancelPmQueuedRead?.(closingConversationId);
     if (typeof this._pmDialogUnsub === 'function') {
       try { this._pmDialogUnsub(); } catch (_) {}
     }
     this._pmDialogUnsub = null;
     this._currentPmDialog = null;
+    this._pmDialogMessages = [];
     const overlay = document.getElementById('pm-dialog-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (overlay) {
+      overlay.style.display = 'none';
+      const messageList = overlay.querySelector('.pm-dialog-messages');
+      if (messageList) messageList.innerHTML = '';
+    }
     if (typeof this._pmDialogViewportCleanup === 'function') {
       try { this._pmDialogViewportCleanup(); } catch (_) {}
     }

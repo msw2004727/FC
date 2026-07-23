@@ -67,6 +67,160 @@ function loadPmDialogHarness() {
   return { App, document: dom.window.document };
 }
 
+const PM_MY_UID = `U${'1'.repeat(32)}`;
+const PM_PEER_A_UID = `U${'2'.repeat(32)}`;
+const PM_PEER_B_UID = `U${'3'.repeat(32)}`;
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+async function flushPromises(rounds = 6) {
+  for (let i = 0; i < rounds; i += 1) await Promise.resolve();
+}
+
+function makePmMessage(index, overrides = {}) {
+  return {
+    id: `message-${index}`,
+    messageId: `message-${index}`,
+    fromUid: PM_MY_UID,
+    toUid: PM_PEER_A_UID,
+    direction: 'out',
+    read: true,
+    peerRead: false,
+    body: `message ${index}`,
+    status: 'active',
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    ...overrides,
+  };
+}
+
+function createPmQueryController() {
+  const listeners = [];
+
+  function makeNode(pathParts, query = {}) {
+    return {
+      collection(name) {
+        return makeNode(pathParts.concat(String(name)), query);
+      },
+      doc(id) {
+        return makeNode(pathParts.concat(String(id)), query);
+      },
+      orderBy(field, direction) {
+        return makeNode(pathParts, { ...query, orderBy: { field, direction } });
+      },
+      limit(value) {
+        return makeNode(pathParts, { ...query, limit: value });
+      },
+      onSnapshot(next, error) {
+        const record = {
+          path: pathParts.join('/'),
+          orderBy: query.orderBy,
+          limit: query.limit,
+          next,
+          error,
+          unsubscribed: false,
+          unsubscribe: jest.fn(() => { record.unsubscribed = true; }),
+          emitMessages(messages) {
+            const ordered = [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            if (record.orderBy?.direction === 'desc') ordered.reverse();
+            const limited = Number.isFinite(record.limit) ? ordered.slice(0, record.limit) : ordered;
+            record.next({
+              docs: limited.map(message => ({
+                id: message.id,
+                data: () => ({ ...message }),
+              })),
+            });
+          },
+          emitError(err) {
+            record.error(err);
+          },
+        };
+        listeners.push(record);
+        return record.unsubscribe;
+      },
+    };
+  }
+
+  return {
+    db: { collection: name => makeNode([String(name)]) },
+    listeners,
+  };
+}
+
+function loadPmDialogLifecycleHarness() {
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://toosterx.test/' });
+  const queryController = createPmQueryController();
+  const callables = {};
+  const consoleMock = {
+    log: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  };
+  const ApiService = {
+    getCurrentUser: jest.fn(() => ({ uid: PM_MY_UID, displayName: 'Current user' })),
+    getPmThreadByConversationId: jest.fn(() => null),
+    getUserByUid: jest.fn(uid => ({ uid, name: uid === PM_PEER_A_UID ? 'Peer A' : 'Peer B', pictureUrl: '' })),
+    getPmMessages: jest.fn(),
+  };
+  const App = {
+    _requireProtectedActionLogin: jest.fn(() => false),
+    _pmTimeMs: value => new Date(value).getTime() || 0,
+    showToast: jest.fn(),
+  };
+  const promptMock = jest.fn();
+  const confirmMock = jest.fn(() => true);
+  let animationFrameId = 0;
+  const requestAnimationFrameMock = jest.fn(callback => {
+    callback();
+    animationFrameId += 1;
+    return animationFrameId;
+  });
+  const cancelAnimationFrameMock = jest.fn();
+  dom.window.requestAnimationFrame = requestAnimationFrameMock;
+  dom.window.cancelAnimationFrame = cancelAnimationFrameMock;
+  dom.window.scrollTo = jest.fn();
+  const context = {
+    App,
+    ApiService,
+    auth: { currentUser: { uid: PM_MY_UID } },
+    db: queryController.db,
+    document: dom.window.document,
+    window: dom.window,
+    URL: dom.window.URL,
+    escapeHTML: value => String(value ?? ''),
+    ensureFirebaseFunctionsSdk: jest.fn(),
+    prompt: promptMock,
+    confirm: confirmMock,
+    console: consoleMock,
+    Date,
+    setTimeout,
+    clearTimeout,
+    requestAnimationFrame: requestAnimationFrameMock,
+    cancelAnimationFrame: cancelAnimationFrameMock,
+  };
+  vm.runInNewContext(readProjectFile('js/modules/message/pm-permission.js'), context);
+  vm.runInNewContext(readProjectFile('js/modules/message/pm-dialog.js'), context);
+  vm.runInNewContext(readProjectFile('js/modules/message/pm-dialog-actions.js'), context);
+  App._pmCallable = jest.fn(name => callables[name] || null);
+  return {
+    App,
+    ApiService,
+    callables,
+    consoleMock,
+    confirmMock,
+    document: dom.window.document,
+    promptMock,
+    queryController,
+  };
+}
+
 describe('private message feature wiring', () => {
   test('frontend registers PM modules, inbox tab, and profile entry point', () => {
     const index = readProjectFile('index.html');
@@ -212,7 +366,7 @@ describe('private message feature wiring', () => {
     expect(listener).toContain("bubble.classList.toggle('is-reminder'");
     expect(messageCss).toContain('.pm-incoming-bubble.is-reminder');
     expect(messageCss).toContain('.pm-incoming-close');
-    expect(readProjectFile('js/modules/message/pm-dialog.js')).toContain('this._optimisticallyMarkPmConversationRead?.(conversationId)');
+    expect(readProjectFile('js/modules/message/pm-dialog.js')).not.toContain('this._optimisticallyMarkPmConversationRead?.(conversationId)');
     expect(layoutCss).toContain('.pm-notif-hint');
     expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');
     expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');
@@ -540,6 +694,609 @@ describe('private message feature wiring', () => {
     expect(functions).toContain('exports.cleanupPmAuditRetention');
     expect(functions).toContain('if (!access.isSuperAdmin) throw new HttpsError("permission-denied", "super_admin only")');
     expect(functions).toContain('retentionDeleteAfter: pmRetentionTimestamp(now)');
+  });
+
+  test('PM dialog uses one latest-50 listener and ignores stale A-to-B callbacks', async () => {
+    const { App, ApiService, consoleMock, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    const listenerA = queryController.listeners[0];
+    expect(listenerA.orderBy).toEqual({ field: 'createdAt', direction: 'desc' });
+    expect(listenerA.limit).toBe(50);
+    expect(ApiService.getPmMessages).not.toHaveBeenCalled();
+
+    listenerA.emitMessages(Array.from({ length: 60 }, (_, index) => makePmMessage(index + 1)));
+    expect(App._pmDialogMessages).toHaveLength(50);
+    expect(App._pmDialogMessages[0].messageId).toBe('message-11');
+    expect(App._pmDialogMessages[49].messageId).toBe('message-60');
+
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    const listenerB = queryController.listeners[1];
+    expect(listenerA.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(App._pmDialogMessages).toEqual([]);
+    expect(document.querySelector('.pm-dialog-messages').innerHTML).toBe('');
+
+    listenerA.emitMessages([makePmMessage(999)]);
+    listenerA.emitError(new Error('stale listener error'));
+    expect(App._pmDialogMessages).toEqual([]);
+    expect(consoleMock.warn).not.toHaveBeenCalled();
+
+    listenerB.emitMessages(Array.from({ length: 61 }, (_, index) => makePmMessage(index + 1, {
+      toUid: PM_PEER_B_UID,
+    })));
+    expect(App._pmDialogMessages).toHaveLength(50);
+    expect(App._pmDialogMessages[0].messageId).toBe('message-12');
+    expect(App._pmDialogMessages[49].messageId).toBe('message-61');
+  });
+
+  test('PM dialog close before the first snapshot invalidates callbacks and clears state', async () => {
+    const { App, consoleMock, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    const listener = queryController.listeners[0];
+    App._closePmDialog();
+    listener.emitMessages([makePmMessage(1)]);
+    listener.emitError(new Error('late error'));
+
+    expect(listener.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(App._currentPmDialog).toBeNull();
+    expect(App._pmDialogMessages).toEqual([]);
+    expect(document.getElementById('pm-dialog-overlay').style.display).toBe('none');
+    expect(consoleMock.warn).not.toHaveBeenCalled();
+  });
+
+  test('PM active listener error before its first snapshot reports load failure', async () => {
+    const { App, consoleMock, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[0].emitError(new Error('initial listener failure'));
+
+    expect(consoleMock.warn).toHaveBeenCalledTimes(1);
+    expect(App.showToast).toHaveBeenCalledWith('私訊載入失敗');
+  });
+
+  test('PM stale listener error before its first snapshot has no UI or log side effect', async () => {
+    const { App, consoleMock, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    const staleListener = queryController.listeners[0];
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    staleListener.emitError(new Error('stale initial failure'));
+
+    expect(consoleMock.warn).not.toHaveBeenCalled();
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM active listener error after a snapshot logs without showing load failure', async () => {
+    const { App, consoleMock, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    const listener = queryController.listeners[0];
+    listener.emitMessages([makePmMessage(1)]);
+    consoleMock.warn.mockClear();
+    App.showToast.mockClear();
+    listener.emitError(new Error('listener failed after data'));
+
+    expect(consoleMock.warn).toHaveBeenCalledTimes(1);
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM dialog switch cancels queued reads and keeps unread state server-backed', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+      const markRead = jest.fn(async () => ({ readCount: 1, hasMore: false }));
+      callables.markPrivateConversationRead = markRead;
+      App._optimisticallyMarkPmConversationRead = jest.fn();
+
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      queryController.listeners[0].emitMessages([makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      })]);
+      expect(App._pmDialogMessages[0].read).toBe(false);
+      expect(App._optimisticallyMarkPmConversationRead).not.toHaveBeenCalled();
+
+      await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+      jest.advanceTimersByTime(1000);
+      await flushPromises();
+      expect(markRead).not.toHaveBeenCalled();
+      expect(App._pmReadJobs[conversationA]).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM all-read snapshot cancels a queued read before debounce', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const markRead = jest.fn(async () => ({ readCount: 1, hasMore: false }));
+      callables.markPrivateConversationRead = markRead;
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      const listener = queryController.listeners[0];
+      listener.emitMessages([makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      })]);
+      listener.emitMessages([makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: true,
+      })]);
+
+      jest.advanceTimersByTime(1000);
+      await flushPromises();
+      expect(markRead).not.toHaveBeenCalled();
+      expect(App._pmReadJobs[conversationA]).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM all-read snapshot clears pending validation during an in-flight read', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const readCall = deferred();
+      const markRead = jest.fn(() => readCall.promise);
+      callables.markPrivateConversationRead = markRead;
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      const listener = queryController.listeners[0];
+      const unread = makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      });
+      listener.emitMessages([unread]);
+      jest.advanceTimersByTime(500);
+      expect(markRead).toHaveBeenCalledTimes(1);
+      listener.emitMessages([unread]);
+      expect(App._pmReadJobs[conversationA].pendingRequestSeq).toBe(App._currentPmDialog.requestSeq);
+      listener.emitMessages([{ ...unread, read: true }]);
+      expect(App._pmReadJobs[conversationA].pendingRequestSeq).toBe(0);
+
+      readCall.resolve({ readCount: 1, hasMore: false });
+      await flushPromises();
+      jest.advanceTimersByTime(1000);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(1);
+      expect(App._pmReadJobs[conversationA]).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM read validation is debounced, serialized, source-backed, and accepts both result shapes', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const pendingCalls = [];
+      let activeCalls = 0;
+      let maxActiveCalls = 0;
+      const markRead = jest.fn(() => {
+        activeCalls += 1;
+        maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+        const call = deferred();
+        pendingCalls.push({
+          resolve(value) {
+            activeCalls -= 1;
+            call.resolve(value);
+          },
+          reject(err) {
+            activeCalls -= 1;
+            call.reject(err);
+          },
+        });
+        return call.promise;
+      });
+      callables.markPrivateConversationRead = markRead;
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      const listener = queryController.listeners[0];
+      const unread = makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      });
+
+      listener.emitMessages([unread]);
+      listener.emitMessages([unread]);
+      listener.emitMessages([unread]);
+      jest.advanceTimersByTime(499);
+      expect(markRead).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      expect(markRead).toHaveBeenCalledTimes(1);
+
+      listener.emitMessages([unread]);
+      listener.emitMessages([unread]);
+      expect(markRead).toHaveBeenCalledTimes(1);
+      expect(maxActiveCalls).toBe(1);
+
+      pendingCalls[0].resolve({ data: { readCount: 1, hasMore: false } });
+      await flushPromises();
+      jest.advanceTimersByTime(499);
+      expect(markRead).toHaveBeenCalledTimes(1);
+      jest.advanceTimersByTime(1);
+      expect(markRead).toHaveBeenCalledTimes(2);
+      expect(maxActiveCalls).toBe(1);
+
+      pendingCalls[1].resolve({ readCount: 0, hasMore: false });
+      await flushPromises();
+      jest.advanceTimersByTime(2000);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(2);
+      expect(maxActiveCalls).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM read drain paginates only while the server makes progress', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, consoleMock, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const markRead = jest.fn()
+        .mockResolvedValueOnce({ data: { readCount: 50, hasMore: true } })
+        .mockResolvedValueOnce({ readCount: 1, hasMore: false });
+      callables.markPrivateConversationRead = markRead;
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      queryController.listeners[0].emitMessages([makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      })]);
+
+      jest.advanceTimersByTime(500);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(2);
+      expect(consoleMock.warn).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1000);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM read drain stops on hasMore with zero progress and does not self-reschedule', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, consoleMock, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const markRead = jest.fn(async () => ({ readCount: 0, hasMore: true }));
+      callables.markPrivateConversationRead = markRead;
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      queryController.listeners[0].emitMessages([makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      })]);
+
+      jest.advanceTimersByTime(500);
+      await flushPromises();
+      jest.advanceTimersByTime(5000);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(1);
+      expect(consoleMock.warn).toHaveBeenCalledWith(expect.stringContaining('no progress'));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM same-conversation reopen hands an in-flight read to the newest request without overlap', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const calls = [];
+      let activeCalls = 0;
+      let maxActiveCalls = 0;
+      const markRead = jest.fn(() => {
+        activeCalls += 1;
+        maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+        const call = deferred();
+        calls.push({
+          resolve(value) {
+            activeCalls -= 1;
+            call.resolve(value);
+          },
+        });
+        return call.promise;
+      });
+      callables.markPrivateConversationRead = markRead;
+      const unread = makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      });
+
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      queryController.listeners[0].emitMessages([unread]);
+      jest.advanceTimersByTime(500);
+      expect(markRead).toHaveBeenCalledTimes(1);
+      const firstRequestSeq = App._currentPmDialog.requestSeq;
+
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      const secondRequestSeq = App._currentPmDialog.requestSeq;
+      expect(secondRequestSeq).toBeGreaterThan(firstRequestSeq);
+      expect(App._pmReadJobs[conversationA].inFlight).toBe(true);
+      queryController.listeners[1].emitMessages([unread]);
+      expect(markRead).toHaveBeenCalledTimes(1);
+
+      calls[0].resolve({ readCount: 1, hasMore: false });
+      await flushPromises();
+      jest.advanceTimersByTime(500);
+      expect(markRead).toHaveBeenCalledTimes(2);
+      expect(maxActiveCalls).toBe(1);
+      calls[1].resolve({ data: { readCount: 0, hasMore: false } });
+      await flushPromises();
+      jest.advanceTimersByTime(1000);
+      expect(markRead).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM send success settles the original optimistic store without repainting a newer dialog', async () => {
+    const { App, callables, document } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+    const sendCall = deferred();
+    callables.sendPrivateMessage = jest.fn(() => sendCall.promise);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    document.querySelector('.pm-dialog-input').value = 'message for A';
+    const sendPromise = App.sendPmMessage();
+    expect(App._pmOptimisticMessages[conversationA]).toHaveLength(1);
+
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    const currentInput = document.querySelector('.pm-dialog-input');
+    currentInput.value = 'draft for B';
+    sendCall.resolve({ messageId: 'server-message-a' });
+    await sendPromise;
+
+    const originalMessage = App._pmOptimisticMessages[conversationA][0];
+    expect(originalMessage.status).toBe('sent');
+    expect(originalMessage._serverMessageId).toBe('server-message-a');
+    expect(currentInput.value).toBe('draft for B');
+    expect(document.querySelector('.pm-dialog-messages').textContent).not.toContain('message for A');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM send success from an older request rerenders a reopened same conversation', async () => {
+    const { App, callables, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const sendCall = deferred();
+    callables.sendPrivateMessage = jest.fn(() => sendCall.promise);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    document.querySelector('.pm-dialog-input').value = 'same conversation send';
+    const sendPromise = App.sendPmMessage();
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[1].emitMessages([]);
+    const reopenedInput = document.querySelector('.pm-dialog-input');
+    reopenedInput.value = 'new request draft';
+    expect(document.querySelector('.pm-message.is-pending')).not.toBeNull();
+
+    sendCall.resolve({ messageId: 'same-conversation-server-message' });
+    await sendPromise;
+
+    expect(App._pmOptimisticMessages[conversationA][0].status).toBe('sent');
+    expect(document.querySelector('.pm-message.is-pending')).toBeNull();
+    expect(document.querySelector('.pm-dialog-messages').textContent).toContain('same conversation send');
+    expect(reopenedInput.value).toBe('new request draft');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM send failure marks the original optimistic store without refilling or toasting a newer dialog', async () => {
+    const { App, callables, document } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+    const sendCall = deferred();
+    callables.sendPrivateMessage = jest.fn(() => sendCall.promise);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    document.querySelector('.pm-dialog-input').value = 'failed message for A';
+    const sendPromise = App.sendPmMessage();
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    const currentInput = document.querySelector('.pm-dialog-input');
+    currentInput.value = 'keep B draft';
+    sendCall.reject(Object.assign(new Error('rate limited'), { code: 'functions/resource-exhausted' }));
+    await sendPromise;
+
+    const originalMessage = App._pmOptimisticMessages[conversationA][0];
+    expect(originalMessage.status).toBe('failed');
+    expect(originalMessage._optimisticFailed).toBe(true);
+    expect(currentInput.value).toBe('keep B draft');
+    expect(document.querySelector('.pm-dialog-messages').textContent).not.toContain('failed message for A');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM send failure rerenders a reopened same conversation without touching its input or toast', async () => {
+    const { App, callables, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const sendCall = deferred();
+    callables.sendPrivateMessage = jest.fn(() => sendCall.promise);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    document.querySelector('.pm-dialog-input').value = 'same conversation failure';
+    const sendPromise = App.sendPmMessage();
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[1].emitMessages([]);
+    const reopenedInput = document.querySelector('.pm-dialog-input');
+    reopenedInput.value = 'do not replace this draft';
+    sendCall.reject(Object.assign(new Error('rate limited'), { code: 'functions/resource-exhausted' }));
+    await sendPromise;
+
+    expect(App._pmOptimisticMessages[conversationA][0].status).toBe('failed');
+    expect(document.querySelector('.pm-message.is-failed')).not.toBeNull();
+    expect(reopenedInput.value).toBe('do not replace this draft');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM edit failure clears A pending state without repainting or toasting B', async () => {
+    const { App, callables, document, promptMock, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+    const editCall = deferred();
+    callables.editPrivateMessage = jest.fn(() => editCall.promise);
+    promptMock.mockReturnValue('edited for A');
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[0].emitMessages([makePmMessage(1)]);
+    const editPromise = App.editPmMessage('message-1');
+    expect(App._pmPendingMessageUpdates[conversationA]['message-1']._pmPendingAction).toBe('editing');
+
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    const renderSpy = jest.spyOn(App, '_renderPmDialogMessages');
+    renderSpy.mockClear();
+    editCall.reject(Object.assign(new Error('already read'), { code: 'functions/failed-precondition' }));
+    await editPromise;
+
+    expect(App._pmPendingMessageUpdates[conversationA]).toBeUndefined();
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(document.querySelector('.pm-dialog-messages').textContent).not.toContain('edited for A');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM edit failure rerenders a reopened same conversation without stale toast', async () => {
+    const { App, callables, document, promptMock, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const editCall = deferred();
+    callables.editPrivateMessage = jest.fn(() => editCall.promise);
+    promptMock.mockReturnValue('same conversation edit');
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[0].emitMessages([makePmMessage(1)]);
+    const editPromise = App.editPmMessage('message-1');
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[1].emitMessages([makePmMessage(1)]);
+    document.querySelector('.pm-dialog-input').value = 'new request draft';
+    expect(document.querySelector('.pm-message.is-pending')).not.toBeNull();
+    expect(document.querySelector('.pm-dialog-messages').textContent).toContain('same conversation edit');
+
+    editCall.reject(Object.assign(new Error('already read'), { code: 'functions/failed-precondition' }));
+    await editPromise;
+
+    expect(App._pmPendingMessageUpdates[conversationA]).toBeUndefined();
+    expect(document.querySelector('.pm-message.is-pending')).toBeNull();
+    expect(document.querySelector('.pm-dialog-messages').textContent).toContain('message 1');
+    expect(document.querySelector('.pm-dialog-input').value).toBe('new request draft');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM recall failure clears A pending state without repainting or toasting B', async () => {
+    const { App, callables, confirmMock, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const conversationB = App.pmBuildConversationId(PM_MY_UID, PM_PEER_B_UID);
+    const recallCall = deferred();
+    callables.recallPrivateMessage = jest.fn(() => recallCall.promise);
+    confirmMock.mockReturnValue(true);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[0].emitMessages([makePmMessage(1)]);
+    const recallPromise = App.recallPmMessage('message-1');
+    expect(App._pmPendingMessageUpdates[conversationA]['message-1']._pmPendingAction).toBe('recalling');
+
+    await App._openPmDialogImpl(PM_PEER_B_UID, { conversationId: conversationB });
+    const renderSpy = jest.spyOn(App, '_renderPmDialogMessages');
+    renderSpy.mockClear();
+    recallCall.reject(Object.assign(new Error('message changed'), { code: 'functions/failed-precondition' }));
+    await recallPromise;
+
+    expect(App._pmPendingMessageUpdates[conversationA]).toBeUndefined();
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(document.querySelector('.pm-dialog-messages').textContent).not.toContain('訊息已撤回');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM recall failure rerenders a reopened same conversation without stale toast', async () => {
+    const { App, callables, confirmMock, document, queryController } = loadPmDialogLifecycleHarness();
+    const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+    const recallCall = deferred();
+    callables.recallPrivateMessage = jest.fn(() => recallCall.promise);
+    confirmMock.mockReturnValue(true);
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[0].emitMessages([makePmMessage(1)]);
+    const recallPromise = App.recallPmMessage('message-1');
+
+    await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+    queryController.listeners[1].emitMessages([makePmMessage(1)]);
+    document.querySelector('.pm-dialog-input').value = 'keep reopened draft';
+    expect(document.querySelector('.pm-message.is-pending')).not.toBeNull();
+    expect(document.querySelector('.pm-dialog-messages').textContent).toContain('訊息已撤回');
+
+    recallCall.reject(Object.assign(new Error('message changed'), { code: 'functions/failed-precondition' }));
+    await recallPromise;
+
+    expect(App._pmPendingMessageUpdates[conversationA]).toBeUndefined();
+    expect(document.querySelector('.pm-message.is-pending')).toBeNull();
+    expect(document.querySelector('.pm-dialog-messages').textContent).toContain('message 1');
+    expect(document.querySelector('.pm-dialog-input').value).toBe('keep reopened draft');
+    expect(App.showToast).not.toHaveBeenCalled();
+  });
+
+  test('PM close during an in-flight read drops pending validation and sends nothing else', async () => {
+    jest.useFakeTimers();
+    try {
+      const { App, callables, queryController } = loadPmDialogLifecycleHarness();
+      const conversationA = App.pmBuildConversationId(PM_MY_UID, PM_PEER_A_UID);
+      const readCall = deferred();
+      const markRead = jest.fn(() => readCall.promise);
+      callables.markPrivateConversationRead = markRead;
+      const unread = makePmMessage(1, {
+        fromUid: PM_PEER_A_UID,
+        toUid: PM_MY_UID,
+        direction: 'in',
+        read: false,
+      });
+
+      await App._openPmDialogImpl(PM_PEER_A_UID, { conversationId: conversationA });
+      const listener = queryController.listeners[0];
+      listener.emitMessages([unread]);
+      jest.advanceTimersByTime(500);
+      expect(markRead).toHaveBeenCalledTimes(1);
+      listener.emitMessages([unread]);
+      expect(App._pmReadJobs[conversationA].pendingRequestSeq).toBe(App._currentPmDialog.requestSeq);
+
+      App._closePmDialog();
+      expect(App._pmReadJobs[conversationA].pendingRequestSeq).toBe(0);
+      readCall.resolve({ data: { readCount: 50, hasMore: true } });
+      await flushPromises();
+      jest.advanceTimersByTime(2000);
+      await flushPromises();
+      expect(markRead).toHaveBeenCalledTimes(1);
+      expect(App._pmReadJobs[conversationA]).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('Firestore rules keep PM writes in Cloud Functions and block audit SDK access', () => {
