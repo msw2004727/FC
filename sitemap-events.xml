@@ -121,8 +121,26 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1786174225509_ftws7b</loc>
-    <lastmod>2026-08-08</lastmod>
+    <loc>https://toosterx.com/events/ce_1786265948539_mzkr39</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1786275081875_g4k2mu</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1786332947235_gqyoqg</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1786332994129_dvsrgk</loc>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
