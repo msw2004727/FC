@@ -40,9 +40,9 @@ describe('startup performance guardrails', () => {
     }, 0);
 
     expect(scripts.length).toBeLessThanOrEqual(54);
-    // Reviewed safe-directory, atomic event writes, reliable-message, and delegated-profile
-    // handlers add 30.8 KB raw versus the prior release, but only 4.8 KB gzip (< 1.3%).
-    expect(rawBytes).toBeLessThanOrEqual(1_540_000);
+    // Reviewed safe-directory, atomic event writes, reliable-message, delegated-profile,
+    // and create-modal navigation guards; gzip remains below the existing 390 KB ceiling.
+    expect(rawBytes).toBeLessThanOrEqual(1_546_000);
     expect(gzipBytes).toBeLessThanOrEqual(390_000);
   });
 

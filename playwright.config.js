@@ -26,6 +26,13 @@ module.exports = defineConfig({
       },
     },
     {
+      name: 'webkit-mobile',
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'webkit',
+      },
+    },
+    {
       name: 'admin-desktop',
       use: {
         browserName: 'chromium',

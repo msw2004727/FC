@@ -55,13 +55,15 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-playwright-chromium-webkit-${{ hashFiles('package-lock.json') }}
           restore-keys: |
+            ${{ runner.os }}-playwright-chromium-webkit-
             ${{ runner.os }}-playwright-
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
         timeout-minutes: 10
       - run: |
           node tests/e2e/static-server.cjs 3000 &
           sleep 2
           BASE_URL=http://127.0.0.1:3000 npm run test:e2e:smoke -- --workers=1
+          BASE_URL=http://127.0.0.1:3000 npx playwright test tests/e2e/home-layout-smoke.spec.js --project=webkit-mobile --workers=1
         timeout-minutes: 20

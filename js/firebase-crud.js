@@ -545,92 +545,259 @@ Object.assign(FirebaseService, {
   },
 
   async addEvent(eventData) {
-    const expectedCreatorUid = String(eventData?.creatorUid || '').trim();
-    if (expectedCreatorUid && expectedCreatorUid !== 'unknown') {
-      const authed = await this.ensureAuthReadyForWrite(expectedCreatorUid);
-      if (!authed) {
-        const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? String(auth.currentUser.uid) : '';
-        const err = new Error(authUid && authUid !== expectedCreatorUid ? 'AUTH_UID_MISMATCH' : 'AUTH_NOT_READY');
-        err.code = authUid && authUid !== expectedCreatorUid ? 'auth/uid-mismatch' : 'unauthenticated';
-        err.authUid = authUid;
-        err.expectedUid = expectedCreatorUid;
-        throw err;
+    const tagWriteError = (err, phase, outcome) => {
+      const target = err && typeof err === 'object'
+        ? err
+        : new Error(String(err || 'EVENT_CREATE_WRITE_FAILED'));
+      if (!target.eventCreatePhase) target.eventCreatePhase = phase;
+      if (!target.eventCreateOutcome) target.eventCreateOutcome = outcome;
+      if (!target.eventCreateWriteState) {
+        target.eventCreateWriteState = phase === 'preflight' && outcome === 'definitive-rejected'
+          ? 'not-started'
+          : 'unknown';
       }
+      return target;
+    };
+    const expectedCreatorUid = String(eventData?.creatorUid || '').trim();
+    if (!expectedCreatorUid || expectedCreatorUid === 'unknown') {
+      const err = new Error('EVENT_CREATOR_UID_REQUIRED');
+      err.code = 'event/creator-uid-invalid';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
     }
     // 圖片上傳至 Storage
-    const eventId = this._normalizeEventDocumentId(eventData);
+    let eventId;
+    try {
+      eventId = this._normalizeEventDocumentId(eventData);
+    } catch (err) {
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const clientRequestId = String(eventData?.clientRequestId || '').trim();
+    if (!clientRequestId || clientRequestId !== eventId) {
+      const err = new Error('EVENT_CLIENT_REQUEST_ID_MISMATCH');
+      err.code = 'event/client-request-id-mismatch';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const payloadRevision = Number(eventData?.payloadRevision);
+    if (!Number.isSafeInteger(payloadRevision) || payloadRevision < 1) {
+      const err = new Error('EVENT_PAYLOAD_REVISION_INVALID');
+      err.code = 'event/payload-revision-invalid';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const payloadDigest = String(eventData?.payloadDigest || '').trim();
+    if (!/^v1-[0-9a-f]{32}$/.test(payloadDigest)) {
+      const err = new Error('EVENT_PAYLOAD_DIGEST_INVALID');
+      err.code = 'event/payload-digest-invalid';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
     eventData.id = eventId;
-    await this._uploadEventImageVariants(eventId, eventData);
-    if (eventData.image && eventData.image.startsWith('data:')) {
-      eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
+    eventData.clientRequestId = clientRequestId;
+    eventData.creatorUid = expectedCreatorUid;
+    eventData.payloadRevision = payloadRevision;
+    eventData.payloadDigest = payloadDigest;
+    const authed = await this.ensureAuthReadyForWrite(expectedCreatorUid);
+    if (!authed) {
+      const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? String(auth.currentUser.uid) : '';
+      const err = new Error(authUid && authUid !== expectedCreatorUid ? 'AUTH_UID_MISMATCH' : 'AUTH_NOT_READY');
+      err.code = authUid && authUid !== expectedCreatorUid ? 'auth/uid-mismatch' : 'unauthenticated';
+      err.authUid = authUid;
+      err.expectedUid = expectedCreatorUid;
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    try {
+      await this._uploadEventImageVariants(eventId, eventData);
+      if (eventData.image && eventData.image.startsWith('data:')) {
+        eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
+      }
+    } catch (err) {
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
     }
     // delegateUids 同步：確保 delegates → delegateUids 一致（team-split Rules 依賴此欄位）
     if (Array.isArray(eventData.delegates) && !eventData.delegateUids) {
       eventData.delegateUids = eventData.delegates.map(d => String(d.uid || '').trim()).filter(Boolean);
     }
     const docRef = db.collection('events').doc(eventId);
-    await db.runTransaction(async transaction => {
-      const existing = await transaction.get(docRef);
-      if (existing.exists) throw new Error('EVENT_ID_CONFLICT: id=' + eventId);
-      transaction.set(docRef, {
-        ..._stripDocId(eventData),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-    });
-    eventData._docId = docRef.id;
-    return eventData;
-  },
-
-  async addEventsAtomic(eventDataList) {
-    const events = Array.isArray(eventDataList) ? eventDataList : [];
-    if (events.length < 2 || events.length > 30) throw new Error('EVENT_BATCH_SIZE_INVALID');
-    const creatorUids = [...new Set(events
-      .map(event => String(event?.creatorUid || '').trim())
-      .filter(uid => uid && uid !== 'unknown'))];
-    if (creatorUids.length > 1) throw new Error('EVENT_BATCH_CREATOR_MISMATCH');
-    if (creatorUids[0]) {
-      const authed = await this.ensureAuthReadyForWrite(creatorUids[0]);
-      if (!authed) throw new Error('AUTH_NOT_READY');
-    }
-
-    const prepared = [];
-    for (const eventData of events) {
-      const eventId = this._normalizeEventDocumentId(eventData);
-      eventData.id = eventId;
-      await this._uploadEventImageVariants(eventId, eventData);
-      if (eventData.image && eventData.image.startsWith('data:')) {
-        eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
-      }
-      if (Array.isArray(eventData.delegates) && !eventData.delegateUids) {
-        eventData.delegateUids = eventData.delegates.map(delegate => String(delegate.uid || '').trim()).filter(Boolean);
-      }
-      prepared.push({ eventData, docRef: db.collection('events').doc(eventId) });
-    }
-
-    await db.runTransaction(async transaction => {
-      const snapshots = [];
-      for (const item of prepared) snapshots.push(await transaction.get(item.docRef));
-      prepared.forEach((item, index) => {
-        const existing = snapshots[index];
+    let savedEvent;
+    try {
+      savedEvent = await db.runTransaction(async transaction => {
+        const existing = await transaction.get(docRef);
         if (existing.exists) {
-          const current = typeof existing.data === 'function' ? existing.data() : {};
-          if (!item.eventData.batchGroupId
-            || current?.batchGroupId !== item.eventData.batchGroupId
-            || String(current?.creatorUid || '') !== String(item.eventData.creatorUid || '')) {
-            throw new Error('EVENT_ID_CONFLICT: id=' + item.eventData.id);
+          const current = typeof existing.data === 'function' ? (existing.data() || {}) : {};
+          if (current.id !== eventId
+            || current.clientRequestId !== clientRequestId
+            || current.creatorUid !== expectedCreatorUid
+            || current.payloadRevision !== payloadRevision
+            || current.payloadDigest !== payloadDigest) {
+            const err = new Error('EVENT_ID_CONFLICT: id=' + eventId);
+            err.code = 'event/id-conflict';
+            throw err;
           }
-          return;
+          return { ...current, _docId: docRef.id };
         }
-        transaction.set(item.docRef, {
-          ..._stripDocId(item.eventData),
+        transaction.set(docRef, {
+          ..._stripDocId(eventData),
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
+        return { ..._stripDocId(eventData), _docId: docRef.id };
       });
+    } catch (err) {
+      const code = String(err?.code || '').toLowerCase();
+      const outcome = code === 'event/id-conflict'
+        ? 'conflict'
+        : 'ambiguous';
+      throw tagWriteError(err, 'transaction', outcome);
+    }
+    return savedEvent;
+  },
+
+  async addEventsAtomic(eventDataList) {
+    const tagWriteError = (err, phase, outcome) => {
+      const target = err && typeof err === 'object'
+        ? err
+        : new Error(String(err || 'EVENT_CREATE_WRITE_FAILED'));
+      if (!target.eventCreatePhase) target.eventCreatePhase = phase;
+      if (!target.eventCreateOutcome) target.eventCreateOutcome = outcome;
+      if (!target.eventCreateWriteState) {
+        target.eventCreateWriteState = phase === 'preflight' && outcome === 'definitive-rejected'
+          ? 'not-started'
+          : 'unknown';
+      }
+      return target;
+    };
+    const events = Array.isArray(eventDataList) ? eventDataList : [];
+    if (events.length < 2 || events.length > 30) {
+      const err = new Error('EVENT_BATCH_SIZE_INVALID');
+      err.code = 'event/batch-size-invalid';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const prepared = events.map(eventData => {
+      let eventId;
+      try {
+        eventId = this._normalizeEventDocumentId(eventData);
+      } catch (err) {
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const clientRequestId = String(eventData?.clientRequestId || '').trim();
+      if (!clientRequestId || clientRequestId !== eventId) {
+        const err = new Error('EVENT_CLIENT_REQUEST_ID_MISMATCH');
+        err.code = 'event/client-request-id-mismatch';
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const creatorUid = String(eventData?.creatorUid || '').trim();
+      if (!creatorUid || creatorUid === 'unknown') {
+        const err = new Error('EVENT_CREATOR_UID_REQUIRED');
+        err.code = 'event/creator-uid-invalid';
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const batchGroupId = String(eventData?.batchGroupId || '').trim();
+      if (!batchGroupId) {
+        const err = new Error('EVENT_BATCH_GROUP_INVALID');
+        err.code = 'event/batch-group-invalid';
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const payloadRevision = Number(eventData?.payloadRevision);
+      if (!Number.isSafeInteger(payloadRevision) || payloadRevision < 1) {
+        const err = new Error('EVENT_PAYLOAD_REVISION_INVALID');
+        err.code = 'event/payload-revision-invalid';
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const payloadDigest = String(eventData?.payloadDigest || '').trim();
+      if (!/^v1-[0-9a-f]{32}$/.test(payloadDigest)) {
+        const err = new Error('EVENT_PAYLOAD_DIGEST_INVALID');
+        err.code = 'event/payload-digest-invalid';
+        throw tagWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      return {
+        eventId,
+        clientRequestId,
+        creatorUid,
+        batchGroupId,
+        payloadRevision,
+        payloadDigest,
+        eventData: {
+          ...eventData,
+          id: eventId,
+          clientRequestId,
+          creatorUid,
+          batchGroupId,
+          payloadRevision,
+          payloadDigest,
+        },
+      };
     });
-    prepared.forEach(({ eventData, docRef }) => { eventData._docId = docRef.id; });
-    return events;
+    const expectedCreatorUid = prepared[0].creatorUid;
+    if (prepared.some(item => item.creatorUid !== expectedCreatorUid)) {
+      const err = new Error('EVENT_BATCH_CREATOR_MISMATCH');
+      err.code = 'event/batch-creator-mismatch';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const expectedBatchGroupId = prepared[0].batchGroupId;
+    if (prepared.some(item => item.batchGroupId !== expectedBatchGroupId)) {
+      const err = new Error('EVENT_BATCH_GROUP_INVALID');
+      err.code = 'event/batch-group-invalid';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const authed = await this.ensureAuthReadyForWrite(expectedCreatorUid);
+    if (!authed) {
+      const err = new Error('AUTH_NOT_READY');
+      err.code = 'unauthenticated';
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+
+    try {
+      for (const item of prepared) {
+        await this._uploadEventImageVariants(item.eventId, item.eventData);
+        if (item.eventData.image && item.eventData.image.startsWith('data:')) {
+          item.eventData.image = await this._uploadImage(item.eventData.image, `events/${item.eventId}`);
+        }
+        if (Array.isArray(item.eventData.delegates) && !item.eventData.delegateUids) {
+          item.eventData.delegateUids = item.eventData.delegates
+            .map(delegate => String(delegate.uid || '').trim())
+            .filter(Boolean);
+        }
+        item.docRef = db.collection('events').doc(item.eventId);
+      }
+    } catch (err) {
+      throw tagWriteError(err, 'preflight', 'definitive-rejected');
+    }
+
+    let savedEvents;
+    try {
+      savedEvents = await db.runTransaction(async transaction => {
+        const snapshots = [];
+        for (const item of prepared) snapshots.push(await transaction.get(item.docRef));
+        return prepared.map((item, index) => {
+          const existing = snapshots[index];
+          if (existing.exists) {
+            const current = typeof existing.data === 'function' ? (existing.data() || {}) : {};
+            if (current.id !== item.eventId
+              || current.clientRequestId !== item.clientRequestId
+              || current.creatorUid !== item.creatorUid
+              || current.batchGroupId !== item.batchGroupId
+              || current.payloadRevision !== item.payloadRevision
+              || current.payloadDigest !== item.payloadDigest) {
+              const err = new Error('EVENT_ID_CONFLICT: id=' + item.eventId);
+              err.code = 'event/id-conflict';
+              throw err;
+            }
+            return { ...current, _docId: item.docRef.id };
+          }
+          transaction.set(item.docRef, {
+            ..._stripDocId(item.eventData),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          return { ..._stripDocId(item.eventData), _docId: item.docRef.id };
+        });
+      });
+    } catch (err) {
+      const code = String(err?.code || '').toLowerCase();
+      const outcome = code === 'event/id-conflict'
+        ? 'conflict'
+        : 'ambiguous';
+      throw tagWriteError(err, 'transaction', outcome);
+    }
+    return savedEvents;
   },
   async updateEvent(id, updates) {
     const safeId = String(id || '').trim();

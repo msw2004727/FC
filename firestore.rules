@@ -952,16 +952,31 @@ service cloud.firestore {
       }
 
       function isUserCreateOwner() {
-        return isAuth()
-          && request.resource.data.creatorUid is string
-          && request.resource.data.creatorUid == request.auth.uid;
+        let data = request.resource.data;
+        return eventId.matches('^ce_[A-Za-z0-9_-]{1,117}$')
+          && data.id == eventId
+          && data.creatorUid == request.auth.uid
+          && (
+            !('clientRequestId' in data)
+            || data.clientRequestId == eventId
+          )
+          && (
+            (
+              !('payloadRevision' in data)
+              && !('payloadDigest' in data)
+            )
+            || (
+              data.payloadRevision is int
+              && data.payloadRevision >= 1
+              && data.payloadDigest is string
+              && data.payloadDigest.matches('^v1-[0-9a-f]{32}$')
+            )
+          );
       }
 
       function isUserActivityCapEventCreate() {
         let isExternal = request.resource.data.get('type', '') == 'external';
-        return authRole() == 'user'
-          && isUserCreateOwner()
-          && eventCreateHasSafeInitialProjection()
+        return eventCreateHasSafeInitialProjection()
           && eventCreateDelegateFieldsAllowed()
           && (
             request.resource.data.get('teamOnly', false) == true
@@ -1133,6 +1148,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.resource.data.title is string
         && request.resource.data.title.size() > 0
+        && isUserCreateOwner()
         && request.resource.data.get('courseLinked', false) != true
         && !('courseLinkId' in request.resource.data)
         && canCreateEventRoot()
@@ -1140,7 +1156,9 @@ service cloud.firestore {
         && isValidEventMapFields(request.resource.data)
         && request.resource.data.get('viewCount', 0) == 0;
       allow update: if isAuth()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'viewCount', 'id', 'clientRequestId', 'creatorUid', 'payloadRevision', 'payloadDigest'
+        ])
         && eventValidatedAddonFieldsValidForUpdate()
         && (
           (

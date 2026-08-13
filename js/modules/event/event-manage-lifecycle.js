@@ -34,6 +34,17 @@ Object.assign(App, {
       this.showToast?.('資料儲存中，請稍候');
       return;
     }
+    const persistedCreateMarker = this._readPendingSingleEventMarker?.();
+    const hasBlockingPersistedCreateMarker = !!persistedCreateMarker
+      && persistedCreateMarker.unavailable !== true;
+    if ((this._pendingSingleEventSubmission
+        && this._pendingSingleEventSubmission.creatorUid === this._getEventFormAuthUid?.())
+      || this._pendingMultiDateSubmission?.state === 'outcome-unknown'
+      || hasBlockingPersistedCreateMarker) {
+      this.showToast?.('請先確認上一筆活動的建立結果，再進行編輯');
+      this._openCreateCustomEventModal?.();
+      return;
+    }
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canEditOwnActivityBasic?.(e)) { this.showToast('您只能編輯自己的活動'); return; }

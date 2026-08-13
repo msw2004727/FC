@@ -21,10 +21,22 @@ Object.assign(App, {
   _eventFormSessionObserverModal: null,
   _eventFormSessionBoundModal: null,
   _eventImageVariantsData: null,
+  _pendingSingleEventSubmission: null,
   _pendingMultiDateSubmission: null,
   _defaultEventCoverAssetPath: 'LOGO/Nocoverimage set.png',
-  _defaultEventCoverDataUrl: null,
-  _defaultEventCoverPromise: null,
+  _eventCreateDelegateTimeoutMs: 12000,
+  _eventCreateWriteTimeoutMs: 30000,
+  _eventCreateReconcileTimeoutMs: 8000,
+  _eventCreatePendingCoordinatorTimeoutMs: 3000,
+  _eventCreatePendingWebLockTimeoutMs: 3000,
+  _eventCreatePendingStoragePrefix: 'sportshub:event-create-pending:',
+  _eventCreatePendingLockPrefix: 'sportshub:event-create-lock:',
+  _eventCreatePendingDbName: 'sportshub-event-create',
+  _eventCreatePendingDbStore: 'pendingIntents',
+  _eventCreatePendingMaxSerializedChars: 4 * 1024 * 1024,
+  _eventCreatePendingMaxAttempts: 50,
+  _eventCreateAttemptSequence: 0,
+  _eventCreateNormalizedMarkers: null,
   _courseLinkedEditLockedControlSelector: 'input, select, textarea, button',
   _courseLinkedEditUnlockedIds: ['ce-private-event', 'ce-submit-btn'],
   _courseLinkedEditLockedIds: [
@@ -127,7 +139,6 @@ Object.assign(App, {
     this._eventFormGeneration = generation;
     this._eventFormSession = session;
     this._delegateSearchSeq = Number(this._delegateSearchSeq || 0) + 1;
-    this._pendingMultiDateSubmission = null;
     this._eventSubmitToken = null;
     this._eventSubmitContext = null;
     this._eventSubmitInFlight = false;
@@ -142,12 +153,28 @@ Object.assign(App, {
     this._eventFormGeneration = Number(this._eventFormGeneration || 0) + 1;
     this._eventFormSession = null;
     this._delegateSearchSeq = Number(this._delegateSearchSeq || 0) + 1;
-    this._pendingMultiDateSubmission = null;
     this._eventSubmitToken = null;
     this._eventSubmitContext = null;
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitting?.(false);
     return true;
+  },
+
+  _getEventCreateFixedDigest(value) {
+    const input = String(value || '');
+    const hashes = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+    for (let index = 0; index < input.length; index += 1) {
+      const code = input.charCodeAt(index);
+      hashes[0] = Math.imul(hashes[0] ^ code, 0x01000193);
+      hashes[1] = Math.imul(hashes[1] ^ code, 0x27d4eb2d);
+      hashes[2] = Math.imul(hashes[2] ^ code, 0x165667b1);
+      hashes[3] = Math.imul(hashes[3] ^ code, 0x9e3779b1);
+    }
+    return `v1-${hashes.map(hash => (hash >>> 0).toString(16).padStart(8, '0')).join('')}`;
+  },
+
+  _isValidEventCreateFixedDigest(value) {
+    return /^v1-[0-9a-f]{32}$/.test(String(value || ''));
   },
 
   _getEventFormSubmitSignature() {
@@ -164,12 +191,12 @@ Object.assign(App, {
             : String(field.value || '')),
       }))
       : [];
-    return JSON.stringify({
+    return this._getEventCreateFixedDigest(JSON.stringify({
       fields,
       multiDates: [...(this._multiDates || [])],
       delegateUids: (this._delegates || []).map(delegate => String(delegate?.uid || '').trim()),
       imageVariants: this._eventImageVariantsData || null,
-    });
+    }));
   },
 
   _captureEventFormSubmitSession() {
@@ -245,6 +272,1644 @@ Object.assign(App, {
     submitBtn.disabled = false;
     submitBtn.style.opacity = '';
     submitBtn.style.cursor = '';
+  },
+
+  _getEventCreatePendingStorageKey(creatorUid = '') {
+    const normalizedUid = String(creatorUid || this._getEventFormAuthUid() || '').trim();
+    if (!normalizedUid) return '';
+    return `${this._eventCreatePendingStoragePrefix}${encodeURIComponent(normalizedUid)}`;
+  },
+
+  _getEventCreatePendingLockName(creatorUid = '') {
+    const normalizedUid = String(creatorUid || this._getEventFormAuthUid() || '').trim();
+    if (!normalizedUid) return '';
+    return `${this._eventCreatePendingLockPrefix}${encodeURIComponent(normalizedUid)}`;
+  },
+
+  _isPendingEventCreatePlainObject(value) {
+    if (!value || Object.prototype.toString.call(value) !== '[object Object]') return false;
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype === null) return true;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor');
+    return !!descriptor && typeof descriptor.value === 'function' && descriptor.value.name === 'Object';
+  },
+
+  _isPendingEventCreateSafeKey(key) {
+    return typeof key === 'string'
+      && key !== '__proto__'
+      && key !== 'prototype'
+      && key !== 'constructor'
+      && key !== '__sportshubEventCreateDate'
+      && key !== '__sportshubEventCreateBase64Ref';
+  },
+
+  _getPendingEventCreateOwnDataKeys(value) {
+    if (!this._isPendingEventCreatePlainObject(value)) {
+      throw new Error('EVENT_CREATE_PENDING_NON_PLAIN_OBJECT');
+    }
+    const keys = Reflect.ownKeys(value);
+    for (const key of keys) {
+      if (!this._isPendingEventCreateSafeKey(key)) {
+        throw new Error('EVENT_CREATE_PENDING_UNSAFE_KEY');
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor?.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+        throw new Error('EVENT_CREATE_PENDING_UNSUPPORTED_PROPERTY');
+      }
+    }
+    return keys;
+  },
+
+  _isPendingEventCreateDate(value) {
+    if (!value || Object.prototype.toString.call(value) !== '[object Date]') return false;
+    try {
+      return Number.isFinite(Date.prototype.getTime.call(value));
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _isPendingEventCreateTimestamp(value) {
+    if (!value || typeof value !== 'object' || typeof value.toDate !== 'function') return false;
+    try {
+      const prototype = Object.getPrototypeOf(value);
+      return prototype?.constructor?.name === 'Timestamp';
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _encodePendingEventCreateValue(value, seen = new WeakSet()) {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || Object.is(value, -0)) {
+        throw new Error('EVENT_CREATE_PENDING_UNSAFE_NUMBER');
+      }
+      return value;
+    }
+    if (this._isPendingEventCreateDate(value)) {
+      return { __sportshubEventCreateDate: Date.prototype.toISOString.call(value) };
+    }
+    if (this._isPendingEventCreateTimestamp(value)) {
+      const converted = value.toDate();
+      if (!this._isPendingEventCreateDate(converted)) {
+        throw new Error('EVENT_CREATE_PENDING_INVALID_TIMESTAMP');
+      }
+      return { __sportshubEventCreateDate: Date.prototype.toISOString.call(converted) };
+    }
+    if (Array.isArray(value)) {
+      if (seen.has(value)) throw new Error('EVENT_CREATE_PENDING_CIRCULAR_PAYLOAD');
+      seen.add(value);
+      const ownKeys = Reflect.ownKeys(value);
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+          seen.delete(value);
+          throw new Error('EVENT_CREATE_PENDING_SPARSE_ARRAY');
+        }
+      }
+      if (ownKeys.some(key => key !== 'length'
+        && (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length))) {
+        seen.delete(value);
+        throw new Error('EVENT_CREATE_PENDING_UNSUPPORTED_ARRAY_PROPERTY');
+      }
+      if (ownKeys.some(key => key !== 'length' && (() => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        return !descriptor?.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, 'value');
+      })())) {
+        seen.delete(value);
+        throw new Error('EVENT_CREATE_PENDING_UNSUPPORTED_ARRAY_PROPERTY');
+      }
+      const result = [];
+      for (let index = 0; index < value.length; index += 1) {
+        result.push(this._encodePendingEventCreateValue(value[index], seen));
+      }
+      seen.delete(value);
+      return result;
+    }
+    if (typeof value === 'object') {
+      if (seen.has(value)) throw new Error('EVENT_CREATE_PENDING_CIRCULAR_PAYLOAD');
+      seen.add(value);
+      const result = Object.create(null);
+      const keys = this._getPendingEventCreateOwnDataKeys(value);
+      keys.forEach(key => {
+        result[key] = this._encodePendingEventCreateValue(value[key], seen);
+      });
+      seen.delete(value);
+      return result;
+    }
+    throw new Error('EVENT_CREATE_PENDING_UNSUPPORTED_PAYLOAD');
+  },
+
+  _decodePendingEventCreateValue(value) {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || Object.is(value, -0)) {
+        throw new Error('EVENT_CREATE_PENDING_UNSAFE_NUMBER');
+      }
+      return value;
+    }
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+          throw new Error('EVENT_CREATE_PENDING_SPARSE_ARRAY');
+        }
+      }
+      return value.map(item => this._decodePendingEventCreateValue(item));
+    }
+    if (!this._isPendingEventCreatePlainObject(value)) {
+      throw new Error('EVENT_CREATE_PENDING_NON_PLAIN_OBJECT');
+    }
+    const wireKeys = Reflect.ownKeys(value);
+    const wireDateDescriptor = wireKeys.length === 1 && wireKeys[0] === '__sportshubEventCreateDate'
+      ? Object.getOwnPropertyDescriptor(value, '__sportshubEventCreateDate')
+      : null;
+    if (wireDateDescriptor?.enumerable
+      && Object.prototype.hasOwnProperty.call(wireDateDescriptor, 'value')
+      && typeof wireDateDescriptor.value === 'string') {
+      const converted = new Date(value.__sportshubEventCreateDate);
+      if (Number.isNaN(converted.getTime())) throw new Error('EVENT_CREATE_PENDING_INVALID_DATE');
+      return converted;
+    }
+    const keys = this._getPendingEventCreateOwnDataKeys(value);
+    const result = Object.create(null);
+    keys.forEach(key => { result[key] = this._decodePendingEventCreateValue(value[key]); });
+    return result;
+  },
+
+  _clonePendingEventCreateValue(value) {
+    return this._decodePendingEventCreateValue(this._encodePendingEventCreateValue(value));
+  },
+
+  _canonicalizePendingEventCreateDigestValue(value) {
+    if (Array.isArray(value)) {
+      return value.map(item => this._canonicalizePendingEventCreateDigestValue(item));
+    }
+    if (!value || typeof value !== 'object') return value;
+    const result = Object.create(null);
+    Object.keys(value).sort().forEach(key => {
+      result[key] = this._canonicalizePendingEventCreateDigestValue(value[key]);
+    });
+    return result;
+  },
+
+  _getPendingEventCreatePayloadDigest(kind, event, events, batchGroupId = '') {
+    const payload = kind === 'multi'
+      ? { kind, batchGroupId: String(batchGroupId || '').trim(), events }
+      : { kind: 'single', event };
+    const encoded = this._encodePendingEventCreateValue(payload);
+    const canonical = this._canonicalizePendingEventCreateDigestValue(encoded);
+    return this._getEventCreateFixedDigest(JSON.stringify(canonical));
+  },
+
+  _compactPendingEventCreateMarker(marker) {
+    const normalized = this._normalizePendingEventCreateMarker(marker, marker?.creatorUid);
+    if (!normalized) return normalized;
+    const compactBase = { ...normalized };
+    delete compactBase.eventEncoding;
+    delete compactBase.sharedEvent;
+    delete compactBase.imageEncoding;
+    delete compactBase.imageFromCoverIndexes;
+    const events = (normalized.kind === 'multi' ? normalized.events : [normalized.event])
+      .map(event => this._clonePendingEventCreateValue(event));
+    const imageFromCoverIndexes = [];
+    events.forEach((event, index) => {
+      const cover = event?.imageVariants?.cover;
+      if (typeof cover === 'string' && cover
+        && Object.prototype.hasOwnProperty.call(event, 'image')
+        && event.image === cover) {
+        delete event.image;
+        imageFromCoverIndexes.push(index);
+      }
+    });
+    const imageAlias = imageFromCoverIndexes.length > 0
+      ? { imageEncoding: 'cover-alias-v1', imageFromCoverIndexes }
+      : {};
+    if (normalized.kind !== 'multi') {
+      return { ...compactBase, ...imageAlias, event: events[0] };
+    }
+    const sharedEvent = Object.create(null);
+    const identityKeys = new Set(['id', 'clientRequestId']);
+    this._getPendingEventCreateOwnDataKeys(events[0]).forEach(key => {
+      if (identityKeys.has(key)) return;
+      if (!events.every(event => Object.prototype.hasOwnProperty.call(event, key))) return;
+      const reference = JSON.stringify(this._encodePendingEventCreateValue(events[0][key]));
+      if (!events.every(event => JSON.stringify(this._encodePendingEventCreateValue(event[key])) === reference)) return;
+      sharedEvent[key] = events[0][key];
+      events.forEach(event => { delete event[key]; });
+    });
+    return { ...compactBase, ...imageAlias, eventEncoding: 'shared-delta-v1', sharedEvent, events };
+  },
+
+  _expandPendingEventCreateMarker(marker) {
+    if (!marker || (marker.kind !== 'single' && marker.kind !== 'multi')) return marker;
+    let expandedMarker = { ...marker };
+    if (marker.kind === 'multi') {
+      const hasSharedEvent = Object.prototype.hasOwnProperty.call(marker, 'sharedEvent');
+      const hasEncoding = Object.prototype.hasOwnProperty.call(marker, 'eventEncoding');
+      if (hasSharedEvent) {
+        if (marker.eventEncoding !== 'shared-delta-v1'
+          || !this._isPendingEventCreatePlainObject(marker.sharedEvent)
+          || !Array.isArray(marker.events)) {
+          throw new Error('EVENT_CREATE_PENDING_INVALID_ENCODING');
+        }
+        const sharedEvent = marker.sharedEvent;
+        const sharedKeys = new Set(this._getPendingEventCreateOwnDataKeys(sharedEvent));
+        expandedMarker.events = marker.events.map(event => {
+        const deltaKeys = this._getPendingEventCreateOwnDataKeys(event);
+        if (deltaKeys.some(key => sharedKeys.has(key))) {
+          throw new Error('EVENT_CREATE_PENDING_OVERLAPPING_DELTA');
+        }
+        const expanded = Object.create(null);
+        const sharedClone = this._clonePendingEventCreateValue(sharedEvent);
+        const deltaClone = this._clonePendingEventCreateValue(event);
+        this._getPendingEventCreateOwnDataKeys(sharedClone).forEach(key => { expanded[key] = sharedClone[key]; });
+        this._getPendingEventCreateOwnDataKeys(deltaClone).forEach(key => { expanded[key] = deltaClone[key]; });
+        return expanded;
+        });
+      } else if (hasEncoding) {
+        throw new Error('EVENT_CREATE_PENDING_UNEXPECTED_ENCODING');
+      }
+      delete expandedMarker.eventEncoding;
+      delete expandedMarker.sharedEvent;
+    }
+    const hasImageEncoding = Object.prototype.hasOwnProperty.call(marker, 'imageEncoding');
+    const hasImageIndexes = Object.prototype.hasOwnProperty.call(marker, 'imageFromCoverIndexes');
+    if (hasImageEncoding !== hasImageIndexes) {
+      throw new Error('EVENT_CREATE_PENDING_INVALID_IMAGE_ENCODING');
+    }
+    if (hasImageEncoding) {
+      const indexes = marker.imageFromCoverIndexes;
+      if (marker.imageEncoding !== 'cover-alias-v1' || !Array.isArray(indexes)) {
+        throw new Error('EVENT_CREATE_PENDING_INVALID_IMAGE_ENCODING');
+      }
+      const eventList = marker.kind === 'multi' ? expandedMarker.events : [expandedMarker.event];
+      const uniqueIndexes = new Set();
+      indexes.forEach(index => {
+        if (!Number.isSafeInteger(index) || index < 0 || index >= eventList.length || uniqueIndexes.has(index)) {
+          throw new Error('EVENT_CREATE_PENDING_INVALID_IMAGE_ALIAS');
+        }
+        uniqueIndexes.add(index);
+        const event = eventList[index];
+        const cover = event?.imageVariants?.cover;
+        if (Object.prototype.hasOwnProperty.call(event || {}, 'image')
+          || typeof cover !== 'string' || !cover) {
+          throw new Error('EVENT_CREATE_PENDING_INVALID_IMAGE_ALIAS');
+        }
+        event.image = cover;
+      });
+      if (indexes.length === 0) throw new Error('EVENT_CREATE_PENDING_EMPTY_IMAGE_ALIAS');
+    }
+    delete expandedMarker.imageEncoding;
+    delete expandedMarker.imageFromCoverIndexes;
+    return expandedMarker;
+  },
+
+  _isPendingEventCreateImageBase64(value) {
+    return typeof value === 'string'
+      && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value)
+      && value.length > 32;
+  },
+
+  _isPendingEventCreateImageValueKey(key) {
+    return ['image', 'cover', 'homeNext', 'card', 'detail'].includes(String(key || ''));
+  },
+
+  _packPendingEventCreateBase64(value, key = '', state = null) {
+    const active = state || { blobs: [], indexes: new Map() };
+    if (typeof value === 'string'
+      && this._isPendingEventCreateImageValueKey(key)
+      && this._isPendingEventCreateImageBase64(value)) {
+      let index = active.indexes.get(value);
+      if (index == null) {
+        index = active.blobs.length;
+        active.indexes.set(value, index);
+        active.blobs.push(value);
+      }
+      return { value: { __sportshubEventCreateBase64Ref: index }, state: active };
+    }
+    if (Array.isArray(value)) {
+      return {
+        value: value.map(item => this._packPendingEventCreateBase64(item, '', active).value),
+        state: active,
+      };
+    }
+    if (value && typeof value === 'object') {
+      const packed = Object.create(null);
+      Object.keys(value).forEach(childKey => {
+        packed[childKey] = this._packPendingEventCreateBase64(value[childKey], childKey, active).value;
+      });
+      return { value: packed, state: active };
+    }
+    return { value, state: active };
+  },
+
+  _unpackPendingEventCreateBase64Envelope(value) {
+    if (!this._isPendingEventCreatePlainObject(value)) return value;
+    const hasWireEncoding = Object.prototype.hasOwnProperty.call(value, 'wireEncoding');
+    if (!hasWireEncoding) return value;
+    const envelopeKeys = Reflect.ownKeys(value);
+    if (value.wireEncoding !== 'base64-table-v1'
+      || envelopeKeys.length !== 3
+      || !envelopeKeys.includes('blobs')
+      || !envelopeKeys.includes('marker')
+      || !Array.isArray(value.blobs)) {
+      throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_ENVELOPE');
+    }
+    const blobs = value.blobs;
+    const uniqueBlobs = new Set();
+    for (let index = 0; index < blobs.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(blobs, index)
+        || !this._isPendingEventCreateImageBase64(blobs[index])
+        || uniqueBlobs.has(blobs[index])) {
+        throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_TABLE');
+      }
+      uniqueBlobs.add(blobs[index]);
+    }
+    const usedIndexes = new Set();
+    const unpack = (item, key = '') => {
+      if (Array.isArray(item)) return item.map(child => unpack(child, ''));
+      if (!item || typeof item !== 'object') return item;
+      if (!this._isPendingEventCreatePlainObject(item)) {
+        throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_VALUE');
+      }
+      const keys = Reflect.ownKeys(item);
+      if (keys.length === 1 && keys[0] === '__sportshubEventCreateBase64Ref') {
+        const descriptor = Object.getOwnPropertyDescriptor(item, keys[0]);
+        const index = descriptor?.value;
+        if (!descriptor?.enumerable
+          || !Object.prototype.hasOwnProperty.call(descriptor, 'value')
+          || !this._isPendingEventCreateImageValueKey(key)
+          || !Number.isSafeInteger(index)
+          || index < 0
+          || index >= blobs.length) {
+          throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_REFERENCE');
+        }
+        usedIndexes.add(index);
+        return blobs[index];
+      }
+      const result = Object.create(null);
+      keys.forEach(childKey => {
+        if (typeof childKey !== 'string') throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_KEY');
+        const descriptor = Object.getOwnPropertyDescriptor(item, childKey);
+        if (!descriptor?.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+          throw new Error('EVENT_CREATE_PENDING_INVALID_BASE64_PROPERTY');
+        }
+        result[childKey] = unpack(descriptor.value, childKey);
+      });
+      return result;
+    };
+    const marker = unpack(value.marker);
+    if (usedIndexes.size !== blobs.length) throw new Error('EVENT_CREATE_PENDING_UNUSED_BASE64');
+    return marker;
+  },
+
+  _serializePendingEventCreateMarker(marker) {
+    const compacted = this._compactPendingEventCreateMarker(marker);
+    if (!compacted) throw new Error('EVENT_CREATE_PENDING_INVALID_MARKER');
+    const encoded = this._encodePendingEventCreateValue(compacted);
+    const packed = this._packPendingEventCreateBase64(encoded);
+    const wire = packed.state.blobs.length > 0
+      ? { wireEncoding: 'base64-table-v1', blobs: packed.state.blobs, marker: packed.value }
+      : packed.value;
+    const serialized = JSON.stringify(wire);
+    if (serialized.length > this._eventCreatePendingMaxSerializedChars) {
+      throw new Error('EVENT_CREATE_PENDING_MARKER_TOO_LARGE');
+    }
+    return serialized;
+  },
+
+  _isValidPendingEventCreateId(value, prefix = '') {
+    const normalized = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{1,120}$/.test(normalized) && (!prefix || normalized.startsWith(prefix));
+  },
+
+  _rememberNormalizedPendingEventCreateMarker(marker) {
+    if (!marker || typeof marker !== 'object') return marker;
+    if (!this._eventCreateNormalizedMarkers) this._eventCreateNormalizedMarkers = new WeakSet();
+    this._eventCreateNormalizedMarkers.add(marker);
+    return marker;
+  },
+
+  _isKnownNormalizedPendingEventCreateMarker(marker, expectedCreatorUid = '') {
+    const expectedUid = String(expectedCreatorUid || '').trim();
+    return !!marker
+      && typeof marker === 'object'
+      && !!this._eventCreateNormalizedMarkers?.has?.(marker)
+      && (!expectedUid || marker.creatorUid === expectedUid);
+  },
+
+  _normalizePendingEventCreateMarker(marker, expectedCreatorUid = '') {
+    if (this._isKnownNormalizedPendingEventCreateMarker(marker, expectedCreatorUid)) return marker;
+    const expectedUid = String(expectedCreatorUid || '').trim();
+    const creatorUid = String(marker?.creatorUid || '').trim();
+    const kind = marker?.kind === 'multi' ? 'multi' : (marker?.kind === 'single' ? 'single' : '');
+    const startedAt = Number(marker?.startedAt || 0);
+    const recoveryState = marker?.recoveryState == null
+      ? 'frozen'
+      : String(marker.recoveryState || '').trim();
+    const payloadRevision = marker?.payloadRevision == null ? 1 : Number(marker.payloadRevision);
+    const intentRevision = marker?.intentRevision == null ? 1 : Number(marker.intentRevision);
+    const sourceAttempts = marker?.attempts == null ? [] : marker.attempts;
+    if (marker?.version !== 2 || !kind || !creatorUid || creatorUid === 'unknown'
+      || (expectedUid && creatorUid !== expectedUid) || !Number.isFinite(startedAt) || startedAt <= 0
+      || (recoveryState !== 'frozen' && recoveryState !== 'editable')
+      || !Number.isSafeInteger(payloadRevision) || payloadRevision < 1
+      || !Number.isSafeInteger(intentRevision) || intentRevision < 1
+      || !Array.isArray(sourceAttempts)
+      || sourceAttempts.length > this._eventCreatePendingMaxAttempts) {
+      return null;
+    }
+    const attemptTokens = new Set();
+    const attempts = [];
+    for (const attempt of sourceAttempts) {
+      const token = String(attempt?.token || '').trim();
+      const attemptPayloadRevision = Number(attempt?.payloadRevision || 0);
+      const attemptPayloadDigest = String(attempt?.payloadDigest || '').trim();
+      const state = String(attempt?.state || '').trim();
+      if (!/^eca_[A-Za-z0-9_-]{1,116}$/.test(token)
+        || attemptTokens.has(token)
+        || !Number.isSafeInteger(attemptPayloadRevision) || attemptPayloadRevision < 1
+        || !this._isValidEventCreateFixedDigest(attemptPayloadDigest)
+        || ![
+          'pending', 'timed-out', 'rejected-definitive',
+          'rejected-ambiguous', 'conflict', 'committed',
+        ].includes(state)) {
+        return null;
+      }
+      attemptTokens.add(token);
+      attempts.push({ token, payloadRevision: attemptPayloadRevision, payloadDigest: attemptPayloadDigest, state });
+    }
+    if (kind === 'single') {
+      const event = marker?.event;
+      const eventId = String(event?.id || '').trim();
+      if (!this._isValidPendingEventCreateId(eventId, 'ce_')
+        || String(event?.clientRequestId || '').trim() !== eventId
+        || String(event?.creatorUid || '').trim() !== creatorUid
+        || String(marker?.intentId || '').trim() !== eventId) {
+        return null;
+      }
+      let payloadDigest;
+      try {
+        payloadDigest = this._getPendingEventCreatePayloadDigest(kind, event, null);
+      } catch (_) {
+        return null;
+      }
+      if (marker?.payloadDigest != null && String(marker.payloadDigest) !== payloadDigest) return null;
+      const signature = this._isValidEventCreateFixedDigest(marker?.signature)
+        ? String(marker.signature)
+        : payloadDigest;
+      return this._rememberNormalizedPendingEventCreateMarker({
+        ...marker,
+        version: 2,
+        kind,
+        creatorUid,
+        intentId: eventId,
+        event,
+        recoveryState,
+        payloadRevision,
+        intentRevision,
+        attempts,
+        payloadDigest,
+        signature,
+        startedAt,
+      });
+    }
+    const events = Array.isArray(marker?.events) ? marker.events : [];
+    const batchGroupId = String(marker?.batchGroupId || marker?.intentId || '').trim();
+    if (events.length < 2 || events.length > 30
+      || !this._isValidPendingEventCreateId(batchGroupId)
+      || String(marker?.intentId || '').trim() !== batchGroupId) {
+      return null;
+    }
+    const eventIds = new Set();
+    for (const event of events) {
+      const eventId = String(event?.id || '').trim();
+      if (!this._isValidPendingEventCreateId(eventId, 'ce_')
+        || eventIds.has(eventId)
+        || String(event?.clientRequestId || '').trim() !== eventId
+        || String(event?.creatorUid || '').trim() !== creatorUid
+        || String(event?.batchGroupId || '').trim() !== batchGroupId) {
+        return null;
+      }
+      eventIds.add(eventId);
+    }
+    let payloadDigest;
+    try {
+      payloadDigest = this._getPendingEventCreatePayloadDigest(kind, null, events, batchGroupId);
+    } catch (_) {
+      return null;
+    }
+    if (marker?.payloadDigest != null && String(marker.payloadDigest) !== payloadDigest) return null;
+    const signature = this._isValidEventCreateFixedDigest(marker?.signature)
+      ? String(marker.signature)
+      : payloadDigest;
+    return this._rememberNormalizedPendingEventCreateMarker({
+      ...marker,
+      version: 2,
+      kind,
+      creatorUid,
+      intentId: batchGroupId,
+      batchGroupId,
+      events,
+      recoveryState,
+      payloadRevision,
+      intentRevision,
+      attempts,
+      payloadDigest,
+      signature,
+      startedAt,
+    });
+  },
+
+  _parsePendingEventCreateMarker(raw, expectedCreatorUid = '') {
+    try {
+      const decoded = this._expandPendingEventCreateMarker(
+        this._decodePendingEventCreateValue(
+          this._unpackPendingEventCreateBase64Envelope(JSON.parse(String(raw || ''))),
+        ),
+      );
+      return this._normalizePendingEventCreateMarker(decoded, expectedCreatorUid);
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _getPendingEventCreateMarkerFromPending(pending) {
+    if (pending?.marker) return this._normalizePendingEventCreateMarker(pending.marker, pending.creatorUid);
+    const creatorUid = String(pending?.creatorUid || '').trim();
+    const startedAt = Number(pending?.startedAt || Date.now());
+    const signature = String(pending?.signature || '');
+    const payloadRevision = Number(pending?.payloadRevision || 1);
+    const intentRevision = Number(pending?.intentRevision || 1);
+    const attempts = Array.isArray(pending?.durableAttempts) ? pending.durableAttempts : [];
+    const recoveryState = pending?.recoveryState === 'editable' || pending?.state === 'editable'
+      ? 'editable'
+      : 'frozen';
+    if (pending?.kind === 'multi' || Array.isArray(pending?.events)) {
+      const events = pending.events || [];
+      const batchGroupId = String(events[0]?.batchGroupId || pending?.batchGroupId || '').trim();
+      return this._normalizePendingEventCreateMarker({
+        version: 2,
+        kind: 'multi',
+        creatorUid,
+        intentId: batchGroupId,
+        batchGroupId,
+        events,
+        signature,
+        payloadRevision,
+        intentRevision,
+        attempts,
+        recoveryState,
+        startedAt,
+      }, creatorUid);
+    }
+    const eventId = String(pending?.event?.id || '').trim();
+    return this._normalizePendingEventCreateMarker({
+      version: 2,
+      kind: 'single',
+      creatorUid,
+      intentId: eventId,
+      event: pending?.event,
+      signature,
+      payloadRevision,
+      intentRevision,
+      attempts,
+      recoveryState,
+      startedAt,
+    }, creatorUid);
+  },
+
+  _isSamePendingEventCreateIdentity(left, right) {
+    const leftMarker = this._normalizePendingEventCreateMarker(left, left?.creatorUid);
+    const rightMarker = this._normalizePendingEventCreateMarker(right, right?.creatorUid);
+    if (!leftMarker || !rightMarker
+      || leftMarker.kind !== rightMarker.kind
+      || leftMarker.creatorUid !== rightMarker.creatorUid
+      || leftMarker.intentId !== rightMarker.intentId) {
+      return false;
+    }
+    if (leftMarker.kind === 'single') {
+      return leftMarker.event.id === rightMarker.event.id
+        && leftMarker.event.clientRequestId === rightMarker.event.clientRequestId;
+    }
+    const leftIds = leftMarker.events.map(event => `${event.id}:${event.clientRequestId}`);
+    const rightIds = rightMarker.events.map(event => `${event.id}:${event.clientRequestId}`);
+    return leftIds.length === rightIds.length && leftIds.every((value, index) => value === rightIds[index]);
+  },
+
+  _isSamePendingEventCreateIntent(left, right) {
+    const leftMarker = this._normalizePendingEventCreateMarker(left, left?.creatorUid);
+    const rightMarker = this._normalizePendingEventCreateMarker(right, right?.creatorUid);
+    return !!leftMarker && !!rightMarker
+      && this._isSamePendingEventCreateIdentity(leftMarker, rightMarker)
+      && leftMarker.startedAt === rightMarker.startedAt
+      && leftMarker.payloadRevision === rightMarker.payloadRevision
+      && leftMarker.payloadDigest === rightMarker.payloadDigest
+      && leftMarker.recoveryState === rightMarker.recoveryState
+      && leftMarker.intentRevision === rightMarker.intentRevision
+      && JSON.stringify(leftMarker.attempts) === JSON.stringify(rightMarker.attempts);
+  },
+
+  _getEventCreateRuntime() {
+    if (typeof window !== 'undefined') return window;
+    if (typeof globalThis !== 'undefined') return globalThis;
+    return null;
+  },
+
+  _getEventCreateLockManager() {
+    const lockManager = this._getEventCreateRuntime()?.navigator?.locks;
+    return lockManager && typeof lockManager.request === 'function' ? lockManager : null;
+  },
+
+  async _waitForEventCreatePendingCoordinator(promise, fallbackValue, onTimeout = null, configuredTimeoutMs = null) {
+    const timeoutMs = Math.max(1, Number(configuredTimeoutMs
+      || this._eventCreatePendingCoordinatorTimeoutMs) || 3000);
+    let timeoutId = null;
+    const timeout = new Promise(resolve => {
+      timeoutId = setTimeout(() => {
+        try { onTimeout?.(); } catch (_) {}
+        resolve(fallbackValue);
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  },
+
+  _persistPendingSingleEventMarker(pendingOrMarker) {
+    const marker = pendingOrMarker?.version === 2
+      ? this._normalizePendingEventCreateMarker(pendingOrMarker, pendingOrMarker?.creatorUid)
+      : this._getPendingEventCreateMarkerFromPending(pendingOrMarker);
+    const storageKey = this._getEventCreatePendingStorageKey(marker?.creatorUid);
+    if (!marker || !storageKey) return false;
+    try {
+      const storage = this._getEventCreateRuntime()?.localStorage;
+      if (!storage) return false;
+      const serialized = this._serializePendingEventCreateMarker(marker);
+      return this._writeSerializedPendingEventCreateMarker(storage, storageKey, serialized, marker.creatorUid)
+        && storage.getItem(storageKey) === serialized;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _readPendingSingleEventMarker(creatorUid = '') {
+    const normalizedUid = String(creatorUid || this._getEventFormAuthUid() || '').trim();
+    const storageKey = this._getEventCreatePendingStorageKey(normalizedUid);
+    if (!storageKey) return null;
+    try {
+      const storage = this._getEventCreateRuntime()?.localStorage;
+      if (!storage) return { unavailable: true, creatorUid: normalizedUid };
+      const raw = storage.getItem(storageKey);
+      if (!raw) return null;
+      const marker = this._parsePendingEventCreateMarker(raw, normalizedUid);
+      return marker || { invalid: true, creatorUid: normalizedUid };
+    } catch (_) {
+      return { unavailable: true, creatorUid: normalizedUid };
+    }
+  },
+
+  _clearPendingSingleEventMarker(expectedMarker) {
+    const marker = this._normalizePendingEventCreateMarker(expectedMarker, expectedMarker?.creatorUid);
+    const storageKey = this._getEventCreatePendingStorageKey(marker?.creatorUid);
+    if (!marker || !storageKey) return false;
+    try {
+      const storage = this._getEventCreateRuntime()?.localStorage;
+      if (!storage) return false;
+      const current = this._readPendingSingleEventMarker(marker.creatorUid);
+      if (!this._isSamePendingEventCreateIntent(current, marker)) return false;
+      storage.removeItem(storageKey);
+      return !storage.getItem(storageKey);
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _getEventCreatePendingEvictableStorageKeys(storage) {
+    if (!storage) return [];
+    const firebaseDisplayCache = /^shub_c_(?:.+_)?(?:newsArticles|gameConfigs|operationLogs|expLogs|teamExpLogs|errorLogs)$/;
+    const homeNextCache = /^toosterx\.homeNextActivity\.v1\.[A-Za-z0-9_-]+$/;
+    const rosterPreviewCache = /^toosterx\.eduCourseRosterPreview\.v1\.[A-Za-z0-9_-]+$/;
+    const keys = [];
+    const length = Number(storage.length || 0);
+    if (!Number.isSafeInteger(length) || length < 0) return [];
+    for (let index = 0; index < length; index += 1) {
+      const key = String(storage.key(index) || '');
+      if (key === 'shub_qr_data'
+        || firebaseDisplayCache.test(key)
+        || homeNextCache.test(key)
+        || rosterPreviewCache.test(key)) keys.push(key);
+    }
+    return keys;
+  },
+
+  _isEventCreatePendingQuotaError(err) {
+    const name = String(err?.name || '').toLowerCase();
+    const code = Number(err?.code || 0);
+    return name === 'quotaexceedederror'
+      || name === 'ns_error_dom_quota_reached'
+      || code === 22
+      || code === 1014;
+  },
+
+  _writeSerializedPendingEventCreateMarker(storage, storageKey, serialized, creatorUid = '') {
+    try {
+      storage.setItem(storageKey, serialized);
+      return true;
+    } catch (err) {
+      if (!this._isEventCreatePendingQuotaError(err)) return false;
+      const candidates = [];
+      let evictableKeys;
+      try {
+        evictableKeys = this._getEventCreatePendingEvictableStorageKeys(storage);
+      } catch (_) {
+        return false;
+      }
+      for (const key of evictableKeys) {
+        try {
+          const value = key === storageKey ? null : storage.getItem(key);
+          if (value != null) candidates.push({ key, size: String(value).length });
+        } catch (_) {
+          return false;
+        }
+      }
+      candidates.sort((left, right) => right.size - left.size || left.key.localeCompare(right.key));
+      for (const candidate of candidates) {
+        try {
+          storage.removeItem(candidate.key);
+          storage.setItem(storageKey, serialized);
+          return true;
+        } catch (retryErr) {
+          if (!this._isEventCreatePendingQuotaError(retryErr)) return false;
+        }
+      }
+      return false;
+    }
+  },
+
+  _isAllowedPendingEventCreateReplacement(expected, next) {
+    if (!expected || !next
+      || !this._isSamePendingEventCreateIdentity(expected, next)
+      || expected.startedAt !== next.startedAt
+      || next.intentRevision !== expected.intentRevision + 1) {
+      return false;
+    }
+    if (next.payloadRevision === expected.payloadRevision) {
+      return next.payloadDigest === expected.payloadDigest
+        && (next.recoveryState === expected.recoveryState
+          || (expected.recoveryState === 'frozen' && next.recoveryState === 'editable'));
+    }
+    return next.payloadRevision === expected.payloadRevision + 1
+      && expected.recoveryState === 'editable'
+      && next.recoveryState === 'frozen'
+      && JSON.stringify(next.attempts) === JSON.stringify(expected.attempts);
+  },
+
+  _prepareEventCreatePendingOperation(operation, creatorUid, marker = null) {
+    const normalizedUid = String(creatorUid || '').trim();
+    if (!normalizedUid) return null;
+    if (operation === 'read') return { operation, creatorUid: normalizedUid };
+    if (operation === 'claim' || operation === 'remove') {
+      const expected = this._normalizePendingEventCreateMarker(marker, normalizedUid);
+      if (!expected) return null;
+      return {
+        operation,
+        creatorUid: normalizedUid,
+        expectedMarker: expected,
+        expectedSerialized: this._serializePendingEventCreateMarker(expected),
+      };
+    }
+    if (operation === 'replace') {
+      const expected = this._normalizePendingEventCreateMarker(marker?.expectedMarker, normalizedUid);
+      const next = this._normalizePendingEventCreateMarker(marker?.nextMarker, normalizedUid);
+      if (!this._isAllowedPendingEventCreateReplacement(expected, next)) return null;
+      return {
+        operation,
+        creatorUid: normalizedUid,
+        expectedMarker: expected,
+        expectedSerialized: this._serializePendingEventCreateMarker(expected),
+        nextMarker: next,
+        nextSerialized: this._serializePendingEventCreateMarker(next),
+      };
+    }
+    return null;
+  },
+
+  _finalizeEventCreatePendingStorageResult(result, prepared) {
+    if (!result?.state) return { state: 'unavailable' };
+    if (!['existing', 'preserved', 'read'].includes(result.state)) return result;
+    if (!result.raw) return result.state === 'read' ? { state: 'empty', marker: null } : result;
+    const parsed = this._parsePendingEventCreateMarker(result.raw, prepared.creatorUid);
+    if (!parsed) return { state: 'blocked', marker: { invalid: true, creatorUid: prepared.creatorUid } };
+    return {
+      state: result.state === 'read' ? 'existing' : result.state,
+      marker: parsed,
+    };
+  },
+
+  _runEventCreatePendingStorageOperation(prepared) {
+    const storageKey = this._getEventCreatePendingStorageKey(prepared?.creatorUid);
+    const storage = this._getEventCreateRuntime()?.localStorage;
+    if (!prepared || !storageKey || !storage) return { state: 'unavailable' };
+    let currentRaw;
+    try {
+      currentRaw = storage.getItem(storageKey);
+    } catch (_) {
+      return { state: 'unavailable' };
+    }
+    if (prepared.operation === 'read') return { state: 'read', raw: currentRaw || null };
+    if (prepared.operation === 'claim') {
+      if (currentRaw) return { state: 'existing', raw: currentRaw };
+      if (!this._writeSerializedPendingEventCreateMarker(
+        storage, storageKey, prepared.expectedSerialized, prepared.creatorUid,
+      )) return { state: 'unavailable' };
+      try {
+        return storage.getItem(storageKey) === prepared.expectedSerialized
+          ? { state: 'claimed', marker: prepared.expectedMarker }
+          : { state: 'unavailable' };
+      } catch (_) {
+        return { state: 'unavailable' };
+      }
+    }
+    if (prepared.operation === 'replace') {
+      if (currentRaw !== prepared.expectedSerialized) {
+        return { state: 'preserved', raw: currentRaw || null };
+      }
+      if (!this._writeSerializedPendingEventCreateMarker(
+        storage, storageKey, prepared.nextSerialized, prepared.creatorUid,
+      )) return { state: 'unavailable' };
+      try {
+        return storage.getItem(storageKey) === prepared.nextSerialized
+          ? { state: 'replaced', marker: prepared.nextMarker }
+          : { state: 'unavailable' };
+      } catch (_) {
+        return { state: 'unavailable' };
+      }
+    }
+    if (prepared.operation === 'remove') {
+      if (currentRaw !== prepared.expectedSerialized) {
+        return { state: 'preserved', raw: currentRaw || null };
+      }
+      try {
+        storage.removeItem(storageKey);
+        return storage.getItem(storageKey) == null
+          ? { state: 'removed', marker: prepared.expectedMarker }
+          : { state: 'unavailable' };
+      } catch (_) {
+        return { state: 'unavailable' };
+      }
+    }
+    return { state: 'unavailable' };
+  },
+
+  async _openEventCreatePendingDb() {
+    const indexedDb = this._getEventCreateRuntime()?.indexedDB;
+    if (!indexedDb || typeof indexedDb.open !== 'function') return null;
+    let request = null;
+    let active = true;
+    const openPromise = new Promise((resolve, reject) => {
+      try {
+        request = indexedDb.open(this._eventCreatePendingDbName, 1);
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      request.onupgradeneeded = () => {
+        if (!active) {
+          try { request.transaction?.abort?.(); } catch (_) {}
+          return;
+        }
+        const database = request.result;
+        if (!database.objectStoreNames.contains(this._eventCreatePendingDbStore)) {
+          database.createObjectStore(this._eventCreatePendingDbStore, { keyPath: 'creatorUid' });
+        }
+      };
+      request.onsuccess = () => {
+        if (!active) {
+          try { request.result?.close?.(); } catch (_) {}
+          return;
+        }
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        if (active) reject(request.error || new Error('EVENT_CREATE_PENDING_DB_OPEN_FAILED'));
+      };
+      request.onblocked = () => {
+        if (active) reject(new Error('EVENT_CREATE_PENDING_DB_BLOCKED'));
+      };
+    });
+    let deliveredDatabase = null;
+    try {
+      deliveredDatabase = await this._waitForEventCreatePendingCoordinator(openPromise, null, () => {
+        active = false;
+        try { request?.transaction?.abort?.(); } catch (_) {}
+        try { request?.result?.close?.(); } catch (_) {}
+      });
+      return deliveredDatabase;
+    } finally {
+      active = false;
+      if (!deliveredDatabase) {
+        try { request?.transaction?.abort?.(); } catch (_) {}
+        try { request?.result?.close?.(); } catch (_) {}
+      }
+    }
+  },
+
+  async _runEventCreatePendingDbOperation(prepared) {
+    const normalizedUid = String(prepared?.creatorUid || '').trim();
+    const database = await this._openEventCreatePendingDb();
+    if (!database || !normalizedUid) return { state: 'unavailable' };
+    let transaction = null;
+    let active = true;
+    try {
+      const operationPromise = new Promise((resolve, reject) => {
+        try {
+          transaction = database.transaction(this._eventCreatePendingDbStore, 'readwrite');
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        const store = transaction.objectStore(this._eventCreatePendingDbStore);
+        const request = store.get(normalizedUid);
+        let result = { state: 'unavailable' };
+        request.onsuccess = () => {
+          if (!active) {
+            try { transaction.abort(); } catch (_) {}
+            return;
+          }
+          try {
+            result = this._runEventCreatePendingStorageOperation(prepared);
+            const previousEpoch = Number(request.result?.epoch || 0);
+            store.put({
+              creatorUid: normalizedUid,
+              epoch: Number.isSafeInteger(previousEpoch) && previousEpoch >= 0
+                && previousEpoch < Number.MAX_SAFE_INTEGER ? previousEpoch + 1 : 1,
+            });
+          } catch (err) {
+            try { transaction.abort(); } catch (_) {}
+            reject(err);
+          }
+        };
+        request.onerror = () => {
+          if (!active) return;
+          try { transaction.abort(); } catch (_) {}
+          reject(request.error || new Error('EVENT_CREATE_PENDING_DB_READ_FAILED'));
+        };
+        transaction.oncomplete = () => {
+          if (active) resolve(result);
+        };
+        transaction.onerror = () => {
+          if (active) reject(transaction.error || request.error || new Error('EVENT_CREATE_PENDING_DB_FAILED'));
+        };
+        transaction.onabort = () => {
+          if (active) reject(transaction.error || request.error || new Error('EVENT_CREATE_PENDING_DB_ABORTED'));
+        };
+      });
+      return await this._waitForEventCreatePendingCoordinator(
+        operationPromise,
+        { state: 'unavailable' },
+        () => {
+          active = false;
+          try { transaction?.abort?.(); } catch (_) {}
+        },
+      );
+    } finally {
+      active = false;
+      try { database.close(); } catch (_) {}
+    }
+  },
+
+  async _runEventCreatePendingOperation(operation, creatorUid, marker = null) {
+    const normalizedUid = String(creatorUid || '').trim();
+    const lockName = this._getEventCreatePendingLockName(normalizedUid);
+    if (!normalizedUid || !lockName) return { state: 'unavailable' };
+    let prepared;
+    try {
+      prepared = this._prepareEventCreatePendingOperation(operation, normalizedUid, marker);
+    } catch (err) {
+      this._writeEventCreateStageError('pendingIntentPrepare', err);
+      return { state: 'unavailable' };
+    }
+    if (!prepared) return { state: 'blocked', marker: { invalid: true, creatorUid: normalizedUid } };
+    const lockManager = this._getEventCreateLockManager();
+    if (lockManager) {
+      let active = true;
+      const runtime = this._getEventCreateRuntime();
+      const AbortControllerCtor = runtime?.AbortController
+        || (typeof AbortController !== 'undefined' ? AbortController : null);
+      const abortController = AbortControllerCtor ? new AbortControllerCtor() : null;
+      try {
+        const options = { mode: 'exclusive' };
+        if (abortController?.signal) options.signal = abortController.signal;
+        let signalAcquired = null;
+        const acquiredPromise = new Promise(resolve => { signalAcquired = resolve; });
+        const lockRequest = Promise.resolve(lockManager.request(lockName, options, async () => {
+          if (!active) {
+            signalAcquired(false);
+            return { state: 'unavailable' };
+          }
+          signalAcquired(true);
+          return await this._runEventCreatePendingDbOperation(prepared);
+        }));
+        lockRequest.catch(() => {});
+        const acquired = await this._waitForEventCreatePendingCoordinator(
+          acquiredPromise,
+          false,
+          () => {
+            active = false;
+            try { abortController?.abort?.(); } catch (_) {}
+          },
+          this._eventCreatePendingWebLockTimeoutMs,
+        );
+        if (!acquired || !active) {
+          active = false;
+          return { state: 'unavailable' };
+        }
+        const lockResult = await lockRequest;
+        active = false;
+        return this._finalizeEventCreatePendingStorageResult(
+          lockResult?.state ? lockResult : { state: 'unavailable' },
+          prepared,
+        );
+      } catch (err) {
+        active = false;
+        this._writeEventCreateStageError('pendingIntentLock', err);
+        return { state: 'unavailable' };
+      }
+    }
+    try {
+      const result = await this._runEventCreatePendingDbOperation(prepared);
+      return this._finalizeEventCreatePendingStorageResult(result, prepared);
+    } catch (err) {
+      this._writeEventCreateStageError('pendingIntentIndexedDb', err);
+      return { state: 'unavailable' };
+    }
+  },
+
+  async _claimPendingEventCreateIntent(marker) {
+    const normalized = this._normalizePendingEventCreateMarker(marker, marker?.creatorUid);
+    if (!normalized) return { state: 'blocked', marker: { invalid: true } };
+    return await this._runEventCreatePendingOperation('claim', normalized.creatorUid, normalized);
+  },
+
+  async _loadPendingEventCreateIntent(creatorUid = '') {
+    return await this._runEventCreatePendingOperation('read', creatorUid);
+  },
+
+  async _removePendingEventCreateIntent(marker) {
+    const normalized = this._normalizePendingEventCreateMarker(marker, marker?.creatorUid);
+    if (!normalized) return false;
+    let expected = normalized;
+    for (let retry = 0; retry < 3; retry += 1) {
+      const result = await this._runEventCreatePendingOperation('remove', expected.creatorUid, expected);
+      if (result.state === 'removed') return true;
+      const canonical = result?.state === 'preserved' ? result.marker : null;
+      if (!canonical
+        || !this._isSamePendingEventCreateIdentity(canonical, normalized)
+        || canonical.payloadRevision !== normalized.payloadRevision
+        || canonical.payloadDigest !== normalized.payloadDigest
+        || !canonical.attempts.some(attempt => attempt.state === 'committed'
+          && attempt.payloadRevision === normalized.payloadRevision
+          && attempt.payloadDigest === normalized.payloadDigest)) {
+        return false;
+      }
+      expected = canonical;
+    }
+    return false;
+  },
+
+  async _replacePendingEventCreateIntent(expectedMarker, nextMarker) {
+    const expected = this._normalizePendingEventCreateMarker(expectedMarker, expectedMarker?.creatorUid);
+    const next = this._normalizePendingEventCreateMarker(nextMarker, nextMarker?.creatorUid);
+    if (!this._isAllowedPendingEventCreateReplacement(expected, next)) {
+      return { state: 'preserved', marker: null };
+    }
+    const result = await this._runEventCreatePendingOperation('replace', expected.creatorUid, {
+      expectedMarker: expected,
+      nextMarker: next,
+    });
+    if (result?.state !== 'unavailable') return result;
+    const canonical = await this._runEventCreatePendingOperation('read', expected.creatorUid);
+    return canonical?.state === 'existing'
+      && this._isSamePendingEventCreateIntent(canonical.marker, next)
+      ? { state: 'replaced', marker: canonical.marker }
+      : { state: 'unavailable', marker: canonical?.marker || null };
+  },
+
+  _setEventCreateOutcomeUnknownUi(isUnknown) {
+    const modal = document.getElementById('create-event-modal');
+    const modalBody = modal?.querySelector?.(':scope > .modal-body') || modal?.querySelector?.('.modal-body');
+    if (modalBody) modalBody.inert = !!isUnknown;
+    modal?.classList?.toggle('ce-create-outcome-unknown', !!isUnknown);
+    if (isUnknown) this._setCreateEventSubmitIdleLabel('確認建立結果');
+  },
+
+  _setEventCreateEditableRetryUi() {
+    this._setEventCreateOutcomeUnknownUi(false);
+    this._setCreateEventSubmitIdleLabel('修正後重新送出');
+  },
+
+  _isPendingEventCreateCurrent(pending) {
+    if (!pending) return false;
+    return pending.kind === 'multi'
+      ? this._pendingMultiDateSubmission === pending
+      : this._pendingSingleEventSubmission === pending;
+  },
+
+  _clearPendingSingleEventSubmission(pending = null) {
+    const target = pending || this._pendingSingleEventSubmission || this._pendingMultiDateSubmission;
+    if (!target || !this._isPendingEventCreateCurrent(target)) return false;
+    if (target.kind === 'multi') this._pendingMultiDateSubmission = null;
+    else this._pendingSingleEventSubmission = null;
+    this._setEventCreateOutcomeUnknownUi(false);
+    return true;
+  },
+
+  _restorePendingEventCreateIntent(marker, generation = 0) {
+    const normalized = this._normalizePendingEventCreateMarker(marker, marker?.creatorUid);
+    if (!normalized) return null;
+    const pending = {
+      kind: normalized.kind,
+      generation,
+      signature: normalized.signature,
+      creatorUid: normalized.creatorUid,
+      marker: normalized,
+      event: normalized.kind === 'single'
+        ? this._clonePendingEventCreateValue(normalized.event)
+        : null,
+      events: normalized.kind === 'multi'
+        ? normalized.events.map(event => this._clonePendingEventCreateValue(event))
+        : null,
+      batchGroupId: normalized.kind === 'multi' ? normalized.batchGroupId : '',
+      payloadRevision: normalized.payloadRevision,
+      payloadDigest: normalized.payloadDigest,
+      intentRevision: normalized.intentRevision,
+      recoveryState: normalized.recoveryState,
+      durableAttempts: normalized.attempts,
+      attempts: [],
+      state: normalized.recoveryState === 'editable' ? 'editable-restored' : 'outcome-unknown',
+      restored: true,
+      startedAt: normalized.startedAt,
+    };
+    if (pending.kind === 'multi') this._pendingMultiDateSubmission = pending;
+    else this._pendingSingleEventSubmission = pending;
+    return pending;
+  },
+
+  _writeEventCreateStageError(stage, err, extra = {}) {
+    ApiService._writeErrorLog?.({
+      fn: 'handleCreateEvent',
+      stage,
+      currentUserRole: ApiService.getCurrentUser?.()?.role || this.currentRole || '',
+      authMatchesProfile: String(ApiService.getCurrentUser?.()?.uid || '').trim() === this._getEventFormAuthUid(),
+      ...extra,
+    }, err);
+  },
+
+  _classifyEventCreateAttemptRejection(reason) {
+    const explicitOutcome = String(reason?.eventCreateOutcome || '').trim();
+    if (explicitOutcome === 'conflict') return 'conflict';
+    const writeState = String(reason?.eventCreateWriteState || '').trim();
+    if (explicitOutcome === 'definitive-rejected' && writeState === 'not-started') return 'definitive';
+    const code = String(reason?.code || '').trim().toLowerCase();
+    const message = String(reason?.message || reason || '').trim().toLowerCase();
+    if (code === 'event/id-conflict' || message.includes('event_id_conflict')) return 'conflict';
+    if (String(reason?.eventCreatePhase || '').trim() === 'transaction'
+      && ['permission-denied', 'unauthenticated', 'invalid-argument'].includes(code)) {
+      return 'authoritative-rejected';
+    }
+    return 'ambiguous';
+  },
+
+  _canOfferEditableEventCreateRetry(pending) {
+    const attempts = Array.isArray(pending?.marker?.attempts) ? pending.marker.attempts : [];
+    return attempts.length > 0
+      && attempts.every(attempt => attempt.state === 'rejected-definitive');
+  },
+
+  _getEventCreateAttemptToken() {
+    this._eventCreateAttemptSequence = Number(this._eventCreateAttemptSequence || 0) + 1;
+    const entropy = `${Date.now()}:${this._eventCreateAttemptSequence}:${Math.random()}`;
+    return `eca_${this._getEventCreateFixedDigest(entropy).slice(3)}`;
+  },
+
+  _syncPendingEventCreateMarker(pending, marker) {
+    const normalized = this._normalizePendingEventCreateMarker(marker, pending?.creatorUid);
+    if (!pending || !normalized) return false;
+    pending.marker = normalized;
+    pending.payloadRevision = normalized.payloadRevision;
+    pending.payloadDigest = normalized.payloadDigest;
+    pending.intentRevision = normalized.intentRevision;
+    pending.recoveryState = normalized.recoveryState;
+    pending.durableAttempts = normalized.attempts;
+    if (normalized.kind === 'multi') {
+      pending.events = normalized.events.map(event => this._clonePendingEventCreateValue(event));
+      pending.batchGroupId = normalized.batchGroupId;
+    } else {
+      pending.event = this._clonePendingEventCreateValue(normalized.event);
+    }
+    return true;
+  },
+
+  async _beginPendingEventCreateAttempt(pending) {
+    const token = this._getEventCreateAttemptToken();
+    for (let retry = 0; retry < 3; retry += 1) {
+      const expected = pending?.marker || this._getPendingEventCreateMarkerFromPending(pending);
+      if (!expected || expected.recoveryState !== 'frozen'
+        || expected.attempts.length >= this._eventCreatePendingMaxAttempts) return null;
+      const next = this._normalizePendingEventCreateMarker({
+        ...expected,
+        intentRevision: expected.intentRevision + 1,
+        attempts: expected.attempts.concat({
+          token,
+          payloadRevision: expected.payloadRevision,
+          payloadDigest: expected.payloadDigest,
+          state: 'pending',
+        }),
+      }, pending.creatorUid);
+      if (!next) return null;
+      const replaced = await this._replacePendingEventCreateIntent(expected, next);
+      if (replaced?.state === 'replaced' && replaced.marker) {
+        this._syncPendingEventCreateMarker(pending, replaced.marker);
+        return {
+          number: (pending.attempts?.length || 0) + 1,
+          token,
+          revision: next.payloadRevision,
+          digest: next.payloadDigest,
+          status: 'pending',
+          rejectionKind: '',
+          outcome: null,
+          promise: null,
+        };
+      }
+      if (replaced?.state !== 'preserved' || !replaced.marker
+        || replaced.marker.recoveryState !== 'frozen'
+        || replaced.marker.payloadRevision !== expected.payloadRevision
+        || replaced.marker.payloadDigest !== expected.payloadDigest) return null;
+      this._syncPendingEventCreateMarker(pending, replaced.marker);
+    }
+    return null;
+  },
+
+  async _settlePendingEventCreateAttempt(pending, attemptRecord, durableState) {
+    if (!pending || !attemptRecord?.token) return false;
+    for (let retry = 0; retry < 4; retry += 1) {
+      const expected = pending.marker;
+      if (!expected) return false;
+      const attemptIndex = expected.attempts.findIndex(attempt => attempt.token === attemptRecord.token);
+      if (attemptIndex < 0) return false;
+      const currentAttempt = expected.attempts[attemptIndex];
+      if (currentAttempt.payloadRevision !== attemptRecord.revision
+        || currentAttempt.payloadDigest !== attemptRecord.digest) return false;
+      if (currentAttempt.state === durableState
+        || currentAttempt.state === 'committed'
+        || currentAttempt.state === 'conflict') return true;
+      const attempts = expected.attempts.map((attempt, index) => index === attemptIndex
+        ? { ...attempt, state: durableState }
+        : attempt);
+      const next = this._normalizePendingEventCreateMarker({
+        ...expected,
+        intentRevision: expected.intentRevision + 1,
+        attempts,
+      }, pending.creatorUid);
+      if (!next) return false;
+      const replaced = await this._replacePendingEventCreateIntent(expected, next);
+      if (replaced?.state === 'replaced' && replaced.marker) {
+        this._syncPendingEventCreateMarker(pending, replaced.marker);
+        return true;
+      }
+      if (replaced?.state !== 'preserved' || !replaced.marker
+        || !this._isSamePendingEventCreateIdentity(replaced.marker, expected)
+        || replaced.marker.payloadRevision !== attemptRecord.revision
+        || replaced.marker.payloadDigest !== attemptRecord.digest) return false;
+      this._syncPendingEventCreateMarker(pending, replaced.marker);
+    }
+    return false;
+  },
+
+  _getPendingEventCreateWritePayload(pending) {
+    const metadata = {
+      payloadRevision: pending.marker.payloadRevision,
+      payloadDigest: pending.marker.payloadDigest,
+    };
+    return pending.kind === 'multi'
+      ? pending.marker.events.map(event => ({ ...this._clonePendingEventCreateValue(event), ...metadata }))
+      : { ...this._clonePendingEventCreateValue(pending.marker.event), ...metadata };
+  },
+
+  async _markPendingEventCreateEditable(pending) {
+    const expected = pending?.marker || this._getPendingEventCreateMarkerFromPending(pending);
+    if (!expected || !this._canOfferEditableEventCreateRetry(pending)) return false;
+    const next = this._normalizePendingEventCreateMarker({
+      ...expected,
+      recoveryState: 'editable',
+      intentRevision: expected.intentRevision + 1,
+    }, pending.creatorUid);
+    if (!next) return false;
+    const replaced = await this._replacePendingEventCreateIntent(expected, next);
+    if (replaced?.state !== 'replaced' || !replaced.marker) {
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      return false;
+    }
+    this._syncPendingEventCreateMarker(pending, replaced.marker);
+    pending.state = 'editable';
+    this._setEventCreateEditableRetryUi();
+    return true;
+  },
+
+  _showEditableEventCreateRetry(reason, pending) {
+    this._setEventCreateEditableRetryUi();
+    if (reason?._toasted) return;
+    const payload = pending?.kind === 'multi' ? pending?.events?.[0] : pending?.event;
+    const message = this._getCreateEventWriteErrorMessage?.(reason, payload)
+      || '活動資料未能建立，請修正表單後重新送出；系統會沿用原本的活動編號';
+    this.showToast?.(message);
+  },
+
+  async _captureSingleEventCreateAttempt(pending, writePayload) {
+    try {
+      const created = pending.kind === 'multi'
+        ? await ApiService.createEventsAtomic(writePayload)
+        : await ApiService.createEvent(writePayload);
+      if (!created) throw new Error('EVENT_CREATE_EMPTY_RESULT');
+      return { status: 'fulfilled', value: created };
+    } catch (reason) {
+      return { status: 'rejected', reason };
+    }
+  },
+
+  async _rememberSingleEventCreateAttempt(pending, attemptRecord, attemptPromise) {
+    const outcome = await attemptPromise;
+    attemptRecord.status = outcome.status;
+    attemptRecord.outcome = outcome;
+    attemptRecord.rejectionKind = outcome.status === 'rejected'
+      ? this._classifyEventCreateAttemptRejection(outcome.reason)
+      : '';
+    const durableState = outcome.status === 'fulfilled'
+      ? 'committed'
+      : (attemptRecord.rejectionKind === 'definitive'
+        ? 'rejected-definitive'
+        : (attemptRecord.rejectionKind === 'authoritative-rejected'
+          ? 'rejected-definitive'
+          : (attemptRecord.rejectionKind === 'conflict' ? 'conflict' : 'rejected-ambiguous')));
+    const settledCurrentIntent = await this._settlePendingEventCreateAttempt(
+      pending, attemptRecord, durableState,
+    );
+    if (this._isPendingEventCreateCurrent(pending)) {
+      if (outcome.status === 'fulfilled' && settledCurrentIntent) {
+        pending.committedOutcome = outcome;
+        pending.state = 'committed';
+      } else if ((pending.attempts || []).some(record => record.status === 'pending')) {
+        pending.state = 'outcome-unknown';
+      } else if (this._canOfferEditableEventCreateRetry(pending)) {
+        pending.state = 'definitive-rejected';
+      } else {
+        pending.state = 'outcome-unknown';
+      }
+    }
+    return outcome;
+  },
+
+  async _runSingleEventCreateAttempt(pending) {
+    const attempts = Array.isArray(pending.attempts) ? pending.attempts : [];
+    pending.attempts = attempts;
+    const attemptRecord = await this._beginPendingEventCreateAttempt(pending);
+    if (!attemptRecord) {
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      return { state: 'unknown', reason: 'pending-intent-not-canonical' };
+    }
+    attempts.push(attemptRecord);
+    pending.state = 'writing';
+    const writePayload = this._getPendingEventCreateWritePayload(pending);
+    const capturedAttempt = this._captureSingleEventCreateAttempt(pending, writePayload);
+    const rememberedAttempt = this._rememberSingleEventCreateAttempt(pending, attemptRecord, capturedAttempt);
+    attemptRecord.promise = rememberedAttempt;
+    let outcome;
+    try {
+      outcome = await this._waitForActivityCreateDependency(
+        rememberedAttempt,
+        this._eventCreateWriteTimeoutMs,
+        'event-create-write-timeout',
+        'Event create result is still pending',
+      );
+    } catch (err) {
+      if (err?.code !== 'event-create-write-timeout') throw err;
+      await this._settlePendingEventCreateAttempt(pending, attemptRecord, 'timed-out');
+      if (this._isPendingEventCreateCurrent(pending) && !pending.committedOutcome) {
+        pending.state = 'outcome-unknown';
+        this._setEventCreateOutcomeUnknownUi(true);
+      }
+      this._writeEventCreateStageError('createEventTimeout', err, { attempt: attemptRecord.number, kind: pending.kind });
+      return { state: 'unknown' };
+    }
+    const committed = pending.committedOutcome
+      || attempts.find(record => record.outcome?.status === 'fulfilled')?.outcome;
+    if (committed) return { state: 'committed', value: committed.value };
+    if (outcome?.status === 'rejected') {
+      if (this._canOfferEditableEventCreateRetry(pending)) {
+        pending.state = 'settled-rejected';
+        return { state: 'settled-rejected', reason: outcome.reason };
+      }
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      return { state: 'unknown', reason: outcome.reason };
+    }
+    return { state: 'committed', value: outcome?.value };
+  },
+
+  async _resolvePendingSingleEventCreate(pending) {
+    const attempts = Array.isArray(pending?.attempts) ? pending.attempts : [];
+    const committed = pending?.committedOutcome
+      || attempts.find(record => record.outcome?.status === 'fulfilled')?.outcome;
+    if (committed) return { state: 'committed', value: committed.value };
+    if (typeof ApiService.reconcileEventCreate !== 'function') {
+      const unavailable = new Error('EVENT_CREATE_RECONCILE_UNAVAILABLE');
+      unavailable.code = 'event-create-reconcile-unavailable';
+      this._writeEventCreateStageError('reconcileEventCreateUnavailable', unavailable);
+      return { state: 'unknown' };
+    }
+    try {
+      const requests = pending.kind === 'multi'
+        ? pending.events.map(event => ApiService.reconcileEventCreate({
+          id: event.id,
+          clientRequestId: event.clientRequestId,
+          creatorUid: pending.creatorUid,
+          payloadRevision: pending.marker.payloadRevision,
+          payloadDigest: pending.marker.payloadDigest,
+        }))
+        : [ApiService.reconcileEventCreate({
+          id: pending.event.id,
+          clientRequestId: pending.event.clientRequestId,
+          creatorUid: pending.creatorUid,
+          payloadRevision: pending.marker.payloadRevision,
+          payloadDigest: pending.marker.payloadDigest,
+        })];
+      const result = await this._waitForActivityCreateDependency(
+        Promise.all(requests),
+        this._eventCreateReconcileTimeoutMs,
+        'event-create-reconcile-timeout',
+        'Event create reconciliation timed out',
+      );
+      const results = Array.isArray(result) ? result : [];
+      if (results.some(item => item?.state === 'conflict')
+        || results.length !== requests.length
+        || results.some(item => item?.state !== 'committed' && item?.state !== 'missing')) {
+        const conflict = new Error('EVENT_CREATE_RECONCILE_CONFLICT');
+        conflict.code = 'event-create-reconcile-conflict';
+        throw conflict;
+      }
+      if (results.every(item => item?.state === 'committed')) {
+        return { state: 'committed', value: pending.kind === 'multi' ? pending.events : (results[0]?.event || pending.event) };
+      }
+      if (results.every(item => item?.state === 'missing')) {
+        pending.state = 'ready';
+        return { state: 'retry' };
+      }
+      const conflict = new Error('EVENT_CREATE_RECONCILE_CONFLICT');
+      conflict.code = 'event-create-reconcile-conflict';
+      throw conflict;
+    } catch (err) {
+      if (err?.code === 'event-create-reconcile-conflict') throw err;
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      this._writeEventCreateStageError('reconcileEventCreate', err);
+      return { state: 'unknown' };
+    }
+  },
+
+  async _resolvePersistedSingleEventMarker(marker) {
+    const pending = this._restorePendingEventCreateIntent(marker, this._eventFormSession?.generation || 0);
+    if (!pending) return { state: 'unknown' };
+    return await this._resolvePendingSingleEventCreate(pending);
+  },
+
+  async _authorizePendingEventCreateRetry(pending) {
+    const expectedMarker = pending?.marker || this._getPendingEventCreateMarkerFromPending(pending);
+    if (!expectedMarker) return false;
+    const canonical = await this._loadPendingEventCreateIntent(pending.creatorUid);
+    if (canonical?.state !== 'existing'
+      || !this._isSamePendingEventCreateIntent(canonical.marker, expectedMarker)) {
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      return false;
+    }
+    return this._syncPendingEventCreateMarker(pending, canonical.marker);
+  },
+
+  async _recoverDefinitiveEventCreateRejection(pending, reason) {
+    if (!this._canOfferEditableEventCreateRetry(pending)) return { state: 'unknown', reason };
+    const resolution = await this._resolvePendingSingleEventCreate(pending);
+    if (resolution?.state !== 'retry') return resolution;
+    if (!await this._markPendingEventCreateEditable(pending)) {
+      return { state: 'unknown', reason: 'pending-intent-not-canonical' };
+    }
+    return { state: 'editable', reason };
+  },
+
+  async _advancePendingEventCreateIntent(pending) {
+    if (!pending || !this._isPendingEventCreateCurrent(pending)) return { state: 'unknown' };
+    if (pending.state === 'editable-restored') {
+      return { state: 'unknown', reason: 'editable-requires-original-form' };
+    }
+    if (pending.state === 'ready' && (!pending.attempts || pending.attempts.length === 0) && !pending.restored) {
+      const firstAttempt = await this._runSingleEventCreateAttempt(pending);
+      if (firstAttempt?.state === 'settled-rejected') {
+        return await this._recoverDefinitiveEventCreateRejection(pending, firstAttempt.reason);
+      }
+      return firstAttempt;
+    }
+    if (pending.state === 'settled-rejected' && this._canOfferEditableEventCreateRetry(pending)) {
+      const reason = [...(pending.attempts || [])]
+        .reverse()
+        .find(attempt => attempt.status === 'rejected')?.outcome?.reason;
+      return await this._recoverDefinitiveEventCreateRejection(pending, reason);
+    }
+    const resolution = await this._resolvePendingSingleEventCreate(pending);
+    if (resolution?.state !== 'retry') return resolution;
+    if (!await this._authorizePendingEventCreateRetry(pending)) {
+      return { state: 'unknown', reason: 'pending-intent-not-canonical' };
+    }
+    if (pending.marker.attempts.some(attempt => attempt.state === 'conflict')) {
+      return { state: 'unknown', reason: 'pending-intent-conflict' };
+    }
+    if (this._canOfferEditableEventCreateRetry(pending)) {
+      const reason = [...(pending.attempts || [])]
+        .reverse()
+        .find(attempt => attempt.status === 'rejected')?.outcome?.reason;
+      if (await this._markPendingEventCreateEditable(pending)) {
+        return { state: 'editable', reason };
+      }
+      return { state: 'unknown', reason: 'pending-intent-not-canonical' };
+    }
+    const retryAttempt = await this._runSingleEventCreateAttempt(pending);
+    if (retryAttempt?.state === 'settled-rejected') {
+      return await this._recoverDefinitiveEventCreateRejection(pending, retryAttempt.reason);
+    }
+    return retryAttempt;
+  },
+
+  async _handleRecoveredPendingEventCreate(pending, submitSession, submitToken) {
+    const isCurrent = () => this._isEventFormSubmitSessionCurrent(submitSession, submitToken)
+      && this._isPendingEventCreateCurrent(pending);
+    try {
+      const result = await this._advancePendingEventCreateIntent(pending);
+      if (!isCurrent()) return { handled: true, state: 'stale' };
+      if (result?.state === 'editable') {
+        this._showEditableEventCreateRetry(result.reason, pending);
+        return { handled: true, state: 'editable' };
+      }
+      if (result?.state === 'unknown') {
+        this._setEventCreateOutcomeUnknownUi(true);
+        this.showToast(result?.reason === 'pending-intent-not-canonical'
+          ? '建立紀錄已由其他分頁更新，已停止重試；請稍後再確認'
+          : (result?.reason === 'editable-requires-original-form'
+            ? '此分頁無法安全還原待修正表單，已停止送出；請回原分頁繼續操作'
+            : '建立結果仍在確認中，請勿重複開團；請稍後再按一次「確認建立結果」'));
+        return { handled: true, state: 'unknown' };
+      }
+      const marker = pending.marker || this._getPendingEventCreateMarkerFromPending(pending);
+      if (result?.state !== 'committed') return { handled: true, state: result?.state || 'unknown' };
+      const removed = await this._removePendingEventCreateIntent(marker);
+      if (!isCurrent()) return { handled: true, state: 'stale' };
+      this._clearPendingSingleEventSubmission(pending);
+      this._setCreateEventSubmitIdleLabel('建立活動');
+      const completedGeneration = this._completeEventFormSubmitSession(submitSession, submitToken);
+      if (!completedGeneration) return { handled: true, state: 'stale' };
+      this.closeModal();
+      const firstEvent = pending.kind === 'multi' ? pending.events?.[0] : pending.event;
+      const eventCount = pending.kind === 'multi' ? Number(pending.events?.length || 0) : 1;
+      const title = String(firstEvent?.title || '').trim();
+      this.showToast(eventCount > 1
+        ? `已確認建立 ${eventCount} 場「${title}」活動！`
+        : `活動「${title}」已確認建立！`);
+      if (removed) {
+        try {
+          ApiService._writeOpLog?.('event_create', '建立活動', `建立「${title}」`);
+          if (pending.creatorUid) this._grantAutoExp?.(pending.creatorUid, 'host_activity', title);
+        } catch (postErr) {
+          console.warn('[handleCreateEvent] recovered post-create error:', postErr);
+        }
+      }
+      try { this.renderActivityList(); } catch (_) {}
+      try { this.renderHotEvents(); } catch (_) {}
+      try { this.renderMyActivities(); } catch (_) {}
+      return { handled: true, state: 'committed' };
+    } catch (err) {
+      if (!isCurrent()) return { handled: true, state: 'stale' };
+      pending.state = 'outcome-unknown';
+      this._setEventCreateOutcomeUnknownUi(true);
+      this._writeEventCreateStageError('confirmPendingEventCreate', err, { kind: pending.kind });
+      this.showToast(err?.code === 'event-create-reconcile-conflict'
+        ? '上一筆活動建立紀錄發生衝突，已停止重試，請聯繫管理員'
+        : '建立結果暫時無法確認，請檢查網路後再試');
+      return { handled: true, state: 'unknown' };
+    }
   },
 
   _setCreateEventModalMode(isEdit) {
@@ -552,7 +2217,13 @@ Object.assign(App, {
       submitBtn.disabled = true;
       submitBtn.style.opacity = '0.72';
       submitBtn.style.cursor = 'not-allowed';
-      submitBtn.textContent = this._editEventId ? '儲存中' : '建立中...';
+      const isConfirmingUnknownCreate = !this._editEventId
+        && (this._pendingSingleEventSubmission?.state === 'outcome-unknown'
+          || this._pendingMultiDateSubmission?.state === 'outcome-unknown'
+          || !!this._readPendingSingleEventMarker?.());
+      submitBtn.textContent = this._editEventId
+        ? '儲存中'
+        : (isConfirmingUnknownCreate ? '確認中...' : '建立中...');
       return;
     }
     submitBtn.disabled = false;
@@ -579,46 +2250,14 @@ Object.assign(App, {
     }
   },
 
-  async _getDefaultEventCoverDataUrl() {
-    if (this._defaultEventCoverDataUrl) return this._defaultEventCoverDataUrl;
-    if (!this._defaultEventCoverPromise) {
-      this._defaultEventCoverPromise = (async () => {
-        if (typeof fetch !== 'function') throw new Error('DEFAULT_EVENT_COVER_FETCH_UNAVAILABLE');
-        if (typeof this._compressImage !== 'function') throw new Error('DEFAULT_EVENT_COVER_COMPRESS_UNAVAILABLE');
-        const response = await fetch(this._getDefaultEventCoverUrl(), { cache: 'force-cache' });
-        if (!response || !response.ok) {
-          throw new Error(`DEFAULT_EVENT_COVER_NOT_FOUND:${response?.status || 'unknown'}`);
-        }
-        const blob = await response.blob();
-        const dataUrl = await this._compressImage(blob, 1200, 0.9, 'image/webp');
-        this._defaultEventCoverDataUrl = dataUrl;
-        return dataUrl;
-      })();
-    }
-    try {
-      return await this._defaultEventCoverPromise;
-    } catch (err) {
-      this._defaultEventCoverPromise = null;
-      throw err;
-    }
-  },
-
-  async _resolveEventCoverImage(image, options = {}) {
+  async _resolveEventCoverImage(image) {
     const currentImage = typeof image === 'string' ? image.trim() : image;
     if (currentImage) return currentImage;
-    try {
-      return await this._getDefaultEventCoverDataUrl();
-    } catch (err) {
-      console.error('[EventCreate] default cover failed:', err);
-      if (typeof options.entryGuard !== 'function' || options.entryGuard()) {
-        this.showToast('預設活動封面載入失敗，請重新整理後再試');
-      }
-      throw err;
-    }
+    return this._getDefaultEventCoverUrl();
   },
 
   _getFirestoreWriteErrorMessageForUser(err, context = {}) {
-    if (context?.label === 'createEvent') {
+    if (context?.label === 'createEvent' || context?.label === 'createEventsAtomic') {
       return this._getCreateEventWriteErrorMessage(err, context.payload);
     }
     return '';
@@ -1084,6 +2723,35 @@ Object.assign(App, {
       return false;
     }
     if (!this._ensureCreateEventDomContract()) return false;
+    const authUid = this._getEventFormAuthUid();
+    const pendingSingle = this._pendingSingleEventSubmission;
+    const hasPendingSingle = !!pendingSingle && pendingSingle.creatorUid === authUid;
+    const pendingMulti = this._pendingMultiDateSubmission;
+    const hasPendingMulti = !!pendingMulti && pendingMulti.creatorUid === authUid;
+    const persistedMarker = this._readPendingSingleEventMarker(authUid);
+    if (hasPendingSingle || hasPendingMulti || persistedMarker) {
+      this._editEventId = null;
+      const resumedSession = this._beginEventFormSession(null);
+      if (hasPendingSingle) pendingSingle.generation = resumedSession.generation;
+      if (hasPendingMulti) pendingMulti.generation = resumedSession.generation;
+      let resumedPending = hasPendingSingle ? pendingSingle : (hasPendingMulti ? pendingMulti : null);
+      if (!hasPendingSingle && !hasPendingMulti && !persistedMarker?.invalid) {
+        resumedPending = this._restorePendingEventCreateIntent(persistedMarker, resumedSession.generation);
+      }
+      this._setCreateEventModalMode(false);
+      this.showModal('create-event-modal');
+      const isEditableRetry = resumedPending?.state === 'editable' && resumedPending?.restored !== true;
+      if (isEditableRetry) this._setEventCreateEditableRetryUi();
+      else this._setEventCreateOutcomeUnknownUi(true);
+      this.showToast?.(persistedMarker?.invalid
+        ? '上一筆活動建立紀錄無法驗證，已停止送出，請聯繫管理員'
+        : (isEditableRetry
+          ? '上一筆活動未建立成功；可修正表單後重新送出，系統會沿用原本的活動編號'
+          : (resumedPending?.marker?.recoveryState === 'editable'
+            ? '上一筆活動可修正重送，但此分頁無法安全還原完整表單；請回原分頁繼續操作'
+            : '上一筆活動仍在確認中，請按「確認建立結果」，系統不會重複開團')));
+      return true;
+    }
     this._editEventId = null;
     this._beginEventFormSession(null);
     this._clearCourseLinkedEditLockState?.();
@@ -1175,6 +2843,7 @@ Object.assign(App, {
     const editEventId = submitSession.editId;
     const isEditSubmit = !!editEventId;
     const submitFormSignature = this._getEventFormSubmitSignature();
+    let editablePending = null;
     let completedSessionGeneration = 0;
     let earlySubmitBusy = false;
     let submitToken = null;
@@ -1211,6 +2880,49 @@ Object.assign(App, {
     }
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（主辦人資料會寫入活動文件）
     if (this._requireProfileComplete()) return;
+    const authCreatorUid = this._getEventFormAuthUid();
+    const profileCreatorUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    if (!isEditSubmit && (!authCreatorUid || !profileCreatorUid || authCreatorUid !== profileCreatorUid)) {
+      const identityError = new Error('AUTH_PROFILE_UID_MISMATCH');
+      identityError.code = 'auth/uid-mismatch';
+      this._writeEventCreateStageError('validateCreatorIdentity', identityError);
+      this.showToast('登入狀態不同步，請重新登入後再建立活動');
+      return;
+    }
+    if (!isEditSubmit) {
+      let activePending = this._pendingSingleEventSubmission || this._pendingMultiDateSubmission;
+      if (activePending && activePending.creatorUid !== authCreatorUid) {
+        this._setEventCreateOutcomeUnknownUi(true);
+        this.showToast('上一筆活動的建立身分不同，已停止送出，請重新登入後再確認');
+        return;
+      }
+      if (!activePending) {
+        const persisted = await this._loadPendingEventCreateIntent(authCreatorUid);
+        if (!isSubmitSessionCurrent()) return;
+        if (persisted?.state === 'unavailable') {
+          this.showToast('瀏覽器無法安全保存建立紀錄，已停止送出；請更新瀏覽器後再試');
+          return;
+        }
+        if (persisted?.state === 'blocked' || persisted?.marker?.invalid) {
+          this._setEventCreateOutcomeUnknownUi(true);
+          this.showToast('上一筆活動建立紀錄無法驗證，已停止送出，請聯繫管理員');
+          return;
+        }
+        if (persisted?.marker) {
+          activePending = this._restorePendingEventCreateIntent(persisted.marker, submitSession.generation);
+        }
+      }
+      if (activePending) {
+        activePending.generation = submitSession.generation;
+        if (activePending.state === 'editable' && activePending.restored !== true) {
+          editablePending = activePending;
+          this._setEventCreateEditableRetryUi();
+        } else {
+          await this._handleRecoveredPendingEventCreate(activePending, submitSession, submitToken);
+          return;
+        }
+      }
+    }
     const title = document.getElementById('ce-title').value.trim();
     const selectedType = document.getElementById('ce-type').value;
     const type = isCourseLinkedEdit && !selectedType
@@ -1237,9 +2949,23 @@ Object.assign(App, {
     let allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     let privateEvent = !!document.getElementById('ce-private-event')?.checked;
     if (typeof this._verifySelectedEventDelegatesForSubmit === 'function') {
-      const delegatesAreValid = await this._verifySelectedEventDelegatesForSubmit(eventBeingEdited, { submitSession });
-      if (!isSubmitCurrent()) return;
-      if (!delegatesAreValid) return;
+      try {
+        const delegatesAreValid = await this._waitForActivityCreateDependency(
+          this._verifySelectedEventDelegatesForSubmit(eventBeingEdited, { submitSession }),
+          this._eventCreateDelegateTimeoutMs,
+          'event-create-delegate-timeout',
+          'Event delegate verification timed out',
+        );
+        if (!isSubmitCurrent()) return;
+        if (!delegatesAreValid) return;
+      } catch (err) {
+        if (!isSubmitSessionCurrent()) return;
+        this._writeEventCreateStageError('verifyDelegates', err);
+        this.showToast(err?.code === 'event-create-delegate-timeout'
+          ? '委託人驗證逾時，請檢查網路後再試'
+          : '委託人驗證失敗，請稍後再試');
+        return;
+      }
     }
     const submitDelegates = (Array.isArray(this._delegates) ? this._delegates : [])
       .map(delegate => ({
@@ -1575,7 +3301,7 @@ Object.assign(App, {
       } catch (_) {}
     } else {
       const creatorName = this._getEventCreatorName();
-      const creatorUid = this._getEventCreatorUid();
+      const creatorUid = authCreatorUid;
       const initStatus = (regOpenTime && new Date(regOpenTime) > new Date()) ? 'upcoming' : 'open';
       let resolvedImage;
       try {
@@ -1586,8 +3312,20 @@ Object.assign(App, {
         if (!isSubmitCurrent()) return;
         return;
       }
-      const newEvent = {
-        id: generateId('ce_'),
+      const isMultiDateCreate = this._isMultiDateMode();
+      const editableMarker = editablePending?.marker
+        ? this._normalizePendingEventCreateMarker(editablePending.marker, creatorUid)
+        : null;
+      if (editablePending && (!editableMarker
+        || (isMultiDateCreate ? 'multi' : 'single') !== editableMarker.kind)) {
+        this.showToast('待重新送出的活動不能切換單日／多日期模式，請改回原模式後再試');
+        return;
+      }
+      const candidateEventId = editableMarker
+        ? (editableMarker.kind === 'multi' ? editableMarker.events[0].id : editableMarker.event.id)
+        : generateId('ce_');
+      const candidateEvent = {
+        id: candidateEventId,
         title, type, status: initStatus, location, date: fullDate, startTimestamp, endTimestamp,
         fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image: resolvedImage, sportTag,
         regOpenTime: regOpenTime || null,
@@ -1619,74 +3357,147 @@ Object.assign(App, {
         delegates: submitDelegates.map(delegate => ({ ...delegate })),
         delegateUids: submitDelegates.map(delegate => delegate.uid),
       };
-      Object.assign(newEvent, locationPayload);
-      if (imageVariants) newEvent.imageVariants = imageVariants;
+      Object.assign(candidateEvent, locationPayload);
+      if (imageVariants) candidateEvent.imageVariants = imageVariants;
       if (!this._canManageEventDelegates?.(null)) {
-        newEvent.delegates = [];
-        newEvent.delegateUids = [];
+        candidateEvent.delegates = [];
+        candidateEvent.delegateUids = [];
       }
       if (teamSplitData) {
-        newEvent.teamSplit = teamSplitData;
-        this._recalcTeamSplitTimestamps?.(newEvent);
+        candidateEvent.teamSplit = teamSplitData;
+        this._recalcTeamSplitTimestamps?.(candidateEvent);
       }
       // ★ 多日期模式：批次建立所有場次
       let totalCreated = 1;
-      if (this._isMultiDateMode()) {
-        const pendingBatch = this._pendingMultiDateSubmission;
-        const canReusePendingBatch = pendingBatch?.generation === submitSession.generation
-          && pendingBatch.signature === submitFormSignature
-          && Array.isArray(pendingBatch.events);
-        const allEvents = canReusePendingBatch
-          ? pendingBatch.events
-          : this._buildMultiDateEvents(newEvent, tStart, tEnd);
-        this._pendingMultiDateSubmission = {
+      let newEvent = candidateEvent;
+      let pendingCreate;
+      if (isMultiDateCreate) {
+        const allEvents = this._buildMultiDateEvents(newEvent, tStart, tEnd);
+        if (editableMarker && allEvents.length !== editableMarker.events.length) {
+          this.showToast(`待重新送出的批次需保留原本 ${editableMarker.events.length} 個日期，請調整後再試`);
+          return;
+        }
+        allEvents.forEach(event => {
+          event.creatorUid = creatorUid;
+          event.clientRequestId = event.id;
+        });
+        if (editableMarker) {
+          allEvents.forEach((event, index) => {
+            event.id = editableMarker.events[index].id;
+            event.clientRequestId = editableMarker.events[index].clientRequestId;
+            event.batchGroupId = editableMarker.batchGroupId;
+          });
+        }
+        totalCreated = allEvents.length;
+        pendingCreate = {
+          kind: 'multi',
           generation: submitSession.generation,
           signature: submitFormSignature,
+          creatorUid,
           events: allEvents,
+          batchGroupId: String(allEvents[0]?.batchGroupId || '').trim(),
+          payloadRevision: editableMarker ? editableMarker.payloadRevision + 1 : 1,
+          intentRevision: editableMarker ? editableMarker.intentRevision + 1 : 1,
+          recoveryState: 'frozen',
+          durableAttempts: editableMarker ? editableMarker.attempts : [],
+          attempts: [],
+          state: 'ready',
+          restored: false,
+          startedAt: editableMarker ? editableMarker.startedAt : Date.now(),
         };
-        try {
-          if (!isSubmitCurrent()) return;
-          if (typeof ApiService.createEventsAtomic !== 'function') {
-            throw new Error('Atomic multi-date event creation unavailable');
-          }
-          await ApiService.createEventsAtomic(allEvents);
-          if (!isSubmitSessionCurrent()) return;
-          this._pendingMultiDateSubmission = null;
-          totalCreated = allEvents.length;
-        } catch (err) {
-          if (!isSubmitSessionCurrent()) return;
-          console.error('[handleCreateEvent:multiDate]', err);
-          if (!err?._toasted) {
-            const msg = this._getCreateEventWriteErrorMessage?.(err, allEvents?.[0])
-              || '部分活動建立失敗，請檢查活動列表';
-            this.showToast(msg);
-          }
-          return;
-        }
       } else {
-        try {
-          if (!isSubmitCurrent()) return;
-          await ApiService.createEvent(newEvent);
-          if (!isSubmitSessionCurrent()) return;
-        } catch (err) {
-          if (!isSubmitSessionCurrent()) return;
-          console.error('[handleCreateEvent:createEvent]', err);
-          ApiService._writeErrorLog?.({
-            fn: 'handleCreateEvent',
-            stage: 'createEvent',
-            eventId: newEvent.id || '',
-            title: newEvent.title || '',
-            authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : '',
-            currentUserUid: ApiService.getCurrentUser?.()?.uid || '',
-            currentUserRole: ApiService.getCurrentUser?.()?.role || this.currentRole || '',
-            canUseAddons,
-            addonLabels: this._getCreateEventAddonLabels?.(newEvent) || [],
-          }, err);
-          if (!err?._toasted) {
-            this.showToast(this._getCreateEventWriteErrorMessage?.(err, newEvent) || '建立活動失敗，請稍後再試');
-          }
+        candidateEvent.clientRequestId = candidateEvent.id;
+        pendingCreate = {
+          kind: 'single',
+          generation: submitSession.generation,
+          signature: submitFormSignature,
+          creatorUid,
+          event: candidateEvent,
+          payloadRevision: editableMarker ? editableMarker.payloadRevision + 1 : 1,
+          intentRevision: editableMarker ? editableMarker.intentRevision + 1 : 1,
+          recoveryState: 'frozen',
+          durableAttempts: editableMarker ? editableMarker.attempts : [],
+          attempts: [],
+          state: 'ready',
+          restored: false,
+          startedAt: editableMarker ? editableMarker.startedAt : Date.now(),
+        };
+      }
+      const candidateMarker = this._getPendingEventCreateMarkerFromPending(pendingCreate);
+      if (!candidateMarker) {
+        this.showToast('活動建立資料不完整，已停止送出');
+        return;
+      }
+      const claim = editableMarker
+        ? await this._replacePendingEventCreateIntent(editableMarker, candidateMarker)
+        : await this._claimPendingEventCreateIntent(candidateMarker);
+      if (!isSubmitSessionCurrent()) return;
+      if (claim?.state === 'unavailable') {
+        this.showToast('瀏覽器無法安全保存建立紀錄，已停止送出；請更新瀏覽器後再試');
+        return;
+      }
+      if (claim?.state === 'blocked' || claim?.marker?.invalid) {
+        this._setEventCreateOutcomeUnknownUi(true);
+        this.showToast('上一筆活動建立紀錄無法驗證，已停止送出，請聯繫管理員');
+        return;
+      }
+      if (editableMarker && claim?.state !== 'replaced') {
+        if (claim?.marker) {
+          const canonicalPending = this._restorePendingEventCreateIntent(claim.marker, submitSession.generation);
+          if (canonicalPending?.state === 'editable') this._setEventCreateEditableRetryUi();
+          else this._setEventCreateOutcomeUnknownUi(true);
+        } else {
+          this._setEventCreateOutcomeUnknownUi(true);
+        }
+        this.showToast('建立紀錄已由其他分頁更新，本次未送出；請確認最新內容後再試');
+        return;
+      }
+      if (claim?.state === 'existing') {
+        const recoveredPending = this._restorePendingEventCreateIntent(claim.marker, submitSession.generation);
+        if (!recoveredPending) {
+          this._setEventCreateOutcomeUnknownUi(true);
+          this.showToast('上一筆活動建立紀錄無法恢復，已停止送出');
           return;
         }
+        await this._handleRecoveredPendingEventCreate(recoveredPending, submitSession, submitToken);
+        return;
+      }
+      if (!this._syncPendingEventCreateMarker(pendingCreate, claim.marker || candidateMarker)) {
+        this.showToast('活動建立資料無法驗證，已停止送出');
+        return;
+      }
+      if (pendingCreate.kind === 'multi') this._pendingMultiDateSubmission = pendingCreate;
+      else this._pendingSingleEventSubmission = pendingCreate;
+      newEvent = pendingCreate.kind === 'multi' ? pendingCreate.events[0] : pendingCreate.event;
+      let didFinalizePendingCreateIntent = false;
+      try {
+        const createResult = await this._advancePendingEventCreateIntent(pendingCreate);
+        if (!isSubmitSessionCurrent()) return;
+        if (createResult?.state === 'editable') {
+          this._showEditableEventCreateRetry(createResult.reason, pendingCreate);
+          return;
+        }
+        if (createResult?.state !== 'committed') {
+          this._setEventCreateOutcomeUnknownUi(true);
+          this.showToast('建立結果仍在確認中，請勿重複開團；請再按一次「確認建立結果」');
+          return;
+        }
+        didFinalizePendingCreateIntent = await this._removePendingEventCreateIntent(pendingCreate.marker);
+        if (!isSubmitSessionCurrent()) return;
+        this._clearPendingSingleEventSubmission(pendingCreate);
+        this._setCreateEventSubmitIdleLabel('建立活動');
+      } catch (err) {
+        if (!isSubmitSessionCurrent()) return;
+        pendingCreate.state = 'outcome-unknown';
+        this._setEventCreateOutcomeUnknownUi(true);
+        console.error('[handleCreateEvent:createEvent]', err);
+        this._writeEventCreateStageError('createEvent', err, {
+          kind: pendingCreate.kind,
+          canUseAddons,
+          addonLabels: this._getCreateEventAddonLabels?.(newEvent) || [],
+        });
+        this.showToast('建立結果暫時無法確認，請稍後再按一次「確認建立結果」');
+        return;
       }
       if (!isSubmitSessionCurrent()) return;
       this._eventImageVariantsData = null;
@@ -1704,9 +3515,11 @@ Object.assign(App, {
         this._saveInputHistory('ce-max', max);
         if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
         this._saveRecentDelegates(submitDelegates);
-        ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
-        const _creatorUser = ApiService.getCurrentUser?.();
-        if (_creatorUser?.uid) this._grantAutoExp?.(_creatorUser.uid, 'host_activity', title);
+        if (didFinalizePendingCreateIntent) {
+          ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
+          const _creatorUser = ApiService.getCurrentUser?.();
+          if (_creatorUser?.uid) this._grantAutoExp?.(_creatorUser.uid, 'host_activity', title);
+        }
       } catch (postErr) {
         console.warn('[handleCreateEvent] post-create error:', postErr);
       }

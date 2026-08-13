@@ -522,7 +522,9 @@ Object.assign(App, {
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
       if (!document.getElementById(pageId)) return { ok: false, reason: 'missing_target' };
 
-      this._cleanupBeforePageSwitch(pageId);
+      if (this._cleanupBeforePageSwitch(pageId) === false) {
+        return { ok: false, reason: 'event_create_submitting' };
+      }
       this._pushPageHistory(pageId, options);
       const activated = this._activatePage(pageId, { ...options, render: false });
       if (!activated) return { ok: false, reason: 'missing_target' };
@@ -625,7 +627,9 @@ Object.assign(App, {
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
       if (!document.getElementById(pageId)) return { ok: false, reason: 'missing_target' };
 
-      this._cleanupBeforePageSwitch(pageId);
+      if (this._cleanupBeforePageSwitch(pageId) === false) {
+        return { ok: false, reason: 'event_create_submitting' };
+      }
       this._pushPageHistory(pageId, options);
       const activated = this._activatePage(pageId, { ...options, render: false, suppressHashSync: true });
       if (!activated) return { ok: false, reason: 'missing_target' };
@@ -995,6 +999,9 @@ Object.assign(App, {
       }
 
       const routeOptions = (args[1] && typeof args[1] === 'object') ? args[1] : {};
+      if (this._prepareCreateEventModalForPageSwitch(pageId, { closeIfIdle: false }) === false) {
+        return { ok: false, reason: 'event_create_submitting' };
+      }
       transitionSeq = this._claimPageTransition(pageId, routeOptions);
       if (!this._isPageTransitionCurrent(transitionSeq)) {
         return this._abortStalePageTransition('lazy-route-entry', pageId, transitionSeq);
@@ -1006,6 +1013,7 @@ Object.assign(App, {
         if (!this._isPageTransitionCurrent(transitionSeq)) {
           return this._abortStalePageTransition('lazy-route-shell', pageId, transitionSeq);
         }
+        if (shellResult?.reason === 'event_create_submitting') return shellResult;
         if (shellResult?.ok) {
           args[1] = {
             ...args[1],
@@ -1103,6 +1111,10 @@ Object.assign(App, {
   async showPage(pageId, options = {}) {
     const normalizedRoute = this._normalizeAdminLogRoute(pageId, options);
     pageId = normalizedRoute.pageId;
+
+    if (this._prepareCreateEventModalForPageSwitch(pageId, { closeIfIdle: false }) === false) {
+      return { ok: false, reason: 'event_create_submitting' };
+    }
 
 
     // 2026-04-20：Page Lock — 防止用戶進 detail 類頁後被自動機制拉走
@@ -1250,7 +1262,9 @@ Object.assign(App, {
     if (!this._isPageTransitionCurrent(transitionSeq)) {
       return this._abortStalePageTransition('stale-first-script', pageId, transitionSeq);
     }
-    this._cleanupBeforePageSwitch(pageId);
+    if (this._cleanupBeforePageSwitch(pageId) === false) {
+      return { ok: false, reason: 'event_create_submitting' };
+    }
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
     if (!activated) return { ok: false, reason: 'missing_target' };
@@ -1294,7 +1308,9 @@ Object.assign(App, {
         _startingPage, '→', this.currentPage, '— aborting show', pageId);
       return { ok: false, reason: 'user_navigated' };
     }
-    this._cleanupBeforePageSwitch(pageId);
+    if (this._cleanupBeforePageSwitch(pageId) === false) {
+      return { ok: false, reason: 'event_create_submitting' };
+    }
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
     if (!activated) return { ok: false, reason: 'missing_target' };
@@ -1330,7 +1346,9 @@ Object.assign(App, {
         _startingPage, '→', this.currentPage, '— aborting show', pageId);
       return { ok: false, reason: 'user_navigated' };
     }
-    this._cleanupBeforePageSwitch(pageId);
+    if (this._cleanupBeforePageSwitch(pageId) === false) {
+      return { ok: false, reason: 'event_create_submitting' };
+    }
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
     if (activated) {
@@ -1343,7 +1361,57 @@ Object.assign(App, {
     return { ok: false, reason: 'missing_target' };
   },
 
+  _prepareCreateEventModalForPageSwitch(pageId, options = {}) {
+    if (String(this.currentPage || '') === String(pageId || '')) return true;
+    const modal = document.getElementById('create-event-modal');
+    if (!modal?.classList.contains('open')) return true;
+    if (this._eventSubmitInFlight === true) {
+      this.showToast?.('資料儲存中，請稍候');
+      return false;
+    }
+    if (options.closeIfIdle === false) return true;
+
+    modal.classList.remove('open');
+    const overlay = document.getElementById('modal-overlay');
+    const hasOtherOpenModal = Array.from(document.querySelectorAll('.modal.open'))
+      .some(openModal => openModal !== modal);
+    if (overlay && overlay.dataset.locked !== '1' && !hasOtherOpenModal) {
+      overlay.classList.remove('open');
+    }
+    this._syncCreateEventModalScrollLock();
+    return true;
+  },
+
+  _restoreCurrentRouteAfterBlockedPopstate() {
+    const state = this._buildRouteStateForCurrentPage?.()
+      || { source: 'sportshub', pageId: this.currentPage || 'page-home' };
+    const transitionSeq = this._claimPageTransition?.(state.pageId);
+    if (Number.isSafeInteger(Number(transitionSeq))) {
+      this._activePageTransitionSeq = Number(transitionSeq);
+    }
+    const routeTarget = state.id
+      ? { pageId: state.pageId, id: state.id }
+      : state.pageId;
+    if (typeof this._setRouteUrl === 'function') {
+      return this._setRouteUrl(routeTarget);
+    }
+    try {
+      const hash = '#' + String(state.pageId || 'page-home');
+      history.pushState(state, '', hash);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   _cleanupBeforePageSwitch(pageId) {
+    if (this._prepareCreateEventModalForPageSwitch(pageId) === false) {
+      const transitionSeq = this._claimPageTransition?.(this.currentPage);
+      if (Number.isSafeInteger(Number(transitionSeq))) {
+        this._activePageTransitionSeq = Number(transitionSeq);
+      }
+      return false;
+    }
     if (this.currentPage && this.currentPage !== pageId) {
       this._cancelActivityCreateEntry?.('page-switch');
       this._cancelActivityCreateCompatEntry?.('page-switch');
@@ -1398,6 +1466,7 @@ Object.assign(App, {
       this._invalidateTeamCardOpenFlight?.('leave-team-list');
       this._stopEduTeamsListener?.();
     }
+    return true;
   },
 
   _pushPageHistory(pageId, options) {
@@ -1582,6 +1651,9 @@ Object.assign(App, {
     if (hasRosterParent) this._teamDetailId = rosterParentTeamId;
     if (this.pageHistory.length > 0 || hasRosterParent) {
       const prev = hasRosterParent ? 'page-team-detail' : this.pageHistory[this.pageHistory.length - 1];
+      if (this._prepareCreateEventModalForPageSwitch?.(prev, { closeIfIdle: false }) === false) {
+        return { ok: false, reason: 'event_create_submitting' };
+      }
       const transitionSeq = this._claimPageTransition(prev);
       if (!this._isPageTransitionCurrent(transitionSeq)) {
         return this._abortStalePageTransition('goBack-entry', prev, transitionSeq);
@@ -1593,11 +1665,13 @@ Object.assign(App, {
       if (!this._isPageTransitionCurrent(transitionSeq)) {
         return this._abortStalePageTransition('goBack-collections', prev, transitionSeq);
       }
+      // 確認仍是最新返回意圖後，才清理目前頁面並切換 DOM。
+      if (this._cleanupBeforePageSwitch(prev) === false) {
+        return { ok: false, reason: 'event_create_submitting' };
+      }
       if (!hasRosterParent || this.pageHistory[this.pageHistory.length - 1] === prev) {
         this.pageHistory.pop();
       }
-      // 確認仍是最新返回意圖後，才清理目前頁面並切換 DOM。
-      this._cleanupBeforePageSwitch(prev);
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(prev).classList.add('active');
       this.currentPage = prev;
@@ -1722,6 +1796,108 @@ Object.assign(App, {
     try { window.scrollTo(0, scrollY); } catch (_) {}
   },
 
+  _bindCreateEventModalScrollObserver(modal) {
+    if (!modal || typeof MutationObserver === 'undefined') return;
+    if (this._createEventModalScrollObserverModal === modal) return;
+    this._createEventModalScrollObserver?.disconnect?.();
+    this._createEventModalScrollObserver = new MutationObserver(() => {
+      this._syncCreateEventModalScrollLock();
+    });
+    this._createEventModalScrollObserver.observe(modal, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    this._createEventModalScrollObserverModal = modal;
+  },
+
+  _lockCreateEventModalScroll() {
+    if (this._createEventModalScrollLocked) return;
+    const body = document.body;
+    const docEl = document.documentElement;
+    if (!body || !docEl) return;
+
+    const scrollY = window.pageYOffset || docEl.scrollTop || body.scrollTop || 0;
+    this._createEventModalScrollLocked = true;
+    this._createEventModalScrollY = scrollY;
+    this._createEventModalBodyStyleSnapshot = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+
+    docEl.classList.add('create-event-modal-open');
+    body.classList.add('create-event-modal-open');
+    body.style.position = 'fixed';
+    body.style.top = '-' + scrollY + 'px';
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+  },
+
+  _unlockCreateEventModalScroll() {
+    const body = document.body;
+    const docEl = document.documentElement;
+    if (!this._createEventModalScrollLocked || !body) {
+      docEl?.classList.remove('create-event-modal-open');
+      body?.classList.remove('create-event-modal-open');
+      return;
+    }
+
+    const firstLoginOwnsScroll = this._firstLoginScrollLocked === true
+      || docEl?.classList.contains('profile-complete-scroll-lock')
+      || body.classList.contains('profile-complete-scroll-lock');
+    if (firstLoginOwnsScroll) {
+      docEl?.classList.remove('create-event-modal-open');
+      body.classList.remove('create-event-modal-open');
+      this._createEventModalScrollLocked = false;
+      this._createEventModalScrollY = 0;
+      this._createEventModalBodyStyleSnapshot = null;
+      return;
+    }
+
+    const snapshot = this._createEventModalBodyStyleSnapshot || {};
+    body.style.position = snapshot.position || '';
+    body.style.top = snapshot.top || '';
+    body.style.left = snapshot.left || '';
+    body.style.right = snapshot.right || '';
+    body.style.width = snapshot.width || '';
+    docEl?.classList.remove('create-event-modal-open');
+    body.classList.remove('create-event-modal-open');
+
+    const scrollY = Number(this._createEventModalScrollY || 0);
+    this._createEventModalScrollLocked = false;
+    this._createEventModalScrollY = 0;
+    this._createEventModalBodyStyleSnapshot = null;
+    try { window.scrollTo(0, scrollY); } catch (_) {}
+  },
+
+  _syncCreateEventModalScrollLock() {
+    const modal = document.getElementById('create-event-modal');
+    if (modal?.classList.contains('open')) {
+      this._lockCreateEventModalScroll();
+      return;
+    }
+    this._unlockCreateEventModalScroll();
+  },
+
+  _bindModalOverlayTouchGuard(overlay) {
+    if (!overlay || overlay.dataset.modalTouchGuardBound === '1') return;
+    overlay.addEventListener('touchmove', event => {
+      this._handleModalBackdropTouchMove(event);
+    }, { passive: false });
+    overlay.dataset.modalTouchGuardBound = '1';
+  },
+
+  _handleModalBackdropTouchMove(event) {
+    const openModals = Array.from(document.querySelectorAll('.modal.open'));
+    if (openModals.length === 0) return;
+    if (openModals.some(modal => modal.contains(event.target))) return;
+    event.preventDefault();
+    event.stopPropagation();
+  },
+
   // ── 首次登入 modal 顯示（Plan B：內聯到 index.html，不依賴 ScriptLoader）──
   _tryShowFirstLoginModal() {
     if (this._firstLoginShowing) return;
@@ -1747,6 +1923,8 @@ Object.assign(App, {
     const modal = document.getElementById(id);
     const overlay = document.getElementById('modal-overlay');
     if (!modal) return;
+    this._bindModalOverlayTouchGuard(overlay);
+    if (id === 'create-event-modal') this._bindCreateEventModalScrollObserver(modal);
     const isOpen = modal.classList.contains('open');
     if (isOpen) {
       // 鎖定中的 modal 不允許被 toggle 關閉
@@ -1764,6 +1942,7 @@ Object.assign(App, {
       const modalBody = modal.querySelector('.modal-body');
       if (modalBody) modalBody.scrollTop = 0;
     }
+    this._syncCreateEventModalScrollLock();
   },
 
   closeModal(options = {}) {
@@ -1783,6 +1962,7 @@ Object.assign(App, {
     }
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
     if (overlay) overlay.classList.remove('open');
+    this._syncCreateEventModalScrollLock();
     this._maybeRunDeferredSwReload?.('modal-close');
   },
 

@@ -11,6 +11,7 @@ const {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   writeBatch,
   setLogLevel,
   serverTimestamp,
@@ -563,12 +564,34 @@ function identitySettingsPayload(overrides = {}) {
   };
 }
 
+function canonicalEventCreateId(id) {
+  return id.startsWith("ce_") ? id : `ce_${id}`;
+}
+
+function eventCreatePayload(id, creatorUid, overrides = {}) {
+  const canonicalId = canonicalEventCreateId(id);
+  return {
+    ...overrides,
+    id: canonicalId,
+    clientRequestId: canonicalId,
+    creatorUid,
+    payloadRevision: 1,
+    payloadDigest: `v1-${"1".repeat(32)}`,
+  };
+}
+
+function createEventRoot(db, id, creatorUid, overrides = {}) {
+  const canonicalId = canonicalEventCreateId(id);
+  return setDoc(
+    doc(db, "events", canonicalId),
+    eventCreatePayload(canonicalId, creatorUid, overrides)
+  );
+}
+
 function teamScopedEventPayload(id, creatorUid, teamIds) {
   const normalizedTeamIds = [...teamIds];
-  return {
-    id,
+  return eventCreatePayload(id, creatorUid, {
     title: `Team Scoped ${id}`,
-    creatorUid,
     status: "open",
     teamOnly: true,
     isPublic: true,
@@ -576,7 +599,7 @@ function teamScopedEventPayload(id, creatorUid, teamIds) {
     creatorTeamName: `Team ${normalizedTeamIds[0]}`,
     creatorTeamIds: normalizedTeamIds,
     creatorTeamNames: normalizedTeamIds.map((teamId) => `Team ${teamId}`),
-  };
+  });
 }
 
 describe("/users/{userId}", () => {
@@ -1008,12 +1031,218 @@ describe("/events/{eventId}", () => {
   test("write-create: guest denied; authenticated roles allowed through scoped capabilities", async () => {
     await assertByRole(
       ({ db, role }) =>
-        setDoc(doc(db, "events", `event_create_${role}`), {
+        createEventRoot(db, `event_create_${role}`, uidByRole[role] || "uidA", {
           title: "created",
-          creatorUid: uidByRole[role] || "uidA",
         }),
       allowAuth
     );
+  });
+
+  test("event create canonical identity allows normal user, admin, and staff", async () => {
+    const actors = [
+      { label: "user", db: user(), uid: "uidUser" },
+      { label: "admin", db: admin(), uid: "uidAdmin" },
+      { label: "coach", db: coach(), uid: "uidCoach" },
+    ];
+
+    for (const actor of actors) {
+      await assertSucceeds(
+        createEventRoot(actor.db, `identity_valid_${actor.label}`, actor.uid, {
+          title: `Identity ${actor.label}`,
+          status: "open",
+        })
+      );
+      const legacyId = `ce_identity_legacy_${actor.label}`;
+      await assertSucceeds(
+        setDoc(doc(actor.db, "events", legacyId), {
+          id: legacyId,
+          creatorUid: actor.uid,
+          title: `Legacy identity ${actor.label}`,
+          status: "open",
+        })
+      );
+    }
+
+    const maxLengthId = `ce_${"a".repeat(117)}`;
+    await assertSucceeds(
+      createEventRoot(user(), maxLengthId, "uidUser", {
+        title: "Maximum valid event ID",
+        status: "open",
+      })
+    );
+  });
+
+  test("event create canonical identity rejects invalid or missing identity fields for every create role", async () => {
+    const actors = [
+      { label: "user", db: user(), uid: "uidUser" },
+      { label: "admin", db: admin(), uid: "uidAdmin" },
+      { label: "coach", db: coach(), uid: "uidCoach" },
+    ];
+
+    for (const actor of actors) {
+      const eventId = `ce_identity_guard_${actor.label}`;
+      const valid = eventCreatePayload(eventId, actor.uid, {
+        title: `Identity guard ${actor.label}`,
+        status: "open",
+      });
+      const { id: _id, ...missingId } = valid;
+      const { creatorUid: _creatorUid, ...missingCreatorUid } = valid;
+      const { payloadRevision: _payloadRevision, ...missingPayloadRevision } = valid;
+      const { payloadDigest: _payloadDigest, ...missingPayloadDigest } = valid;
+      const deniedCases = [
+        {
+          path: `${eventId}_path`,
+          data: valid,
+        },
+        {
+          path: eventId,
+          data: { ...valid, id: `${eventId}_data` },
+        },
+        {
+          path: eventId,
+          data: { ...valid, clientRequestId: `${eventId}_request` },
+        },
+        {
+          path: eventId,
+          data: missingId,
+        },
+        {
+          path: eventId,
+          data: { ...valid, id: "" },
+        },
+        {
+          path: eventId,
+          data: { ...valid, clientRequestId: "" },
+        },
+        {
+          path: eventId,
+          data: missingCreatorUid,
+        },
+        {
+          path: eventId,
+          data: { ...valid, creatorUid: "" },
+        },
+        {
+          path: eventId,
+          data: { ...valid, creatorUid: "uidOther" },
+        },
+        {
+          path: eventId,
+          data: missingPayloadRevision,
+        },
+        {
+          path: eventId,
+          data: { ...valid, payloadRevision: 0 },
+        },
+        {
+          path: eventId,
+          data: { ...valid, payloadRevision: 1.5 },
+        },
+        {
+          path: eventId,
+          data: missingPayloadDigest,
+        },
+        {
+          path: eventId,
+          data: { ...valid, payloadDigest: "v1-short" },
+        },
+        {
+          path: `event_identity_guard_${actor.label}`,
+          data: {
+            ...valid,
+            id: `event_identity_guard_${actor.label}`,
+            clientRequestId: `event_identity_guard_${actor.label}`,
+          },
+        },
+        {
+          path: `ce_identity.invalid_${actor.label}`,
+          data: {
+            ...valid,
+            id: `ce_identity.invalid_${actor.label}`,
+            clientRequestId: `ce_identity.invalid_${actor.label}`,
+          },
+        },
+        {
+          path: `ce_${"a".repeat(118)}`,
+          data: {
+            ...valid,
+            id: `ce_${"a".repeat(118)}`,
+            clientRequestId: `ce_${"a".repeat(118)}`,
+          },
+        },
+      ];
+
+      for (const deniedCase of deniedCases) {
+        await assertFails(
+          setDoc(doc(actor.db, "events", deniedCase.path), deniedCase.data)
+        );
+      }
+    }
+  });
+
+  test("event identity fields are immutable on update without blocking legacy unrelated edits", async () => {
+    const actors = [
+      { label: "user", db: user(), uid: "uidUser", broad: false },
+      { label: "admin", db: admin(), uid: "uidAdmin", broad: true },
+      { label: "coach", db: coach(), uid: "uidCoach", broad: false },
+      { label: "super_admin", db: superAdmin(), uid: "uidSA", broad: true },
+    ];
+
+    for (const actor of actors) {
+      const canonicalId = `ce_identity_update_${actor.label}`;
+      const ownerUid = actor.broad ? "uidOther" : actor.uid;
+      const creatorUid = actor.broad ? "uidOriginalCreator" : actor.uid;
+      await seedDoc("events", canonicalId, {
+        id: canonicalId,
+        clientRequestId: canonicalId,
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
+        title: `Canonical ${actor.label}`,
+        creatorUid,
+        ownerUid,
+        status: "open",
+      });
+      const canonicalRef = doc(actor.db, "events", canonicalId);
+
+      await assertSucceeds(
+        updateDoc(canonicalRef, { title: `Canonical ${actor.label} updated` })
+      );
+      for (const updates of [
+        { id: `${canonicalId}_changed` },
+        { clientRequestId: `${canonicalId}_changed` },
+        { creatorUid: "uidChangedCreator" },
+        { payloadRevision: 2 },
+        { payloadDigest: `v1-${"2".repeat(32)}` },
+        { id: deleteField() },
+        { clientRequestId: deleteField() },
+        { creatorUid: deleteField() },
+        { payloadRevision: deleteField() },
+        { payloadDigest: deleteField() },
+      ]) {
+        await assertFails(updateDoc(canonicalRef, updates));
+      }
+
+      const legacyId = `legacy_identity_update_${actor.label}`;
+      await seedDoc("events", legacyId, {
+        title: `Legacy ${actor.label}`,
+        ownerUid,
+        status: "open",
+      });
+      const legacyRef = doc(actor.db, "events", legacyId);
+
+      await assertSucceeds(
+        updateDoc(legacyRef, { title: `Legacy ${actor.label} updated` })
+      );
+      for (const updates of [
+        { id: legacyId },
+        { clientRequestId: legacyId },
+        { creatorUid: actor.uid },
+        { payloadRevision: 1 },
+        { payloadDigest: `v1-${"1".repeat(32)}` },
+      ]) {
+        await assertFails(updateDoc(legacyRef, updates));
+      }
+    }
   });
 
   test("coach can create a team-scoped event only for one team they staff", async () => {
@@ -1025,19 +1254,19 @@ describe("/events/{eventId}", () => {
 
     await assertSucceeds(
       setDoc(
-        doc(coach(), "events", "event_coach_team_own"),
+        doc(coach(), "events", canonicalEventCreateId("event_coach_team_own")),
         teamScopedEventPayload("event_coach_team_own", "uidCoach", ["teamCoachOwn"])
       )
     );
     await assertFails(
       setDoc(
-        doc(coach(), "events", "event_coach_team_unrelated"),
+        doc(coach(), "events", canonicalEventCreateId("event_coach_team_unrelated")),
         teamScopedEventPayload("event_coach_team_unrelated", "uidCoach", ["teamA"])
       )
     );
     await assertFails(
       setDoc(
-        doc(coach(), "events", "event_coach_team_multiple"),
+        doc(coach(), "events", canonicalEventCreateId("event_coach_team_multiple")),
         teamScopedEventPayload("event_coach_team_multiple", "uidCoach", ["teamCoachOwn", "teamA"])
       )
     );
@@ -1047,7 +1276,7 @@ describe("/events/{eventId}", () => {
     await seedRolePermissions("admin", []);
     await assertFails(
       setDoc(
-        doc(admin(), "events", "event_admin_team_without_broad"),
+        doc(admin(), "events", canonicalEventCreateId("event_admin_team_without_broad")),
         teamScopedEventPayload("event_admin_team_without_broad", "uidAdmin", ["teamA", "teamB"])
       )
     );
@@ -1055,7 +1284,7 @@ describe("/events/{eventId}", () => {
     await seedRolePermissions("admin", ["event.edit_all"]);
     await assertSucceeds(
       setDoc(
-        doc(admin(), "events", "event_admin_team_with_broad"),
+        doc(admin(), "events", canonicalEventCreateId("event_admin_team_with_broad")),
         teamScopedEventPayload("event_admin_team_with_broad", "uidAdmin", ["teamA", "teamB"])
       )
     );
@@ -1070,7 +1299,7 @@ describe("/events/{eventId}", () => {
 
     await assertFails(
       setDoc(
-        doc(user(), "events", "event_user_entry_team_own"),
+        doc(user(), "events", canonicalEventCreateId("event_user_entry_team_own")),
         teamScopedEventPayload("event_user_entry_team_own", "uidUser", ["teamUserOwn"])
       )
     );
@@ -1081,13 +1310,13 @@ describe("/events/{eventId}", () => {
     ]);
     await assertSucceeds(
       setDoc(
-        doc(user(), "events", "event_user_scoped_team_own"),
+        doc(user(), "events", canonicalEventCreateId("event_user_scoped_team_own")),
         teamScopedEventPayload("event_user_scoped_team_own", "uidUser", ["teamUserOwn"])
       )
     );
     await assertFails(
       setDoc(
-        doc(user(), "events", "event_user_scoped_team_unrelated"),
+        doc(user(), "events", canonicalEventCreateId("event_user_scoped_team_unrelated")),
         teamScopedEventPayload("event_user_scoped_team_unrelated", "uidUser", ["teamA"])
       )
     );
@@ -1129,33 +1358,29 @@ describe("/events/{eventId}", () => {
 
   test("user can create own basic event but cannot enable add-on fields", async () => {
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_basic_create"), {
+      createEventRoot(user(), "event_user_basic_create", "uidUser", {
         title: "User Basic",
-        creatorUid: "uidUser",
         status: "open",
       })
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_addon_create"), {
+      createEventRoot(user(), "event_user_addon_create", "uidUser", {
         title: "User Add-on",
-        creatorUid: "uidUser",
         feeEnabled: true,
         fee: 500,
       })
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_social_addon_create"), {
+      createEventRoot(user(), "event_user_social_addon_create", "uidUser", {
         title: "User Social Add-on",
-        creatorUid: "uidUser",
         socialLinksEnabled: true,
         socialLinks: [{ url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" }],
       })
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_early_bird_addon_create"), {
+      createEventRoot(user(), "event_user_early_bird_addon_create", "uidUser", {
         title: "User Early Bird Add-on",
-        creatorUid: "uidUser",
         status: "upcoming",
         regOpenTime: "2099-01-01T10:00",
         earlyBirdEnabled: true,
@@ -1163,9 +1388,8 @@ describe("/events/{eventId}", () => {
       })
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_gps_addon_create"), {
+      createEventRoot(user(), "event_user_gps_addon_create", "uidUser", {
         title: "User GPS Add-on",
-        creatorUid: "uidUser",
         gpsEnabled: true,
       })
     );
@@ -1173,9 +1397,8 @@ describe("/events/{eventId}", () => {
 
   test("user can create upcoming and add-on events only when matching capabilities allow it", async () => {
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_upcoming_create"), {
+      createEventRoot(user(), "event_user_upcoming_create", "uidUser", {
         title: "User Upcoming",
-        creatorUid: "uidUser",
         status: "upcoming",
         regOpenTime: "2099-01-01T10:00",
       })
@@ -1187,9 +1410,8 @@ describe("/events/{eventId}", () => {
     ]);
 
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_addon_allowed_create"), {
+      createEventRoot(user(), "event_user_addon_allowed_create", "uidUser", {
         title: "User Add-on Allowed",
-        creatorUid: "uidUser",
         status: "open",
         feeEnabled: true,
         fee: 500,
@@ -1212,9 +1434,8 @@ describe("/events/{eventId}", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_early_bird_cost_low"), {
+      createEventRoot(user(), "event_user_early_bird_cost_low", "uidUser", {
         title: "User Early Bird Low Cost",
-        creatorUid: "uidUser",
         status: "upcoming",
         regOpenTime: "2099-01-01T10:00",
         earlyBirdEnabled: true,
@@ -1223,9 +1444,8 @@ describe("/events/{eventId}", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_early_bird_cost_high"), {
+      createEventRoot(user(), "event_user_early_bird_cost_high", "uidUser", {
         title: "User Early Bird High Cost",
-        creatorUid: "uidUser",
         status: "upcoming",
         regOpenTime: "2099-01-01T10:00",
         earlyBirdEnabled: true,
@@ -1234,9 +1454,8 @@ describe("/events/{eventId}", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_team_scope_addon_denied"), {
+      createEventRoot(user(), "event_user_team_scope_addon_denied", "uidUser", {
         title: "User Team Scope Denied",
-        creatorUid: "uidUser",
         status: "open",
         teamOnly: true,
         isPublic: true,
@@ -1250,6 +1469,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_payload"), {
         id: "ce_test_full_payload",
+        clientRequestId: "ce_test_full_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Full Payload",
         type: "friendly",
         status: "open",
@@ -1302,9 +1524,8 @@ describe("/events/{eventId}", () => {
 
   test("event map fields require add-on capability and confirmed numeric coordinates", async () => {
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_map_create_without_addon"), {
+      createEventRoot(user(), "event_user_map_create_without_addon", "uidUser", {
         title: "User Map No Add-on",
-        creatorUid: "uidUser",
         status: "open",
         location: "Test Field",
         gpsEnabled: true,
@@ -1323,9 +1544,8 @@ describe("/events/{eventId}", () => {
     ]);
 
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_map_create"), {
+      createEventRoot(user(), "event_user_map_create", "uidUser", {
         title: "User Map",
-        creatorUid: "uidUser",
         status: "open",
         location: "Test Field",
         gpsEnabled: true,
@@ -1339,9 +1559,8 @@ describe("/events/{eventId}", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_map_bad_lat"), {
+      createEventRoot(user(), "event_user_map_bad_lat", "uidUser", {
         title: "Bad Lat",
-        creatorUid: "uidUser",
         status: "open",
         gpsEnabled: true,
         lat: "25.026",
@@ -1351,9 +1570,8 @@ describe("/events/{eventId}", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_map_missing_lng"), {
+      createEventRoot(user(), "event_user_map_missing_lng", "uidUser", {
         title: "Missing Lng",
-        creatorUid: "uidUser",
         status: "open",
         gpsEnabled: true,
         lat: 25.026,
@@ -1415,6 +1633,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_private_addon_payload"), {
         id: "ce_test_full_private_addon_payload",
+        clientRequestId: "ce_test_full_private_addon_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Private Payload",
         type: "friendly",
         status: "open",
@@ -1474,6 +1695,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_fee_addon_payload"), {
         id: "ce_test_full_fee_addon_payload",
+        clientRequestId: "ce_test_full_fee_addon_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Fee Payload",
         type: "friendly",
         status: "open",
@@ -1533,6 +1757,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_gender_addon_payload"), {
         id: "ce_test_full_gender_addon_payload",
+        clientRequestId: "ce_test_full_gender_addon_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Gender Payload",
         type: "friendly",
         status: "open",
@@ -1592,6 +1819,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_team_split_addon_payload"), {
         id: "ce_test_full_team_split_addon_payload",
+        clientRequestId: "ce_test_full_team_split_addon_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Split Payload",
         type: "friendly",
         status: "open",
@@ -1662,6 +1892,9 @@ describe("/events/{eventId}", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "ce_test_full_combined_addons_payload"), {
         id: "ce_test_full_combined_addons_payload",
+        clientRequestId: "ce_test_full_combined_addons_payload",
+        payloadRevision: 1,
+        payloadDigest: `v1-${"1".repeat(32)}`,
         title: "Combined Payload",
         type: "friendly",
         status: "open",
@@ -1728,16 +1961,14 @@ describe("/events/{eventId}", () => {
 
   test("user basic event creation requires safe initial status and empty projection fields", async () => {
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_bad_status_create"), {
+      createEventRoot(user(), "event_user_bad_status_create", "uidUser", {
         title: "Bad Status",
-        creatorUid: "uidUser",
         status: "cancelled",
       })
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_bad_projection_create"), {
+      createEventRoot(user(), "event_user_bad_projection_create", "uidUser", {
         title: "Bad Projection",
-        creatorUid: "uidUser",
         current: 9,
         participants: ["spoofed"],
       })
@@ -1749,17 +1980,15 @@ describe("/events/{eventId}", () => {
       DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.delegate_assign")
     );
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_empty_delegates_create"), {
+      createEventRoot(user(), "event_user_empty_delegates_create", "uidUser", {
         title: "Empty Delegates",
-        creatorUid: "uidUser",
         delegates: [],
         delegateUids: [],
       })
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_delegates_denied_create"), {
+      createEventRoot(user(), "event_user_delegates_denied_create", "uidUser", {
         title: "Delegates Denied",
-        creatorUid: "uidUser",
         delegates: [{ uid: "uidDelegate" }],
         delegateUids: ["uidDelegate"],
       })
@@ -1768,9 +1997,8 @@ describe("/events/{eventId}", () => {
 
   test("user external activity creation follows roleActivityCapabilities", async () => {
     await assertSucceeds(
-      setDoc(doc(user(), "events", "event_user_external_create"), {
+      createEventRoot(user(), "event_user_external_create", "uidUser", {
         title: "External OK",
-        creatorUid: "uidUser",
         type: "external",
       })
     );
@@ -1779,9 +2007,8 @@ describe("/events/{eventId}", () => {
       DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.external_create")
     );
     await assertFails(
-      setDoc(doc(user(), "events", "event_user_external_denied"), {
+      createEventRoot(user(), "event_user_external_denied", "uidUser", {
         title: "External Denied",
-        creatorUid: "uidUser",
         type: "external",
       })
     );
@@ -2689,9 +2916,8 @@ describe("/registrations/{regId}", () => {
 describe("course-linked event direct write guards", () => {
   test("clients cannot create course-linked event roots directly", async () => {
     await assertFails(
-      setDoc(doc(user(), "events", "event_course_fake_user"), {
+      createEventRoot(user(), "event_course_fake_user", "uidUser", {
         title: "Fake Course Event",
-        creatorUid: "uidUser",
         status: "open",
         courseLinked: true,
         courseLinkSource: "eduCourseLesson",
@@ -2699,26 +2925,23 @@ describe("course-linked event direct write guards", () => {
       })
     );
     await assertFails(
-      setDoc(doc(admin(), "events", "event_course_fake_admin"), {
+      createEventRoot(admin(), "event_course_fake_admin", "uidAdmin", {
         title: "Fake Course Event Admin",
-        creatorUid: "uidAdmin",
         status: "open",
         courseLinked: true,
         courseLinkId: "fake_link_admin",
       })
     );
     await assertFails(
-      setDoc(doc(superAdmin(), "events", "event_course_fake_super"), {
+      createEventRoot(superAdmin(), "event_course_fake_super", "uidSA", {
         title: "Fake Course Event Super",
-        creatorUid: "uidSA",
         status: "open",
         courseLinked: true,
       })
     );
     await assertFails(
-      setDoc(doc(superAdmin(), "events", "event_course_fake_link_only"), {
+      createEventRoot(superAdmin(), "event_course_fake_link_only", "uidSA", {
         title: "Fake Course Event Link Only",
-        creatorUid: "uidSA",
         status: "open",
         courseLinkSource: "eduCourseLesson",
         courseLinkId: "fake_link_only",

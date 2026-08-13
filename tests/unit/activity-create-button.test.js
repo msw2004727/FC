@@ -108,7 +108,9 @@ describe('activity create button', () => {
     expect(createSource).toContain('const editEventId = submitSession.editId;');
     expect(createSource).toContain('const isEditSubmit = !!editEventId;');
     expect(createSource).toContain('startEarlySubmitBusy();');
-    expect(createSource).toContain("submitBtn.textContent = this._editEventId ? '儲存中' : '建立中...';");
+    expect(createSource).toContain("const isConfirmingUnknownCreate = !this._editEventId");
+    expect(createSource).toContain("? '儲存中'");
+    expect(createSource).toContain(": (isConfirmingUnknownCreate ? '確認中...' : '建立中...');");
     expect(createSource).toContain("this.showToast('系統已在處理中');");
     expect(createSource).toContain('stopEarlySubmitBusy();');
   });
@@ -144,6 +146,40 @@ describe('activity create button', () => {
     expect(lifecycleSource).toContain('this._ensureCreateEventDomContract?.()');
     expect(lifecycleSource).toContain('this._renderSafeImageTag?.(previewImage');
     expect(activityCss).toContain('#create-event-modal.ce-v2-enabled .ce-form-v2');
+  });
+
+  test('activity create/edit modal uses a safe-area-aware full viewport shell on mobile', () => {
+    const activityCss = readProjectFile('css/activity.css');
+    const shellMarker = '/* Activity create/edit V2 shell.';
+    const shellCss = activityCss.slice(activityCss.indexOf(shellMarker));
+    const mobileStart = shellCss.indexOf('@media (max-width: 640px)');
+    const mobileEnd = shellCss.indexOf('.host-list-body', mobileStart);
+    const mobileCss = shellCss.slice(mobileStart, mobileEnd);
+
+    expect(shellCss).toContain('html.create-event-modal-open');
+    expect(shellCss).toContain('body.create-event-modal-open #modal-overlay');
+    expect(shellCss).toContain('background: rgba(0,0,0,.35);');
+    expect(shellCss).toContain('-webkit-backdrop-filter: blur(10px);');
+    expect(shellCss).toContain('backdrop-filter: blur(10px);');
+    expect(shellCss).toContain('border-radius: 16px;');
+    expect(shellCss).toContain('box-shadow: 0 8px 32px rgba(0,0,0,.15);');
+
+    const vhFallbackIndex = mobileCss.indexOf('height: 100vh;');
+    const dynamicViewportIndex = mobileCss.indexOf('height: 100dvh;');
+    expect(vhFallbackIndex).toBeGreaterThan(-1);
+    expect(dynamicViewportIndex).toBeGreaterThan(vhFallbackIndex);
+    expect(mobileCss).toContain('max-height: none;');
+    expect(mobileCss).toContain('display: flex;');
+    expect(mobileCss).toContain('flex-direction: column;');
+    expect(mobileCss).toContain('padding-left: env(safe-area-inset-left, 0px);');
+    expect(mobileCss).toContain('padding-right: env(safe-area-inset-right, 0px);');
+    expect(mobileCss).toContain('padding-top: calc(1rem + env(safe-area-inset-top, 0px));');
+    expect(mobileCss).toContain('min-height: 0;');
+    expect(mobileCss).toContain('overflow-y: auto;');
+    expect(mobileCss).toContain('-webkit-overflow-scrolling: touch;');
+    expect(mobileCss).toContain('position: static;');
+    expect(mobileCss).toContain('env(safe-area-inset-bottom, 0px)');
+    expect(mobileCss).not.toContain('touch-action: none');
   });
 
   test('activity age limit is controlled by a toggle and submits zero when disabled', () => {

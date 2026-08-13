@@ -797,28 +797,243 @@ const ApiService = {
     return normalized;
   },
 
+  _tagEventCreateWriteError(err, phase, outcome) {
+    const target = err && typeof err === 'object'
+      ? err
+      : new Error(String(err || 'EVENT_CREATE_WRITE_FAILED'));
+    if (!target.eventCreatePhase) target.eventCreatePhase = String(phase || 'unknown');
+    if (!target.eventCreateOutcome) target.eventCreateOutcome = String(outcome || 'ambiguous');
+    if (!target.eventCreateWriteState) {
+      target.eventCreateWriteState = phase === 'preflight' && outcome === 'definitive-rejected'
+        ? 'not-started'
+        : 'unknown';
+    }
+    return target;
+  },
+
+  _getEventCreateFallbackPayloadDigest(payload) {
+    const canonicalize = value => {
+      if (value instanceof Date) return { __sportshubEventCreateDate: value.toISOString() };
+      if (Array.isArray(value)) return value.map(canonicalize);
+      if (!value || typeof value !== 'object') return value;
+      const result = {};
+      Object.keys(value).sort().forEach(key => {
+        if (key !== 'payloadRevision' && key !== 'payloadDigest') result[key] = canonicalize(value[key]);
+      });
+      return result;
+    };
+    const input = JSON.stringify(canonicalize(payload));
+    const hashes = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+    for (let index = 0; index < input.length; index += 1) {
+      const code = input.charCodeAt(index);
+      hashes[0] = Math.imul(hashes[0] ^ code, 0x01000193);
+      hashes[1] = Math.imul(hashes[1] ^ code, 0x27d4eb2d);
+      hashes[2] = Math.imul(hashes[2] ^ code, 0x165667b1);
+      hashes[3] = Math.imul(hashes[3] ^ code, 0x9e3779b1);
+    }
+    return `v1-${hashes.map(hash => (hash >>> 0).toString(16).padStart(8, '0')).join('')}`;
+  },
+
+  _normalizeSingleEventCreateRequest(data, {
+    defaultClientRequestId = false,
+    defaultPayloadMetadata = false,
+  } = {}) {
+    const payload = (data && typeof data === 'object') ? { ...data } : {};
+    const eventId = String(payload.id || '').trim();
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(eventId)) {
+      const err = new Error(eventId ? 'EVENT_ID_INVALID' : 'EVENT_ID_REQUIRED');
+      err.code = 'event/id-invalid';
+      throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    let clientRequestId = String(payload.clientRequestId || '').trim();
+    if (!clientRequestId && defaultClientRequestId) clientRequestId = eventId;
+    if (!clientRequestId || clientRequestId !== eventId) {
+      const err = new Error('EVENT_CLIENT_REQUEST_ID_MISMATCH');
+      err.code = 'event/client-request-id-mismatch';
+      throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    const creatorUid = String(payload.creatorUid || '').trim();
+    if (!creatorUid || creatorUid === 'unknown') {
+      const err = new Error('EVENT_CREATOR_UID_REQUIRED');
+      err.code = 'event/creator-uid-invalid';
+      throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    payload.id = eventId;
+    payload.clientRequestId = clientRequestId;
+    payload.creatorUid = creatorUid;
+    let payloadRevision = Number(payload.payloadRevision);
+    let payloadDigest = String(payload.payloadDigest || '').trim();
+    if (defaultPayloadMetadata && payload.payloadRevision == null && !payloadDigest) {
+      payloadRevision = 1;
+      payloadDigest = this._getEventCreateFallbackPayloadDigest(payload);
+    }
+    if (!Number.isSafeInteger(payloadRevision) || payloadRevision < 1) {
+      const err = new Error('EVENT_PAYLOAD_REVISION_INVALID');
+      err.code = 'event/payload-revision-invalid';
+      throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    if (!/^v1-[0-9a-f]{32}$/.test(payloadDigest)) {
+      const err = new Error('EVENT_PAYLOAD_DIGEST_INVALID');
+      err.code = 'event/payload-digest-invalid';
+      throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+    }
+    payload.payloadRevision = payloadRevision;
+    payload.payloadDigest = payloadDigest;
+    return { payload, eventId, clientRequestId, creatorUid, payloadRevision, payloadDigest };
+  },
+
+  _upsertConfirmedEventCache(event) {
+    const eventId = String(event?.id || '').trim();
+    if (!eventId) return null;
+    const source = this._src('events');
+    const index = source.findIndex(item => String(item?.id || '').trim() === eventId);
+    if (index >= 0) {
+      Object.assign(source[index], event);
+      return source[index];
+    }
+    source.unshift(event);
+    return event;
+  },
+
   async createEvent(data) {
-    const result = await this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent');
+    if (this._handleRestrictedAction()) return null;
+    let request;
+    let firebaseWriteResolved = false;
+    try {
+      request = this._normalizeSingleEventCreateRequest(data, {
+        defaultClientRequestId: true,
+        defaultPayloadMetadata: true,
+      });
+      const saved = await FirebaseService.addEvent(request.payload);
+      firebaseWriteResolved = true;
+      if (!saved
+        || saved.id !== request.eventId
+        || saved._docId !== request.eventId
+        || saved.clientRequestId !== request.clientRequestId
+        || saved.creatorUid !== request.creatorUid
+        || saved.payloadRevision !== request.payloadRevision
+        || saved.payloadDigest !== request.payloadDigest) {
+        throw this._tagEventCreateWriteError(
+          new Error(`createEvent write did not confirm identity: events/${request.eventId}`),
+          'post-confirm',
+          'ambiguous',
+        );
+      }
+      const result = this._upsertConfirmedEventCache(saved);
+      try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+      return result;
+    } catch (err) {
+      if (!err?.eventCreatePhase) {
+        this._tagEventCreateWriteError(
+          err,
+          firebaseWriteResolved ? 'post-confirm' : (request ? 'firebase-write' : 'preflight'),
+          'ambiguous',
+        );
+      }
+      console.error('[createEvent]', err);
+      const toasted = this._handleFirestoreWriteError(err, 'createEvent', request?.payload || data);
+      err._toasted = toasted;
+      throw err;
+    }
+  },
+
+  async reconcileEventCreate(data) {
+    const request = this._normalizeSingleEventCreateRequest(data);
+    const snapshot = await db.collection('events').doc(request.eventId).get({ source: 'server' });
+    if (!snapshot.exists) {
+      return {
+        state: 'missing',
+        eventId: request.eventId,
+        clientRequestId: request.clientRequestId,
+      };
+    }
+
+    const current = typeof snapshot.data === 'function' ? (snapshot.data() || {}) : {};
+    if (current.id !== request.eventId
+      || current.clientRequestId !== request.clientRequestId
+      || current.creatorUid !== request.creatorUid
+      || current.payloadRevision !== request.payloadRevision
+      || current.payloadDigest !== request.payloadDigest) {
+      return {
+        state: 'conflict',
+        eventId: request.eventId,
+        clientRequestId: request.clientRequestId,
+      };
+    }
+
+    const event = this._upsertConfirmedEventCache({
+      ...current,
+      _docId: snapshot.id || request.eventId,
+    });
     try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
-    return result;
+    return {
+      state: 'committed',
+      event,
+    };
   },
   async createEventsAtomic(events) {
-    const payloads = Array.isArray(events) ? events : [];
+    const sourceEvents = Array.isArray(events) ? events : [];
     if (this._handleRestrictedAction()) return null;
+    let payloads = sourceEvents;
+    let firebaseWriteResolved = false;
     try {
-      const expectedUid = this._getExpectedAuthUidForWrite('events', payloads[0]);
+      if (sourceEvents.length < 2 || sourceEvents.length > 30) {
+        const err = new Error('EVENT_BATCH_SIZE_INVALID');
+        err.code = 'event/batch-size-invalid';
+        throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const requests = sourceEvents.map(event => this._normalizeSingleEventCreateRequest(event));
+      const expectedUid = requests[0].creatorUid;
+      if (requests.some(request => request.creatorUid !== expectedUid)) {
+        const err = new Error('EVENT_BATCH_CREATOR_MISMATCH');
+        err.code = 'event/batch-creator-mismatch';
+        throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      const batchGroupId = String(requests[0].payload.batchGroupId || '').trim();
+      if (!batchGroupId
+        || requests.some(request => String(request.payload.batchGroupId || '').trim() !== batchGroupId)) {
+        const err = new Error('EVENT_BATCH_GROUP_INVALID');
+        err.code = 'event/batch-group-invalid';
+        throw this._tagEventCreateWriteError(err, 'preflight', 'definitive-rejected');
+      }
+      payloads = requests.map(request => ({ ...request.payload, batchGroupId }));
       const authed = await FirebaseService.ensureAuthReadyForWrite(expectedUid);
-      if (!authed) throw this._buildAuthNotReadyWriteError(expectedUid);
+      if (!authed) {
+        throw this._tagEventCreateWriteError(
+          this._buildAuthNotReadyWriteError(expectedUid),
+          'preflight',
+          'definitive-rejected',
+        );
+      }
       const saved = await FirebaseService.addEventsAtomic(payloads);
-      const source = this._src('events');
-      saved.forEach(event => {
-        const existing = source.find(item => item?.id === event.id);
-        if (existing) Object.assign(existing, event);
-        else source.unshift(event);
-      });
+      firebaseWriteResolved = true;
+      if (!Array.isArray(saved) || saved.length !== payloads.length
+        || saved.some((event, index) => {
+          const request = payloads[index];
+          return !event
+            || event.id !== request.id
+            || event._docId !== request.id
+            || event.clientRequestId !== request.clientRequestId
+            || event.creatorUid !== request.creatorUid
+            || event.batchGroupId !== request.batchGroupId
+            || event.payloadRevision !== request.payloadRevision
+            || event.payloadDigest !== request.payloadDigest;
+        })) {
+        const err = new Error('EVENT_BATCH_WRITE_UNCONFIRMED');
+        err.code = 'event/batch-write-unconfirmed';
+        throw this._tagEventCreateWriteError(err, 'post-confirm', 'ambiguous');
+      }
+      saved.forEach(event => this._upsertConfirmedEventCache(event));
       try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
       return saved;
     } catch (err) {
+      if (!err?.eventCreatePhase) {
+        this._tagEventCreateWriteError(
+          err,
+          firebaseWriteResolved ? 'post-confirm' : 'firebase-write',
+          'ambiguous',
+        );
+      }
       console.error('[createEventsAtomic]', err);
       const toasted = this._handleFirestoreWriteError(err, 'createEventsAtomic', payloads[0]);
       err._toasted = toasted;

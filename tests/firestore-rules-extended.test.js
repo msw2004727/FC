@@ -205,6 +205,22 @@ async function seedRoleActivityCapabilities(capabilities = DEFAULT_USER_ACTIVITY
   });
 }
 
+function canonicalEventCreateId(id) {
+  return id.startsWith("ce_") ? id : `ce_${id}`;
+}
+
+function createEventRoot(db, id, creatorUid, overrides = {}) {
+  const canonicalId = canonicalEventCreateId(id);
+  return setDoc(doc(db, "events", canonicalId), {
+    ...overrides,
+    id: canonicalId,
+    clientRequestId: canonicalId,
+    creatorUid,
+    payloadRevision: 1,
+    payloadDigest: `v1-${"1".repeat(32)}`,
+  });
+}
+
 async function seedUserPermissionGrant(uid, permissions = [], overrides = {}) {
   await seedDoc("userPermissionGrants", uid, {
     uid,
@@ -4540,9 +4556,8 @@ describe("hasPerm() permission codes integration", () => {
     ]);
 
     await assertSucceeds(
-      setDoc(doc(user(), "events", "evt_user_grant_create"), {
+      createEventRoot(user(), "evt_user_grant_create", "uidUser", {
         title: "Grant Create",
-        creatorUid: "uidUser",
         status: "open",
         current: 0,
         realCurrent: 0,
@@ -4555,9 +4570,8 @@ describe("hasPerm() permission codes integration", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "evt_user_grant_team_create_unmanaged"), {
+      createEventRoot(user(), "evt_user_grant_team_create_unmanaged", "uidUser", {
         title: "Grant Team Create Unmanaged",
-        creatorUid: "uidUser",
         status: "open",
         current: 0,
         realCurrent: 0,
@@ -4581,9 +4595,8 @@ describe("hasPerm() permission codes integration", () => {
       coachUids: ["uidUser"],
     });
     await assertSucceeds(
-      setDoc(doc(user(), "events", "evt_user_grant_team_create"), {
+      createEventRoot(user(), "evt_user_grant_team_create", "uidUser", {
         title: "Grant Team Create",
-        creatorUid: "uidUser",
         status: "open",
         current: 0,
         realCurrent: 0,
@@ -4602,9 +4615,8 @@ describe("hasPerm() permission codes integration", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "evt_user_grant_non_team_addon_denied"), {
+      createEventRoot(user(), "evt_user_grant_non_team_addon_denied", "uidUser", {
         title: "Grant Non Team Addon Denied",
-        creatorUid: "uidUser",
         status: "open",
         current: 0,
         realCurrent: 0,
