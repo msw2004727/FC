@@ -8,7 +8,14 @@ const TRANSPARENT_GIF = 'data:image/gif;base64,R0lGODlhAQABAIABAP///wAAACH5BAEKA
 function captureUnexpectedBrowserErrors(page) {
   const pageErrors = [];
   const consoleErrors = [];
+  const cloudRequests = [];
   page.on('pageerror', error => pageErrors.push(error.stack || error.message));
+  page.on('request', request => {
+    const url = request.url();
+    if (/^https:\/\/(?:www\.gstatic\.com\/firebasejs\/|[^/]+\.cloudfunctions\.net\/|firestore\.googleapis\.com\/|identitytoolkit\.googleapis\.com\/|securetoken\.googleapis\.com\/)/.test(url)) {
+      cloudRequests.push(url);
+    }
+  });
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const text = message.text();
@@ -20,12 +27,13 @@ function captureUnexpectedBrowserErrors(page) {
       && /^(https:\/\/(?:firebasestorage\.googleapis\.com\/|www\.gstatic\.com\/firebasejs\/))/.test(location.url);
     if (!expectedOfflineResourceError) consoleErrors.push({ text, location });
   });
-  return { pageErrors, consoleErrors };
+  return { pageErrors, consoleErrors, cloudRequests };
 }
 
 function expectNoUnexpectedBrowserErrors(errors) {
   expect(errors.pageErrors).toEqual([]);
   expect(errors.consoleErrors).toEqual([]);
+  expect(errors.cloudRequests).toEqual([]);
 }
 
 async function installDisabledServiceWorkerStub(page) {
@@ -44,8 +52,50 @@ async function installDisabledServiceWorkerStub(page) {
   });
 }
 
+async function installGuestLiffBoot(page) {
+  await page.addInitScript(() => {
+    const forceGuest = value => {
+      if (!value || (typeof value !== 'object' && typeof value !== 'function')) return value;
+      try {
+        Object.defineProperty(value, 'isLoggedIn', {
+          configurable: true,
+          writable: true,
+          value: () => false,
+        });
+      } catch (_) {
+        try { value.isLoggedIn = () => false; } catch (_) {}
+      }
+      return value;
+    };
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'liff');
+    let currentLiff = forceGuest(window.liff);
+    if (!descriptor || descriptor.configurable) {
+      Object.defineProperty(window, 'liff', {
+        configurable: true,
+        enumerable: descriptor?.enumerable ?? true,
+        get: () => forceGuest(currentLiff),
+        set: value => { currentLiff = forceGuest(value); },
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof App !== 'undefined') {
+        App._cloudBootScheduled = false;
+        App._cloudReady = true;
+        App._cloudReadyPromise = Promise.resolve(true);
+      }
+      if (typeof FirebaseService !== 'undefined') {
+        FirebaseService.ensureCollectionsForPage = async () => [];
+        FirebaseService.ensureFullUsersReadyForPage = async () => [];
+        FirebaseService.schedulePageScopedRealtimeForPage = () => {};
+        FirebaseService.finalizePageScopedRealtimeForPage = () => {};
+      }
+    }, { once: true });
+  });
+}
+
 async function openSeededHome(page) {
   await installTestHarness(page, TEST_USERS.userBasic);
+  await installGuestLiffBoot(page);
   await installDisabledServiceWorkerStub(page);
   await page.route('https://fonts.googleapis.com/**', route => route.fulfill({
     status: 200,
@@ -59,6 +109,8 @@ async function openSeededHome(page) {
     && typeof FirebaseService !== 'undefined'
     && typeof App.renderBannerCarousel === 'function'
     && typeof App.renderHomeDashboard === 'function'
+    && typeof window.liff?.isLoggedIn === 'function'
+    && window.liff.isLoggedIn() === false
   ));
   await page.evaluate((image) => {
     if (!FirebaseService._cache) FirebaseService._cache = {};
@@ -80,8 +132,19 @@ async function openSeededHome(page) {
 }
 
 async function enableActivityCreate(page) {
-  await page.evaluate(() => {
+  const authState = await page.evaluate(() => {
     const user = window.__E2E_TEST_HARNESS__?.currentUser;
+    if (typeof LineAuth !== 'undefined') {
+      LineAuth._ready = true;
+      LineAuth.isLoggedIn = () => true;
+      LineAuth.isPendingLogin = () => false;
+      LineAuth._profile = {
+        userId: user.uid,
+        displayName: user.displayName,
+        pictureUrl: user.pictureUrl || '',
+      };
+      LineAuth.getProfile = () => LineAuth._profile;
+    }
     if (!FirebaseService._cache) FirebaseService._cache = {};
     FirebaseService._cache.currentUser = user;
     FirebaseService._cache.events = [];
@@ -96,6 +159,22 @@ async function enableActivityCreate(page) {
     document.querySelectorAll('.home-create-event-btn').forEach(button => {
       button.style.display = 'inline-flex';
     });
+    return {
+      highLevelLoggedIn: LineAuth.isLoggedIn(),
+      lowLevelLoggedIn: window.liff.isLoggedIn(),
+      hasLiffSession: LineAuth.hasLiffSession(),
+      accessToken: LineAuth.getAccessToken(),
+      currentUid: FirebaseService._cache.currentUser?.uid || '',
+      expectedUid: user.uid,
+    };
+  });
+  expect(authState).toEqual({
+    highLevelLoggedIn: true,
+    lowLevelLoggedIn: false,
+    hasLiffSession: false,
+    accessToken: null,
+    currentUid: TEST_USERS.userBasic.uid,
+    expectedUid: TEST_USERS.userBasic.uid,
   });
 }
 
