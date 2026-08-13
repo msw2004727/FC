@@ -5795,13 +5795,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           const isDetailPage = /-detail$/.test(requestedFallback);
           const fallback = isDetailPage ? 'page-home' : requestedFallback;
           const transitionSeq = App._claimPageTransition(fallback);
-          await App.showPage(fallback, {
+          const navigationResult = await App.showPage(fallback, {
             bypassPageLock: true,
             allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
             _navigationTransitionSeq: transitionSeq,
           });
+          if (navigationResult?.reason === 'event_create_submitting') {
+            App._restoreCurrentRouteAfterBlockedPopstate?.();
+            return;
+          }
           if (seq !== App._popstateRequestSeq || !App._isPageTransitionCurrent(transitionSeq)) return;
           history.pushState({ ...event.state, fallbackPageId: fallback }, '', window.location.href);
           return;
@@ -5821,24 +5825,30 @@ document.addEventListener('DOMContentLoaded', async () => {
           _navigationTransitionSeq: transitionSeq,
         };
 
+        let navigationResult = null;
         if (targetPageId === 'page-activity-detail' && targetId) {
-          await App.showEventDetail(targetId, detailOptions);
+          navigationResult = await App.showEventDetail(targetId, detailOptions);
         } else if (targetPageId === 'page-team-detail' && targetId) {
-          await App.showTeamDetail(targetId, detailOptions);
+          navigationResult = await App.showTeamDetail(targetId, detailOptions);
         } else if (targetPageId === 'page-tournament-detail' && targetId) {
-          await App.showTournamentDetail(targetId, detailOptions);
+          navigationResult = await App.showTournamentDetail(targetId, detailOptions);
         } else if (targetPageId === 'page-user-card' && targetId) {
           const targetUser = App._findUserByUid?.(targetId);
           const targetName = targetUser?.displayName || targetUser?.name || targetId;
-          await App.showUserProfile?.(targetName, { ...detailOptions, uid: targetId });
+          navigationResult = await App.showUserProfile?.(targetName, { ...detailOptions, uid: targetId });
         } else {
-          await App.showPage(targetPageId, {
+          navigationResult = await App.showPage(targetPageId, {
             bypassPageLock: true,
             allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
             _navigationTransitionSeq: transitionSeq,
           });
+        }
+
+        if (navigationResult?.reason === 'event_create_submitting') {
+          App._restoreCurrentRouteAfterBlockedPopstate?.();
+          return;
         }
 
         if (seq !== App._popstateRequestSeq || !App._isPageTransitionCurrent(transitionSeq)) return;

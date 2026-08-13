@@ -31,7 +31,7 @@ describe('activity image variants', () => {
     expect(crudSource).toContain('events/${eventId}_${key}');
     expect(crudSource).toContain('payload.imageVariants = variants');
     expect(createSource).toContain('updates.imageVariants = imageVariants');
-    expect(createSource).toContain('newEvent.imageVariants = imageVariants');
+    expect(createSource).toContain('candidateEvent.imageVariants = imageVariants');
     expect(homeNextSource).toContain("_getEventImageUrl?.(event, 'homeNext')");
     expect(detailSource).toContain("_getEventImageUrl?.(eventRecord, 'cover')");
     expect(hotSource).toContain("_getEventImageUrl?.(e, 'cover')");

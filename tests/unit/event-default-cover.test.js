@@ -52,19 +52,16 @@ describe('event default cover image', () => {
     expect(compressMock).not.toHaveBeenCalled();
   });
 
-  test('fetches default cover, compresses it, and caches the result', async () => {
-    const { App, fetchMock, compressMock, blob } = loadEventCreateModule();
+  test('uses the versioned static default cover without fetch, compression, or upload data', async () => {
+    const { App, fetchMock, compressMock } = loadEventCreateModule();
 
     const first = await App._resolveEventCoverImage(null);
     const second = await App._resolveEventCoverImage('');
 
-    expect(first).toBe('data:image/webp;base64,DEFAULT_COVER');
-    expect(second).toBe('data:image/webp;base64,DEFAULT_COVER');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.20260505test');
-    expect(fetchMock.mock.calls[0][1]).toEqual({ cache: 'force-cache' });
-    expect(compressMock).toHaveBeenCalledTimes(1);
-    expect(compressMock).toHaveBeenCalledWith(blob, 1200, 0.9, 'image/webp');
+    expect(first).toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.20260505test');
+    expect(second).toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.20260505test');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(compressMock).not.toHaveBeenCalled();
   });
 
   test('uses the canonical index version when config is stale', () => {
@@ -77,19 +74,16 @@ describe('event default cover image', () => {
       .toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.index');
   });
 
-  test('shows a clear toast when default cover cannot be loaded', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      blob: jest.fn(),
-    });
-    const { App, compressMock, consoleMock } = loadEventCreateModule({ fetch: fetchMock });
+  test('does not depend on a per-submit fetch of the default cover', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new Error('offline'));
+    const { App, compressMock } = loadEventCreateModule({ fetch: fetchMock });
 
-    await expect(App._resolveEventCoverImage(null)).rejects.toThrow('DEFAULT_EVENT_COVER_NOT_FOUND:404');
+    await expect(App._resolveEventCoverImage(null))
+      .resolves.toBe('https://toosterx.com/LOGO/Nocoverimage%20set.png?v=0.20260505test');
 
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(compressMock).not.toHaveBeenCalled();
-    expect(App.showToast).toHaveBeenCalledWith('預設活動封面載入失敗，請重新整理後再試');
-    expect(consoleMock.error).toHaveBeenCalled();
+    expect(App.showToast).not.toHaveBeenCalled();
   });
 
   test('maps create event permission errors to actionable messages', () => {

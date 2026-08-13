@@ -36,6 +36,7 @@ describe('team detail club activity section', () => {
       },
       requestAnimationFrame: (fn) => fn(),
       setTimeout,
+      clearTimeout,
       console,
       Object,
       Date,
@@ -91,6 +92,12 @@ describe('team detail club activity section', () => {
   }
 
   function loadEventCreate(app, documentOverride, extraContext = {}) {
+    const storageValues = new Map();
+    const localStorage = {
+      getItem: key => storageValues.has(String(key)) ? storageValues.get(String(key)) : null,
+      setItem: (key, value) => storageValues.set(String(key), String(value)),
+      removeItem: key => storageValues.delete(String(key)),
+    };
     const context = {
       App: app,
       ApiService: {},
@@ -107,6 +114,15 @@ describe('team detail club activity section', () => {
       Set,
       Map,
       setTimeout,
+      clearTimeout,
+      window: {
+        localStorage,
+        navigator: {
+          locks: {
+            request: (_name, _options, callback) => callback(),
+          },
+        },
+      },
       generateId: () => 'ce_test',
       getSportKeySafe: (value) => String(value || '').trim(),
       GRADIENT_MAP: { play: '#3b82f6', friendly: '#10b981' },
@@ -1531,7 +1547,7 @@ describe('team detail club activity section', () => {
         innerHTML: '',
       },
     };
-    const createEvent = jest.fn().mockResolvedValue();
+    const createEvent = jest.fn(async event => ({ ...event, _docId: event.id }));
     const app = {
       _editEventId: null,
       _eventSubmitInFlight: false,
@@ -1583,6 +1599,10 @@ describe('team detail club activity section', () => {
         _writeOpLog: jest.fn(),
       },
     });
+    app._loadPendingEventCreateIntent = jest.fn(async () => ({ state: 'empty', marker: null }));
+    app._claimPendingEventCreateIntent = jest.fn(async marker => ({ state: 'claimed', marker }));
+    app._replacePendingEventCreateIntent = jest.fn(async (_expected, next) => ({ state: 'replaced', marker: next }));
+    app._removePendingEventCreateIntent = jest.fn(async () => true);
     app._resolveEventCoverImage = jest.fn().mockResolvedValue('cover-url');
     app._ensureFreshActivityRoleCapabilitiesForCreate = jest.fn().mockResolvedValue(true);
 

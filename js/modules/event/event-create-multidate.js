@@ -203,7 +203,8 @@ Object.assign(App, {
   _buildMultiDateEvents(baseEvent, tStart, tEnd) {
     const timeVal = tStart + '~' + tEnd;
     const rel = this._getRelativeRegOpen();
-    const batchGroupId = 'batch_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const batchGroupId = generateId('batch_');
+    const eventIds = new Set();
     const events = [];
 
     for (let i = 0; i < this._multiDates.length; i++) {
@@ -213,9 +214,12 @@ Object.assign(App, {
       const status = (regOpen && new Date(regOpen) > new Date()) ? 'upcoming' : 'open';
       const startTimestamp = new Date(dateStr + 'T' + tStart);
       const endTimestamp = new Date(dateStr + 'T' + tEnd);
+      const eventId = generateId('ce_');
+      if (eventIds.has(eventId)) throw new Error('EVENT_ID_COLLISION');
+      eventIds.add(eventId);
 
       events.push(Object.assign({}, baseEvent, {
-        id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + i,
+        id: eventId,
         date: fullDate,
         startTimestamp: startTimestamp,
         endTimestamp: endTimestamp,

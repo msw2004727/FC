@@ -191,6 +191,33 @@ describe('global navigation transition races', () => {
     expect(App.currentPage).toBe('page-new');
   });
 
+  test('showPage and goBack block a submitting create modal before claiming a new route', async () => {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="modal-overlay" class="open"></div>
+      <div id="create-event-modal" class="modal open"><div class="modal-body"></div></div>
+    `);
+    const App = installNavigation({ _eventSubmitInFlight: true });
+    const initialSeq = App._pageTransitionSeq;
+
+    await expect(App.showPage('page-new')).resolves.toEqual({
+      ok: false,
+      reason: 'event_create_submitting',
+    });
+    expect(App._pageTransitionSeq).toBe(initialSeq);
+    expect(App.currentPage).toBe('page-current');
+    expect(document.getElementById('create-event-modal').classList.contains('open')).toBe(true);
+
+    App.pageHistory = ['page-old'];
+    await expect(App.goBack()).resolves.toEqual({
+      ok: false,
+      reason: 'event_create_submitting',
+    });
+    expect(App._pageTransitionSeq).toBe(initialSeq);
+    expect(App.pageHistory).toEqual(['page-old']);
+    expect(App.currentPage).toBe('page-current');
+    expect(App.showToast).toHaveBeenCalledWith('資料儲存中，請稍候');
+  });
+
   test('a delayed goBack cannot overwrite a newer page request', async () => {
     const collectionsReady = deferred();
     const App = installNavigation();
@@ -431,6 +458,33 @@ describe('global navigation transition races', () => {
     await handlerPromise;
 
     expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  test('a blocked popstate restores the current route without retrying navigation', async () => {
+    const restoreCurrentRoute = jest.fn();
+    const App = {
+      _popstateRequestSeq: 0,
+      _pageTransitionSeq: 0,
+      _getHistoryRouteFlags: () => ({ popstateTakeover: true }),
+      _resolveRouteIntent: () => ({ pageId: 'page-home', id: null }),
+      _claimPageTransition(pageId, options = {}) {
+        const inherited = Number(options._navigationTransitionSeq);
+        return Number.isSafeInteger(inherited) && inherited > 0
+          ? inherited
+          : ++this._pageTransitionSeq;
+      },
+      _isPageTransitionCurrent(transitionSeq) {
+        return transitionSeq === this._pageTransitionSeq;
+      },
+      showPage: jest.fn(async () => ({ ok: false, reason: 'event_create_submitting' })),
+      _restoreCurrentRouteAfterBlockedPopstate: restoreCurrentRoute,
+    };
+    const handler = extractPopstateHandler(App);
+
+    await handler({ state: { source: 'sportshub', pageId: 'page-home' } });
+
+    expect(App.showPage).toHaveBeenCalledTimes(1);
+    expect(restoreCurrentRoute).toHaveBeenCalledTimes(1);
   });
 
   test('navigation diagnostics stay bounded and tolerate unavailable session storage', () => {

@@ -2574,6 +2574,20 @@ body.activity-map-open{overflow:hidden}
 .host-list-header .modal-close{background:none;border:none;font-size:1.2rem;color:var(--text-muted);cursor:pointer;padding:.2rem}
 
 /* Activity create/edit V2 shell. Kept scoped to avoid changing tournament/team forms that share .ce-* classes. */
+html.create-event-modal-open,
+body.create-event-modal-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body.create-event-modal-open #modal-overlay {
+  background: rgba(0,0,0,.35);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+#create-event-modal {
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+}
 #create-event-modal.ce-v2-enabled .modal-body {
   padding: .85rem;
 }
@@ -2624,6 +2638,50 @@ body.activity-map-open{overflow:hidden}
   opacity: .72;
 }
 @media (max-width: 640px) {
+  #create-event-modal {
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  #create-event-modal > .modal-header {
+    position: relative;
+    top: auto;
+    flex: 0 0 auto;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  }
+  #create-event-modal > .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  #create-event-modal > .modal-actions {
+    position: static;
+    bottom: auto;
+    flex: 0 0 auto;
+    justify-content: stretch;
+    background: var(--bg-card);
+    padding: .7rem 1.2rem calc(.7rem + env(safe-area-inset-bottom, 0px));
+  }
+  #create-event-modal > .modal-actions .outline-btn,
+  #create-event-modal > .modal-actions .primary-btn {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+  }
+  #create-event-modal > .modal-actions .primary-btn {
+    flex: 1.25;
+  }
   #create-event-modal.ce-v2-enabled .ce-value-section-body {
     grid-template-columns: 1fr;
   }

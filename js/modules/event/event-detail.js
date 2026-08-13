@@ -724,7 +724,7 @@ Object.assign(App, {
     if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id) return false;
 
     try {
-      this._cleanupBeforePageSwitch?.('page-activity-detail');
+      if (this._cleanupBeforePageSwitch?.('page-activity-detail') === false) return false;
       this._pushPageHistory?.('page-activity-detail', options || {});
       const activated = this._activatePage?.('page-activity-detail', {
         ...(options || {}),

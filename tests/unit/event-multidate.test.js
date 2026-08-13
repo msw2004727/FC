@@ -1,52 +1,62 @@
 /**
  * Event Multi-Date Batch Creation Tests
  * ======================================
- * Tests pure logic: date dedup, limit, relative time calculation,
- * batch event generation, batchGroupId.
+ * Loads the production builder and tests date handling, batch generation,
+ * canonical IDs, and batchGroupId consistency.
  */
 
-// ── Helpers extracted from event-create-multidate.js (pure functions) ──
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
 
-function calcRegOpenForDate(eventDateStr, eventStartTime, relDays, relHours) {
-  if (relDays === 0 && relHours === 0) return '';
-  const dt = new Date(eventDateStr + 'T' + eventStartTime);
-  if (isNaN(dt.getTime())) return '';
-  dt.setDate(dt.getDate() - relDays);
-  dt.setHours(dt.getHours() - relHours);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const d = String(dt.getDate()).padStart(2, '0');
-  const hh = String(dt.getHours()).padStart(2, '0');
-  const mm = String(dt.getMinutes()).padStart(2, '0');
-  return y + '-' + m + '-' + d + 'T' + hh + ':' + mm;
+const ROOT = path.resolve(__dirname, '..', '..');
+const MULTI_DATE_SOURCE = fs.readFileSync(
+  path.join(ROOT, 'js/modules/event/event-create-multidate.js'),
+  'utf8',
+);
+
+function makeDeterministicGenerateId() {
+  let sequence = 0;
+  return jest.fn(prefix => {
+    sequence += 1;
+    return `${prefix}1700000000000_${String(sequence).padStart(6, '0')}`;
+  });
+}
+
+function loadMultiDateApp(options = {}) {
+  const App = {};
+  const idGenerator = options.generateId || makeDeterministicGenerateId();
+  const sandbox = {
+    App,
+    Date,
+    document: { getElementById: () => null },
+    escapeHTML: value => String(value ?? ''),
+    generateId: idGenerator,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.runInContext(MULTI_DATE_SOURCE, vm.createContext(sandbox), {
+    filename: 'event-create-multidate.js',
+  });
+  App._multiDates = [...(options.multiDates || [])];
+  App._getRelativeRegOpen = () => ({
+    days: options.relDays || 0,
+    hours: options.relHours || 0,
+  });
+  return { App, generateId: idGenerator };
+}
+
+function calcRegOpenForDate(...args) {
+  return loadMultiDateApp().App._calcRegOpenForDate(...args);
 }
 
 function buildMultiDateEvents(baseEvent, multiDates, tStart, tEnd, relDays, relHours) {
-  const timeVal = tStart + '~' + tEnd;
-  const batchGroupId = 'batch_test_123';
-  const events = [];
-  for (let i = 0; i < multiDates.length; i++) {
-    const dateStr = multiDates[i];
-    const fullDate = dateStr.replace(/-/g, '/') + ' ' + timeVal;
-    const regOpen = calcRegOpenForDate(dateStr, tStart, relDays, relHours);
-    events.push(Object.assign({}, baseEvent, {
-      id: 'ce_test_' + i,
-      date: fullDate,
-      regOpenTime: regOpen || null,
-      batchGroupId: batchGroupId,
-      current: 0,
-      waitlist: 0,
-      participants: [],
-      waitlistNames: [],
-    }));
-  }
-  return events;
+  const { App } = loadMultiDateApp({ multiDates, relDays, relHours });
+  return App._buildMultiDateEvents(baseEvent, tStart, tEnd);
 }
 
 function formatMultiDateLabel(dateStr) {
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return dateStr;
-  return parseInt(parts[1], 10) + '/' + parseInt(parts[2], 10);
+  return loadMultiDateApp().App._formatMultiDateLabel(dateStr);
 }
 
 // ── Tests ──
@@ -101,11 +111,52 @@ describe('buildMultiDateEvents', () => {
     expect(events).toHaveLength(3);
   });
 
-  test('each event has unique id', () => {
-    const dates = ['2026-04-07', '2026-04-14'];
-    const events = buildMultiDateEvents(base, dates, '19:00', '21:00', 0, 0);
+  test('production builder uses canonical unique event ids and one canonical batch id', () => {
+    const dates = ['2026-04-07', '2026-04-14', '2026-04-21'];
+    const { App, generateId } = loadMultiDateApp({ multiDates: dates });
+    const events = App._buildMultiDateEvents(
+      { ...base, id: 'ce_stale', batchGroupId: 'batch_stale' },
+      '19:00',
+      '21:00',
+    );
     const ids = events.map(e => e.id);
+
+    expect(generateId.mock.calls.map(([prefix]) => prefix))
+      .toEqual(['batch_', 'ce_', 'ce_', 'ce_']);
+    expect(ids).toEqual(ids.map(id => expect.stringMatching(/^ce_\d+_[a-z0-9]+$/)));
     expect(new Set(ids).size).toBe(ids.length);
+    expect(events[0].batchGroupId).toMatch(/^batch_\d+_[a-z0-9]+$/);
+    expect(events.every(event => event.batchGroupId === events[0].batchGroupId)).toBe(true);
+    expect(events.every(event => event.id !== 'ce_stale')).toBe(true);
+  });
+
+  test('fails closed when the canonical generator returns a duplicate event id', () => {
+    const generateId = jest.fn()
+      .mockReturnValueOnce('batch_1700000000000_000001')
+      .mockReturnValue('ce_1700000000000_duplicate');
+    const { App } = loadMultiDateApp({
+      multiDates: ['2026-04-07', '2026-04-14'],
+      generateId,
+    });
+
+    expect(() => App._buildMultiDateEvents(base, '19:00', '21:00'))
+      .toThrow('EVENT_ID_COLLISION');
+    expect(generateId.mock.calls.map(([prefix]) => prefix))
+      .toEqual(['batch_', 'ce_', 'ce_']);
+  });
+
+  test('propagates canonical generator failures without returning a partial batch', () => {
+    const entropyError = new Error('entropy unavailable');
+    const generateId = jest.fn()
+      .mockReturnValueOnce('batch_1700000000000_000001')
+      .mockImplementationOnce(() => { throw entropyError; });
+    const { App } = loadMultiDateApp({
+      multiDates: ['2026-04-07', '2026-04-14'],
+      generateId,
+    });
+
+    expect(() => App._buildMultiDateEvents(base, '19:00', '21:00'))
+      .toThrow(entropyError);
   });
 
   test('each event has correct date format', () => {
