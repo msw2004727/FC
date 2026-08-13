@@ -25,7 +25,11 @@ function captureUnexpectedBrowserErrors(page) {
       'Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED',
     ].includes(text)
       && /^(https:\/\/(?:firebasestorage\.googleapis\.com\/|www\.gstatic\.com\/firebasejs\/))/.test(location.url);
-    if (!expectedOfflineResourceError) consoleErrors.push({ text, location });
+    const expectedPreconnectDnsError = location.url === ''
+      && /^Failed to preconnect to https:\/\/line-scdn\.net\/\. Error: Error resolving [“"]line-scdn\.net[”"]: No address associated with hostname$/.test(text);
+    if (!expectedOfflineResourceError && !expectedPreconnectDnsError) {
+      consoleErrors.push({ text, location });
+    }
   });
   return { pageErrors, consoleErrors, cloudRequests };
 }
