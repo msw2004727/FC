@@ -99,10 +99,14 @@ async function enableActivityCreate(page) {
   });
 }
 
-async function openActivityCreateModal(page) {
-  const createButton = page.locator('.home-hero-actions .home-create-event-btn');
-  await expect(createButton).toBeVisible();
-  await createButton.click();
+async function openActivityCreateModal(page, { viaHomeCta = true } = {}) {
+  if (viaHomeCta) {
+    const createButton = page.locator('.home-hero-actions .home-create-event-btn');
+    await expect(createButton).toBeVisible();
+    await createButton.click();
+  } else {
+    await page.evaluate(() => App.openHomeCreateEvent());
+  }
   await expect(page.locator('#create-event-type-sheet')).toBeVisible({ timeout: 10000 });
   await page.locator('#cets-custom').click();
   await expect(page.locator('#create-event-modal')).toBeVisible({ timeout: 10000 });
@@ -365,7 +369,7 @@ test.describe('phase 9 home layout smoke', () => {
     const browserErrors = captureUnexpectedBrowserErrors(page);
     await openSeededHome(page);
     await enableActivityCreate(page);
-    await openActivityCreateModal(page);
+    await openActivityCreateModal(page, { viaHomeCta: false });
 
     if (testInfo.project.name === 'chromium-desktop') {
       for (const theme of ['light', 'dark']) {
