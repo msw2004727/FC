@@ -416,6 +416,8 @@ function loadHarness(verifyUserDirectorySelection, options = {}) {
   vm.runInContext(readProjectFile('js/modules/event/event-manage-lifecycle.js'), context, { filename: 'event-manage-lifecycle.js' });
 
   Object.assign(App, {
+    _eventCreatePendingCoordinatorTimeoutMs: 30000,
+    _eventCreatePendingWebLockTimeoutMs: 30000,
     _canEditOwnActivityBasic: () => true,
     _canCreateBasicActivity: () => true,
     _canManageEventDelegates: () => true,
@@ -738,7 +740,7 @@ describe('activity form submit session isolation', () => {
     const never = new Promise(() => {});
     const verification = { ok: true, users: [], missingUids: [] };
     const { App, createEvent, reconcileEventCreate, setForm, dom } = loadHarness(jest.fn(async () => verification));
-    App._eventCreateWriteTimeoutMs = 5;
+    const deadlines = installManualCreateDeadlines(App);
     createEvent
       .mockImplementationOnce(() => never)
       .mockResolvedValueOnce({ id: 'ce_created', clientRequestId: 'ce_created', creatorUid: 'owner-1' });
@@ -746,7 +748,9 @@ describe('activity form submit session isolation', () => {
 
     App._openCreateCustomEventModal();
     setForm('Retry Same Id');
-    await App.handleCreateEvent();
+    const firstSubmit = App.handleCreateEvent();
+    await deadlines.expireNext('event-create-write-timeout');
+    await firstSubmit;
     await App.handleCreateEvent();
 
     expect(reconcileEventCreate).toHaveBeenCalledWith(expect.objectContaining({

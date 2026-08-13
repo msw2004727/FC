@@ -104,11 +104,14 @@ async function openActivityCreateModal(page, { viaHomeCta = true } = {}) {
     const createButton = page.locator('.home-hero-actions .home-create-event-btn');
     await expect(createButton).toBeVisible();
     await createButton.click();
+    await expect(page.locator('#create-event-type-sheet')).toBeVisible({ timeout: 10000 });
+    await page.locator('#cets-custom').click();
   } else {
-    await page.evaluate(() => App.openHomeCreateEvent());
+    await page.evaluate(async () => {
+      await PageLoader.ensurePage('page-activities');
+      App.showModal('create-event-modal');
+    });
   }
-  await expect(page.locator('#create-event-type-sheet')).toBeVisible({ timeout: 10000 });
-  await page.locator('#cets-custom').click();
   await expect(page.locator('#create-event-modal')).toBeVisible({ timeout: 10000 });
   await page.waitForTimeout(350);
 }
