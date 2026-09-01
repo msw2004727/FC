@@ -3868,6 +3868,85 @@ describe('edu course lessons', () => {
     }));
   });
 
+  test('cancelled lessons stay reschedulable so staff can arrange a makeup', () => {
+    const { app } = loadCourseLessonsContext({
+      plans: weeklyPlan,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+    const plan = weeklyPlan[0];
+    const base = { id: 'sessionA', sessionNumber: 1, date: '2099-06-02', startTime: '19:00' };
+
+    // 停課（未來與過去）都必須可以調課
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'cancelled' })).toBeNull();
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'canceled' })).toBeNull();
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'cancelled', date: '2000-01-01' })).toBeNull();
+
+    // 其餘終結狀態仍然要擋
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'removed' })).toBe('removed');
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'done' })).toBe('done');
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'rescheduled' })).toBe('already_rescheduled');
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'scheduled', convertedEventId: 'ev1' })).toBe('converted');
+    expect(app._getCourseLessonRescheduleBlockReason({ ...plan, planType: 'session' }, { ...base, status: 'scheduled' })).toBe('only_weekly');
+
+    expect(app._getCourseLessonRescheduleBlockMessage('removed')).toContain('已移除');
+  });
+
+  test('rescheduling a cancelled lesson lifts 停課 and creates the makeup lesson', async () => {
+    const overlay = { remove: jest.fn() };
+    const sessions = weeklySessions();
+    sessions[0].status = 'cancelled';
+    const cache = { 'teamA:planA': sessions };
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      courseSessionCache: cache,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+      // 職員已把停課取消勾選
+      elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00', cancelled: false }),
+      querySelector: selector => (selector === '.edu-course-lesson-adjust-overlay' ? overlay : null),
+    });
+    app._refreshCourseLessonsAfterSessionSave = jest.fn(async () => true);
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      supportsReschedule: true,
+      rescheduleBlockReason: app._getCourseLessonRescheduleBlockReason(weeklyPlan[0], sessions[0]),
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(app.showToast).not.toHaveBeenCalledWith(expect.stringContaining('停課'));
+    expect(firebase.createCourseSession).toHaveBeenCalledTimes(1);
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { status: 'rescheduled' });
+    expect(sessions.find(item => item.id === 'sessionA').status).toBe('rescheduled');
+  });
+
+  test('reschedule hint explains that 停課 will be lifted', () => {
+    const { app } = loadCourseLessonsContext({
+      plans: weeklyPlan,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+    const sessions = weeklySessions();
+    sessions[0].status = 'cancelled';
+    const targetMs = app._getCourseLessonDateTimeValue('2099-06-12', '14:00');
+    const crossed = app._getCourseLessonCrossedSessions(sessions, 'sessionA', targetMs);
+
+    const html = app._renderCourseLessonRescheduleHintHtml(sessions, sessions[0], targetMs, crossed);
+
+    expect(html).toContain('目前是停課');
+    expect(html).toContain('停課標記一併解除');
+
+    const normalHtml = app._renderCourseLessonRescheduleHintHtml(
+      weeklySessions(), weeklySessions()[0], targetMs, crossed
+    );
+    expect(normalHtml).not.toContain('目前是停課');
+  });
+
   test('reschedule is refused for a lesson already converted to an event', async () => {
     const sessions = weeklySessions();
     const { app, firebase } = loadCourseLessonsContext({

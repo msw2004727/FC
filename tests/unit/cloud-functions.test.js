@@ -3894,7 +3894,9 @@ describe('ApiService tournament delete source', () => {
   test('updateEduCourseSession refuses to mark linked or terminal lessons as rescheduled', () => {
     const source = readCloudFunctionSource('updateEduCourseSession');
     expect(source).toContain('sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled"');
-    expect(source).toContain('linkSnap.exists || ["done", "cancelled", "canceled", "removed"].includes(currentStatus)');
+    expect(source).toContain('linkSnap.exists || ["done", "removed"].includes(currentStatus)');
     expect(source).toContain('SESSION_NOT_RESCHEDULABLE');
+    // 停課的課堂必須可以調課（停課後往後補課是主要用途）
+    expect(source).not.toContain('"done", "cancelled", "canceled", "removed"');
   });
 });

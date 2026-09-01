@@ -7563,7 +7563,8 @@ exports.updateEduCourseSession = onCall(
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
     if (sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled") {
       const currentStatus = sanitizeStr((sessionSnap.data() || {}).status, 32).toLowerCase();
-      if (linkSnap.exists || ["done", "cancelled", "canceled", "removed"].includes(currentStatus)) {
+      // 停課的課堂可以調課（停課後往後補課是主要用途）；只擋已轉化活動、已完成與已移除。
+      if (linkSnap.exists || ["done", "removed"].includes(currentStatus)) {
         throw new HttpsError("failed-precondition", "SESSION_NOT_RESCHEDULABLE", {
           code: "SESSION_NOT_RESCHEDULABLE",
           linkedEvent: linkSnap.exists,
