@@ -721,7 +721,7 @@ Object.assign(App, {
       }
       return 0;
     };
-    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed']);
+    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed', 'rescheduled']);
     return [...(Array.isArray(sessions) ? sessions : [])]
       .map(session => ({ session, timestamp: getSessionMs(session) }))
       .filter(item => item.timestamp >= todayStartMs)
@@ -821,7 +821,7 @@ Object.assign(App, {
   _isCoursePlanNextLessonSessionRegisterable(session, options = {}) {
     if (!session) return false;
     const status = String(session.status || '').trim().toLowerCase();
-    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed']);
+    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed', 'completed', 'ended', 'closed', 'rescheduled']);
     if (inactiveStatuses.has(status)) return false;
     const parseDateOnly = (value) => {
       const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);

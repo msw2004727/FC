@@ -10,6 +10,10 @@ const controllerSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-lessons.js'),
   'utf8'
 );
+const rescheduleSource = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/education/edu-course-lesson-reschedule.js'),
+  'utf8'
+);
 const appSource = fs.readFileSync(
   path.join(__dirname, '../../app.js'),
   'utf8'
@@ -176,6 +180,9 @@ function loadCourseLessonsContext(overrides = {}) {
     _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
     appConfirm: overrides.appConfirm || jest.fn(async () => overrides.appConfirmResult !== false),
     showToast: jest.fn(),
+    _generateEduId: overrides.generateEduId || jest.fn(prefix => prefix + '_new'),
+    _getCourseSessionCacheKey: (teamId, planId) => String(teamId) + ':' + String(planId),
+    _markCourseSessionCacheMutated: jest.fn(),
   };
   const context = {
     App: app,
@@ -200,6 +207,8 @@ function loadCourseLessonsContext(overrides = {}) {
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
       saveEduCourseSelfAttendance: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
+      createCourseSession: jest.fn(async (_teamId, _planId, data) => ({ ...data, _docId: data.id })),
+      deleteCourseSession: jest.fn(async () => true),
       queryEduAttendance: jest.fn(async () => overrides.attendanceRecords || []),
       ...(overrides.FirebaseService || {}),
     },
@@ -248,6 +257,7 @@ function loadCourseLessonsContext(overrides = {}) {
   };
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
   vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
+  vm.runInNewContext(rescheduleSource, context, { filename: 'edu-course-lesson-reschedule.js' });
   return {
     context,
     app: context.App,
@@ -3623,5 +3633,417 @@ describe('edu course lessons', () => {
       leave: true,
     }));
     expect(app.showToast).toHaveBeenCalledWith('已登記請假');
+  });
+
+  // ════════════════════════════════
+  //  單堂調課 / 補課
+  // ════════════════════════════════
+
+  const weeklyPlan = [{
+    id: 'planA',
+    name: '週三夜間班',
+    planType: 'weekly',
+    startDate: '2099-06-01',
+    endDate: '2099-08-31',
+  }];
+
+  const rescheduleStatusMeta = session => (
+    String(session?.status || '').trim() === 'rescheduled'
+      ? { label: '已調課', cls: 'rescheduled' }
+      : { label: '已排課', cls: 'scheduled' }
+  );
+
+  const weeklySessions = () => ([
+    {
+      id: 'sessionA',
+      title: '第 1 堂課',
+      status: 'scheduled',
+      sessionNumber: 1,
+      date: '2099-06-02',
+      startTime: '19:00',
+      endTime: '21:00',
+      location: '球場 A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+    },
+    {
+      id: 'sessionB',
+      title: '第 2 堂課',
+      status: 'scheduled',
+      sessionNumber: 2,
+      date: '2099-06-09',
+      startTime: '19:00',
+      endTime: '21:00',
+      location: '球場 A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+    },
+    {
+      id: 'sessionC',
+      title: '第 3 堂課',
+      status: 'scheduled',
+      sessionNumber: 3,
+      date: '2099-06-16',
+      startTime: '19:00',
+      endTime: '21:00',
+      location: '球場 A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+    },
+  ]);
+
+  const adjustElements = values => ({
+    'edu-lesson-adjust-date': { value: values.date },
+    'edu-lesson-adjust-start': { value: values.startTime },
+    'edu-lesson-adjust-end': { value: values.endTime },
+    'edu-lesson-adjust-location': { value: values.location || '球場 A' },
+    'edu-lesson-adjust-capacity': { value: values.capacity || '6' },
+    'edu-lesson-adjust-cancelled': { checked: values.cancelled === true },
+  });
+
+  test('lesson card number uses sessionNumber and falls back to list position', async () => {
+    const sessions = weeklySessions();
+    delete sessions[1].sessionNumber;
+    const { app, container } = loadCourseLessonsContext({
+      plans: weeklyPlan,
+      sessions,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+
+    await app.showCourseLessons('teamA', 'planA');
+
+    expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>1</strong></div>');
+    expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>2</strong></div>');
+    expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>3</strong></div>');
+  });
+
+  test('rescheduled lesson stays in place, is masked and loses every action entry', async () => {
+    const sessions = weeklySessions();
+    sessions[0].status = 'rescheduled';
+    sessions.push({
+      id: 'makeupA',
+      title: '第 1 堂課（補課）',
+      status: 'scheduled',
+      sessionNumber: 1,
+      date: '2099-06-12',
+      startTime: '14:00',
+      endTime: '16:00',
+      location: '球場 A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+      makeupOfSessionId: 'sessionA',
+    });
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+
+    await app.showCourseLessons('teamA', 'planA');
+
+    const html = container.innerHTML;
+    expect(html).toContain('edu-course-lesson-card-rescheduled');
+    expect(html).toContain('edu-course-lesson-status-rescheduled');
+    expect(html).toContain('已調課');
+    expect(html).not.toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
+    expect(html).not.toContain("App.shareEduCourseLesson('teamA','planA','sessionA')");
+    expect(html).not.toContain("App.openCourseLessonQuickAdjust('teamA','planA','sessionA'");
+    expect(html).toContain('edu-course-lesson-makeup-tag');
+    expect(html).toContain("App.showCourseLessonRoster('teamA','planA','makeupA')");
+    // 已調課卡留在原位（第一張），補課卡依日期排在第 2 堂之後
+    expect(html.indexOf('第 1 堂課<')).toBeLessThan(html.indexOf('第 2 堂課<'));
+    expect(html.indexOf('第 2 堂課<')).toBeLessThan(html.indexOf('第 1 堂課（補課）'));
+    expect(html.indexOf('第 1 堂課（補課）')).toBeLessThan(html.indexOf('第 3 堂課<'));
+    // 堂數統計排除已調課卡
+    expect(html).toContain('3 堂 · 1 堂已調課');
+  });
+
+  test('makeup title appends 補課 and increments on repeated reschedules', () => {
+    const { app } = loadCourseLessonsContext();
+
+    expect(app._getCourseLessonMakeupTitle({ title: '第 1 堂課' })).toBe('第 1 堂課（補課）');
+    expect(app._getCourseLessonMakeupTitle({ title: '第 1 堂課（補課）' })).toBe('第 1 堂課（補課 2）');
+    expect(app._getCourseLessonMakeupTitle({ title: '第 1 堂課（補課 2）' })).toBe('第 1 堂課（補課 3）');
+    expect(app._getCourseLessonMakeupTitle({})).toBe('未命名課堂（補課）');
+  });
+
+  test('crossed lessons are only detected when the new time passes other lessons', () => {
+    const sessions = weeklySessions();
+    const { app } = loadCourseLessonsContext({ plans: weeklyPlan, sessions });
+    const at = (date, time) => app._getCourseLessonDateTimeValue(date, time);
+
+    expect(app._getCourseLessonCrossedSessions(sessions, 'sessionA', at('2099-06-03', '19:00'))).toHaveLength(0);
+    expect(app._getCourseLessonCrossedSessions(sessions, 'sessionA', at('2099-06-12', '14:00'))).toHaveLength(1);
+    expect(app._getCourseLessonCrossedSessions(sessions, 'sessionA', at('2099-06-20', '14:00'))).toHaveLength(2);
+    expect(app._getCourseLessonCrossedSessions(sessions, 'sessionC', at('2099-06-01', '09:00'))).toHaveLength(2);
+  });
+
+  test('weekly quick adjust across lessons marks the original and creates a makeup lesson', async () => {
+    const overlay = { remove: jest.fn() };
+    const sessions = weeklySessions();
+    const cache = { 'teamA:planA': sessions };
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      courseSessionCache: cache,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+      elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00' }),
+      querySelector: selector => (selector === '.edu-course-lesson-adjust-overlay' ? overlay : null),
+    });
+    app._refreshCourseLessonsAfterSessionSave = jest.fn(async () => true);
+    app._eduCourseLessonsContext = { teamId: 'teamA', planId: 'planA', mode: 'list', sessions };
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      nextStartMs: app._getCourseLessonDateTimeValue('2099-06-09', '19:00'),
+      nextLabel: '2099-06-09 19:00',
+      supportsReschedule: true,
+      rescheduleBlockReason: null,
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.createCourseSession).toHaveBeenCalledTimes(1);
+    const [, , makeupPayload] = firebase.createCourseSession.mock.calls[0];
+    expect(makeupPayload).toEqual(expect.objectContaining({
+      id: 'cls_new',
+      title: '第 1 堂課（補課）',
+      status: 'scheduled',
+      date: '2099-06-12',
+      startTime: '14:00',
+      endTime: '16:00',
+      sessionNumber: 1,
+      autoGenerated: false,
+      makeupOfSessionId: 'sessionA',
+      studentIds: ['stu1', 'stu2'],
+    }));
+    // 絕不可帶入自動同步標記或活動連結欄位
+    expect(makeupPayload.autoSource).toBeUndefined();
+    expect(makeupPayload.courseLinkId).toBeUndefined();
+    expect(makeupPayload.convertedEventId).toBeUndefined();
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { status: 'rescheduled' });
+    expect(sessions.find(item => item.id === 'sessionA').status).toBe('rescheduled');
+    expect(cache['teamA:planA'].some(item => item.id === 'cls_new')).toBe(true);
+    expect(app._markCourseSessionCacheMutated).toHaveBeenCalledWith('teamA', 'planA');
+    expect(overlay.remove).toHaveBeenCalled();
+    expect(app._refreshCourseLessonsAfterSessionSave).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
+  });
+
+  test('weekly quick adjust without crossing performs a plain in-place update', async () => {
+    const overlay = { remove: jest.fn() };
+    const sessions = weeklySessions();
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      elements: adjustElements({ date: '2099-06-03', startTime: '19:00', endTime: '21:00' }),
+      querySelector: selector => (selector === '.edu-course-lesson-adjust-overlay' ? overlay : null),
+    });
+    app._refreshCourseLessonsAfterSessionSave = jest.fn(async () => true);
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      nextStartMs: app._getCourseLessonDateTimeValue('2099-06-09', '19:00'),
+      nextLabel: '2099-06-09 19:00',
+      supportsReschedule: true,
+      rescheduleBlockReason: null,
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.createCourseSession).not.toHaveBeenCalled();
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', expect.objectContaining({
+      date: '2099-06-03',
+      status: 'scheduled',
+    }));
+  });
+
+  test('reschedule is refused for a lesson already converted to an event', async () => {
+    const sessions = weeklySessions();
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00' }),
+    });
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      supportsReschedule: true,
+      rescheduleBlockReason: 'converted',
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.createCourseSession).not.toHaveBeenCalled();
+    expect(firebase.updateCourseSession).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('已轉化成活動'));
+  });
+
+  test('reschedule refuses to also mark the lesson as cancelled', async () => {
+    const sessions = weeklySessions();
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00', cancelled: true }),
+    });
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      supportsReschedule: true,
+      rescheduleBlockReason: null,
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.createCourseSession).not.toHaveBeenCalled();
+    expect(firebase.updateCourseSession).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('停課'));
+  });
+
+  test('reschedule rolls the makeup lesson back when marking the original fails', async () => {
+    const sessions = weeklySessions();
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions,
+      elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00' }),
+      FirebaseService: {
+        updateCourseSession: jest.fn(async () => { throw new Error('boom'); }),
+      },
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      app._eduCourseLessonAdjustContext = {
+        teamId: 'teamA',
+        planId: 'planA',
+        sessionId: 'sessionA',
+        session: sessions[0],
+        sessions,
+        studentCount: 2,
+        supportsReschedule: true,
+        rescheduleBlockReason: null,
+      };
+
+      await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+      expect(firebase.createCourseSession).toHaveBeenCalledTimes(1);
+      expect(firebase.deleteCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'cls_new');
+      expect(sessions.find(item => item.id === 'sessionA').status).toBe('scheduled');
+      expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('調課失敗'));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  test('weekly adjust dialog drops the next-lesson date ceiling and wires the reschedule hint', async () => {
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      isConnected: true,
+      remove: jest.fn(),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+    };
+    const { app } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions: weeklySessions(),
+      createElement: () => overlay,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+
+    await app.openCourseLessonQuickAdjust('teamA', 'planA', 'sessionA');
+
+    expect(overlay.innerHTML).not.toContain('max="2099-06-09"');
+    expect(overlay.innerHTML).not.toContain('edu-course-lesson-adjust-limit');
+    expect(overlay.innerHTML).toContain('id="edu-lesson-adjust-reschedule-hint"');
+    expect(overlay.innerHTML).toContain('App.refreshCourseLessonAdjustRescheduleHint()');
+    expect(app._eduCourseLessonAdjustContext.supportsReschedule).toBe(true);
+    expect(app._eduCourseLessonAdjustContext.rescheduleBlockReason).toBeNull();
+  });
+
+  test('session-plan adjust dialog keeps the legacy next-lesson ceiling', async () => {
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      isConnected: true,
+      remove: jest.fn(),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+    };
+    const { app } = loadCourseLessonsContext({
+      isStaff: true,
+      sessions: weeklySessions(),
+      createElement: () => overlay,
+    });
+
+    await app.openCourseLessonQuickAdjust('teamA', 'planA', 'sessionA');
+
+    expect(overlay.innerHTML).toContain('max="2099-06-09"');
+    expect(overlay.innerHTML).toContain('edu-course-lesson-adjust-limit');
+    expect(overlay.innerHTML).not.toContain('id="edu-lesson-adjust-reschedule-hint"');
+    expect(app._eduCourseLessonAdjustContext.supportsReschedule).toBe(false);
+  });
+
+  test('rescheduled roster hides self service and staff actions', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: false,
+      authUid: 'uid-self',
+      plans: weeklyPlan,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: '第 1 堂課',
+          date: '2099-06-02',
+          startTime: '19:00',
+          endTime: '21:00',
+          status: 'rescheduled',
+        },
+        students: [
+          { studentId: 'stu1', displayName: '小明', canSelfLeave: true, attendanceKind: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(container.innerHTML).toContain('已調課');
+    expect(container.innerHTML).not.toContain('edu-roster-self-register-btn');
+    expect(container.innerHTML).not.toContain('edu-roster-self-leave-btn');
+    expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
+  });
+
+  test('rescheduled and makeup styling contracts exist in education.css', () => {
+    expect(cssSource).toContain('.edu-course-lesson-card-rescheduled');
+    expect(cssSource).toContain('.edu-course-lesson-card-rescheduled::before');
+    expect(cssSource).toContain('.edu-course-lesson-card-rescheduled::after');
+    expect(cssSource).toContain('.edu-course-lesson-status-rescheduled');
+    expect(cssSource).toContain('.edu-course-lesson-makeup-tag');
+    expect(cssSource).toContain('.edu-session-status-rescheduled');
+    expect(cssSource).toContain('.edu-course-lesson-reschedule-hint');
   });
 });

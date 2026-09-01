@@ -3866,4 +3866,35 @@ describe('ApiService tournament delete source', () => {
     expect(source).toContain("ensureFirebaseFunctionsSdk('asia-east1')");
     expect(source).toContain("httpsCallable('deleteTournament')");
   });
+
+  test('rescheduled course lessons are closed on every edu session write path', () => {
+    const selfAttendance = readCloudFunctionSource('saveEduCourseSelfAttendance');
+    expect(selfAttendance).toContain('"closed", "rescheduled"');
+
+    const selfLeave = readCloudFunctionSource('saveEduCourseSelfLeave');
+    expect(selfLeave).toContain('sanitizeStr(session.status, 32).toLowerCase() === "rescheduled"');
+    expect(selfLeave).toContain('SELF_ATTENDANCE_SESSION_CLOSED');
+
+    const staffAttendance = readCloudFunctionSource('saveEduSessionAttendanceChanges');
+    expect(staffAttendance).toContain('sanitizeStr(session.status, 32).toLowerCase() === "rescheduled"');
+    expect(staffAttendance).toContain('SESSION_RESCHEDULED');
+
+    const convert = readCloudFunctionSource('createEventFromCourseLesson');
+    expect(convert).toContain('"removed", "rescheduled"');
+    expect(convert).toContain('SESSION_NOT_CONVERTIBLE');
+
+    const skipReasonSource = readSourceBetween(
+      'function getEduCourseSessionRosterSyncSkipReason',
+      'function hasEduCourseEnrollmentRosterRelevantChange'
+    );
+    expect(skipReasonSource).toContain('"ended", "rescheduled"');
+    expect(skipReasonSource).toContain('terminal_session');
+  });
+
+  test('updateEduCourseSession refuses to mark linked or terminal lessons as rescheduled', () => {
+    const source = readCloudFunctionSource('updateEduCourseSession');
+    expect(source).toContain('sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled"');
+    expect(source).toContain('linkSnap.exists || ["done", "cancelled", "canceled", "removed"].includes(currentStatus)');
+    expect(source).toContain('SESSION_NOT_RESCHEDULABLE');
+  });
 });

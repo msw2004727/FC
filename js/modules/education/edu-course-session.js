@@ -202,8 +202,8 @@ Object.assign(App, {
     const status = String(session?.status || '').trim().toLowerCase();
     const meta = statusMeta || this._getCourseSessionStatusMeta?.(session);
     const metaCls = String(meta?.cls || '').trim().toLowerCase();
-    if (['done', 'cancelled', 'canceled', 'removed'].includes(status)) return true;
-    if (metaCls === 'done' || metaCls === 'cancelled') return true;
+    if (['done', 'cancelled', 'canceled', 'removed', 'rescheduled'].includes(status)) return true;
+    if (metaCls === 'done' || metaCls === 'cancelled' || metaCls === 'rescheduled') return true;
     const ms = typeof this._getCourseSessionSortValue === 'function'
       ? this._getCourseSessionSortValue(session)
       : NaN;
@@ -789,6 +789,7 @@ Object.assign(App, {
 
   _getCourseSessionStatusMeta(session) {
     const status = String(session?.status || '').trim();
+    if (status === 'rescheduled') return { label: '已調課', cls: 'rescheduled' };
     if (status === 'cancelled') return { label: '已取消', cls: 'cancelled' };
     if (status === 'done') return { label: '已完成', cls: 'done' };
     const ms = this._getCourseSessionSortValue(session);

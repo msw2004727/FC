@@ -598,12 +598,50 @@
   letter-spacing: 0;
   pointer-events: none;
 }
+.edu-course-lesson-card-rescheduled {
+  border-color: rgba(148, 163, 184, .32);
+  cursor: default;
+}
+.edu-course-lesson-card-rescheduled .edu-course-lesson-index,
+.edu-course-lesson-card-rescheduled .edu-course-lesson-main {
+  filter: grayscale(1);
+  opacity: .52;
+}
+.edu-course-lesson-card-rescheduled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  pointer-events: none;
+}
+.edu-course-lesson-card-rescheduled::before {
+  content: "\5DF2\8ABF\8AB2";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  padding: .24rem .95rem;
+  background: rgba(15, 23, 42, .86);
+  color: #fff;
+  font-size: .84rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  pointer-events: none;
+}
 .edu-course-lesson-card:hover,
 .edu-course-lesson-card:focus-visible {
   border-color: rgba(13, 148, 136, .42);
   box-shadow: 0 10px 24px rgba(15, 23, 42, .10);
   transform: translateY(-1px);
   outline: none;
+}
+.edu-course-lesson-card-rescheduled:hover,
+.edu-course-lesson-card-rescheduled:focus-visible {
+  border-color: rgba(148, 163, 184, .32);
+  box-shadow: none;
+  transform: none;
 }
 .edu-course-lesson-index {
   display: flex;
@@ -800,6 +838,21 @@
 .edu-course-lesson-status-soon { background: rgba(217, 119, 6, .13); color: #b45309; }
 .edu-course-lesson-status-done { background: rgba(16, 185, 129, .15); color: #047857; }
 .edu-course-lesson-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
+.edu-course-lesson-status-rescheduled { background: rgba(148, 163, 184, .18); color: var(--text-muted); }
+.edu-course-lesson-makeup-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: .12rem .5rem;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: .7rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
 .edu-course-roster-status-pending { background: rgba(100, 116, 139, .12); color: #64748b; }
 .edu-course-roster-status-signin { background: rgba(13, 148, 136, .13); color: #0f766e; }
 .edu-course-roster-status-registered { background: rgba(37, 99, 235, .12); color: #1d4ed8; }
@@ -987,6 +1040,28 @@
   padding: .52rem .62rem;
   font-size: .78rem;
   font-weight: 800;
+}
+.edu-course-lesson-reschedule-hint {
+  margin-top: .55rem;
+  border: 1px solid rgba(217, 119, 6, .28);
+  border-radius: 8px;
+  background: rgba(217, 119, 6, .08);
+  padding: .58rem .68rem;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.edu-course-lesson-reschedule-hint strong {
+  display: block;
+  margin-bottom: .25rem;
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 900;
+}
+.edu-course-lesson-reschedule-hint ol {
+  margin: 0;
+  padding-left: 1.15rem;
 }
 .edu-course-roster-head {
   display: flex;
@@ -1410,6 +1485,12 @@
   background: rgba(15, 23, 42, .64);
   color: #cbd5e1;
 }
+[data-theme="dark"] .edu-course-lesson-card-rescheduled,
+[data-theme="dark"] .edu-course-lesson-card-rescheduled:hover,
+[data-theme="dark"] .edu-course-lesson-card-rescheduled:focus-visible {
+  border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-course-lesson-status-rescheduled { background: rgba(148, 163, 184, .18); color: var(--text-muted); }
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-course-roster-status-pending { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
@@ -2406,6 +2487,7 @@
 .edu-session-status-soon { background: rgba(217, 119, 6, .14); color: #b45309; }
 .edu-session-status-done { background: rgba(16, 185, 129, .15); color: #047857; }
 .edu-session-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
+.edu-session-status-rescheduled { background: rgba(148, 163, 184, .18); color: var(--text-muted); }
 .edu-session-card h4 {
   min-width: 0;
   flex: 1 1 auto;
@@ -4538,6 +4620,7 @@
 [data-theme="dark"] .edu-session-status-soon { background: rgba(251, 191, 36, .16); color: #fcd34d; }
 [data-theme="dark"] .edu-session-status-done { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
 [data-theme="dark"] .edu-session-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+[data-theme="dark"] .edu-session-status-rescheduled { background: rgba(148, 163, 184, .18); color: var(--text-muted); }
 @media (max-width: 560px) {
   [data-theme="dark"] .edu-session-student-tags > span,
   [data-theme="dark"] .edu-session-pick-item em > span {

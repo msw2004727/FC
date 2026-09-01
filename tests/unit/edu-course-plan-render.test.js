@@ -2565,4 +2565,30 @@ describe('edu course plan render', () => {
     expect(app.showToast).toHaveBeenCalledWith('\u9019\u5802\u8ab2\u76ee\u524d\u7121\u6cd5\u5831\u540d');
   });
 
+  test('rescheduled lessons are never offered as the next lesson', () => {
+    const context = {
+      App: { _todayStr: () => '2099-06-01' },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+    const app = context.App;
+    const sessions = [
+      { id: 'sessionA', status: 'rescheduled', date: '2099-06-02', startTime: '19:00' },
+      { id: 'makeupA', status: 'scheduled', date: '2099-06-20', startTime: '14:00' },
+    ];
+
+    const next = app._getCoursePlanNextSessionItem(sessions, { today: '2099-06-01' });
+
+    expect(next?.session?.id).toBe('makeupA');
+    expect(app._isCoursePlanNextLessonSessionRegisterable(sessions[0], { today: '2099-06-01' })).toBe(false);
+    expect(app._isCoursePlanNextLessonSessionRegisterable(sessions[1], { today: '2099-06-01' })).toBe(true);
+  });
+
 });

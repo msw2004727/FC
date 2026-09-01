@@ -661,6 +661,7 @@ const ScriptLoader = {
       'js/modules/education/edu-course-session-form.js',
       'js/modules/education/edu-course-lessons-render.js',
       'js/modules/education/edu-course-lessons.js',
+      'js/modules/education/edu-course-lesson-reschedule.js',
       'js/modules/education/edu-checkin.js',
       'js/modules/education/edu-checkin-scan.js',
       'js/modules/education/edu-calendar-core.js',

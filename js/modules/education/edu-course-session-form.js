@@ -60,7 +60,7 @@ Object.assign(App, {
       + '</div>'
       + '<div class="edu-session-form-grid">'
         + '<div class="ce-row"><label>課堂名稱 <span class="required">*必填</span></label><input id="edu-session-title" type="text" maxlength="36" value="' + escapeHTML(session?.title || defaultTitle) + '"></div>'
-        + '<div class="ce-row"><label>課堂狀態</label><select id="edu-session-status"><option value="scheduled">已排課</option><option value="done">已完成</option><option value="cancelled">已取消</option></select></div>'
+        + '<div class="ce-row"><label>課堂狀態</label><select id="edu-session-status"><option value="scheduled">已排課</option><option value="done">已完成</option><option value="cancelled">已取消</option>' + (String(session?.status || '').trim() === 'rescheduled' ? '<option value="rescheduled">已調課</option>' : '') + '</select></div>'
         + '<div class="ce-row"><label>日期 <span class="required">*必填</span></label><input id="edu-session-date" type="date" value="' + escapeHTML(session?.date || today) + '"></div>'
         + '<div class="ce-row edu-session-time-row"><label>時間 <span class="required">*必填</span></label><div><input id="edu-session-start" type="time" value="' + escapeHTML(session?.startTime || '19:00') + '"><span>~</span><input id="edu-session-end" type="time" value="' + escapeHTML(session?.endTime || '20:30') + '"></div></div>'
         + '<div class="ce-row"><label>地點 <span class="required">*必填</span></label><input id="edu-session-location" type="text" maxlength="60" value="' + escapeHTML(session?.location || '') + '" placeholder="例：西屯足球場 A 場"></div>'

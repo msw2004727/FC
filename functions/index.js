@@ -5670,7 +5670,7 @@ function getEduCourseSessionStartMs(session = {}) {
 function getEduCourseSessionRosterSyncSkipReason(session = {}, nowMs = Date.now()) {
   if (!isEduCourseAutoManagedSession(session)) return "manual_session";
   const status = sanitizeStr(session.status, 32).toLowerCase();
-  if (["done", "cancelled", "canceled", "removed", "deleted", "ended"].includes(status)) {
+  if (["done", "cancelled", "canceled", "removed", "deleted", "ended", "rescheduled"].includes(status)) {
     return "terminal_session";
   }
   const startMs = getEduCourseSessionStartMs(session);
@@ -7262,6 +7262,9 @@ exports.saveEduCourseSelfLeave = onCall(
     if (plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    if (sanitizeStr(session.status, 32).toLowerCase() === "rescheduled") {
+      throw new HttpsError("failed-precondition", "SELF_ATTENDANCE_SESSION_CLOSED", { code: "SELF_ATTENDANCE_SESSION_CLOSED", status: "rescheduled" });
+    }
     const rosterIds = Array.isArray(session.studentIds)
       ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
       : [];
@@ -7395,7 +7398,7 @@ exports.saveEduCourseSelfAttendance = onCall(
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
     const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
-    const inactiveSelfAttendanceStatuses = new Set(["cancelled", "canceled", "done", "removed", "completed", "ended", "closed"]);
+    const inactiveSelfAttendanceStatuses = new Set(["cancelled", "canceled", "done", "removed", "completed", "ended", "closed", "rescheduled"]);
     if (inactiveSelfAttendanceStatuses.has(sessionStatus)) {
       throw new HttpsError("failed-precondition", "SELF_ATTENDANCE_SESSION_CLOSED", { code: "SELF_ATTENDANCE_SESSION_CLOSED", status: sessionStatus });
     }
@@ -7558,6 +7561,16 @@ exports.updateEduCourseSession = onCall(
     const [planSnap, sessionSnap, linkSnap] = await Promise.all([planRef.get(), sessionRef.get(), linkRef.get()]);
     if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+    if (sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled") {
+      const currentStatus = sanitizeStr((sessionSnap.data() || {}).status, 32).toLowerCase();
+      if (linkSnap.exists || ["done", "cancelled", "canceled", "removed"].includes(currentStatus)) {
+        throw new HttpsError("failed-precondition", "SESSION_NOT_RESCHEDULABLE", {
+          code: "SESSION_NOT_RESCHEDULABLE",
+          linkedEvent: linkSnap.exists,
+          status: currentStatus,
+        });
+      }
+    }
     if (linkSnap.exists) {
       const linkedPreflight = await validateCourseLessonLinkedEventReady({ teamDoc, teamId, planId, sessionId, planSnap, linkSnap });
       if (linkedPreflight?.success === false) {
@@ -7640,6 +7653,9 @@ exports.saveEduSessionAttendanceChanges = onCall(
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    if (sanitizeStr(session.status, 32).toLowerCase() === "rescheduled") {
+      throw new HttpsError("failed-precondition", "SESSION_RESCHEDULED", { code: "SESSION_RESCHEDULED" });
+    }
     const rosterIds = Array.isArray(session.studentIds)
       ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
       : [];
@@ -7775,7 +7791,7 @@ exports.createEventFromCourseLesson = onCall(
       if (plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
       if (plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
       const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
-      if (["cancelled", "canceled", "removed"].includes(sessionStatus)) {
+      if (["cancelled", "canceled", "removed", "rescheduled"].includes(sessionStatus)) {
         throw new HttpsError("failed-precondition", "SESSION_NOT_CONVERTIBLE", { code: "SESSION_NOT_CONVERTIBLE" });
       }
 

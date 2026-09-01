@@ -1147,6 +1147,14 @@ Object.assign(App, {
     const nextLabel = this._formatCourseLessonAdjustLimit(nextSession);
     const capacityValue = session.capacity || plan.maxCapacity || '';
     const isCancelled = String(session.status || '').trim() === 'cancelled';
+    const supportsReschedule = String(plan.planType || '').trim() === 'weekly';
+    const rescheduleBlockReason = this._getCourseLessonRescheduleBlockReason(plan, session);
+    const dateMaxAttr = !supportsReschedule && nextSession?.date
+      ? ' max="' + escapeHTML(nextSession.date) + '"'
+      : '';
+    const rescheduleInputAttr = supportsReschedule
+      ? ' oninput="App.refreshCourseLessonAdjustRescheduleHint()"'
+      : '';
     overlay = overlay || document.createElement('div');
     overlay.className = 'edu-info-overlay edu-course-lesson-adjust-overlay';
     overlay._eduDismissed = false;
@@ -1158,17 +1166,18 @@ Object.assign(App, {
         + '<button class="modal-close-btn" type="button" aria-label="關閉" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
       + '</div>'
       + '<div class="edu-course-lesson-adjust-grid">'
-        + '<label><span>日期</span><input id="edu-lesson-adjust-date" type="date" value="' + escapeHTML(session.date || '') + '"' + (nextSession?.date ? ' max="' + escapeHTML(nextSession.date) + '"' : '') + '></label>'
-        + '<label><span>開始</span><input id="edu-lesson-adjust-start" type="time" value="' + escapeHTML(session.startTime || '') + '"></label>'
+        + '<label><span>日期</span><input id="edu-lesson-adjust-date" type="date" value="' + escapeHTML(session.date || '') + '"' + dateMaxAttr + rescheduleInputAttr + '></label>'
+        + '<label><span>開始</span><input id="edu-lesson-adjust-start" type="time" value="' + escapeHTML(session.startTime || '') + '"' + rescheduleInputAttr + '></label>'
         + '<label><span>結束</span><input id="edu-lesson-adjust-end" type="time" value="' + escapeHTML(session.endTime || '') + '"></label>'
         + '<label><span>人數</span><input id="edu-lesson-adjust-capacity" type="number" min="1" max="999" inputmode="numeric" value="' + escapeHTML(capacityValue) + '"></label>'
         + '<label class="edu-course-lesson-adjust-wide"><span>地點</span><input id="edu-lesson-adjust-location" type="text" maxlength="60" value="' + escapeHTML(session.location || plan.location || '') + '"></label>'
       + '</div>'
       + '<label class="edu-course-lesson-cancel-toggle">'
         + '<input id="edu-lesson-adjust-cancelled" type="checkbox"' + (isCancelled ? ' checked' : '') + '>'
-        + '<span><strong>停課</strong><em>這堂課會顯示為停課，原名單保留。</em></span>'
+        + '<span><strong>停課</strong><em id="edu-lesson-adjust-cancel-note">這堂課會顯示為停課，原名單保留。</em></span>'
       + '</label>'
-      + (nextSession && Number.isFinite(nextStartMs) ? '<div class="edu-course-lesson-adjust-limit">下一堂課：' + escapeHTML(nextLabel) + '</div>' : '')
+      + (supportsReschedule ? '<div id="edu-lesson-adjust-reschedule-hint"></div>' : '')
+      + (!supportsReschedule && nextSession && Number.isFinite(nextStartMs) ? '<div class="edu-course-lesson-adjust-limit">下一堂課：' + escapeHTML(nextLabel) + '</div>' : '')
       + '<div class="modal-actions">'
         + '<button class="outline-btn" type="button" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
         + '<button class="primary-btn" type="button" id="edu-lesson-adjust-save" onclick="return App.saveCourseLessonQuickAdjust(this)">儲存調整</button>'
@@ -1184,7 +1193,10 @@ Object.assign(App, {
       studentCount,
       nextStartMs: Number.isFinite(nextStartMs) ? nextStartMs : null,
       nextLabel,
+      supportsReschedule,
+      rescheduleBlockReason,
     };
+    if (supportsReschedule) this.refreshCourseLessonAdjustRescheduleHint();
     document.getElementById('edu-lesson-adjust-date')?.focus?.();
     return false;
   },
@@ -1215,8 +1227,21 @@ Object.assign(App, {
       this.showToast?.('課堂結束時間需晚於開始時間');
       return false;
     }
-    if (ctx.nextStartMs && endMs > ctx.nextStartMs) {
+    const supportsReschedule = ctx.supportsReschedule === true;
+    const crossedSessions = supportsReschedule
+      ? this._getCourseLessonCrossedSessions(ctx.sessions, ctx.sessionId, startMs)
+      : [];
+    const willReschedule = crossedSessions.length > 0;
+    if (!supportsReschedule && ctx.nextStartMs && endMs > ctx.nextStartMs) {
       this.showToast?.('本堂課不可超過下一堂課：' + (ctx.nextLabel || ''));
+      return false;
+    }
+    if (willReschedule && ctx.rescheduleBlockReason) {
+      this.showToast?.(this._getCourseLessonRescheduleBlockMessage(ctx.rescheduleBlockReason));
+      return false;
+    }
+    if (willReschedule && cancelled) {
+      this.showToast?.('調課時無法同時停課，請取消勾選停課');
       return false;
     }
     const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
@@ -1227,6 +1252,27 @@ Object.assign(App, {
     if (capacity && Number(ctx.studentCount || 0) > capacity) {
       this.showToast?.('人數不可少於目前本堂名單人數');
       return false;
+    }
+    if (willReschedule) {
+      const rescheduleForm = {
+        date,
+        startTime,
+        endTime,
+        location,
+        capacity: Number.isFinite(capacity) ? capacity : null,
+      };
+      const runReschedule = async () => {
+        const result = await this._runCourseLessonReschedule(ctx, rescheduleForm);
+        if (result?.ok) {
+          document.querySelector?.('.edu-course-lesson-adjust-overlay')?.remove();
+          await this._refreshCourseLessonsAfterSessionSave?.(ctx.teamId, ctx.planId, ctx.sessionId);
+        }
+        return false;
+      };
+      if (typeof this._withButtonLoading === 'function') {
+        return this._withButtonLoading(button, '調課中...', runReschedule);
+      }
+      return runReschedule();
     }
     const previousStatus = String(ctx.session?.status || 'scheduled').trim();
     const payload = {
@@ -1725,7 +1771,7 @@ Object.assign(App, {
   _isCourseLessonStatsEligibleSession(session, joinStartMs, nowMs) {
     if (!session) return false;
     const status = String(session.status || '').trim().toLowerCase();
-    if (status === 'cancelled') return false;
+    if (status === 'cancelled' || status === 'rescheduled') return false;
     const dateStartMs = this._getCourseLessonDateStartValue(session.date);
     if (joinStartMs !== null && dateStartMs !== null && dateStartMs < joinStartMs) return false;
     const sessionMs = typeof this._getCourseSessionSortValue === 'function'
