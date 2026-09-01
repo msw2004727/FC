@@ -1165,6 +1165,7 @@ Object.assign(App, {
         + '<div><span>單堂調整</span><strong>' + escapeHTML(session.title || session.topic || session.focus || '課堂') + '</strong></div>'
         + '<button class="modal-close-btn" type="button" aria-label="關閉" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
       + '</div>'
+      + '<div class="edu-course-lesson-adjust-body">'
       + '<div class="edu-course-lesson-adjust-grid">'
         + '<label><span>日期</span><input id="edu-lesson-adjust-date" type="date" value="' + escapeHTML(session.date || '') + '"' + dateMaxAttr + rescheduleInputAttr + '></label>'
         + '<label><span>開始</span><input id="edu-lesson-adjust-start" type="time" value="' + escapeHTML(session.startTime || '') + '"' + rescheduleInputAttr + '></label>'
@@ -1178,6 +1179,7 @@ Object.assign(App, {
       + '</label>'
       + (supportsReschedule ? '<div id="edu-lesson-adjust-reschedule-hint"></div>' : '')
       + (!supportsReschedule && nextSession && Number.isFinite(nextStartMs) ? '<div class="edu-course-lesson-adjust-limit">下一堂課：' + escapeHTML(nextLabel) + '</div>' : '')
+      + '</div>'
       + '<div class="modal-actions">'
         + '<button class="outline-btn" type="button" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
         + '<button class="primary-btn" type="button" id="edu-lesson-adjust-save" onclick="return App.saveCourseLessonQuickAdjust(this)">儲存調整</button>'
@@ -1642,16 +1644,23 @@ Object.assign(App, {
       const getMeta = (session) => this._getCourseLessonStatusMeta?.(session)
         || this._getCourseSessionStatusMeta?.(session)
         || {};
-      const getRank = (session) => {
-        const status = String(session?.status || '').trim().toLowerCase();
-        const cls = String(getMeta(session)?.cls || '').trim().toLowerCase();
-        return (status === 'done' || status === 'cancelled' || status === 'canceled' || cls === 'done' || cls === 'cancelled')
-          ? 1
-          : 0;
-      };
       const getMs = (session) => {
         const value = Number(this._getCourseSessionSortValue?.(session));
         return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+      };
+      const getRank = (session) => {
+        const status = String(session?.status || '').trim().toLowerCase();
+        const cls = String(getMeta(session)?.cls || '').trim().toLowerCase();
+        if (status === 'done' || status === 'cancelled' || status === 'canceled' || cls === 'done' || cls === 'cancelled') {
+          return 1;
+        }
+        // 已調課卡的狀態永遠是「已調課」，不會被時間推論成已完成；
+        // 這裡改以原時間就位，時間過了才跟已結束課堂同群組，避免它永久霸佔列表最前面。
+        if (status === 'rescheduled' || cls === 'rescheduled') {
+          const ms = getMs(session);
+          return ms > 0 && ms < nowMs - 6 * 60 * 60 * 1000 ? 1 : 0;
+        }
+        return 0;
       };
       const rankA = getRank(a);
       const rankB = getRank(b);

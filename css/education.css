@@ -942,6 +942,16 @@
 .edu-course-lesson-adjust-dialog {
   max-width: 460px;
 }
+.edu-course-lesson-adjust-dialog .edu-course-lesson-adjust-head,
+.edu-course-lesson-adjust-dialog .modal-actions {
+  flex: 0 0 auto;
+}
+.edu-course-lesson-adjust-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .edu-course-lesson-adjust-loading-dialog {
   max-width: 360px;
   padding: .9rem;

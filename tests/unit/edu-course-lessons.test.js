@@ -4037,6 +4037,100 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).not.toContain('App.startCourseLessonRosterManage()');
   });
 
+  // 用真實的 _getCourseSessionStatusMeta（含 6 小時已完成推論）驗證排序，
+  // 避免 stub 掩蓋「已調課卡過期後霸佔列表最前面」這類問題。
+  function loadRealSortApp() {
+    const sessionSource = fs.readFileSync(
+      path.join(__dirname, '../../js/modules/education/edu-course-session.js'),
+      'utf8'
+    );
+    const context = {
+      App: {},
+      escapeHTML,
+      console,
+      Date,
+      String,
+      Number,
+      Math,
+      Array,
+      Object,
+      Set,
+      Map,
+      parseInt,
+      JSON,
+      Promise,
+      document: { getElementById: () => null, querySelector: () => null },
+      window: {},
+      localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    };
+    vm.runInNewContext(sessionSource, context, { filename: 'edu-course-session.js' });
+    vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
+    vm.runInNewContext(controllerSource, context, { filename: 'edu-course-lessons.js' });
+    return context.App;
+  }
+
+  test('rescheduled lesson keeps its original slot while upcoming and never hijacks the top once past', () => {
+    const app = loadRealSortApp();
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 8, 1, 12, 0).getTime());
+    try {
+      const upcoming = [
+        { id: 'w1', sessionNumber: 1, status: 'rescheduled', date: '2026-09-02', startTime: '19:00' },
+        { id: 'w2', sessionNumber: 2, status: 'scheduled', date: '2026-09-09', startTime: '19:00' },
+        { id: 'makeup', sessionNumber: 1, status: 'scheduled', date: '2026-09-12', startTime: '14:00', makeupOfSessionId: 'w1' },
+        { id: 'w3', sessionNumber: 3, status: 'scheduled', date: '2026-09-16', startTime: '19:00' },
+      ];
+      expect(app._sortCourseLessonListSessions(upcoming).map(item => item.id))
+        .toEqual(['w1', 'w2', 'makeup', 'w3']);
+
+      const past = [
+        { id: 'w1', sessionNumber: 1, status: 'rescheduled', date: '2026-08-04', startTime: '19:00' },
+        { id: 'w2', sessionNumber: 2, status: 'scheduled', date: '2026-08-11', startTime: '19:00' },
+        { id: 'makeup', sessionNumber: 1, status: 'scheduled', date: '2026-09-08', startTime: '14:00', makeupOfSessionId: 'w1' },
+        { id: 'w4', sessionNumber: 4, status: 'scheduled', date: '2026-09-15', startTime: '19:00' },
+      ];
+      const sortedPast = app._sortCourseLessonListSessions(past).map(item => item.id);
+      expect(sortedPast[0]).toBe('makeup');
+      expect(sortedPast.slice(0, 2)).toEqual(['makeup', 'w4']);
+      expect(sortedPast).toContain('w1');
+      expect(sortedPast.indexOf('w1')).toBeGreaterThan(sortedPast.indexOf('w4'));
+      // 標籤仍然是「已調課」，不會被時間推論成已完成
+      expect(app._getCourseSessionStatusMeta(past[0])).toEqual({ label: '已調課', cls: 'rescheduled' });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  test('adjust dialog keeps its actions pinned by scrolling the body only', async () => {
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      isConnected: true,
+      remove: jest.fn(),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+    };
+    const { app } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: weeklyPlan,
+      sessions: weeklySessions(),
+      createElement: () => overlay,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+    });
+
+    await app.openCourseLessonQuickAdjust('teamA', 'planA', 'sessionA');
+
+    expect(overlay.innerHTML).toContain('edu-course-lesson-adjust-body');
+    const bodyStart = overlay.innerHTML.indexOf('edu-course-lesson-adjust-body');
+    expect(overlay.innerHTML.indexOf('edu-course-lesson-adjust-grid')).toBeGreaterThan(bodyStart);
+    expect(overlay.innerHTML.indexOf('edu-lesson-adjust-reschedule-hint')).toBeGreaterThan(bodyStart);
+    // 送出列必須留在捲動容器之外
+    expect(overlay.innerHTML.indexOf('modal-actions'))
+      .toBeGreaterThan(overlay.innerHTML.indexOf('id="edu-lesson-adjust-reschedule-hint"'));
+    expect(cssSource).toContain('.edu-course-lesson-adjust-body');
+    expect(cssSource).toContain('.edu-course-lesson-adjust-dialog .modal-actions');
+  });
+
   test('rescheduled and makeup styling contracts exist in education.css', () => {
     expect(cssSource).toContain('.edu-course-lesson-card-rescheduled');
     expect(cssSource).toContain('.edu-course-lesson-card-rescheduled::before');
