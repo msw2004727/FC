@@ -295,7 +295,7 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('onclick="event.stopPropagation();return App.shareEduCourseLesson');
   });
 
-  test('lesson list keeps scheduled lessons first then done and cancelled by nearest time', async () => {
+  test('lesson list is ordered purely by lesson time so lesson numbers stay in sequence', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2099-06-10T12:00:00').getTime());
     try {
       const { app, container } = loadCourseLessonsContext({
@@ -316,7 +316,8 @@ describe('edu course lessons', () => {
       await app.showCourseLessons('teamA', 'planA');
 
       const html = container.innerHTML;
-      const positions = ['Scheduled Near', 'Scheduled Far', 'Done Recent', 'Cancelled Recent', 'Done Older']
+      // 依日期由早到晚：6/01 → 6/08 → 6/09 → 6/11 → 6/20，不再把已完成／已取消丟到最後
+      const positions = ['Done Older', 'Cancelled Recent', 'Done Recent', 'Scheduled Near', 'Scheduled Far']
         .map(title => html.indexOf(title));
       positions.forEach(position => expect(position).toBeGreaterThanOrEqual(0));
       expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -4148,7 +4149,7 @@ describe('edu course lessons', () => {
     return context.App;
   }
 
-  test('rescheduled lesson keeps its original slot while upcoming and never hijacks the top once past', () => {
+  test('rescheduled lesson keeps its original slot whether it is upcoming or already past', () => {
     const app = loadRealSortApp();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 8, 1, 12, 0).getTime());
     try {
@@ -4167,11 +4168,9 @@ describe('edu course lessons', () => {
         { id: 'makeup', sessionNumber: 1, status: 'scheduled', date: '2026-09-08', startTime: '14:00', makeupOfSessionId: 'w1' },
         { id: 'w4', sessionNumber: 4, status: 'scheduled', date: '2026-09-15', startTime: '19:00' },
       ];
+      // 原日期已過的已調課卡仍然留在它原本的時間位置（第一張），補課卡落在新日期
       const sortedPast = app._sortCourseLessonListSessions(past).map(item => item.id);
-      expect(sortedPast[0]).toBe('makeup');
-      expect(sortedPast.slice(0, 2)).toEqual(['makeup', 'w4']);
-      expect(sortedPast).toContain('w1');
-      expect(sortedPast.indexOf('w1')).toBeGreaterThan(sortedPast.indexOf('w4'));
+      expect(sortedPast).toEqual(['w1', 'w2', 'makeup', 'w4']);
       // 標籤仍然是「已調課」，不會被時間推論成已完成
       expect(app._getCourseSessionStatusMeta(past[0])).toEqual({ label: '已調課', cls: 'rescheduled' });
     } finally {

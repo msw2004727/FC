@@ -1638,42 +1638,17 @@ Object.assign(App, {
     return String(student?.studentId || student?.id || student?._docId || '').trim();
   },
 
+  // 課堂列表一律依實際上課時間由早到晚排；不再把已完成／已取消分組到最後，
+  // 讓堂號連貫、已調課卡留在原本的堂號位置、補課卡落在新日期該有的位置。
   _sortCourseLessonListSessions(sessions) {
-    const nowMs = Date.now();
     return [...(Array.isArray(sessions) ? sessions : [])].sort((a, b) => {
-      const getMeta = (session) => this._getCourseLessonStatusMeta?.(session)
-        || this._getCourseSessionStatusMeta?.(session)
-        || {};
       const getMs = (session) => {
         const value = Number(this._getCourseSessionSortValue?.(session));
         return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
       };
-      const getRank = (session) => {
-        const status = String(session?.status || '').trim().toLowerCase();
-        const cls = String(getMeta(session)?.cls || '').trim().toLowerCase();
-        if (status === 'done' || status === 'cancelled' || status === 'canceled' || cls === 'done' || cls === 'cancelled') {
-          return 1;
-        }
-        // 已調課卡的狀態永遠是「已調課」，不會被時間推論成已完成；
-        // 這裡改以原時間就位，時間過了才跟已結束課堂同群組，避免它永久霸佔列表最前面。
-        if (status === 'rescheduled' || cls === 'rescheduled') {
-          const ms = getMs(session);
-          return ms > 0 && ms < nowMs - 6 * 60 * 60 * 1000 ? 1 : 0;
-        }
-        return 0;
-      };
-      const rankA = getRank(a);
-      const rankB = getRank(b);
-      if (rankA !== rankB) return rankA - rankB;
       const msA = getMs(a);
       const msB = getMs(b);
-      if (rankA === 1) {
-        const distanceA = Number.isFinite(msA) ? Math.abs(msA - nowMs) : Number.POSITIVE_INFINITY;
-        const distanceB = Number.isFinite(msB) ? Math.abs(msB - nowMs) : Number.POSITIVE_INFINITY;
-        if (distanceA !== distanceB) return distanceA - distanceB;
-      } else if (msA !== msB) {
-        return msA - msB;
-      }
+      if (msA !== msB) return msA - msB;
       const lessonA = Number(a?.sessionNumber || a?.lessonNumber || 0);
       const lessonB = Number(b?.sessionNumber || b?.lessonNumber || 0);
       if (Number.isFinite(lessonA) && Number.isFinite(lessonB) && lessonA !== lessonB) return lessonA - lessonB;
