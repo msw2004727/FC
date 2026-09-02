@@ -295,7 +295,7 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('onclick="event.stopPropagation();return App.shareEduCourseLesson');
   });
 
-  test('lesson list is ordered purely by lesson time so lesson numbers stay in sequence', async () => {
+  test('lesson list is ordered purely by lesson time, newest first and earliest at the bottom', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2099-06-10T12:00:00').getTime());
     try {
       const { app, container } = loadCourseLessonsContext({
@@ -316,8 +316,8 @@ describe('edu course lessons', () => {
       await app.showCourseLessons('teamA', 'planA');
 
       const html = container.innerHTML;
-      // 依日期由早到晚：6/01 → 6/08 → 6/09 → 6/11 → 6/20，不再把已完成／已取消丟到最後
-      const positions = ['Done Older', 'Cancelled Recent', 'Done Recent', 'Scheduled Near', 'Scheduled Far']
+      // 依日期由晚到早：6/20 → 6/11 → 6/09 → 6/08 → 6/01，不做已完成／已取消分組
+      const positions = ['Scheduled Far', 'Scheduled Near', 'Done Recent', 'Cancelled Recent', 'Done Older']
         .map(title => html.indexOf(title));
       positions.forEach(position => expect(position).toBeGreaterThanOrEqual(0));
       expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -3752,10 +3752,10 @@ describe('edu course lessons', () => {
     expect(html).not.toContain("App.openCourseLessonQuickAdjust('teamA','planA','sessionA'");
     expect(html).toContain('edu-course-lesson-makeup-tag');
     expect(html).toContain("App.showCourseLessonRoster('teamA','planA','makeupA')");
-    // 已調課卡留在原位（第一張），補課卡依日期排在第 2 堂之後
-    expect(html.indexOf('第 1 堂課<')).toBeLessThan(html.indexOf('第 2 堂課<'));
-    expect(html.indexOf('第 2 堂課<')).toBeLessThan(html.indexOf('第 1 堂課（補課）'));
-    expect(html.indexOf('第 1 堂課（補課）')).toBeLessThan(html.indexOf('第 3 堂課<'));
+    // 由晚到早：第 3 堂(6/16) → 補課(6/12) → 第 2 堂(6/9) → 已調課的第 1 堂(6/2) 在最下面
+    expect(html.indexOf('第 3 堂課<')).toBeLessThan(html.indexOf('第 1 堂課（補課）'));
+    expect(html.indexOf('第 1 堂課（補課）')).toBeLessThan(html.indexOf('第 2 堂課<'));
+    expect(html.indexOf('第 2 堂課<')).toBeLessThan(html.indexOf('第 1 堂課<'));
     // 堂數統計排除已調課卡
     expect(html).toContain('3 堂 · 1 堂已調課');
   });
@@ -4159,8 +4159,9 @@ describe('edu course lessons', () => {
         { id: 'makeup', sessionNumber: 1, status: 'scheduled', date: '2026-09-12', startTime: '14:00', makeupOfSessionId: 'w1' },
         { id: 'w3', sessionNumber: 3, status: 'scheduled', date: '2026-09-16', startTime: '19:00' },
       ];
+      // 由晚到早：9/16 → 9/12(補課) → 9/9 → 9/2(已調課)
       expect(app._sortCourseLessonListSessions(upcoming).map(item => item.id))
-        .toEqual(['w1', 'w2', 'makeup', 'w3']);
+        .toEqual(['w3', 'makeup', 'w2', 'w1']);
 
       const past = [
         { id: 'w1', sessionNumber: 1, status: 'rescheduled', date: '2026-08-04', startTime: '19:00' },
@@ -4168,9 +4169,9 @@ describe('edu course lessons', () => {
         { id: 'makeup', sessionNumber: 1, status: 'scheduled', date: '2026-09-08', startTime: '14:00', makeupOfSessionId: 'w1' },
         { id: 'w4', sessionNumber: 4, status: 'scheduled', date: '2026-09-15', startTime: '19:00' },
       ];
-      // 原日期已過的已調課卡仍然留在它原本的時間位置（第一張），補課卡落在新日期
+      // 原日期已過的已調課卡仍留在它原本的時間位置（最舊 → 最下面），補課卡落在新日期
       const sortedPast = app._sortCourseLessonListSessions(past).map(item => item.id);
-      expect(sortedPast).toEqual(['w1', 'w2', 'makeup', 'w4']);
+      expect(sortedPast).toEqual(['w4', 'makeup', 'w2', 'w1']);
       // 標籤仍然是「已調課」，不會被時間推論成已完成
       expect(app._getCourseSessionStatusMeta(past[0])).toEqual({ label: '已調課', cls: 'rescheduled' });
     } finally {

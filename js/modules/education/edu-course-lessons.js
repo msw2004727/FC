@@ -1638,8 +1638,8 @@ Object.assign(App, {
     return String(student?.studentId || student?.id || student?._docId || '').trim();
   },
 
-  // 課堂列表一律依實際上課時間由早到晚排；不再把已完成／已取消分組到最後，
-  // 讓堂號連貫、已調課卡留在原本的堂號位置、補課卡落在新日期該有的位置。
+  // 課堂列表一律依實際上課時間由晚到早排：最新的一堂在最上面，越早結束的越下面。
+  // 不做已完成／已取消分組，讓已調課卡留在原本的時間位置、補課卡落在新日期該有的位置。
   _sortCourseLessonListSessions(sessions) {
     return [...(Array.isArray(sessions) ? sessions : [])].sort((a, b) => {
       const getMs = (session) => {
@@ -1648,11 +1648,11 @@ Object.assign(App, {
       };
       const msA = getMs(a);
       const msB = getMs(b);
-      if (msA !== msB) return msA - msB;
+      if (msA !== msB) return msB - msA;
       const lessonA = Number(a?.sessionNumber || a?.lessonNumber || 0);
       const lessonB = Number(b?.sessionNumber || b?.lessonNumber || 0);
-      if (Number.isFinite(lessonA) && Number.isFinite(lessonB) && lessonA !== lessonB) return lessonA - lessonB;
-      return String(a?.id || a?._docId || '').localeCompare(String(b?.id || b?._docId || ''), 'zh-Hant');
+      if (Number.isFinite(lessonA) && Number.isFinite(lessonB) && lessonA !== lessonB) return lessonB - lessonA;
+      return String(b?.id || b?._docId || '').localeCompare(String(a?.id || a?._docId || ''), 'zh-Hant');
     });
   },
 
