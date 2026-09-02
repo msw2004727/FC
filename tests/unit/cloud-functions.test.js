@@ -3891,12 +3891,22 @@ describe('ApiService tournament delete source', () => {
     expect(skipReasonSource).toContain('terminal_session');
   });
 
-  test('updateEduCourseSession refuses to mark linked or terminal lessons as rescheduled', () => {
+  test('updateEduCourseSession only refuses to reschedule finished or removed lessons', () => {
     const source = readCloudFunctionSource('updateEduCourseSession');
     expect(source).toContain('sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled"');
-    expect(source).toContain('linkSnap.exists || ["done", "removed"].includes(currentStatus)');
+    expect(source).toContain('["done", "removed"].includes(currentStatus)');
     expect(source).toContain('SESSION_NOT_RESCHEDULABLE');
-    // 停課的課堂必須可以調課（停課後往後補課是主要用途）
+    // 停課與已轉化成活動的課堂都必須可以調課
     expect(source).not.toContain('"done", "cancelled", "canceled", "removed"');
+    expect(source).not.toContain('linkSnap.exists || [');
+  });
+
+  test('rescheduling a course lesson cancels its linked event', () => {
+    const source = readSourceBetween(
+      'async function syncCourseLessonEventDetailsFromSessionInternal',
+      'function courseEnrollmentDocId'
+    );
+    expect(source).toContain('["cancelled", "canceled", "rescheduled"].includes(sessionStatus)');
+    expect(source).toContain('if (statusUpdate) update.status = statusUpdate;');
   });
 });

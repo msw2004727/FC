@@ -5358,7 +5358,8 @@ async function syncCourseLessonEventDetailsFromSessionInternal({ teamId, planId,
   const endDate = parseEventEndDateInTaipei(eventDate);
   const max = courseConvertedEventCapacity(plan, session);
   const sessionStatus = sanitizeStr(session.status, 32).toLowerCase();
-  const statusUpdate = ["cancelled", "canceled"].includes(sessionStatus)
+  // 已調課的課堂：那天的課不會上了，對應活動一併取消。
+  const statusUpdate = ["cancelled", "canceled", "rescheduled"].includes(sessionStatus)
     ? "cancelled"
     : (sessionStatus === "done" ? "ended" : null);
 
@@ -7563,8 +7564,10 @@ exports.updateEduCourseSession = onCall(
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
     if (sanitizeStr(updates.status, 32).toLowerCase() === "rescheduled") {
       const currentStatus = sanitizeStr((sessionSnap.data() || {}).status, 32).toLowerCase();
-      // 停課的課堂可以調課（停課後往後補課是主要用途）；只擋已轉化活動、已完成與已移除。
-      if (linkSnap.exists || ["done", "removed"].includes(currentStatus)) {
+      // 停課與已轉化成活動的課堂都可以調課：前者是補課的主要用途，
+      // 後者會由 syncCourseLessonEventDetailsFromSessionInternal 把對應活動一併取消。
+      // 只擋已完成與已移除。
+      if (["done", "removed"].includes(currentStatus)) {
         throw new HttpsError("failed-precondition", "SESSION_NOT_RESCHEDULABLE", {
           code: "SESSION_NOT_RESCHEDULABLE",
           linkedEvent: linkSnap.exists,

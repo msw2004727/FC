@@ -3886,7 +3886,8 @@ describe('edu course lessons', () => {
     expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'removed' })).toBe('removed');
     expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'done' })).toBe('done');
     expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'rescheduled' })).toBe('already_rescheduled');
-    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'scheduled', convertedEventId: 'ev1' })).toBe('converted');
+    // 已轉化成活動也可以調課（活動會一併取消）
+    expect(app._getCourseLessonRescheduleBlockReason(plan, { ...base, status: 'scheduled', convertedEventId: 'ev1' })).toBeNull();
     expect(app._getCourseLessonRescheduleBlockReason({ ...plan, planType: 'session' }, { ...base, status: 'scheduled' })).toBe('only_weekly');
 
     expect(app._getCourseLessonRescheduleBlockMessage('removed')).toContain('已移除');
@@ -3948,14 +3949,32 @@ describe('edu course lessons', () => {
     expect(normalHtml).not.toContain('目前是停課');
   });
 
-  test('reschedule is refused for a lesson already converted to an event', async () => {
+  test('converted lessons can be rescheduled and the hint warns the event will be cancelled', async () => {
+    const overlay = { remove: jest.fn() };
     const sessions = weeklySessions();
+    Object.assign(sessions[0], { convertedEventId: 'ev1', courseLinked: true, courseLinkId: 'cl1' });
     const { app, firebase } = loadCourseLessonsContext({
       isStaff: true,
       plans: weeklyPlan,
       sessions,
+      getCourseSessionStatusMeta: rescheduleStatusMeta,
+      ApiService: { getCurrentUser: jest.fn(() => null), getEvent: jest.fn(() => ({ id: 'ev1' })) },
       elements: adjustElements({ date: '2099-06-12', startTime: '14:00', endTime: '16:00' }),
+      querySelector: selector => (selector === '.edu-course-lesson-adjust-overlay' ? overlay : null),
     });
+    app._refreshCourseLessonsAfterSessionSave = jest.fn(async () => true);
+
+    // 已轉化不再是禁止調課的理由
+    expect(app._getCourseLessonRescheduleBlockReason(weeklyPlan[0], sessions[0])).toBeNull();
+
+    // 提示要明講活動會被取消、且不會自動通知
+    const targetMs = app._getCourseLessonDateTimeValue('2099-06-12', '14:00');
+    const crossed = app._getCourseLessonCrossedSessions(sessions, 'sessionA', targetMs);
+    const hint = app._renderCourseLessonRescheduleHintHtml(sessions, sessions[0], targetMs, crossed);
+    expect(hint).toContain('對應活動會一併取消');
+    expect(hint).toContain('不會自動通知');
+    expect(hint).toContain('轉化成活動');
+
     app._eduCourseLessonAdjustContext = {
       teamId: 'teamA',
       planId: 'planA',
@@ -3964,14 +3983,18 @@ describe('edu course lessons', () => {
       sessions,
       studentCount: 2,
       supportsReschedule: true,
-      rescheduleBlockReason: 'converted',
+      rescheduleBlockReason: app._getCourseLessonRescheduleBlockReason(weeklyPlan[0], sessions[0]),
     };
 
     await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
 
-    expect(firebase.createCourseSession).not.toHaveBeenCalled();
-    expect(firebase.updateCourseSession).not.toHaveBeenCalled();
-    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('已轉化成活動'));
+    expect(firebase.createCourseSession).toHaveBeenCalledTimes(1);
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { status: 'rescheduled' });
+    // 補課卡不得帶走任何活動連結欄位
+    const [, , makeupPayload] = firebase.createCourseSession.mock.calls[0];
+    expect(makeupPayload.convertedEventId).toBeUndefined();
+    expect(makeupPayload.courseLinked).toBeUndefined();
+    expect(makeupPayload.courseLinkId).toBeUndefined();
   });
 
   test('reschedule refuses to also mark the lesson as cancelled', async () => {

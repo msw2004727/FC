@@ -30,7 +30,7 @@ Object.assign(App, {
     // 「勾著停課又要調課」的矛盾由 saveCourseLessonQuickAdjust 的獨立規則處理。
     const cls = String(this._getCourseLessonStatusMeta(session)?.cls || '').trim().toLowerCase();
     if (status === 'done' || cls === 'done') return 'done';
-    if (this._isCourseLessonConvertedToEvent(session)) return 'converted';
+    // 已轉化成活動也可以調課：調課時對應活動會一併取消，補課卡再由職員自行轉化。
     return null;
   },
 
@@ -39,7 +39,6 @@ Object.assign(App, {
     if (reason === 'already_rescheduled') return '這堂課已經調課過，請改用補課卡片調整';
     if (reason === 'removed') return '已移除的課堂不能調課';
     if (reason === 'done') return '已完成的課堂不能調課';
-    if (reason === 'converted') return '此課堂已轉化成活動，請先處理對應活動再調課';
     return '這堂課目前不能調課';
   },
 
@@ -109,6 +108,9 @@ Object.assign(App, {
         + '<li>' + escapeHTML('原本「' + this._formatCourseLessonDateTime(session) + '」的課堂會標記為「已調課」，留在原位置，不可再報名。') + '</li>'
         + '<li>' + escapeHTML('系統會在 ' + positionText + ' 新增「' + this._getCourseLessonMakeupTitle(session) + '」。') + '</li>'
         + '<li>' + escapeHTML('補課卡片重新開放報名，原本已報名的學員需要重新報名。') + '</li>'
+        + (this._isCourseLessonConvertedToEvent(session)
+          ? '<li>' + escapeHTML('這堂課已轉化成活動，對應活動會一併取消（系統不會自動通知已報名該活動的人，請自行通知）；補課卡需要再按一次「轉化成活動」。') + '</li>'
+          : '')
       + '</ol>'
     + '</div>';
   },
