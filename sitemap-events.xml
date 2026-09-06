@@ -55,14 +55,8 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1787459751701_cp1y9e</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1787459775224_pmo2sj</loc>
-    <lastmod>2026-08-23</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -91,12 +85,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1788253231527_89ctm4</loc>
-    <lastmod>2026-09-01</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1788253231527_ylzuiu</loc>
     <lastmod>2026-09-01</lastmod>
     <changefreq>daily</changefreq>
@@ -109,19 +97,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1788254054271_qxp1p7</loc>
-    <lastmod>2026-09-01</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1788254178158_5apd6p</loc>
-    <lastmod>2026-09-01</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1788254178158_6ogbpk</loc>
     <lastmod>2026-09-01</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
@@ -153,24 +129,6 @@
   <url>
     <loc>https://toosterx.com/events/ce_1788254236508_rlsnut</loc>
     <lastmod>2026-09-01</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1788286481360_62grxn</loc>
-    <lastmod>2026-09-01</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1788580898942_mu9g59</loc>
-    <lastmod>2026-09-05</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1788591748029_ibfzar</loc>
-    <lastmod>2026-09-05</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
