@@ -1452,6 +1452,27 @@ Object.assign(App, {
     });
   },
 
+  _isTeamReservationCourseManaged(e) {
+    // 後端已拒絕的活動在本頁生命週期保留不支援狀態，避免舊快取讓使用者再次送出。
+    if (e?.id && this._teamReservationCourseRejectedIds?.has(String(e.id))) return true;
+    // 與 Functions isCourseLinkedEventData 相同；單有 legacy link ID 不代表禁止團隊名額。
+    return !!e && e.courseLinked === true
+      && typeof e.courseLinkSource === 'string'
+      && e.courseLinkSource.trim().slice(0, 80) === 'eduCourseLesson';
+  },
+
+  _getTeamReservationCourseNotice(e) {
+    const teamId = String(e?.courseTeamId || '').trim();
+    const planId = String(e?.coursePlanId || '').trim();
+    const valid = /^[A-Za-z0-9_-]{3,80}$/;
+    if (!valid.test(teamId) || !valid.test(planId)) {
+      return { message: '此活動由課程管理，不提供團隊名額；課程連結資料不完整，請聯絡主辦單位。', href: '' };
+    }
+    // 既有 _getEduCoursePlanShareIntent 支援此 query；由課程頁維持原有查看／操作權限。
+    const query = new URLSearchParams({ team: teamId, teamTab: 'courses', course: planId, courseView: 'detail' });
+    return { message: '此活動由課程管理，不提供團隊名額；請點「查看課程」了解課程安排。', href: '/?' + query.toString() };
+  },
+
   _renderTeamReservationActionButton(e, opts = {}) {
     if (!e
       || opts.regsLoading
@@ -1463,6 +1484,11 @@ Object.assign(App, {
       || opts.teamBlocked) return '';
     const teams = this._getTeamReservationStaffTeams(e);
     if (!teams.length) return '';
+    if (this._isTeamReservationCourseManaged(e)) {
+      const notice = this._getTeamReservationCourseNotice(e);
+      return '<div class="team-reservation-help">' + escapeHTML(notice.message)
+        + (notice.href ? '<br><a class="outline-btn" style="display:inline-block;margin-top:8px" href="' + escapeHTML(notice.href) + '">查看課程</a>' : '') + '</div>';
+    }
     const active = teams.find(t => {
       const summary = this._getTeamReservationSummary(e, t.id);
       return summary && (Number(summary.reservedSlots || 0) > 0 || Number(summary.usedSlots || 0) > 0);
@@ -1599,10 +1625,28 @@ Object.assign(App, {
 
   async openTeamReservationModal(eventId, preferredTeamId) {
     if (this._requireProtectedActionLogin({ type: 'teamReservation', eventId }, { suppressToast: true })) return;
+    const requestSeq = this._teamReservationModalSeq = (this._teamReservationModalSeq || 0) + 1;
+    const page = this.currentPage;
+    const detailId = this._currentDetailEventId;
+    const detailSeq = this._eventDetailRequestSeq;
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    if (this._isTeamReservationCourseManaged(ApiService.getEvent(eventId))) {
+      this.showToast(this._getTeamReservationCourseNotice(ApiService.getEvent(eventId)).message);
+      return;
+    }
     await this._ensureTeamReservationStaffTeamsLoaded?.();
+    if (requestSeq !== this._teamReservationModalSeq || page !== this.currentPage || detailId !== this._currentDetailEventId
+      || detailSeq !== this._eventDetailRequestSeq || uid !== ApiService.getCurrentUser?.()?.uid) {
+      if (window._raceDebug) console.debug('[teamReservation] stale modal request');
+      return;
+    }
     const state = this._getTeamReservationModalState(eventId, preferredTeamId);
     if (!state) {
       this.showToast('只有俱樂部職員可以建立團隊名額');
+      return;
+    }
+    if (this._isTeamReservationCourseManaged(state.event)) {
+      this.showToast(this._getTeamReservationCourseNotice(state.event).message);
       return;
     }
     const storageKey = 'teamReservationSlots:' + state.selectedTeam.id;
@@ -1653,20 +1697,33 @@ Object.assign(App, {
   },
 
   closeTeamReservationModal() {
+    this._teamReservationModalSeq = (this._teamReservationModalSeq || 0) + 1;
     const modal = document.getElementById('team-reservation-modal');
     if (modal) modal.classList.remove('open');
     this._syncEventSignupScrollLock?.();
   },
 
   async confirmTeamReservation(eventId, teamId) {
+    if (this._requireProtectedActionLogin({ type: 'teamReservation', eventId }, { suppressToast: true })) return;
+    const eventRecord = ApiService.getEvent(eventId);
+    if (this._isTeamReservationCourseManaged(eventRecord)) {
+      this.showToast(this._getTeamReservationCourseNotice(eventRecord).message);
+      return;
+    }
     const input = document.getElementById('team-reservation-slots-input');
     const btn = document.getElementById('team-reservation-confirm-btn');
     const busyKey = 'team-reservation:' + String(eventId || '') + ':' + String(teamId || '');
+    this._teamReservationPending = this._teamReservationPending || new Set();
+    if (this._teamReservationPending.has(busyKey)) {
+      this.showToast('團隊名額處理中，請稍候');
+      return;
+    }
     if (!this._beginEventActionBusy(busyKey)) return;
     const slots = Math.max(0, Math.trunc(Number(input?.value || 0) || 0));
     const state = this._getTeamReservationModalState(eventId, teamId);
-    if (!state) {
+    if (!state || String(state.selectedTeam.id) !== String(teamId)) {
       this._endEventActionBusy(busyKey);
+      this.showToast('你沒有調整此俱樂部名額的權限');
       return;
     }
     if (slots < state.used) {
@@ -1679,10 +1736,23 @@ Object.assign(App, {
       this.showToast('團隊名額超過目前活動可用名額');
       return;
     }
+    const requestSeq = this._teamReservationModalSeq;
+    const page = this.currentPage;
+    const detailId = this._currentDetailEventId;
+    const detailSeq = this._eventDetailRequestSeq;
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    const isCurrent = () => requestSeq === this._teamReservationModalSeq
+      && page === this.currentPage && detailId === this._currentDetailEventId
+      && detailSeq === this._eventDetailRequestSeq && uid === ApiService.getCurrentUser?.()?.uid;
+    this._teamReservationPending.add(busyKey);
     try {
       if (btn) { btn.disabled = true; btn.textContent = '處理中...'; }
       localStorage.setItem('teamReservationSlots:' + teamId, String(slots));
       const data = await FirebaseService.adjustTeamReservation(eventId, teamId, slots);
+      if (!isCurrent()) {
+        if (window._raceDebug) console.debug('[teamReservation] stale submission response');
+        return;
+      }
       if (data?.deduplicated) {
         this.showToast('團隊名額處理中，請稍候');
         return;
@@ -1692,17 +1762,30 @@ Object.assign(App, {
       this._patchDetailAfterSignup?.(eventId);
     } catch (err) {
       console.error('[confirmTeamReservation]', err);
-      const code = err?.details || err?.message || '';
+      if (!isCurrent()) return;
+      const code = this._getEventRegistrationErrorCode(typeof err === 'string' ? { message: err } : err).toUpperCase().replace(/-/g, '_');
+      if (code === 'COURSE_LINKED_EVENT_MANAGED_BY_COURSE') {
+        this._teamReservationCourseRejectedIds = this._teamReservationCourseRejectedIds || new Set();
+        this._teamReservationCourseRejectedIds.add(String(eventId));
+        const notice = this._getTeamReservationCourseNotice(eventRecord);
+        const body = document.querySelector('#team-reservation-modal .team-reservation-dialog-body');
+        if (body) body.innerHTML = '<div class="team-reservation-note">' + escapeHTML(notice.message)
+          + (notice.href ? '<br><a class="outline-btn" style="display:inline-block;margin-top:8px" href="' + escapeHTML(notice.href) + '">查看課程</a>' : '') + '</div>';
+        if (btn) btn.hidden = true;
+        this._refreshSignupButton?.(eventId);
+      }
       const msgMap = {
+        COURSE_LINKED_EVENT_MANAGED_BY_COURSE: this._getTeamReservationCourseNotice(eventRecord).message,
         RESERVED_BELOW_USED: '團隊名額不能低於已使用人數',
         RESERVED_OVER_CAPACITY: '團隊名額超過目前活動可用名額',
         PERMISSION_DENIED: '你沒有調整此俱樂部名額的權限',
         EVENT_ENDED: '活動已開始，無法調整名額',
         EVENT_CANCELLED: '活動已取消，無法調整名額',
       };
-      this.showToast(msgMap[code] || err.message || '團隊名額調整失敗');
+      this.showToast(msgMap[code] || '團隊名額調整失敗，請稍後重試');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '確認'; }
+      this._teamReservationPending.delete(busyKey);
       this._endEventActionBusy(busyKey);
     }
   },
