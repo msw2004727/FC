@@ -170,12 +170,13 @@ describe('renderEduClubDetail info card', () => {
     context.App.renderEduClubDetail(team.id);
     expect(app._refreshTeamMembersCardFromCache).not.toHaveBeenCalled();
 
-    await Promise.resolve();
+    await new Promise(setImmediate);
 
     expect(app.renderEduCoursePlanList).toHaveBeenCalledWith(team.id, false);
+    expect(app.renderEduCoursePlanList).toHaveBeenCalledTimes(1);
     expect(app._renderEduMemberSection).not.toHaveBeenCalled();
     expect(app.renderEduGroupList).not.toHaveBeenCalled();
-    expect(app._updateEduMineBadge).toHaveBeenCalledWith(team.id);
+    expect(app._updateEduMineBadge).toHaveBeenCalledWith(team.id, { reuseCoursePlans: true });
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith(team.id);
   });
 
@@ -215,7 +216,7 @@ describe('renderEduClubDetail info card', () => {
     expect(app._refreshTeamDetailV2CourseSummaryFromCache).not.toHaveBeenCalled();
     resolveCourseRender(true);
     await courseRenderPromise;
-    await Promise.resolve();
+    await new Promise(setImmediate);
 
     expect(app._refreshTeamDetailV2CourseSummaryFromCache).toHaveBeenCalledWith('teamA');
   });
@@ -251,12 +252,16 @@ describe('renderEduClubDetail info card', () => {
     context.App._updateEduMineBadge = jest.fn();
     context.App._eduDetailTeamId = 'teamA';
     context.App._eduActiveTab = 'course';
+    const refresh = jest.fn();
+    context.App._eduCoursePlanStudentRefresh = { teamId: 'teamA', refresh };
 
     await context.App._refreshEduDetailStudentState('teamA');
 
-    expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA', true);
+    // Student snapshots patch existing cards instead of fetching the entire course list.
+    expect(app.renderEduCoursePlanList).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(app._updateGroupMemberCounts).toHaveBeenCalledWith('teamA');
-    expect(context.App._updateEduMineBadge).toHaveBeenCalledWith('teamA');
+    expect(context.App._updateEduMineBadge).toHaveBeenCalledWith('teamA', { reuseCoursePlans: true });
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailV2CourseSummaryFromCache).toHaveBeenCalledWith('teamA');
   });

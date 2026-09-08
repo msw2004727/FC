@@ -19,12 +19,18 @@ Object.assign(App, {
   _startEduStudentsListener(teamId) {
     this._stopEduStudentsListener();
     if (!teamId) return;
+    const generation = this._eduStudentsListenerGeneration;
+    const scope = this._getEduStudentsReadScope?.();
     try {
       const ref = firebase.firestore()
         .collection('teams').doc(teamId).collection('students');
       this._eduStudentsUnsub = ref.onSnapshot(
         snapshot => {
+          if (generation !== this._eduStudentsListenerGeneration
+            || (scope && this._getEduStudentsReadScope?.() !== scope)) return;
+          if (scope) scope.snapshots[teamId] = (scope.snapshots[teamId] || 0) + 1;
           this._eduStudentsCache[teamId] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
+          if (this._eduStudentsLoadFailedByTeam) this._eduStudentsLoadFailedByTeam[teamId] = false;
           const page = this.currentPage;
           // 俱樂部詳情頁：重繪學員區塊 + 分組人數
           if (page === 'page-team-detail' && this._eduDetailTeamId === teamId) {
@@ -51,6 +57,7 @@ Object.assign(App, {
   },
 
   _stopEduStudentsListener() {
+    this._eduStudentsListenerGeneration = (this._eduStudentsListenerGeneration || 0) + 1;
     if (this._eduStudentsUnsub) {
       this._eduStudentsUnsub();
       this._eduStudentsUnsub = null;
@@ -64,6 +71,9 @@ Object.assign(App, {
     this._stopEduStudentsListener();
     this._stopEduTeamsListener();
     this._eduDetailTeamId = null;
+    this._eduCoursePlanListRequestSeq = (this._eduCoursePlanListRequestSeq || 0) + 1;
+    this._eduCoursePlanStudentRefresh = null;
+    Object.values(this._eduCoursePlanReadScopes || {}).forEach(scope => { delete scope.entry; });
   },
 
   // ══════════════════════════════════

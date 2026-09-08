@@ -1252,7 +1252,13 @@ Object.assign(App, {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
     const requestSeq = ++this._eduCoursePlanListRequestSeq;
+    const readScope = this._getEduCoursePlanReadScope?.(teamId);
+    const viewerUid = ApiService.getCurrentUser?.()?.uid || '';
+    const staffAtStart = this.isEduClubStaff?.(teamId);
     const isStale = () => requestSeq !== this._eduCoursePlanListRequestSeq
+      || (ApiService.getCurrentUser?.()?.uid || '') !== viewerUid
+      || (readScope && this._getEduCoursePlanReadScope?.(teamId) !== readScope)
+      || this.isEduClubStaff?.(teamId) !== staffAtStart
       || document.getElementById('edu-course-plan-list') !== container
       || (this._eduDetailTeamId && this._eduDetailTeamId !== teamId)
       || (this.currentPage && this.currentPage !== 'page-team-detail');
@@ -1292,6 +1298,10 @@ Object.assign(App, {
       });
       return true;
     }
+    if (loadFailed) {
+      container.innerHTML = '<div class="edu-empty-state" role="status">課程載入失敗，請重新點選課程分頁重試。</div>';
+      return false;
+    }
     const activePlans = plans.filter(p => p.active !== false)
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
@@ -1315,7 +1325,7 @@ Object.assign(App, {
 
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid;
-    const students = this.getEduStudents(teamId);
+    let students = this.getEduStudents(teamId);
     const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
       && isEduAutoMigrationCompleted();
 
@@ -1366,6 +1376,7 @@ Object.assign(App, {
       const frozenKey = String(p.id || p._docId || '').trim();
       if (frozenKey && Number.isFinite(frozenCount) && frozenCount >= 0) frozenCounts[frozenKey] = frozenCount;
     }));
+    if (isStale()) return false;
     const applyFrozenCount = (p) => {
       const frozenCount = frozenCounts[String(p.id || p._docId || '').trim()];
       if (Number.isFinite(frozenCount) && frozenCount >= 0) p._effectiveCount = frozenCount;
@@ -1531,7 +1542,9 @@ Object.assign(App, {
         + '</div>';
     };
 
-    const renderCoursePlanSections = () => {
+    const renderCoursePlanSections = (partial = false) => {
+      if (isStale()) return false;
+      students = this.getEduStudents(teamId);
       const groupedPlans = [
       {
         type: 'weekly',
@@ -1559,13 +1572,42 @@ Object.assign(App, {
           + '</section>').join('')
       : '<div class="edu-empty-state">' + emptyText + '</div>';
 
-    container.innerHTML = tabHtml + '<div class="edu-course-plan-sections">'
+    const html = tabHtml + '<div class="edu-course-plan-sections">'
       + listHtml
       + '</div>';
-    this._applyEduCoursePlanShareFocus?.(teamId);
+    if (partial && container.querySelectorAll && document.createElement) {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      const cards = Array.from(template.content.querySelectorAll('[data-course-plan-id]'));
+      const currentCards = Array.from(container.querySelectorAll('[data-course-plan-id]'));
+      // Student/summary updates do not change course ordering or the surrounding tab DOM.
+      cards.forEach(card => {
+        const current = currentCards.find(el => el.dataset.coursePlanId === card.dataset.coursePlanId);
+        if (current && current.outerHTML !== card.outerHTML) {
+          const focused = current.contains(document.activeElement) ? document.activeElement : null;
+          const controls = Array.from(card.querySelectorAll('button,a,input,select,textarea')).filter(el => !el.disabled);
+          const nextFocus = focused && (controls.find(el => el.tagName === focused.tagName
+            && el.getAttribute('onclick') === focused.getAttribute('onclick')
+            && el.getAttribute('href') === focused.getAttribute('href')) || controls[0]);
+          current.replaceWith(card);
+          nextFocus?.focus({ preventScroll: true });
+        }
+      });
+    } else {
+      container.innerHTML = html;
+      this._applyEduCoursePlanShareFocus?.(teamId);
+    }
     };
 
     renderCoursePlanSections();
+    this._eduCoursePlanStudentRefresh = { teamId, refresh: () => {
+      if (isStale()) return false;
+      students = this.getEduStudents(teamId);
+      displayPlans.forEach(applyCachedEnrollmentState);
+      displayPlans.forEach(applyFrozenCount);
+      renderCoursePlanSections(true);
+      return true;
+    } };
     this._preloadCourseLessonsForPlans?.(teamId, currentPlans);
 
     const refreshPlans = displayPlans.filter((p) => {
@@ -1585,7 +1627,7 @@ Object.assign(App, {
     }));
     const renderAfterRefresh = () => {
       if (!isStale()) {
-        renderCoursePlanSections();
+        renderCoursePlanSections(true);
         this._preloadCourseLessonsForPlans?.(teamId, currentPlans);
       }
       return true;
@@ -1594,6 +1636,7 @@ Object.assign(App, {
       ? (async () => {
           if (typeof this._loadCourseEnrollmentSummaries === 'function') {
             const summaries = await this._loadCourseEnrollmentSummaries(teamId, refreshPlans.map(p => p.id));
+            if (isStale()) return false;
             if (summaries) {
               refreshPlans.forEach((p) => {
                 const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
@@ -1608,6 +1651,7 @@ Object.assign(App, {
             }
           }
           await refreshFromEnrollments();
+          if (isStale()) return false;
           displayPlans.forEach(applyFrozenCount);
           return renderAfterRefresh();
         })()

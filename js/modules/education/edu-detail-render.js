@@ -20,15 +20,7 @@ Object.assign(App, {
     this._setEduDetailTabActiveState('course');
 
     const renderResult = this._renderEduTabContent(teamId, options);
-    if (renderResult && typeof renderResult.then === 'function') {
-      renderResult
-        .then(() => {
-          if (this._eduDetailTeamId === teamId) this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-        })
-        .catch(err => console.warn('[edu-detail] initial course render failed:', err));
-    } else {
-      this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-    }
+    this._settleEduInitialCourseRender(teamId, renderResult);
 
     if (typeof this._bindSwipeTabs === 'function') {
       this._bindSwipeTabs('edu-detail-tab-content', 'edu-detail-tabs',
@@ -37,24 +29,32 @@ Object.assign(App, {
       );
     }
 
-    this._loadEduStudents(teamId).then(() => {
-      if (this._eduDetailTeamId === teamId) {
-        this._refreshEduPendingTabState(teamId);
-        const refreshResult = this._refreshEduActiveTabContent(teamId);
-        if (refreshResult && typeof refreshResult.then === 'function') {
-          refreshResult
-            .then(() => {
-              if (this._eduDetailTeamId === teamId) this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-            })
-            .catch(err => console.warn('[edu-detail] active tab refresh failed:', err));
-        } else {
-          this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-        }
-        this._updateEduMineBadge(teamId);
-        this._refreshTeamMembersCardFromCache?.(teamId);
-      }
-    });
+    this._hydrateEduDetailStudents(teamId);
     this._startEduStudentsListener(teamId);
+  },
+
+  async _settleEduInitialCourseRender(teamId, result) {
+    const seq = this._teamDetailRequestSeq;
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    try {
+      if (result && typeof result.then === 'function') await result;
+      if (this._eduDetailTeamId !== teamId || this._teamDetailRequestSeq !== seq
+        || (this.currentPage && this.currentPage !== 'page-team-detail')
+        || ApiService.getCurrentUser?.()?.uid !== uid) return;
+      this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+    } catch (err) { console.warn('[edu-detail] initial course render failed:', err); }
+  },
+
+  async _hydrateEduDetailStudents(teamId) {
+    const seq = this._teamDetailRequestSeq;
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    try {
+      await this._loadEduStudents(teamId);
+      if (this._eduDetailTeamId !== teamId || this._teamDetailRequestSeq !== seq
+        || (this.currentPage && this.currentPage !== 'page-team-detail')
+        || ApiService.getCurrentUser?.()?.uid !== uid) return;
+      await this._refreshEduDetailStudentState(teamId);
+    } catch (err) { console.warn('[edu-detail] student hydration failed:', err); }
   },
 
   /**
@@ -122,11 +122,7 @@ Object.assign(App, {
     );
 
     // ★ Phase 2：背景 fetch + 即時監聽
-    this._loadEduStudents(teamId).then(() => {
-      if (this._eduDetailTeamId === teamId) {
-        this._refreshEduDetailStudentState(teamId);
-      }
-    });
+    this._hydrateEduDetailStudents(teamId);
     this._startEduStudentsListener(teamId);
   },
 
@@ -172,13 +168,22 @@ Object.assign(App, {
 
   async _refreshEduDetailStudentState(teamId, options = {}) {
     if (!teamId) return undefined;
+    const seq = this._teamDetailRequestSeq;
+    const uid = ApiService.getCurrentUser?.()?.uid;
     this._refreshEduPendingTabState?.(teamId);
-    const refreshResult = this._refreshEduActiveTabContent(teamId, options);
+    const courseTab = this._normalizeEduDetailTab(this._eduActiveTab) === 'course';
+    const refreshResult = courseTab
+      ? (this._eduCoursePlanStudentRefresh?.teamId === teamId
+        ? this._eduCoursePlanStudentRefresh.refresh() : undefined)
+      : this._refreshEduActiveTabContent(teamId, options);
     if (refreshResult && typeof refreshResult.then === 'function') {
       await refreshResult;
     }
+    if (this._teamDetailRequestSeq !== seq || ApiService.getCurrentUser?.()?.uid !== uid
+      || (this.currentPage && this.currentPage !== 'page-team-detail')
+      || (this._eduDetailTeamId && this._eduDetailTeamId !== teamId)) return;
     this._updateGroupMemberCounts?.(teamId);
-    this._updateEduMineBadge?.(teamId);
+    this._updateEduMineBadge?.(teamId, { reuseCoursePlans: courseTab });
     this._refreshTeamMembersCardFromCache?.(teamId);
     this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
     return refreshResult;
@@ -671,14 +676,16 @@ Object.assign(App, {
     return student?.name || student?.studentName || '未命名學員';
   },
 
-  async _collectEduUnpaidSummary(teamId, students) {
+  async _collectEduUnpaidSummary(teamId, students, options = {}) {
     const curUser = ApiService.getCurrentUser();
     const myStudents = (students || this._getMyEduStudents(teamId, curUser))
       .filter(s => s && s.enrollStatus === 'active');
     const summary = { teamId, total: 0, plans: [] };
     if (!myStudents.length) return summary;
 
-    const plans = await this._loadEduCoursePlans(teamId);
+    const plans = options.reuseCoursePlans
+      ? await this._loadEduCoursePlans(teamId, { reuseLoaded: true })
+      : await this._loadEduCoursePlans(teamId);
     const today = typeof this._todayStr === 'function' ? this._todayStr() : (() => {
       const d = new Date();
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -737,7 +744,10 @@ Object.assign(App, {
     return summary;
   },
 
-  async _updateEduMineBadge(teamId) {
+  async _updateEduMineBadge(teamId, options = {}) {
+    const seq = this._eduMineBadgeRequestSeq = (this._eduMineBadgeRequestSeq || 0) + 1;
+    const routeSeq = this._teamDetailRequestSeq;
+    const authUser = typeof auth !== 'undefined' ? auth?.currentUser : null;
     this._refreshEduPendingTabState(teamId);
     const curUser = ApiService.getCurrentUser();
     const myStudents = this._getMyEduStudents(teamId, curUser).filter(s => s.enrollStatus === 'active');
@@ -751,7 +761,13 @@ Object.assign(App, {
       if (statusEl) statusEl.style.display = 'none';
       return;
     }
-    const summary = await this._collectEduUnpaidSummary(teamId, myStudents);
+    const summary = await this._collectEduUnpaidSummary(teamId, myStudents, options);
+    if (seq !== this._eduMineBadgeRequestSeq || this._teamDetailRequestSeq !== routeSeq
+      || ApiService.getCurrentUser()?.uid !== curUser?.uid
+      || (typeof auth !== 'undefined' && auth?.currentUser !== authUser)
+      || document.getElementById('edu-mine-status') !== statusEl
+      || (this.currentPage && this.currentPage !== 'page-team-detail')
+      || (this._eduDetailTeamId && this._eduDetailTeamId !== teamId)) return;
     this._eduUnpaidSummaryByTeam[teamId] = summary;
     if (summary.total > 0) {
       statusEl.innerHTML = '<button type="button" class="edu-unpaid-tag" onclick="App.showEduUnpaidSummaryModal(\'' + this._escapeEduInlineArg(teamId) + '\')" aria-label="您尚有 ' + summary.total + ' 筆未繳費，點擊查看明細"><span>您尚有 <strong>' + summary.total + '</strong> 筆未繳費</span></button>';

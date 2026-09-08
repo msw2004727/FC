@@ -13,21 +13,62 @@ Object.assign(App, {
   _eduCoursePlanEditId: null,
   _eduCoursePlanRequestSeq: 0,
 
-  async _loadEduCoursePlans(teamId) {
-    if (!teamId) return [];
-    try {
-      const plans = await FirebaseService.listEduCoursePlans(teamId);
-      this._eduCoursePlansCache[teamId] = plans;
-      this._eduCoursePlanLoadFailedByTeam[teamId] = false;
-      return plans;
-    } catch (err) {
-      console.error('[edu-course-plan] load failed:', err);
-      this._eduCoursePlanLoadFailedByTeam[teamId] = true;
-      return this._eduCoursePlansCache[teamId] || [];
+  _getEduCoursePlanReadScope(teamId) {
+    const uid = typeof ApiService !== 'undefined' ? ApiService.getCurrentUser?.()?.uid || '' : '';
+    const authUser = typeof auth !== 'undefined' ? auth?.currentUser : null;
+    const staff = !!this.isEduClubStaff?.(teamId);
+    this._eduCoursePlanReadScopes = this._eduCoursePlanReadScopes || {};
+    let scope = this._eduCoursePlanReadScopes[teamId];
+    const identityChanged = scope && (scope.uid !== uid || scope.authUser !== authUser || scope.staff !== staff);
+    if (!scope || identityChanged || scope.routeSeq !== this._teamDetailRequestSeq || scope.page !== this.currentPage) {
+      if (identityChanged) {
+        delete this._eduCoursePlansCache[teamId];
+        delete this._eduCoursePlanLoadFailedByTeam[teamId];
+      }
+      scope = { uid, authUser, staff, routeSeq: this._teamDetailRequestSeq, page: this.currentPage };
+      this._eduCoursePlanReadScopes[teamId] = scope;
     }
+    return scope;
+  },
+
+  _invalidateEduCoursePlanLoad(teamId) {
+    const scope = this._getEduCoursePlanReadScope(teamId);
+    this._eduCoursePlanReadScopes[teamId] = { ...scope, entry: undefined };
+  },
+
+  async _loadEduCoursePlans(teamId, options = {}) {
+    if (!teamId) return [];
+    const scope = this._getEduCoursePlanReadScope(teamId);
+    if (scope.entry) return scope.entry.promise;
+    // Student-only notifications reuse this view's course result; explicit entry/refresh still fetches.
+    if (options.reuseLoaded && Array.isArray(this._eduCoursePlansCache[teamId])) return this._eduCoursePlansCache[teamId];
+    const entry = {};
+    scope.entry = entry;
+    const isCurrent = () => this._getEduCoursePlanReadScope(teamId) === scope && scope.entry === entry;
+    entry.promise = (async () => {
+      try {
+        const plans = await ApiService.listEduCoursePlans(teamId);
+        if (!isCurrent()) {
+          if (window._raceDebug) console.debug('[race-skip] course plans');
+          return [];
+        }
+        this._eduCoursePlansCache[teamId] = plans;
+        this._eduCoursePlanLoadFailedByTeam[teamId] = false;
+        return plans;
+      } catch (err) {
+        if (!isCurrent()) return [];
+        console.error('[edu-course-plan] load failed:', err);
+        this._eduCoursePlanLoadFailedByTeam[teamId] = true;
+        return this._eduCoursePlansCache[teamId] || [];
+      } finally {
+        if (scope.entry === entry) delete scope.entry;
+      }
+    })();
+    return entry.promise;
   },
 
   getEduCoursePlans(teamId) {
+    this._getEduCoursePlanReadScope(teamId);
     return this._eduCoursePlansCache[teamId] || [];
   },
 
@@ -1213,6 +1254,7 @@ Object.assign(App, {
       let savedPlan = null;
       if (planId) {
         await FirebaseService.updateEduCoursePlan(teamId, planId, data);
+        this._invalidateEduCoursePlanLoad(teamId);
         const cached = this._eduCoursePlansCache[teamId];
         if (cached) {
           const existing = cached.find(p => p.id === planId);
@@ -1225,6 +1267,7 @@ Object.assign(App, {
         data.active = true;
         data.currentCount = 0;
         const result = await FirebaseService.createEduCoursePlan(teamId, data);
+        this._invalidateEduCoursePlanLoad(teamId);
         const cached = this._eduCoursePlansCache[teamId];
         if (cached) cached.push(result);
         else this._eduCoursePlansCache[teamId] = [result];
@@ -1263,6 +1306,7 @@ Object.assign(App, {
     if (confirmText !== '我確定刪除') { if (confirmText !== null) this.showToast('輸入不正確，取消刪除'); return; }
     try {
       await FirebaseService.deleteEduCoursePlan(teamId, planId);
+      this._invalidateEduCoursePlanLoad(teamId);
       const cached = this._eduCoursePlansCache[teamId];
       if (cached) {
         const idx = cached.findIndex(p => p.id === planId);
@@ -1298,6 +1342,8 @@ Object.assign(App, {
     active.forEach((p, i) => { if (p.sortOrder == null) p.sortOrder = i * 10; });
     const idx = active.findIndex(p => p.id === planId);
     if (idx === -1) return;
+
+    this._invalidateEduCoursePlanLoad(teamId);
 
     if (direction === 0) {
       if (active[idx].pinned) {

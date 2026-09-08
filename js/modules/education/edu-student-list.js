@@ -10,14 +10,39 @@ Object.assign(App, {
   _eduCurrentTeamId: null,
   _eduStudentListRequestSeq: 0,
 
+  _getEduStudentsReadScope() {
+    const uid = typeof ApiService !== 'undefined' ? ApiService.getCurrentUser?.()?.uid : undefined;
+    const authUser = typeof auth !== 'undefined' ? auth?.currentUser : null;
+    let scope = this._eduStudentsReadScope;
+    if (!scope || scope.uid !== uid || scope.authUser !== authUser) {
+      if (scope) {
+        this._eduStudentsCache = {};
+        this._eduStudentsLoadFailedByTeam = {};
+      }
+      scope = { uid, authUser, requests: {}, snapshots: {} };
+      this._eduStudentsReadScope = scope;
+    }
+    return scope;
+  },
+
   async _loadEduStudents(teamId) {
     if (!teamId) return [];
+    const scope = this._getEduStudentsReadScope();
+    const requestSeq = (scope.requests[teamId] || 0) + 1;
+    scope.requests[teamId] = requestSeq;
+    const snapshotVersion = scope.snapshots[teamId] || 0;
+    const isSuperseded = () => scope.requests[teamId] !== requestSeq || (scope.snapshots[teamId] || 0) !== snapshotVersion;
     try {
-      const students = await FirebaseService.listEduStudents(teamId);
+      const students = await ApiService.listEduStudents(teamId);
+      if (this._getEduStudentsReadScope() !== scope) return [];
+      // A listener snapshot delivered during hydration owns the newer student state.
+      if (isSuperseded()) return this._eduStudentsCache[teamId] || [];
       this._eduStudentsCache[teamId] = students;
       this._eduStudentsLoadFailedByTeam[teamId] = false;
       return students;
     } catch (err) {
+      if (this._getEduStudentsReadScope() !== scope) return [];
+      if (isSuperseded()) return this._eduStudentsCache[teamId] || [];
       console.error('[edu-student-list] load failed:', err);
       this._eduStudentsLoadFailedByTeam[teamId] = true;
       return this._eduStudentsCache[teamId] || [];
@@ -25,6 +50,7 @@ Object.assign(App, {
   },
 
   getEduStudents(teamId) {
+    this._getEduStudentsReadScope();
     return this._eduStudentsCache[teamId] || [];
   },
 
