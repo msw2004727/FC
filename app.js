@@ -224,42 +224,57 @@ function _dismissBootOverlay(reason) {
   } catch (_) {}
 }
 
-/**
- * 白屏卡住偵測：boot-loading 消失後 6 秒，
- * 若頁面內容仍未渲染（_contentReady === false）則顯示重整提示。
- * 僅觸發一次，不自動重整，由用戶決定。
- */
+/** 顯示載入提示；首頁可原地重試片段，其他頁面沿用手動重新整理。 */
+function _showContentStallHint(homeRetry = false) {
+  var existing = document.getElementById('content-stall-hint');
+  if (existing) {
+    if (!homeRetry || existing.dataset.homeRetry === 'true') return;
+    existing.remove();
+  }
+  var el = document.createElement('div');
+  el.id = 'content-stall-hint';
+  if (homeRetry) el.dataset.homeRetry = 'true';
+  el.setAttribute('role', 'alert');
+  el.setAttribute('style',
+    'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(0,0,0,.85);color:#fff;padding:12px 20px;border-radius:12px;' +
+    'font-size:14px;z-index:9999;text-align:center;max-width:420px;white-space:nowrap;' +
+    'box-shadow:0 4px 20px rgba(0,0,0,.3);'
+  );
+  el.innerHTML =
+    '<div style="margin-bottom:8px">' + (homeRetry ? '首頁載入尚未完成' : '連線暫時不穩定') + '</div>' +
+    '<button id="stall-reload-btn" style="' +
+      'background:#0d9488;color:#fff;border:none;padding:8px 24px;' +
+      'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer' +
+    '">' + (homeRetry ? '重試載入首頁' : '再試一次') + '</button>' +
+    (homeRetry ? '' : '<div style="margin-top:6px;font-size:11px;opacity:.7">或稍後再開啟 APP</div>');
+  document.body.appendChild(el);
+  document.getElementById('stall-reload-btn').addEventListener('click', function() {
+    if (homeRetry) {
+      void App.retryHomeContent();
+      return;
+    }
+    if (typeof _markWsBlocked === 'function') _markWsBlocked();
+    location.reload();
+  });
+}
+
+/** boot-loading 消失後檢查可見頁面；雲端就緒不代表首頁片段已渲染。 */
 function _startContentStallCheck() {
   if (window._contentStallTimer) return;
-  // SWR 模式下延長至 15 秒（骨架顯示中不急著報警）
-  var stallMs = (typeof App !== 'undefined' && App._cloudReady) ? 6000 : 15000;
+  var isHome = typeof App !== 'undefined' && App.currentPage === 'page-home';
+  var stallMs = isHome || typeof App === 'undefined' || !App._cloudReady ? 15000 : 6000;
   window._contentStallTimer = setTimeout(function() {
     window._contentStallTimer = null;
-    if (window._contentReady) return;
-    if (typeof App !== 'undefined' && App._cloudReady) return;
+    if (typeof App !== 'undefined' && App._shouldRetryHomeContent()) {
+      console.warn('[Stall] 首頁內容未在 ' + (stallMs / 1000) + ' 秒內渲染完成');
+      _showContentStallHint(true);
+      return;
+    }
+    if (window._contentReady || (typeof App !== 'undefined' && App._cloudReady)) return;
     console.warn('[Stall] 頁面內容未在 ' + (stallMs / 1000) + ' 秒內渲染完成，顯示重整提示');
-    var el = document.createElement('div');
-    el.id = 'content-stall-hint';
-    el.setAttribute('role', 'alert');
-    el.setAttribute('style',
-      'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
-      'background:rgba(0,0,0,.85);color:#fff;padding:12px 20px;border-radius:12px;' +
-      'font-size:14px;z-index:9999;text-align:center;max-width:420px;white-space:nowrap;' +
-      'box-shadow:0 4px 20px rgba(0,0,0,.3);'
-    );
-    el.innerHTML =
-      '<div style="margin-bottom:8px">連線暫時不穩定</div>' +
-      '<button id="stall-reload-btn" style="' +
-        'background:#0d9488;color:#fff;border:none;padding:8px 24px;' +
-        'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer' +
-      '">再試一次</button>' +
-      '<div style="margin-top:6px;font-size:11px;opacity:.7">或稍後再開啟 APP</div>';
-    document.body.appendChild(el);
-    document.getElementById('stall-reload-btn').addEventListener('click', function() {
-      if (typeof _markWsBlocked === 'function') _markWsBlocked();
-      location.reload();
-    });
-  }, 6000);
+    _showContentStallHint();
+  }, stallMs);
 }
 
 const App = {
@@ -569,18 +584,7 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderHomeCritical();
     this._scheduleHomeDeferredRender();
-    /* 白屏卡住偵測：有實際活動卡片 或 確認系統真的沒活動 才算完成 */
-    var _hotEl = document.getElementById('hot-events');
-    var _hasCards = _hotEl && _hotEl.querySelector('.h-card');
-    var _confirmedEmpty = this._cloudReady && typeof FirebaseService !== 'undefined'
-        && FirebaseService._initialized && FirebaseService._cache
-        && FirebaseService._cache.events && FirebaseService._cache.events.length === 0;
-    if (_hasCards || _confirmedEmpty) {
-      window._contentReady = true;
-      if (document.getElementById('content-stall-hint')) {
-        document.getElementById('content-stall-hint').remove();
-      }
-    }
+    this._markHomeContentReady();
     try { this._refreshSportPickerGlow?.(); } catch (_) {}
   },
 
@@ -594,6 +598,72 @@ const App = {
     const homePage = document.getElementById('page-home');
     if (!homePage) return false;
     return this.currentPage === 'page-home' || homePage.classList.contains('active');
+  },
+
+  _isHomeContentReady() {
+    return !!document.querySelector('#page-home #home-sport-entry .home-sport-chip-more');
+  },
+
+  _markHomeContentReady() {
+    if (!this._isHomeContentReady()) return false;
+    window._contentReady = true;
+    document.getElementById('content-stall-hint')?.remove();
+    return true;
+  },
+
+  _shouldRetryHomeContent() {
+    if (this.currentPage !== 'page-home' || this._isHomeContentReady()) return false;
+    if (this._userIntendedPage && this._userIntendedPage !== 'page-home') return false;
+    if (this._getPendingDeepLink?.()) return false;
+    const routePage = this._resolveRouteIntent?.({ skipState: true })?.pageId;
+    return !routePage || routePage === 'page-home';
+  },
+
+  _renderHomeWhenReady() {
+    const homePage = document.getElementById('page-home');
+    if (!homePage?.classList.contains('active') || !this._shouldRetryHomeContent()) return false;
+    this.renderHomeCritical();
+    this._scheduleHomeDeferredRender();
+    return this._markHomeContentReady();
+  },
+
+  _onHomeFragmentLoaded() {
+    try {
+      return this._renderHomeWhenReady();
+    } catch (e) {
+      console.warn('[Boot] 首頁片段補渲染失敗:', e);
+      if (this._shouldRetryHomeContent()) _showContentStallHint(true);
+      return false;
+    }
+  },
+
+  async retryHomeContent() {
+    if (this._homeRetryPromise) return this._homeRetryPromise;
+    const button = document.getElementById('stall-reload-btn');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '載入中…';
+    }
+    this._homeRetryPromise = (async () => {
+      try {
+        await PageLoader.ensurePage('page-home');
+        if (this._isHomeContentReady() || this._renderHomeWhenReady()) return true;
+      } catch (e) {
+        console.warn('[Boot] 重試首頁片段失敗:', e);
+      }
+      if (this._shouldRetryHomeContent()) _showContentStallHint(true);
+      return false;
+    })();
+    try {
+      return await this._homeRetryPromise;
+    } finally {
+      this._homeRetryPromise = null;
+      const retryButton = document.getElementById('stall-reload-btn');
+      if (retryButton) {
+        retryButton.disabled = false;
+        retryButton.textContent = '重試載入首頁';
+      }
+    }
   },
 
   renderHomeCritical() {
@@ -1828,6 +1898,8 @@ const App = {
         ? { _navigationTransitionSeq: Number(fallbackTransitionSeq) }
         : undefined;
       this.showPage(fallbackPage, fallbackOptions);
+    } else if (fallbackPage === 'page-home') {
+      this._onHomeFragmentLoaded();
     }
     if (message) this.showToast(message);
   },
@@ -3803,7 +3875,9 @@ const App = {
       _dismissBootOverlay('Cloud ready');
       // SWR 進度條：SDK 就緒，隱藏進度條（同時清 cold-boot 強化類）
       try { var _sb = document.getElementById('swr-bar'); if (_sb) _sb.classList.remove('active', 'cold-boot'); } catch (_) {}
-      window._contentReady = true;
+      if (this.currentPage !== 'page-home' || this._isHomeContentReady()) {
+        window._contentReady = true;
+      }
       try {
         if (typeof this.bindLineLogin === 'function') {
           await this.bindLineLogin();
@@ -4145,16 +4219,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
+  const pageLoadPromise = PageLoader.loadAll().catch(function(e) {
+    console.warn('[Boot] PageLoader.loadAll() 失敗:', e && e.message || e);
+  });
   const htmlReady = Promise.race([
-    PageLoader.loadAll().catch(function(e) {
-      console.warn('[Boot] PageLoader.loadAll() 失敗:', e && e.message || e);
-    }),
+    pageLoadPromise,
     new Promise(resolve => setTimeout(resolve, 10000)),
   ]).then(() => {
     console.log('[Boot] Phase 1: 完成');
   }).catch((e) => {
     console.error('[Boot] Phase 1 異常:', e && e.message || e);
   });
+  // 10 秒只解除 boot 等待；真正的片段完成或失敗仍須處理。
+  void (async () => {
+    await pageLoadPromise;
+    if (App._shouldRetryHomeContent()) _showContentStallHint(true);
+  })();
 
   // ── Phase 2: 從 localStorage 恢復快取資料 ──
   try {

@@ -128,6 +128,11 @@ const PageLoader = {
     }
   },
 
+  _notifyPageLoaded(fileName) {
+    if (fileName !== 'home' || typeof App === 'undefined') return;
+    App._onHomeFragmentLoaded?.();
+  },
+
   async _fetchPageFragment(fileName, options = {}) {
     const timeoutMs = Math.max(1000, Number(options.timeoutMs) || this._pageFragmentTimeoutMs);
     let timer = null;
@@ -190,6 +195,7 @@ const PageLoader = {
       this._loaded[fileName] = true;
       console.log(`[PageLoader] ${reason}: ${fileName}`);
       this._bindLoadedPageElements();
+      this._notifyPageLoaded(fileName);
     })()
       .catch(err => {
         console.warn(`[PageLoader] ${fileName} 載入失敗:`, err);
@@ -281,6 +287,7 @@ const PageLoader = {
       this._appendToMainContent(html);
       this._loaded[fileName] = true;
       this._bindLoadedPageElements();
+      this._notifyPageLoaded(fileName);
       console.log(`[PageLoader] ${reason}: ${fileName}`);
     }
     this._keepBootHashTargetActive();
@@ -312,6 +319,7 @@ const PageLoader = {
           this._appendToMainContent(html);
           this._loaded[priorityFile] = true;
           this._bindLoadedPageElements();
+          this._notifyPageLoaded(priorityFile);
           console.log(`[PageLoader] deep-link 優先載入: ${priorityFile}`);
           // 觸發 instant deep link 渲染（fire-and-forget，不阻塞後續載入）
           if (typeof App !== 'undefined' && App._deepLinkRestFetch && !App._deepLinkRendered) {
@@ -329,6 +337,7 @@ const PageLoader = {
           this._appendToMainContent(html);
           this._loaded[name] = true;
           this._keepBootHashTargetActive();
+          this._notifyPageLoaded(name);
         }
       }
 

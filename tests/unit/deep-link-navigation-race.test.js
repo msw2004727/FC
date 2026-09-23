@@ -48,6 +48,7 @@ function installDeepLinkApp(pendingRef, overrides = {}) {
     _clearPendingDeepLink: jest.fn(() => { pendingRef.current = null; }),
     _clearDeepLinkQueryParams: jest.fn(),
     _hideDeepLinkOverlay: jest.fn(),
+    _onHomeFragmentLoaded: jest.fn(),
     _recordNavigationDiagnostic: jest.fn(),
     showToast: jest.fn(),
     ...overrides,
@@ -176,6 +177,7 @@ describe('boot and deep-link navigation intent races', () => {
     expect(App._pageTransitionSeq).toBe(2);
     expect(App._userIntendedPage).toBe('page-home');
     expect(App._pendingDeepLinkTransitionSeq).toBe(0);
+    expect(App._onHomeFragmentLoaded).toHaveBeenCalledTimes(1);
   });
 
   test('different-page deep-link fallback reuses its claimed transition', () => {
