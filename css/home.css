@@ -4,6 +4,7 @@
    ================================================ */
 
 /* ─── Banner Carousel ─── */
+#critical-home-probe { position: relative; }
 .banner-carousel { position: relative; border-radius: var(--radius); overflow: hidden; margin-bottom: .68rem; box-shadow: var(--banner-shadow); }
 .banner-track { display: flex; transition: transform .5s cubic-bezier(.4,0,.2,1); will-change: transform; }
 .banner-slide { min-width: 100%; aspect-ratio: 2.2/1; display: flex; align-items: stretch; padding: clamp(.72rem, 2.4vw, 1.1rem); position: relative; transition: background-image 0s, opacity .3s ease; }
