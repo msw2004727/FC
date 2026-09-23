@@ -3,7 +3,7 @@
    ================================================ */
 
 Object.assign(App, {
-  _homeGameRankPreviewSeq: 0,
+  _homeGameRankPreviewSeq: { 'shot-game': 0, 'kick-game': 0 },
   _homeGameRankPreviewUserCache: {},
 
   _getHomeGameRankMonthMeta(nowMs) {
@@ -138,14 +138,13 @@ Object.assign(App, {
   },
 
   _renderHomeGameRankPreview(gameKey, rows, meta) {
-    const previewId = gameKey === 'kick-game' ? 'home-game-rank-kick' : 'home-game-rank-shot';
-    const preview = document.getElementById(previewId);
-    const card = preview?.closest?.('.home-game-card');
-    if (!preview || !card) return;
+    const preview = this._getHomeGameRankPreviewParts(gameKey)?.preview;
+    if (!preview) return;
 
     preview.textContent = '';
     preview.hidden = false;
-    card.classList.add('has-rank-preview');
+    delete preview.dataset.loading;
+    preview.dataset.bucket = meta.bucket;
 
     if (!rows.length) {
       const empty = document.createElement('span');
@@ -167,10 +166,12 @@ Object.assign(App, {
 
     const list = document.createElement('div');
     list.className = 'home-game-rank-list';
+    list.setAttribute('role', 'list');
     rows.forEach((row, index) => {
       const rank = index + 1;
       const pill = document.createElement('span');
       pill.className = 'home-game-rank-pill';
+      pill.setAttribute('role', 'listitem');
       const badge = document.createElement('span');
       badge.className = `home-game-rank-badge rank-${rank}`;
       badge.textContent = String(rank);
@@ -189,37 +190,67 @@ Object.assign(App, {
 
   async _loadHomeGameRankPreview(gameKey, meta) {
     const methodName = gameKey === 'kick-game' ? 'getKickGameLeaderboard' : 'getShotGameLeaderboard';
-    if (typeof ApiService === 'undefined' || typeof ApiService[methodName] !== 'function') return [];
-    const rawRows = await ApiService[methodName]({ period: 'monthly', bucket: meta.bucket, limit: 4 });
+    if (typeof ApiService === 'undefined' || typeof ApiService[methodName] !== 'function') {
+      throw new Error('Leaderboard API unavailable');
+    }
+    const rawRows = await ApiService[methodName]({ period: 'monthly', bucket: meta.bucket, limit: 4, throwOnError: true });
     let rows = this._normalizeHomeGameRankRows(gameKey, rawRows);
     await this._hydrateHomeGameRankUsers(rows);
     rows = this._normalizeHomeGameRankRows(gameKey, rows);
     return rows;
   },
 
-  _scheduleHomeGameRankPreview({ shotAvailable, kickAvailable } = {}) {
-    const seq = ++this._homeGameRankPreviewSeq;
-    const run = () => {
-      if (seq !== this._homeGameRankPreviewSeq) return;
-      const meta = this._getHomeGameRankMonthMeta();
-      const tasks = [];
-      if (shotAvailable) {
-        tasks.push(this._loadHomeGameRankPreview('shot-game', meta)
-          .then(rows => { if (seq === this._homeGameRankPreviewSeq) this._renderHomeGameRankPreview('shot-game', rows, meta); })
-          .catch(() => {}));
-      }
-      if (kickAvailable) {
-        tasks.push(this._loadHomeGameRankPreview('kick-game', meta)
-          .then(rows => { if (seq === this._homeGameRankPreviewSeq) this._renderHomeGameRankPreview('kick-game', rows, meta); })
-          .catch(() => {}));
-      }
-      void Promise.all(tasks);
-    };
+  async loadHomeGameRankPreview(gameKey) {
+    const parts = this._getHomeGameRankPreviewParts(gameKey);
+    const button = parts?.button;
+    const preview = parts?.preview;
+    const card = parts?.card;
+    if (!button || !preview || !card || button.disabled || button.style.display === 'none'
+      || card.style.display === 'none' || this.currentPage !== 'page-home'
+      || this._isHomeGameVisible?.(gameKey) === false) {
+      return { ok: false, reason: 'unavailable' };
+    }
 
-    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      window.requestIdleCallback(run, { timeout: 1200 });
-    } else {
-      setTimeout(run, 80);
+    const meta = this._getHomeGameRankMonthMeta();
+    const seq = ++this._homeGameRankPreviewSeq[gameKey];
+    const authUid = typeof auth !== 'undefined' ? String(auth?.currentUser?.uid || '') : '';
+    const stillCurrent = () => seq === this._homeGameRankPreviewSeq[gameKey]
+      && this.currentPage === 'page-home'
+      && this._getHomeGameRankMonthMeta().bucket === meta.bucket
+      && this._isHomeGameVisible?.(gameKey) !== false
+      && (typeof auth !== 'undefined' ? String(auth?.currentUser?.uid || '') : '') === authUid
+      && button.isConnected && preview.isConnected && button.style.display !== 'none' && card.style.display !== 'none';
+
+    this._startHomeGameRankLoading(parts);
+    try {
+      const rows = await this._loadHomeGameRankPreview(gameKey, meta);
+      if (!stillCurrent()) return { ok: false, reason: 'stale' };
+      this._renderHomeGameRankPreview(gameKey, rows, meta);
+      button.textContent = '更新本月排行';
+      button.setAttribute('aria-label', `更新${parts.gameName}本月排行`);
+      button.setAttribute('aria-expanded', 'true');
+      return { ok: true };
+    } catch (_) {
+      if (!stillCurrent()) return { ok: false, reason: 'stale' };
+      preview.textContent = '排行暫時無法載入，請重試';
+      preview.hidden = false;
+      delete preview.dataset.loading;
+      delete preview.dataset.bucket;
+      button.textContent = '重試載入本月排行';
+      button.setAttribute('aria-label', `重試載入${parts.gameName}本月排行`);
+      button.setAttribute('aria-expanded', 'true');
+      return { ok: false, reason: 'error' };
+    } finally {
+      if (seq === this._homeGameRankPreviewSeq[gameKey]) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        preview.removeAttribute('aria-busy');
+        if (!stillCurrent() && button.textContent === '載入中…') {
+          this._clearHomeGameRankLoading(parts);
+          button.textContent = '查看本月排行';
+          button.setAttribute('aria-label', `查看${parts.gameName}本月排行`);
+        }
+      }
     }
   },
 });

@@ -26,6 +26,8 @@ const ScriptLoader = {
   _manualOnlyGroups: {
     activityMap: true,
     activityComments: true,
+    homeGameRank: true,
+    profileScene: true,
     coursePlanForm: true,
     eventLocationPicker: true,
     // detailCoreSplit（Wave 2 拆包）三個新群組：內容皆為既有 activity group 的子集，
@@ -600,6 +602,9 @@ const ScriptLoader = {
     activityMap: [
       'js/modules/event/event-map-geo.js',
       'js/modules/event/event-map.js',
+    ],
+    homeGameRank: [
+      'js/modules/home-game-rank-preview.js',
     ],
     eventLocationPicker: [
       'js/modules/event/event-location-draft.js',

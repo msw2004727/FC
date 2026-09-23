@@ -57,9 +57,142 @@ Object.assign(App, {
     return this._isHomeGameVisible('shot-game');
   },
 
+  _homeGameRankModuleSeq: { 'shot-game': 0, 'kick-game': 0 },
+
+  _getHomeGameRankPreviewParts(gameKey) {
+    const suffix = gameKey === 'shot-game' ? 'shot' : gameKey === 'kick-game' ? 'kick' : null;
+    if (!suffix) return null;
+    return {
+      button: document.getElementById(`home-game-rank-load-${suffix}`),
+      preview: document.getElementById(`home-game-rank-${suffix}`),
+      card: document.getElementById(`home-game-card-${suffix}`),
+      gameName: suffix === 'shot' ? '蓄力射門' : '開球王',
+    };
+  },
+
+  _startHomeGameRankLoading(parts) {
+    const { button, preview, gameName } = parts;
+    button.disabled = true;
+    button.textContent = '載入中…';
+    button.setAttribute('aria-label', `${gameName}本月排行載入中`);
+    button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-busy', 'true');
+    preview.hidden = false;
+    preview.textContent = '本月排行載入中…';
+    preview.dataset.loading = '1';
+    delete preview.dataset.bucket;
+    preview.setAttribute('aria-busy', 'true');
+  },
+
+  _clearHomeGameRankLoading(parts) {
+    if (parts.preview?.dataset.loading !== '1') return;
+    parts.preview.textContent = '';
+    parts.preview.hidden = true;
+    delete parts.preview.dataset.loading;
+    parts.button?.setAttribute('aria-expanded', 'false');
+  },
+
+  _cancelHomeGameRankPreview(gameKey) {
+    const keys = gameKey ? [gameKey] : ['shot-game', 'kick-game'];
+    keys.forEach(key => {
+      const parts = this._getHomeGameRankPreviewParts(key);
+      if (!parts) return;
+      this._homeGameRankModuleSeq[key] = (this._homeGameRankModuleSeq[key] || 0) + 1;
+      if (this._homeGameRankPreviewSeq) {
+        this._homeGameRankPreviewSeq[key] = (this._homeGameRankPreviewSeq[key] || 0) + 1;
+      }
+      this._clearHomeGameRankLoading(parts);
+      if (parts.button?.disabled) {
+        const loaded = !!parts.preview?.dataset?.bucket;
+        parts.button.textContent = loaded ? '更新本月排行' : '查看本月排行';
+        parts.button.setAttribute('aria-label', `${loaded ? '更新' : '查看'}${parts.gameName}本月排行`);
+      }
+      if (parts.button) {
+        parts.button.disabled = false;
+        parts.button.removeAttribute('aria-busy');
+      }
+      parts.preview?.removeAttribute('aria-busy');
+    });
+  },
+
+  _resetHomeGameRankPreview(gameKey) {
+    const parts = this._getHomeGameRankPreviewParts(gameKey);
+    if (!parts) return;
+    this._cancelHomeGameRankPreview(gameKey);
+    if (parts.preview) {
+      parts.preview.textContent = '';
+      parts.preview.hidden = true;
+      delete parts.preview.dataset.bucket;
+    }
+    if (parts.button) {
+      parts.button.textContent = '查看本月排行';
+      parts.button.setAttribute('aria-label', `查看${parts.gameName}本月排行`);
+      parts.button.setAttribute('aria-expanded', 'false');
+    }
+  },
+
+  async loadHomeGameRankPreview(gameKey) {
+    const parts = this._getHomeGameRankPreviewParts(gameKey);
+    const button = parts?.button;
+    const preview = parts?.preview;
+    const card = parts?.card;
+    if (!button || !preview || !card || button.disabled || button.style.display === 'none'
+      || card.style.display === 'none' || this.currentPage !== 'page-home'
+      || this._isHomeGameVisible(gameKey) === false) {
+      return { ok: false, reason: 'unavailable' };
+    }
+
+    const loader = this.loadHomeGameRankPreview;
+    const seq = ++this._homeGameRankModuleSeq[gameKey];
+    const authUid = typeof auth !== 'undefined' ? String(auth?.currentUser?.uid || '') : '';
+    const stillCurrent = () => seq === this._homeGameRankModuleSeq[gameKey]
+      && this.currentPage === 'page-home'
+      && this._isHomeGameVisible(gameKey) !== false
+      && (typeof auth !== 'undefined' ? String(auth?.currentUser?.uid || '') : '') === authUid
+      && button.isConnected && preview.isConnected && button.style.display !== 'none' && card.style.display !== 'none';
+    this._startHomeGameRankLoading(parts);
+
+    let delegated = false;
+    try {
+      if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+        throw new Error('ScriptLoader unavailable');
+      }
+      await ScriptLoader.ensureGroup('homeGameRank');
+      if (!stillCurrent()) return { ok: false, reason: 'stale' };
+      if (this.loadHomeGameRankPreview === loader) throw new Error('Rank module unavailable');
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      preview.removeAttribute('aria-busy');
+      delegated = true;
+      return await this.loadHomeGameRankPreview(gameKey);
+    } catch (_) {
+      if (!stillCurrent()) return { ok: false, reason: 'stale' };
+      preview.textContent = '排行暫時無法載入，請重試';
+      preview.hidden = false;
+      delete preview.dataset.loading;
+      button.textContent = '重試載入本月排行';
+      button.setAttribute('aria-label', `重試載入${parts.gameName}本月排行`);
+      button.setAttribute('aria-expanded', 'true');
+      return { ok: false, reason: 'error' };
+    } finally {
+      if (!delegated && seq === this._homeGameRankModuleSeq[gameKey]) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        preview.removeAttribute('aria-busy');
+        if (!stillCurrent() && button.textContent === '載入中…') {
+          this._clearHomeGameRankLoading(parts);
+          button.textContent = '查看本月排行';
+          button.setAttribute('aria-label', `查看${parts.gameName}本月排行`);
+        }
+      }
+    }
+  },
+
   renderHomeGameShortcut() {
     const shotCard = document.getElementById('home-game-card-shot');
     const kickCard = document.getElementById('home-game-card-kick');
+    const shotRankButton = document.getElementById('home-game-rank-load-shot');
+    const kickRankButton = document.getElementById('home-game-rank-load-kick');
 
     // Firestore gameConfigs 尚未載入前不渲染，避免 preset 預設值造成閃爍
     // _handleWarmLoadedCollections 載入後會再次呼叫 renderAll → renderHotEvents → 本函式
@@ -69,31 +202,29 @@ Object.assign(App, {
     const shotAvailable = this._isHomeGameVisible('shot-game');
     const kickAvailable = this._isHomeGameVisible('kick-game');
     const anyVisible = shotAvailable || kickAvailable;
+    const currentRankBucket = this._getHomeGameRankMonthMeta?.().bucket;
 
     if (shotCard) {
       shotCard.style.display = shotAvailable ? '' : 'none';
-      if (!shotAvailable) {
-        shotCard.classList.remove('has-rank-preview');
-        const preview = shotCard.querySelector('.home-game-rank-preview');
-        if (preview) preview.hidden = true;
+      const preview = this._getHomeGameRankPreviewParts('shot-game')?.preview;
+      if (!shotAvailable || (preview?.dataset.bucket && preview.dataset.bucket !== currentRankBucket)) {
+        this._resetHomeGameRankPreview?.('shot-game');
       }
     }
+    if (shotRankButton) shotRankButton.style.display = shotAvailable ? '' : 'none';
     if (kickCard) {
       kickCard.style.display = kickAvailable ? '' : 'none';
-      if (!kickAvailable) {
-        kickCard.classList.remove('has-rank-preview');
-        const preview = kickCard.querySelector('.home-game-rank-preview');
-        if (preview) preview.hidden = true;
+      const preview = this._getHomeGameRankPreviewParts('kick-game')?.preview;
+      if (!kickAvailable || (preview?.dataset.bucket && preview.dataset.bucket !== currentRankBucket)) {
+        this._resetHomeGameRankPreview?.('kick-game');
       }
     }
+    if (kickRankButton) kickRankButton.style.display = kickAvailable ? '' : 'none';
 
     // Toggle heading + divider (skip content — cards handled above)
     const firstCard = shotCard || kickCard;
     if (firstCard) {
       this._setHomeSectionVisibility(firstCard, anyVisible, true);
-    }
-    if (anyVisible && typeof this._scheduleHomeGameRankPreview === 'function') {
-      this._scheduleHomeGameRankPreview({ shotAvailable, kickAvailable });
     }
   },
 

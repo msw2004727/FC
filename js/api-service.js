@@ -3108,7 +3108,7 @@ const ApiService = {
    */
   _shotGameLeaderboardCache: {},
 
-  async getShotGameLeaderboard({ period = 'daily', bucket, limit = 50 } = {}) {
+  async getShotGameLeaderboard({ period = 'daily', bucket, limit = 50, throwOnError = false } = {}) {
     if (!bucket) return [];
     const safeLimit = Math.max(1, Math.min(50, Math.round(Number(limit) || 50)));
     const cacheKey = `${bucket}:${safeLimit}`;
@@ -3128,6 +3128,7 @@ const ApiService = {
       return data;
     } catch (err) {
       console.warn('[ApiService] getShotGameLeaderboard failed:', err?.code, err?.message);
+      if (throwOnError) throw err;
       return [];
     }
   },
@@ -3138,7 +3139,7 @@ const ApiService = {
 
   _kickGameLeaderboardCache: {},
 
-  async getKickGameLeaderboard({ period = 'daily', bucket, limit = 50 } = {}) {
+  async getKickGameLeaderboard({ period = 'daily', bucket, limit = 50, throwOnError = false } = {}) {
     if (!bucket) return [];
     const safeLimit = Math.max(1, Math.min(50, Math.round(Number(limit) || 50)));
     const cacheKey = `${bucket}:${safeLimit}`;
@@ -3158,6 +3159,7 @@ const ApiService = {
       return data;
     } catch (err) {
       console.warn('[ApiService] getKickGameLeaderboard failed:', err?.code, err?.message);
+      if (throwOnError) throw err;
       return [];
     }
   },

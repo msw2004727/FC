@@ -1437,6 +1437,7 @@ Object.assign(App, {
     }
     if (this.currentPage === 'page-home' && pageId !== 'page-home') {
       this._cancelHomeDeferredRender?.();
+      this._cancelHomeGameRankPreview?.();
       this.stopBannerCarousel?.();
       this._renderHomeVersionTag?.(false);
       // 暫停首頁無限循環動畫（跑馬燈、浮動廣告呼吸、遊戲卡片光效）
@@ -1444,7 +1445,8 @@ Object.assign(App, {
     }
     if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
       this._profileDeferredSeq = (this._profileDeferredSeq || 0) + 1;
-      this._destroyProfileScene?.();
+      this._profileScenePageEpoch = (this._profileScenePageEpoch || 0) + 1;
+      if (window.ColorCatScene?.isActive?.()) this._destroyProfileScene?.();
     }
     // 離開俱樂部相關頁面：清理教育即時監聽
     // 教育子頁面（分組學員、簽到、行事曆等）保留 students listener
@@ -1485,7 +1487,6 @@ Object.assign(App, {
     this._profileDeferredSeq = seq;
     const stillCurrent = () => seq === this._profileDeferredSeq && this.currentPage === 'page-profile';
     const runWhenIdle = (task, options = {}) => {
-      const delayMs = options.delayMs || 0;
       const timeout = options.timeout || 1500;
       const fallbackDelayMs = options.fallbackDelayMs != null ? options.fallbackDelayMs : 600;
       const runner = () => {
@@ -1506,8 +1507,7 @@ Object.assign(App, {
           setTimeout(runner, fallbackDelayMs);
         }
       };
-      if (delayMs > 0) setTimeout(scheduleIdle, delayMs);
-      else scheduleIdle();
+      scheduleIdle();
     };
 
     runWhenIdle(async () => {
@@ -1516,13 +1516,44 @@ Object.assign(App, {
       if (!stillCurrent()) return;
       this.renderProfileData?.();
     }, { timeout: 1200, fallbackDelayMs: 350 });
+  },
 
-    runWhenIdle(async () => {
-      if (!stillCurrent() || typeof ScriptLoader === 'undefined') return;
-      await ScriptLoader.ensureGroup?.('profileScene');
-      if (!stillCurrent()) return;
-      this._initProfileScene?.();
-    }, { delayMs: 450, timeout: 2500, fallbackDelayMs: 900 });
+  async _requestProfileScene() {
+    const container = document.getElementById('profile-slot-banner');
+    const key = container?.querySelector('.profile-scene-key');
+    if (this.currentPage !== 'page-profile' || !key || key.disabled) return { ok: false };
+
+    const pageEpoch = this._profileScenePageEpoch || 0;
+    const previewMarkup = container.innerHTML;
+    const routeCurrent = () => pageEpoch === (this._profileScenePageEpoch || 0)
+      && this.currentPage === 'page-profile';
+    const stillCurrent = () => routeCurrent() && key.isConnected;
+    key.disabled = true;
+    key.setAttribute('aria-busy', 'true');
+    try {
+      if (typeof ScriptLoader === 'undefined') throw new Error('ScriptLoader unavailable');
+      await ScriptLoader.ensureGroup('profileScene');
+      if (!stillCurrent()) return { ok: false, reason: 'stale' };
+      if (!window.ColorCatScene?.requestUnlock) throw new Error('Profile scene unavailable');
+      return { ok: window.ColorCatScene.requestUnlock('profile-slot-banner') };
+    } catch (err) {
+      if (routeCurrent()) {
+        console.warn('[ProfileScene]', err);
+        this.showToast?.('互動場景載入失敗，請再試一次');
+        if (!container.contains(key)) {
+          try { window.ColorCatScene?.destroy?.(); }
+          catch (cleanupErr) { console.warn('[ProfileScene cleanup]', cleanupErr); }
+          container.removeAttribute('style');
+          container.innerHTML = previewMarkup;
+        }
+      }
+      return { ok: false, reason: 'load_failed' };
+    } finally {
+      if (key.isConnected) {
+        key.disabled = false;
+        key.removeAttribute('aria-busy');
+      }
+    }
   },
 
   _renderPageContent(pageId) {
@@ -1575,6 +1606,9 @@ Object.assign(App, {
       this.renderProfileData();
       this.renderProfileFavorites();
       this._scheduleProfileDeferredWork?.();
+      if (window.ColorCatScene?.isUnlocked?.() && !window.ColorCatScene?.isActive?.()) {
+        this._initProfileScene?.();
+      }
     }
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-leaderboard') this.renderLeaderboard?.();

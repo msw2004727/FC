@@ -455,7 +455,11 @@
       document.getElementById('home-game-divider'),
       document.getElementById('home-game-heading'),
       document.getElementById('home-game-card-shot'),
+      document.getElementById('home-game-rank-load-shot'),
+      document.getElementById('home-game-rank-shot'),
       document.getElementById('home-game-card-kick'),
+      document.getElementById('home-game-rank-load-kick'),
+      document.getElementById('home-game-rank-kick'),
     ];
     if (key === 'sponsors') return [
       document.getElementById('sponsor-divider'),

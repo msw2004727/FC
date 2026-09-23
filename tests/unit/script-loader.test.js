@@ -559,6 +559,10 @@ describe('detailCoreSplit — 延後群組一致性（真實群組定義）', ()
     expect(SL._manualOnlyGroups.activityDetailAttendance).toBe(true);
     expect(SL._manualOnlyGroups.activityCreate).toBe(true);
     expect(SL._manualOnlyGroups.activityManage).toBe(true);
+    expect(SL._manualOnlyGroups.homeGameRank).toBe(true);
+    expect(SL._manualOnlyGroups.profileScene).toBe(true);
+    expect(SL._groups.homeGameRank).toEqual(['js/modules/home-game-rank-preview.js']);
+    expect(Object.values(SL._pageGroups).flat()).not.toContain('homeGameRank');
   });
 });
 
@@ -640,6 +644,8 @@ describe('activity list and detail preload boundaries', () => {
     SL.preloadAll();
 
     deferredAttendanceScripts.forEach(src => expect(loadedScripts).not.toContain(src));
+    expect(loadedScripts).not.toContain('js/modules/home-game-rank-preview.js');
+    expect(loadedScripts).not.toContain('js/modules/color-cat/color-cat-config.js');
     expect(loadedScripts).toContain('js/modules/event/event-detail.js');
   });
 

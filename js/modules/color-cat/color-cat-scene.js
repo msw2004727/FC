@@ -661,6 +661,19 @@ function _drawKey(ctx, cx, cy, light) {
   ctx.restore();
 }
 
+function requestUnlock(containerId) {
+  var pw = prompt('請輸入測試密碼');
+  if (pw !== '8888') return false;
+  _profileUnlocked = true;
+  try {
+    initInteractiveScene(containerId);
+    return true;
+  } catch (err) {
+    _profileUnlocked = false;
+    throw err;
+  }
+}
+
 function initStaticScene(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
@@ -714,12 +727,7 @@ function initStaticScene(containerId) {
     var cx = e.clientX - rect.left;
     var cy = e.clientY - rect.top;
     if (Math.abs(cx - _keyX) < 16 && Math.abs(cy - _keyY - 5) < 16) {
-      var pw = prompt('請輸入測試密碼');
-      if (pw === '8888') {
-        _profileUnlocked = true;
-        destroy();
-        initInteractiveScene(containerId);
-      }
+      requestUnlock(containerId);
     }
   });
 
@@ -807,6 +815,12 @@ window.ColorCatScene = {
   initStatic: initStaticScene,
   destroy: destroy,
   init: initStaticScene,
+  requestUnlock: requestUnlock,
+  isUnlocked: function() { return _profileUnlocked; },
+  isActive: function() {
+    var el = document.getElementById('profile-slot-banner');
+    return !!_container || !!(el && el._fcObserver);
+  },
   // TODO: 正式版由後台設定觸發長花，此 API 供外部（測試工具列 / 後台排程）呼叫
   addFlower: function() { _.addFlower(_sw); },
   getSw: function() { return _sw; },

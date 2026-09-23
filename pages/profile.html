@@ -31,7 +31,16 @@
           </div>
         </div>
         <!-- 預留插入區（廣告/公告/快捷功能等） -->
-        <div id="profile-slot-banner" style="height:127px;border-radius:var(--radius-sm);box-sizing:border-box"></div>
+        <div id="profile-slot-banner" class="profile-scene-preview">
+          <button type="button" class="profile-scene-key" onclick="App._requestProfileScene()" aria-label="場景鑰匙">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="6" r="4"/><path d="M12 10v11m0-4h4m-4 4h4"/></svg>
+          </button>
+          <span class="profile-scene-stars" aria-hidden="true"></span>
+          <span class="profile-scene-orb" aria-hidden="true"></span>
+          <span class="profile-scene-title">Coming soon.</span>
+          <span class="profile-scene-subtitle">── 敬請期待 ──</span>
+          <span class="profile-scene-grass" aria-hidden="true"></span>
+        </div>
         <div class="profile-stats">
           <div class="stat-item"><span class="stat-num" id="profile-stat-total">0</span><span class="stat-label" data-i18n="應到場次">應到場次</span></div>
           <div class="stat-item"><span class="stat-num" id="profile-stat-done">0</span><span class="stat-label" data-i18n="完成場次">完成場次</span></div>

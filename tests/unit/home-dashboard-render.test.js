@@ -31,6 +31,10 @@ const homeGameRankPreviewSource = fs.readFileSync(
   path.join(__dirname, "../../js/modules/home-game-rank-preview.js"),
   "utf8"
 );
+const scriptLoaderSource = fs.readFileSync(
+  path.join(__dirname, "../../js/core/script-loader.js"),
+  "utf8"
+);
 const adminContentSource = fs.readFileSync(
   path.join(__dirname, "../../pages/admin-content.html"),
   "utf8"
@@ -174,15 +178,20 @@ describe("home-dashboard browser binding", () => {
     expect(homeHtmlSource).toContain("home-game-heading");
     expect(homeHtmlSource).toContain("home-game-rank-shot");
     expect(homeHtmlSource).toContain("home-game-rank-kick");
+    expect(homeHtmlSource).toContain("home-game-rank-load-shot");
+    expect(homeHtmlSource).toContain("home-game-rank-load-kick");
     expect(homeHtmlSource).not.toContain("home-watch-party-art");
     expect(homeCssSource).toContain(".home-game-rank-pill");
     expect(homeCssSource).toContain(".home-game-rank-month");
-    expect(eventListHomeSource).toContain("_scheduleHomeGameRankPreview");
-    expect(homeGameRankPreviewSource).toContain("_scheduleHomeGameRankPreview");
+    expect(eventListHomeSource).not.toContain("_scheduleHomeGameRankPreview");
+    expect(homeGameRankPreviewSource).toContain("loadHomeGameRankPreview");
     expect(homeGameRankPreviewSource).toContain("getShotGameLeaderboard");
     expect(homeGameRankPreviewSource).toContain("getKickGameLeaderboard");
     expect(homeGameRankPreviewSource).toContain("monthly_");
-    expect(indexSource).toContain("js/modules/home-game-rank-preview.js");
+    expect(indexSource).not.toContain("js/modules/home-game-rank-preview.js");
+    expect(scriptLoaderSource).toContain("homeGameRank: true");
+    expect(scriptLoaderSource).toMatch(/homeGameRank:\s*\[\s*'js\/modules\/home-game-rank-preview\.js'/);
+    expect(eventListHomeSource).toContain("ScriptLoader.ensureGroup('homeGameRank')");
     expect(apiServiceSource).toContain("getKickGameLeaderboard");
     expect(apiServiceSource).toContain("kickGameRankings");
     expect(homeCssSource).toContain("banner-create-event-btn");
@@ -474,7 +483,11 @@ describe("home-dashboard browser binding", () => {
         <hr id="home-game-divider">
         <div id="home-game-heading"></div>
         <button id="home-game-card-shot"></button>
+        <button id="home-game-rank-load-shot"></button>
+        <div id="home-game-rank-shot"></div>
         <button id="home-game-card-kick"></button>
+        <button id="home-game-rank-load-kick"></button>
+        <div id="home-game-rank-kick"></div>
         <hr id="sponsor-divider">
         <div id="sponsor-grid"></div>
         <hr id="news-divider">
@@ -502,6 +515,10 @@ describe("home-dashboard browser binding", () => {
     const order = Array.from(dom.window.document.getElementById("page-home").children)
       .map(el => el.id || el.className);
     expect(order.slice(0, 4)).toEqual(["info-section", "banner-section", "sponsor-divider", "sponsor-grid"]);
+    expect(order.indexOf('home-game-rank-load-shot')).toBe(order.indexOf('home-game-card-shot') + 1);
+    expect(order.indexOf('home-game-rank-shot')).toBe(order.indexOf('home-game-rank-load-shot') + 1);
+    expect(order.indexOf('home-game-rank-load-kick')).toBe(order.indexOf('home-game-card-kick') + 1);
+    expect(order.indexOf('home-game-rank-kick')).toBe(order.indexOf('home-game-rank-load-kick') + 1);
     expect(order).toContain("floating-ads");
   });
 
