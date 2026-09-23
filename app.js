@@ -1031,6 +1031,7 @@ const App = {
     const ignoreSwPending = options.ignoreSwPending === true;
     const ignorePageSafety = options.ignorePageSafety === true;
     const ignoreBootPending = options.ignoreBootPending === true;
+    const ignoreModalSafety = options.ignoreModalSafety === true;
     const blocked = (reason, canPrompt = true) => ({ safe: false, reason, canPrompt });
     const ok = () => ({ safe: true, reason: 'safe', canPrompt: false });
     const hasEntries = (value) => {
@@ -1074,8 +1075,8 @@ const App = {
       return blocked('lazy-continuation-pending');
     }
 
-    if (doc) {
-      if (doc.body?.classList?.contains('image-cropper-open')) return blocked('image-cropper-open');
+    if (doc?.body?.classList?.contains('image-cropper-open')) return blocked('image-cropper-open');
+    if (doc && !ignoreModalSafety) {
       const uidQrModal = doc.getElementById?.('uid-qr-modal');
       if (uidQrModal && uidQrModal.style?.display && uidQrModal.style.display !== 'none') {
         return blocked('modal-open');

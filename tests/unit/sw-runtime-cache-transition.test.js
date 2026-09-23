@@ -121,6 +121,19 @@ function dispatchFetch(handler, request) {
 }
 
 describe('Service Worker runtime cache transition behavior', () => {
+  test('reports the version of the worker that actually handles the message', () => {
+    const harness = createSwHarness();
+    const postMessage = jest.fn();
+    harness.listeners.message({
+      data: { type: 'SPORTHUB_GET_VERSION' },
+      ports: [{ postMessage }],
+    });
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'SPORTHUB_VERSION',
+      version: harness.helpers.CACHE_NAME.replace('sporthub-', ''),
+    });
+  });
+
   test('helper and activate retain the two newest formal previous runtime caches', async () => {
     const formalOld = [
       'sporthub-0.20260101',

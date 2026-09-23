@@ -124,6 +124,25 @@ describe('Service Worker reload gate helper', () => {
     expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'image-cropper-open' });
   });
 
+  test('explicit modal override still blocks a concurrent write or login', () => {
+    const { App, document } = loadApp('<!doctype html><body><div class="modal open"></div></body>');
+    App.currentPage = 'page-home';
+    expect(App._isSafeToAutoReload()).toMatchObject({ safe: false, reason: 'modal-open' });
+    expect(App._isSafeToAutoReload({ ignoreModalSafety: true })).toMatchObject({ safe: true });
+
+    App._eventSubmitInFlight = true;
+    expect(App._isSafeToAutoReload({ ignoreModalSafety: true }))
+      .toMatchObject({ safe: false, reason: 'write-pending' });
+    App._eventSubmitInFlight = false;
+    App._pendingAuthAction = true;
+    expect(App._isSafeToAutoReload({ ignoreModalSafety: true }))
+      .toMatchObject({ safe: false, reason: 'auth-pending' });
+    App._pendingAuthAction = false;
+    document.body.classList.add('image-cropper-open');
+    expect(App._isSafeToAutoReload({ ignoreModalSafety: true }))
+      .toMatchObject({ safe: false, reason: 'image-cropper-open' });
+  });
+
   test('visible QR, PWA overlays and profile drafts block auto reload', () => {
     const { App, document } = loadApp(
       '<!doctype html><body><div id="toast"></div><div id="uid-qr-modal" style="display:none"></div></body>'
@@ -543,6 +562,41 @@ function flushMicrotasks() {
   return Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
 }
 
+function attachControlledWorker(ctx, initialVersion = '0.old') {
+  const listeners = new Set();
+  const serviceWorker = ctx.navigator.serviceWorker;
+  ctx.window.MessageChannel = class {
+    constructor() {
+      this.port1 = { onmessage: null, close: jest.fn() };
+      this.port2 = {
+        close: jest.fn(),
+        postMessage: data => Promise.resolve().then(() => this.port1.onmessage?.({ data })),
+      };
+    }
+  };
+  const controllerFor = version => ({
+    postMessage: jest.fn((message, ports) => {
+      if (message.type === 'SPORTHUB_GET_VERSION' && version) {
+        ports[0].postMessage({ type: 'SPORTHUB_VERSION', version });
+      }
+    }),
+  });
+  serviceWorker.controller = controllerFor(initialVersion);
+  serviceWorker.addEventListener = jest.fn((type, listener) => {
+    if (type === 'controllerchange') listeners.add(listener);
+  });
+  serviceWorker.removeEventListener = jest.fn((type, listener) => {
+    if (type === 'controllerchange') listeners.delete(listener);
+  });
+  return {
+    changeTo(version) {
+      serviceWorker.controller = controllerFor(version);
+      listeners.forEach(listener => listener());
+    },
+    listeners,
+  };
+}
+
 describe('Cache version bootstrap behavior', () => {
   test('ordinary version change preserves SW, caches and display cache while setting a bounded transition', () => {
     const startedAt = Date.now();
@@ -603,7 +657,7 @@ describe('Cache version bootstrap behavior', () => {
     }
   });
 
-  test('asset recovery update timeout preserves offline caches and still reloads', async () => {
+  test('an uncontrolled page keeps its bounded reload path without deleting caches', async () => {
     jest.useFakeTimers();
     try {
       const ctx = runCacheVersionBootstrap();
@@ -627,6 +681,120 @@ describe('Cache version bootstrap behavior', () => {
       expect(ctx.location.reload).toHaveBeenCalledTimes(1);
       expect(ctx.caches.keys).not.toHaveBeenCalled();
       expect(ctx.caches.delete).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('a slow old worker cannot force an early reload before the new version controls the page', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap();
+      const worker = attachControlledWorker(ctx, '');
+      ctx.registrations[0].update.mockImplementation(() => new Promise(() => {}));
+
+      const recovery = ctx.recoverSportHubScriptFailure('https://toosterx.test/js/missing.js', {
+        resourceType: 'script', versionMiss: true,
+      });
+      await flushMicrotasks();
+      jest.advanceTimersByTime(1850);
+      await flushMicrotasks();
+      expect(ctx.location.reload).not.toHaveBeenCalled();
+
+      worker.changeTo(ctx.version);
+      await flushMicrotasks();
+      await expect(recovery).resolves.toMatchObject({ reloading: true, attempts: 1 });
+      jest.advanceTimersByTime(350);
+      expect(ctx.location.reload).toHaveBeenCalledTimes(1);
+      expect(worker.listeners.size).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('an older tab can reload immediately when a newer worker already controls it', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap();
+      attachControlledWorker(ctx, '0.20991231a');
+      const recovery = ctx.recoverSportHubScriptFailure('https://toosterx.test/pages/team.html', {
+        resourceType: 'page-fragment', versionMiss: true,
+      });
+      await flushMicrotasks();
+      await expect(recovery).resolves.toMatchObject({ reloading: true, attempts: 1 });
+      jest.advanceTimersByTime(350);
+      expect(ctx.location.reload).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('a worker with the wrong version times out to manual retry without a reload loop', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap();
+      const worker = attachControlledWorker(ctx);
+      ctx.registrations[0].update.mockImplementation(() => new Promise(() => {}));
+      const recovery = ctx.recoverSportHubScriptFailure('https://toosterx.test/pages/team.html', {
+        resourceType: 'page-fragment', versionMiss: true,
+      });
+      await flushMicrotasks();
+      worker.changeTo('0.another');
+      await flushMicrotasks();
+      jest.advanceTimersByTime(20000);
+      await expect(recovery).resolves.toMatchObject({ manual: true, reason: 'controller-timeout' });
+      expect(ctx.location.reload).not.toHaveBeenCalled();
+      expect(ctx.window._sporthubAssetRecoveryManualRequired).toBe(true);
+      expect(worker.listeners.size).toBe(0);
+      await expect(ctx.recoverSportHubScriptFailure('again')).resolves.toMatchObject({ manual: true });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('CSS retry during a pending worker update does not start a competing wait', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = runCacheVersionBootstrap();
+      const worker = attachControlledWorker(ctx, '');
+      ctx.registrations[0].update.mockImplementation(() => new Promise(() => {}));
+      const button = { id: 'critical-css-retry', disabled: false, textContent: '', onclick: null };
+      ctx.document.body = {};
+      ctx.window._criticalCssGuard = {
+        pending: () => true,
+        showRetry: jest.fn((message, retry) => {
+          button.disabled = false;
+          button.onclick = () => retry(button);
+          return true;
+        }),
+      };
+
+      const recovery = ctx.recoverSportHubScriptFailure('https://toosterx.test/css/base.css', {
+        resourceType: 'stylesheet',
+      });
+      await flushMicrotasks();
+      jest.advanceTimersByTime(15000);
+      ctx.showSportHubAssetRecoveryButton('網站樣式載入逾時', { guardTimeout: true });
+      button.onclick();
+      expect(button.disabled).toBe(true);
+      expect(ctx.registrations[0].update).toHaveBeenCalledTimes(1);
+      // An online event may clear pending while the update itself is still running.
+      ctx.window._sporthubAssetRecoveryPending = false;
+      ctx.showSportHubAssetRecoveryButton('網站樣式載入逾時', { guardTimeout: true });
+      button.onclick();
+      expect(ctx.registrations[0].update).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(5000);
+      await expect(recovery).resolves.toMatchObject({ manual: true, reason: 'controller-timeout' });
+      expect(ctx.location.reload).not.toHaveBeenCalled();
+      expect(button.disabled).toBe(false);
+      expect(worker.listeners.size).toBe(0);
+
+      worker.changeTo(ctx.version);
+      button.onclick();
+      await flushMicrotasks();
+      jest.advanceTimersByTime(350);
+      expect(ctx.location.reload).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
     }

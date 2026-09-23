@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260923a';
+const CACHE_NAME       = 'sporthub-0.20260923b';
 const PRECACHE_VERSION = CACHE_NAME.replace('sporthub-', '');
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const RUNTIME_CACHE_NAME_RE = /^sporthub-\d+\.\d{8}[a-z0-9._-]*$/i;
@@ -68,7 +68,6 @@ const STATIC_ASSETS = [
   './img/Instagram-Logo--Streamline-Plump-Gradient.png',
   './img/Thread-Block-Logo--Streamline-Ultimate.png',
   './img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png',
-  './img/1more.png',
   './img/chat.png',
 ];
 
@@ -257,6 +256,14 @@ self.addEventListener('activate', (event) => {
       caches.open(IMAGE_CACHE_NAME).then(cache => trimImageCache(cache)),
     ])
   );
+});
+
+// The page must verify which worker actually controls it before retrying a
+// versioned asset. An update() promise alone does not imply activation.
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'SPORTHUB_GET_VERSION') return;
+  const port = event.ports?.[0];
+  if (port) port.postMessage({ type: 'SPORTHUB_VERSION', version: PRECACHE_VERSION });
 });
 
 // ─── Fetch 攔截 ───
