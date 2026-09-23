@@ -241,6 +241,39 @@ img.img-preloaded, img[src=""], img:not([src]) { opacity: 1; transition: none; }
 .modal-body h4:first-child { margin-top: 0; }
 .modal-actions { display: flex; gap: .5rem; padding: .75rem 1.2rem; border-top: 1px solid var(--border); justify-content: flex-end; }
 
+/* Mobile external-browser LINE login choices */
+#modal-overlay.line-login-hint-overlay {
+  background: rgba(0,0,0,.35);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+#mobile-line-login-hint-modal {
+  max-width: 440px;
+  margin-inline: auto;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+}
+#mobile-line-login-hint-modal .line-login-hint-body {
+  padding-bottom: calc(1.3rem + env(safe-area-inset-bottom, 0px));
+}
+.line-login-hint-intro { margin-bottom: 1rem; color: var(--text-secondary); }
+.line-login-hint-action { width: 100%; min-height: 48px; font-size: .95rem; }
+.line-login-hint-primary,
+.line-login-hint-primary:hover,
+.line-login-hint-primary:active {
+  background: var(--accent-hover);
+  color: var(--bg-card);
+}
+.line-login-hint-secondary { background: var(--bg-elevated); color: var(--text-primary); }
+.line-login-hint-secondary:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--accent); }
+.line-login-hint-note { margin-top: .45rem; color: var(--text-secondary); text-align: center; font-size: .78rem; line-height: 1.5; }
+.line-login-hint-or { display: flex; align-items: center; gap: .8rem; margin: 1rem 0; color: var(--text-secondary); font-size: .78rem; }
+.line-login-hint-or::before,
+.line-login-hint-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+.line-login-hint-cancel { display: block; margin: 1rem auto 0; padding: .3rem 1rem; color: var(--text-secondary); font-size: .85rem; font-weight: 600; }
+.line-login-hint-action:focus-visible,
+.line-login-hint-cancel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ─── Modal open body lock (iOS scroll-through fix) ─── */
 body.modal-open { overflow: hidden; }
 

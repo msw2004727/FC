@@ -1536,11 +1536,9 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "＋ 新增俱樂部": "+ Add club",
   "+ 新增連結": "+ Add link",
   "＋我要開團": "+ Host activity",
-  "⭐ 長按「使用 LINE 應用程式登入」": "⭐ Long-press \"Log in with LINE app\"",
   "🎲 隨機": "🎲 Random",
   "👆 自選": "👆 Pick manually",
   "📋 主辦": "📋 Host",
-  "📱 LINE 登入步驟": "📱 LINE login steps",
   "0 為免費": "0 means free",
   "6成新以下": "Below 60% new",
   "7成新": "70% new",
@@ -1572,7 +1570,6 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "分隊功能": "Team split",
   "切換運動項目": "Switch sport",
   "尺寸 / 規格": "Size / Spec",
-  "手指按住不放、約 1 秒": "Press and hold for about 1 second",
   "手動簽到": "Manual check-in",
   "方案名單": "Plan roster",
   "日": "Day",
@@ -1612,7 +1609,6 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "全新": "Brand new",
   "全選": "Select all",
   "同意並送出": "Agree and submit",
-  "在 LINE 中打開": "Open in LINE",
   "地區": "Region",
   "地點": "Location",
   "如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。": "To offer early-bird registration before general opening, enable it in Advanced Features and set the points cost.",
@@ -1686,7 +1682,6 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "花蓮縣": "Hualien County",
   "返回": "Back",
   "金門縣": "Kinmen County",
-  "長按": "Long press",
   "非必填": "Optional",
   "非必選；開啟後僅限所選性別報名，性別空白或其他不可報名": "Optional. When enabled, only the selected gender may register; blank or other gender cannot register.",
   "南投縣": "Nantou County",
@@ -1871,7 +1866,6 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "編輯社群連結": "Edit social links",
   "編輯俱樂部": "Edit club",
   "編輯學員": "Edit student",
-  "複製連結用 LINE 開啟（最快）": "Copy link and open with LINE (fastest)",
   "課程方案": "Course plans",
   "課程簽到": "Course check-in",
   "請先使用 LINE 帳號登入以查看個人資料": "Log in with your LINE account to view your profile",
@@ -1928,7 +1922,6 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "關閉 — 不限制性別": "Off - no gender restriction",
   "關閉 — 所有人可見": "Off - visible to everyone",
   "關閉時建立後立即開放報名；開啟後可指定開放日期與時間。": "When off, registration opens immediately after creation. When on, you can set the opening date and time.",
-  "繼續登入": "Continue login",
   "護具": "Protective gear",
   "顯示於說明頁文字下方，用於圖片補充說明": "Displayed below the help text as image supplementary notes",
   "觀賽": "Spectating",
@@ -1962,11 +1955,9 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 ＋ 新增俱樂部	+ クラブを追加	+ 클럽 추가	+ เพิ่มคลับ	+ Thêm CLB
 + 新增連結	+ リンクを追加	+ 링크 추가	+ เพิ่มลิงก์	+ Thêm liên kết
 ＋我要開團	+ イベントを主催	+ 활동 열기	+ เปิดกิจกรรม	+ Tạo hoạt động
-⭐ 長按「使用 LINE 應用程式登入」	⭐ 「LINEアプリでログイン」を長押し	⭐ "LINE 앱으로 로그인"을 길게 누르세요	⭐ กดค้าง "เข้าสู่ระบบด้วยแอป LINE"	⭐ Nhấn giữ "Đăng nhập bằng ứng dụng LINE"
 🎲 隨機	🎲 ランダム	🎲 무작위	🎲 สุ่ม	🎲 Ngẫu nhiên
 👆 自選	👆 自分で選択	👆 직접 선택	👆 เลือกเอง	👆 Tự chọn
 📋 主辦	📋 主催	📋 주최	📋 ผู้จัด	📋 Chủ trì
-📱 LINE 登入步驟	📱 LINEログイン手順	📱 LINE 로그인 단계	📱 ขั้นตอนเข้าสู่ระบบ LINE	📱 Các bước đăng nhập LINE
 0 為免費	0 は無料	0은 무료	0 คือฟรี	0 là miễn phí
 6成新以下	6割未満	60% 이하	สภาพต่ำกว่า 60%	Độ mới dưới 60%
 7成新	7割程度	70% 새것	สภาพ 70%	Độ mới 70%
@@ -1998,7 +1989,6 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 分隊功能	チーム分け機能	팀 나누기 기능	ฟังก์ชันแบ่งทีม	Tính năng chia đội
 切換運動項目	スポーツを切り替え	스포츠 전환	เปลี่ยนกีฬา	Đổi môn thể thao
 尺寸 / 規格	サイズ / 規格	사이즈 / 규격	ขนาด / สเปก	Kích thước / Quy cách
-手指按住不放、約 1 秒	指で約1秒長押し	손가락으로 약 1초 길게 누르기	ใช้นิ้วกดค้างประมาณ 1 วินาที	Nhấn giữ khoảng 1 giây
 手動簽到	手動チェックイン	수동 체크인	เช็กอินด้วยตนเอง	Điểm danh thủ công
 方案名單	プラン名簿	플랜 명단	รายชื่อแพ็กเกจ	Danh sách gói
 日	日	일	วัน	Ngày
@@ -2038,7 +2028,6 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 全新	新品	새 상품	ใหม่เอี่ยม	Mới hoàn toàn
 全選	すべて選択	전체 선택	เลือกทั้งหมด	Chọn tất cả
 同意並送出	同意して送信	동의하고 제출	ยอมรับและส่ง	Đồng ý và gửi
-在 LINE 中打開	LINEで開く	LINE에서 열기	เปิดใน LINE	Mở trong LINE
 地區	地域	지역	พื้นที่	Khu vực
 地點	場所	장소	สถานที่	Địa điểm
 如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。	一般受付前に早割登録を提供する場合は、「詳細機能」で早割登録を有効にし、消費ポイントを設定してください。	정식 오픈 전 얼리버드 등록을 제공하려면 "고급 기능"에서 얼리버드 등록을 켜고 소모 포인트를 설정하세요.	หากต้องการเปิดสมัคร Early-bird ก่อนเปิดจริง ให้ไปที่ "ฟังก์ชันขั้นสูง" เพื่อเปิดและตั้งค่าแต้มที่ใช้	Nếu muốn mở đăng ký sớm trước thời gian chính thức, hãy bật trong "Tính năng nâng cao" và đặt số điểm tiêu hao.
@@ -2112,7 +2101,6 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 花蓮縣	花蓮県	화롄현	เทศมณฑลฮวาเหลียน	Hoa Liên
 返回	戻る	뒤로	กลับ	Quay lại
 金門縣	金門県	진먼현	เทศมณฑลจินเหมิน	Kim Môn
-長按	長押し	길게 누르기	กดค้าง	Nhấn giữ
 非必填	任意	선택 사항	ไม่บังคับ	Không bắt buộc
 非必選；開啟後僅限所選性別報名，性別空白或其他不可報名	任意。有効にすると選択した性別のみ登録できます。性別未入力またはその他は登録できません。	선택 사항. 켜면 선택한 성별만 등록할 수 있으며 성별 공란 또는 기타는 등록할 수 없습니다.	ไม่บังคับ เมื่อเปิดแล้วจะรับสมัครเฉพาะเพศที่เลือก เพศว่างหรืออื่นๆ จะสมัครไม่ได้	Không bắt buộc. Khi bật, chỉ giới tính đã chọn được đăng ký; để trống hoặc khác sẽ không đăng ký được.
 南投縣	南投県	난터우현	เทศมณฑลหนานโถว	Nam Đầu
@@ -2297,7 +2285,6 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 編輯社群連結	SNSリンクを編集	소셜 링크 편집	แก้ไขลิงก์โซเชียล	Chỉnh sửa liên kết mạng xã hội
 編輯俱樂部	クラブを編集	클럽 편집	แก้ไขคลับ	Chỉnh sửa CLB
 編輯學員	生徒を編集	학생 편집	แก้ไขนักเรียน	Chỉnh sửa học viên
-複製連結用 LINE 開啟（最快）	リンクをコピーしてLINEで開く（最速）	링크를 복사해 LINE에서 열기(가장 빠름)	คัดลอกลิงก์แล้วเปิดด้วย LINE (เร็วที่สุด)	Sao chép liên kết và mở bằng LINE (nhanh nhất)
 課程方案	コースプラン	수업 플랜	แพ็กเกจคอร์ส	Gói khóa học
 課程簽到	レッスンチェックイン	수업 체크인	เช็กอินคอร์ส	Điểm danh khóa học
 請先使用 LINE 帳號登入以查看個人資料	プロフィールを見るにはLINEアカウントでログインしてください	프로필을 보려면 LINE 계정으로 로그인하세요	กรุณาเข้าสู่ระบบด้วยบัญชี LINE เพื่อดูข้อมูลส่วนตัว	Vui lòng đăng nhập bằng tài khoản LINE để xem hồ sơ
@@ -2354,7 +2341,6 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 關閉 — 不限制性別	オフ — 性別制限なし	끄기 - 성별 제한 없음	ปิด — ไม่จำกัดเพศ	Tắt - không giới hạn giới tính
 關閉 — 所有人可見	オフ — 全員に表示	끄기 - 모두에게 표시	ปิด — ทุกคนมองเห็น	Tắt - mọi người đều thấy
 關閉時建立後立即開放報名；開啟後可指定開放日期與時間。	オフの場合は作成後すぐ受付開始。オンの場合は開始日と時間を指定できます。	끄면 생성 후 즉시 등록이 열립니다. 켜면 오픈 날짜와 시간을 지정할 수 있습니다.	เมื่อปิด จะเปิดรับสมัครทันทีหลังสร้าง เมื่อเปิด จะกำหนดวันที่และเวลาเปิดได้	Khi tắt, đăng ký mở ngay sau khi tạo; khi bật, có thể chỉ định ngày và giờ mở.
-繼續登入	ログインを続行	로그인 계속	เข้าสู่ระบบต่อ	Tiếp tục đăng nhập
 護具	プロテクター	보호 장비	อุปกรณ์ป้องกัน	Đồ bảo hộ
 顯示於說明頁文字下方，用於圖片補充說明	説明ページのテキスト下に表示され、画像の補足説明に使用されます	설명 페이지 텍스트 아래에 표시되며 이미지 보충 설명에 사용됩니다	แสดงใต้ข้อความคำอธิบาย ใช้เป็นคำอธิบายเพิ่มเติมของรูปภาพ	Hiển thị dưới phần chữ hướng dẫn, dùng để bổ sung chú thích ảnh
 觀賽	観戦	관전	ชมการแข่งขัน	Xem thi đấu
@@ -2404,6 +2390,22 @@ Object.assign(I18N._packs.ja, STATIC_UI_SOURCE_TEXT_LOCALES.ja, STATIC_UI_SEMANT
 Object.assign(I18N._packs.ko, STATIC_UI_SOURCE_TEXT_LOCALES.ko, STATIC_UI_SEMANTIC_KO);
 Object.assign(I18N._packs.th, STATIC_UI_SOURCE_TEXT_LOCALES.th, STATIC_UI_SEMANTIC_TH);
 Object.assign(I18N._packs.vi, STATIC_UI_SOURCE_TEXT_LOCALES.vi, STATIC_UI_SEMANTIC_VI);
+
+const LINE_LOGIN_HINT_ROWS = `
+lineLoginHint.title	用 LINE 登入	Log in with LINE	LINEでログイン	LINE으로 로그인	เข้าสู่ระบบด้วย LINE	Đăng nhập bằng LINE
+lineLoginHint.choose	選一種方式即可	Choose one option	どちらかを選んでください	한 가지 방법을 선택하세요	เลือกวิธีใดวิธีหนึ่ง	Chọn một cách đăng nhập
+lineLoginHint.loginPage	前往 LINE 登入頁	Go to LINE login page	LINEログインページへ	LINE 로그인 페이지로 이동	ไปที่หน้าเข้าสู่ระบบ LINE	Đến trang đăng nhập LINE
+lineLoginHint.nextStep	下一頁選「使用 LINE 應用程式登入」	On the next page, choose ‘Log in with LINE app’	次のページで「LINEアプリでログイン」を選択	다음 페이지에서 'LINE 앱으로 로그인'을 선택하세요	ในหน้าถัดไป เลือก “เข้าสู่ระบบด้วยแอป LINE”	Ở trang tiếp theo, chọn “Đăng nhập bằng ứng dụng LINE”
+lineLoginHint.or	或	or	または	또는	หรือ	hoặc
+lineLoginHint.copy	複製連結	Copy link	リンクをコピー	링크 복사	คัดลอกลิงก์	Sao chép liên kết
+lineLoginHint.copyStep	貼到 LINE，點「前往」	Paste in LINE, then tap ‘Go’	LINEに貼り付けて「開く」をタップ	LINE에 붙여넣고 '이동'을 탭하세요	วางใน LINE แล้วแตะ “ไป”	Dán vào LINE rồi nhấn “Đi đến”
+`;
+LINE_LOGIN_HINT_ROWS.trim().split(/\r?\n/).forEach(row => {
+  const [key, ...translations] = row.split('\t');
+  ['zh-TW', 'en', 'ja', 'ko', 'th', 'vi'].forEach((locale, i) => {
+    I18N._packs[locale][key] = translations[i];
+  });
+});
 
 I18N.init();
 

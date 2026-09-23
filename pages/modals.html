@@ -150,30 +150,19 @@
   </div>
 </div>
 
-<!-- 2026-04-25：手機外部瀏覽器 LINE 登入提示 modal -->
+<!-- 手機外部瀏覽器 LINE 登入提示 modal -->
 <div class="modal" id="mobile-line-login-hint-modal" data-no-backdrop-close="1">
   <div class="modal-header">
-    <h3 data-i18n="📱 LINE 登入步驟">📱 LINE 登入步驟</h3>
-    <button class="modal-close" onclick="App.closeModal()">✕</button>
+    <h3 data-i18n="lineLoginHint.title">用 LINE 登入</h3>
+    <button class="modal-close" type="button" onclick="App.closeModal()" aria-label="關閉" data-i18n-aria-label="common.close">✕</button>
   </div>
-  <div class="modal-body">
-    <div style="font-size:.88rem;line-height:1.65;color:var(--text-primary)">
-      點下方「繼續登入」進入 LINE 登入頁後：
-      <div style="margin:.8rem 0;padding:.85rem 1rem;background:rgba(34,197,94,.1);border:2px solid #22c55e;border-radius:8px">
-        <div style="font-weight:700;font-size:1.02rem;margin-bottom:.35rem;color:#15803d" data-i18n="⭐ 長按「使用 LINE 應用程式登入」">⭐ 長按「使用 LINE 應用程式登入」</div>
-        <div style="font-size:.8rem;color:var(--text-muted)" data-i18n="手指按住不放、約 1 秒">手指按住不放、約 1 秒</div>
-      </div>
-      <div style="margin:.6rem 0;padding:.7rem 1rem;background:rgba(59,130,246,.1);border-left:4px solid #3b82f6;border-radius:6px">
-        <div style="font-weight:600">→ 跳出選單後選「<strong data-i18n="在 LINE 中打開">在 LINE 中打開</strong>」</div>
-      </div>
-      <div style="font-size:.76rem;color:var(--text-muted);margin-top:.7rem;padding:.4rem .6rem;background:rgba(239,68,68,.06);border-radius:4px">
-        💡 直接「輕點」按鈕可能無反應（iOS 系統限制）、必須「<strong data-i18n="長按">長按</strong>」才會跳選單
-      </div>
-    </div>
-  </div>
-  <div class="modal-actions" style="flex-direction:column;gap:.5rem">
-    <button class="primary-btn" style="width:100%" onclick="LineAuth._mobileHintContinue()" data-i18n="繼續登入">繼續登入</button>
-    <button class="outline-btn" style="width:100%;color:#0d9488;border-color:#0d9488" onclick="LineAuth._copyAppUrlForLine()" data-i18n="複製連結用 LINE 開啟（最快）">複製連結用 LINE 開啟（最快）</button>
-    <button class="outline-btn" style="width:100%;color:var(--text-muted);border-color:var(--border)" onclick="App.closeModal()" data-i18n="取消">取消</button>
+  <div class="modal-body line-login-hint-body">
+    <p class="line-login-hint-intro" data-i18n="lineLoginHint.choose">選一種方式即可</p>
+    <button class="primary-btn line-login-hint-action line-login-hint-primary" type="button" onclick="LineAuth._mobileHintContinue()" data-i18n="lineLoginHint.loginPage">前往 LINE 登入頁</button>
+    <p class="line-login-hint-note" data-i18n="lineLoginHint.nextStep">下一頁選「使用 LINE 應用程式登入」</p>
+    <div class="line-login-hint-or" data-i18n="lineLoginHint.or">或</div>
+    <button class="outline-btn line-login-hint-action line-login-hint-secondary" type="button" onclick="LineAuth._copyAppUrlForLine()" data-i18n="lineLoginHint.copy">複製連結</button>
+    <p class="line-login-hint-note" data-i18n="lineLoginHint.copyStep">貼到 LINE，點「前往」</p>
+    <button class="line-login-hint-cancel" type="button" onclick="App.closeModal()" data-i18n="common.cancel">取消</button>
   </div>
 </div>

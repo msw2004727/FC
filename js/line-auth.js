@@ -528,7 +528,7 @@ const LineAuth = {
     return /Android|iPhone|iPad|iPod/i.test(ua);
   },
 
-  /** modal「繼續登入」按鈕 → 設旗標、關閉、再次呼叫 login（這次跳過 hint） */
+  /** modal「前往 LINE 登入頁」按鈕 → 設旗標、關閉、再次呼叫 login（這次跳過 hint） */
   _mobileHintContinue() {
     this._mobileHintAcknowledged = true;
     if (typeof App !== 'undefined' && typeof App.closeModal === 'function') App.closeModal();
@@ -579,6 +579,10 @@ const LineAuth = {
     // 2026-04-25：手機外部瀏覽器 → 先提示再登入（避免 OS 攔截到 LINE app 後失敗）
     if (this._isMobileExternalBrowser() && !this._mobileHintAcknowledged) {
       if (typeof App !== 'undefined' && typeof App.showModal === 'function') {
+        const hintModal = document.getElementById('mobile-line-login-hint-modal');
+        if (hintModal && typeof I18N !== 'undefined' && I18N.getLocale() !== 'zh-TW') {
+          App._applyStaticI18n?.(hintModal);
+        }
         App._pendingLineLoginAfterHint = true;
         App.showModal('mobile-line-login-hint-modal');
         return;

@@ -1976,6 +1976,7 @@ Object.assign(App, {
       const modalBody = modal.querySelector('.modal-body');
       if (modalBody) modalBody.scrollTop = 0;
     }
+    if (overlay) overlay.classList.toggle('line-login-hint-overlay', id === 'mobile-line-login-hint-modal' && !isOpen);
     this._syncCreateEventModalScrollLock();
   },
 
@@ -1995,7 +1996,7 @@ Object.assign(App, {
       }
     }
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
-    if (overlay) overlay.classList.remove('open');
+    if (overlay) overlay.classList.remove('open', 'line-login-hint-overlay');
     this._syncCreateEventModalScrollLock();
     this._maybeRunDeferredSwReload?.('modal-close');
   },
