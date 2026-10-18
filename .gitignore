@@ -26,6 +26,7 @@ nul
 # Claude
 .claude/*
 !.claude/rules/
+!.claude/skills/
 
 # Local-only internal project knowledge
 # Keep these folders on the workstation, but do not publish them to GitHub

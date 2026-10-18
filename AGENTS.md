@@ -20,5 +20,6 @@
 | `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md` 本身 | `.claude/rules/governance-migration.md` |
 
 3. 專案結構與檔案責任見 `NAVIGATION.md`。
-4. 規則有重複、差異或不同步時，一律以 `CLAUDE.md` 與規則檔為準；本檔與 `GEMINI.md` 只是入口。
-5. 改了 `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md` 或 `NAVIGATION.md`，commit 前跑 `node scripts/check-rules-integrity.js`。
+4. `.claude/skills/*/SKILL.md` 是 Claude Code 的固定流程 skill；非 Claude 工具不會自動載入，但可把 SKILL.md 當作該流程的步驟說明直接照做（例如 release bump、測試矩陣、編碼檢查、commit 流程）。
+5. 規則有重複、差異或不同步時，一律以 `CLAUDE.md` 與規則檔為準；本檔與 `GEMINI.md` 只是入口。
+6. 改了 `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md` 或 `NAVIGATION.md`，commit 前跑 `node scripts/check-rules-integrity.js`。

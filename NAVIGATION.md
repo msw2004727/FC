@@ -32,6 +32,7 @@
 - `tests/` — unit、Rules、E2E、contract tests
 - `scripts/` — 可追蹤維護／驗證腳本
 - `.github/` — CI 與 automation
+- `.claude/rules/` — 領域規則檔（paths 觸發載入）；`.claude/skills/` — Claude Code project skills（固定流程：`release-bump`、`test-matrix`、`encoding-check`、`delegate`、`ship-commit`、`memory-log`）
 - `docs/`、`tools/` — local-only（可能不存在於其他機器）
 - `assets/` — 靜態素材
 - `img/` — 圖片與遊戲 sprites
