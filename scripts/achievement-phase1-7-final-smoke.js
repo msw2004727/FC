@@ -208,7 +208,7 @@ async function main() {
     'js/modules/achievement/view.js',
     'js/modules/achievement/evaluator.js',
     'js/modules/achievement/admin.js',
-    'js/modules/achievement.js',
+    'js/modules/achievement/achievement.js',
     'js/modules/profile-data.js',
     'js/modules/leaderboard.js',
   ]);

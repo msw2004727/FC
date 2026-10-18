@@ -583,7 +583,7 @@ describe('Step 9/10: renderHomeDeferred dependencies must be loadable', () => {
   const HOME_DEFERRED_DEPS = [
     'js/modules/tournament/tournament-core.js',
     'js/modules/tournament/tournament-render.js',
-    'js/modules/popup-ad.js',
+    'js/modules/ad-manage/popup-ad.js',
   ];
 
   test('renderHomeDeferred dependencies exist on disk', () => {

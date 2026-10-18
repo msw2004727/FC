@@ -90,7 +90,7 @@ describe('startup performance guardrails', () => {
 
   test('blocking resource hints and global touch listeners stay out of home boot', () => {
     const index = read('index.html');
-    const banner = read('js/modules/banner.js');
+    const banner = read('js/modules/ad-manage/banner.js');
 
     expect(index).not.toMatch(/rel="preload"[^>]+firebase/i);
     expect(index).not.toMatch(/rel="preload"[^>]+liff/i);

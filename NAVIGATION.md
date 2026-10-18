@@ -79,7 +79,9 @@
 `js/modules/achievement/index.js`、`js/modules/achievement/registry.js`、`js/modules/achievement/shared.js`、`js/modules/achievement/evaluator.js` — 模組註冊、註冊表與條件評估
 `js/modules/achievement/stats.js`、`js/modules/achievement/badges.js`、`js/modules/achievement/titles.js` — 統計、徽章與稱號
 `js/modules/achievement/profile.js`、`js/modules/achievement/view.js`、`js/modules/achievement/admin.js`、`js/modules/achievement/batch.js` — 個人／檢視／後台區塊與批次重算
-**`js/modules/ad-manage/`** — 廣告與版位管理；`adminContent` 群組。
+`js/modules/achievement/achievement.js` — 成就管理入口與後台表單（legacy facade，內部轉接到同資料夾拆件）
+**`js/modules/ad-manage/`** — 廣告版位的前台顯示與後台管理；後台 CRUD 在 `adminContent` 群組，前台顯示由 `index.html` eager 載入。
+`js/modules/ad-manage/banner.js`、`js/modules/ad-manage/popup-ad.js` — 前台 Banner 輪播／浮動廣告與彈窗廣告顯示（`index.html` eager）
 `js/modules/ad-manage/ad-manage-core.js`、`js/modules/ad-manage/ad-manage-banner.js`、`js/modules/ad-manage/ad-manage-float.js` — 廣告核心、Banner 與浮動廣告
 `js/modules/ad-manage/ad-manage-popup-sponsor.js`、`js/modules/ad-manage/ad-manage-shotgame.js`、`js/modules/ad-manage/boot-brand-manage.js` — 彈窗贊助、遊戲廣告與開機品牌圖
 **`js/modules/admin-seo/`** — SEO 後台儀表板；`adminSeo` 群組。
@@ -171,14 +173,12 @@
 `js/modules/user-admin/user-admin-uid-health.js`、`js/modules/user-admin/user-admin-uid-health-copy.js`、`js/modules/user-admin/user-admin-corrections.js` — UID 健康與補正
 `js/modules/user-admin/permission-audit/permission-audit.js`、`js/modules/user-admin/permission-audit/permission-audit-render.js` — 權限稽核與渲染
 **根層散檔**（以 `ls -p js/modules | grep -v /` 即時查）
-- `js/modules/achievement.js` — 成就管理入口與後台表單
 - `js/modules/admin-log-tabs.js` — 後台日誌中心分頁與工具列
 - `js/modules/announcement.js` — 公告顯示與管理
 - `js/modules/attendance-notify.js` — 出席通知監聽與彈窗
 - `js/modules/audit-log.js` — 操作稽核日誌查詢
 - `js/modules/auto-exp-rules.js` — 舊路徑 shim，轉載新模組
 - `js/modules/auto-exp.js` — 舊路徑 shim，轉載新模組
-- `js/modules/banner.js` — Banner 輪播與浮動廣告
 - `js/modules/data-sync.js` — 後台資料同步與修復工具
 - `js/modules/error-log-diagnostics.js` — 錯誤日誌欄位解析
 - `js/modules/error-log-insights.js` — 錯誤日誌分群與趨勢
@@ -195,7 +195,6 @@
 - `js/modules/multi-tab-guard.js` — 多分頁重複開啟警告
 - `js/modules/news.js` — 新聞卡片與分頁
 - `js/modules/persistent-storage.js` — 責任待確認
-- `js/modules/popup-ad.js` — 彈窗廣告顯示
 - `js/modules/pwa-install.js` — PWA 安裝引導
 - `js/modules/registration-audit.js` — 報名狀態稽核與修復
 - `js/modules/role.js` — 角色權限判斷與側邊選單
@@ -207,7 +206,7 @@
 
 ## 1.7 `pages/` ↔ 模組對應
 - `pages/activity.html` — `page-activities`、`page-activity-detail`、`page-my-activities` → `js/modules/event/`
-- `pages/home.html` — `page-home` → `js/modules/home-dashboard.js`、`js/modules/banner.js`、`js/modules/event/event-list-home.js`
+- `pages/home.html` — `page-home` → `js/modules/home-dashboard.js`、`js/modules/ad-manage/banner.js`、`js/modules/event/event-list-home.js`
 - `pages/team.html` — `page-teams`、`page-team-detail`、`page-team-manage` → `js/modules/team/`
 - `pages/tournament.html` — `page-tournaments`、`page-tournament-detail` → `js/modules/tournament/`
 - `pages/profile.html` — `page-profile`、`page-qrcode` → `js/modules/profile/`
@@ -221,7 +220,7 @@
 - `pages/admin-dashboard.html` — `page-admin-dashboard`、`page-temp-participant-report` → `js/modules/dashboard/`
 - `pages/admin-users.html` — `page-admin-users`、`page-admin-exp` → `js/modules/user-admin/`
 - `pages/admin-content.html` — `page-admin-banners`、`page-admin-shop`、`page-admin-messages` → `js/modules/ad-manage/`、`js/modules/shop.js`、`js/modules/message/`
-- `pages/admin-system.html` — `page-admin-achievements`、`page-admin-games`、`page-admin-themes` → `js/modules/achievement.js`、`js/modules/game-manage.js`；`page-admin-themes` 對應待確認
+- `pages/admin-system.html` — `page-admin-achievements`、`page-admin-games`、`page-admin-themes` → `js/modules/achievement/achievement.js`、`js/modules/game-manage.js`；`page-admin-themes` 對應待確認
 - `pages/admin-seo.html` — `page-admin-seo` → `js/modules/admin-seo/`
 - `pages/admin-auto-exp.html` — `page-admin-auto-exp` → `js/modules/auto-exp/`
 - `pages/admin-notif.html` — `page-admin-notif` → 對應待確認（無 `_pageGroups` 群組）

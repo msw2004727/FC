@@ -44,7 +44,7 @@ const adManageBannerSource = fs.readFileSync(
   "utf8"
 );
 const bannerSource = fs.readFileSync(
-  path.join(__dirname, "../../js/modules/banner.js"),
+  path.join(__dirname, "../../js/modules/ad-manage/banner.js"),
   "utf8"
 );
 const navigationSource = fs.readFileSync(
