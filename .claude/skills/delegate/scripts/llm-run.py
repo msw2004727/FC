@@ -4,14 +4,17 @@
 Usage:
   python -I llm-run.py --provider deepseek|mimo --prompt P.md [--context F ...]
          --out OUT.md [--split-dir DIR] [--max-tokens N] [--effort low|high|max]
+         [--image IMG ...]
 
 - Context files are appended to the user message as fenced sections.
+- --image accepts multiple image paths (.png/.jpg/.jpeg/.webp) and is only
+  supported together with --provider gemini.
 - The raw assistant text is written to --out.
 - With --split-dir, sections delimited by lines `===== FILE: <name> =====` ...
   `===== END FILE =====` are written to DIR/<name>.
 - Only usage stats are printed; the response body never hits stdout.
 """
-import argparse, json, os, re, sys, time, urllib.request
+import argparse, base64, json, os, re, sys, time, urllib.request
 
 PROVIDERS = {
     "deepseek": dict(url="https://api.deepseek.com/chat/completions",
@@ -22,10 +25,19 @@ PROVIDERS = {
                    model="gemini-4-argon", key_env="GEMINI_API_KEY"),
 }
 
+IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg",
+              ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
-def run_gemini(p, key, user, a):
+
+def run_gemini(p, key, user, a, images):
     """Gemini REST (SSE). Returns (text, usage, finish, model)."""
-    payload = {"contents": [{"role": "user", "parts": [{"text": user}]}],
+    parts_in = [{"text": user}]
+    for img in images:
+        ext = os.path.splitext(img)[1].lower()
+        with open(img, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        parts_in.append({"inline_data": {"mime_type": IMAGE_MIME[ext], "data": b64}})
+    payload = {"contents": [{"role": "user", "parts": parts_in}],
                "generationConfig": {"maxOutputTokens": a.max_tokens}}
     req = urllib.request.Request(p["url"], data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json", "x-goog-api-key": key})
@@ -65,12 +77,22 @@ def main():
     ap.add_argument("--effort")
     ap.add_argument("--no-think", action="store_true", help="mimo: disable thinking")
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--image", nargs="*", default=[])
     a = ap.parse_args()
 
     p = PROVIDERS[a.provider]
     key = os.environ.get(p["key_env"])
     if not key:
         print("missing env", p["key_env"]); sys.exit(2)
+
+    if a.image:
+        if a.provider != "gemini":
+            print("--image only supported for gemini"); sys.exit(2)
+        for img in a.image:
+            if not os.path.isfile(img):
+                print(f"image not found: {img}"); sys.exit(2)
+            if os.path.splitext(img)[1].lower() not in IMAGE_MIME:
+                print(f"unsupported image extension: {img}"); sys.exit(2)
 
     user = open(a.prompt, encoding="utf-8").read()
     for c in a.context:
@@ -92,7 +114,7 @@ def main():
     text_parts, usage, finish, model, last_err = [], {}, None, None, None
     try:
       if a.provider == "gemini":
-        gt, usage, finish, model = run_gemini(p, key, user, a)
+        gt, usage, finish, model = run_gemini(p, key, user, a, a.image)
         text_parts.append(gt)
       else:
         with urllib.request.urlopen(req, timeout=a.timeout) as r:

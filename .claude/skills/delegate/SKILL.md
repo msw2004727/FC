@@ -43,3 +43,4 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *)
 - 非串流會 `IncompleteRead`；一律使用腳本內建 SSE。
 - Windows 命令列 32K 上限；prompt 一律走檔案。
 - Bash 工具會還原 `\\`；含反斜線的補丁先用 Write 寫成 `.py` 再執行。
+- 模型常省略 `===== END FILE =====`、在檔案外包 Markdown 圍欄、或在結束標記後附說明文字；此時 llm-run.py 的 `--split-dir` 會切不出檔案或切錯（log 沒有「wrote …」行）。改用 `python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py <回應檔> <輸出目錄>`：以 FILE 標記為界、在第一個 END 標記截斷、去掉圍欄。Codex 的輸出一律用它切。（2026-10-19 新增）
