@@ -49,7 +49,7 @@ paths:
 - **R-QA-005 [B/HARD]**：test 過時須以行為／規格證據證明，與 production change 同批更新並標「測試同步更新」；code 壞則修 code、保留 test。
 - **R-QA-006 [B/HARD]**：鎖定範圍新增函式必補 unit；非鎖定依風險。
 - **R-QA-007 [B/HARD]**：未跑、失敗或環境受限明講；禁止以「應該會過」或別的 test 替代。
-- **R-QA-008 [B/HARD]**：Rules 修改前枚舉所有非 fixture suites，與 `package.json#test:rules:unit` discovery 對照；未收錄者另跑或標未驗證。已知 `tests/firestore-rules/tournament-match-rules.test.js` 未被 aggregate script 收錄；runner 修正前，`test:rules` 通過不代表它通過。
+- **R-QA-008 [B/HARD]**：Rules 修改前枚舉所有非 fixture suites，與 `package.json#test:rules:unit` discovery 對照；未收錄者另跑或標未驗證。`test:rules:unit` 以 `--testMatch` 錨定 `<rootDir>/tests/` 下三個根層 suites 與 `tests/firestore-rules/**/*.test.js`，新放進該目錄的 suite 自動收錄；不得改回逐檔清單或不錨定 `<rootDir>` 的 pattern（會漏收或誤跑 `.wt/`、`.codex-worktrees/` 的副本）。（2026-10-19 取代原「tournament-match-rules 未被收錄」的已知 drift：runner 已修正並實跑 7 suites 通過。）
 - **R-QA-009 [B/HARD]**：Functions 變更跑 `test:functions` + 相關 domain unit；release 前完整 `test:unit`。`test:functions` 目前只跑 `tests/unit/cloud-functions.test.js`，不得宣稱涵蓋 `scoreboard-translations`、ops、private-message、login-IP、attendance、education 等 domain suites。部署前即時檢查 workflow 是否把完整 unit 設為同一部署 lane 的必要前置；若沒有，必須本機補跑並明確回報，不能用平行 workflow 或綠色 deploy job 代替。
 
 ### 7.1 UI 瀏覽器驗證
