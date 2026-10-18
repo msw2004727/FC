@@ -284,7 +284,7 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/achievement/badges.js',
       'js/modules/achievement/titles.js',
       'js/modules/achievement/profile.js',
-      'js/modules/achievement.js',
+      'js/modules/achievement/achievement.js',
     ],
     profileCard: [
       'js/modules/profile/profile-card.js',

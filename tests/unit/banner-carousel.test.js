@@ -70,7 +70,7 @@ describe('home banner carousel image loading', () => {
       startBannerCarousel() {},
     };
 
-    require(path.resolve(__dirname, '../../js/modules/banner.js'));
+    require(path.resolve(__dirname, '../../js/modules/ad-manage/banner.js'));
   });
 
   afterEach(() => {

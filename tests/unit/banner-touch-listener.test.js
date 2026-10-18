@@ -29,7 +29,7 @@ describe('floating banner touch listeners', () => {
     global.App = {};
     global.ApiService = { getBanners: jest.fn(() => []) };
     global.escapeHTML = value => String(value ?? '');
-    require(path.resolve(__dirname, '../../js/modules/banner.js'));
+    require(path.resolve(__dirname, '../../js/modules/ad-manage/banner.js'));
   });
 
   afterEach(() => {
