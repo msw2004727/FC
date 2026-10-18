@@ -13,7 +13,7 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *)
 
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
-| 寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 主力；禁用 `deepseek-v4-pro` |
+| 寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 主力；禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出。取代原本未指定 effort 的做法） |
 | 格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
 | 審查、長 context | Gemini `gemini-4-argon` | 長文與審查 |
 | 審查 | Codex GPT-6 Astra | 本機無法執行子程序，只能純文字：`codex exec --skip-git-repo-check -s read-only < prompt.md` |
