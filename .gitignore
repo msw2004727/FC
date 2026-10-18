@@ -24,7 +24,8 @@ nul
 .idea/
 
 # Claude
-.claude/
+.claude/*
+!.claude/rules/
 
 # Local-only internal project knowledge
 # Keep these folders on the workstation, but do not publish them to GitHub

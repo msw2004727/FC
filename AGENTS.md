@@ -1,8 +1,24 @@
-# ToosterX — AI 指引入口
+# ToosterX — AI 指引入口（Codex 與其他非 Claude 工具）
 
-本檔不再維護平行規則。
+本檔不維護平行規則，只做導入口。
 
-- AI 在開始任何分析、規劃、實作、修改、提交或回覆前，**必須先完整閱讀 `CLAUDE.md`**。
-- `CLAUDE.md` 是本專案的**唯一主規則來源**。
-- 若 `AGENTS.md` 與 `CLAUDE.md` 有任何重複、差異、遺漏或不同步，**一律以 `CLAUDE.md` 為準**。
-- 未來所有規則新增、刪除、修改與維護，**只更新 `CLAUDE.md`**；`AGENTS.md` 僅保留這個導入口說明。
+1. 開始任何分析、規劃、實作、修改、提交或回覆前，**先完整閱讀 `CLAUDE.md`**；它是核心規則，每次都讀。
+2. 分析、規劃、審查、修改或操作特定領域前，**再讀對應的領域規則檔**（Codex／Gemini 不會自動載入，必須手動讀）；涉及多列時全部都讀（取聯集）；規則檔缺失時回報，不得視為無規則：
+
+| 要處理的範圍 | 先讀 |
+|------------|------|
+| 模組新增／搬移、timeout／limit 等 tunables | `.claude/rules/architecture-tunables.md` |
+| `sw.js`、cache 版號、release、獨立內容頁 | `.claude/rules/release-sw.md` |
+| 任何 JS／CSS／HTML／Functions／Rules 變更的測試與 review 要求；任何 review／驗證回報（不論是否改程式） | `.claude/rules/testing-review.md` |
+| entity ID、後台權限、user capabilities | `.claude/rules/id-permissions.md` |
+| 活動列表、黑名單、報名、候補、課程、出席、統計 | `.claude/rules/events-registration-stats.md` |
+| `firestore.rules`、`functions/**`、Functions／Rules 部署、`deploy-functions.yml`、`firebase.json`、前端 `httpsCallable()` | `.claude/rules/firestore-functions.md` |
+| async `show*`、route、popstate、history | `.claude/rules/navigation-history.md` |
+| LINE 分享、Mini App、OG、QR | `.claude/rules/share.md` |
+| UI、modal、動畫、展示名單 | `.claude/rules/ui.md` |
+| SEO、sitemap、robots、`_headers` | `.claude/rules/seo.md` |
+| `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md` 本身 | `.claude/rules/governance-migration.md` |
+
+3. 專案結構與檔案責任見 `NAVIGATION.md`。
+4. 規則有重複、差異或不同步時，一律以 `CLAUDE.md` 與規則檔為準；本檔與 `GEMINI.md` 只是入口。
+5. 改了 `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md` 或 `NAVIGATION.md`，commit 前跑 `node scripts/check-rules-integrity.js`。
