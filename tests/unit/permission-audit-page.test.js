@@ -69,8 +69,10 @@ describe('permission audit page wiring', () => {
   });
 
   test('project rules require future permission changes to keep audit coverage updated', () => {
-    const claude = read('CLAUDE.md');
-    expect(claude).toContain('permission-audit');
-    expect(claude).toContain('權限測試');
+    // 測試同步更新：R-IAM-003 的 canonical 定義於 2026-10-18 由 CLAUDE.md 搬到
+    // .claude/rules/id-permissions.md（路徑觸發載入的領域規則檔），規則文字逐字未變。
+    const rules = read('CLAUDE.md') + '\n' + read('.claude/rules/id-permissions.md');
+    expect(rules).toContain('permission-audit');
+    expect(rules).toContain('權限測試');
   });
 });

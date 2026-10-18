@@ -271,7 +271,7 @@
 - `tests/unit/` — Jest 單元測試
 - `tests/firestore-rules/` — Rules emulator 測試 suites
 - `tests/e2e/` — Playwright E2E 與靜態伺服器
-- `tests/fixtures/` — 測試共用 fixtures
+- tests/fixtures/ — 測試共用 fixtures；此目錄**未進 Git**（local-only，fresh clone 與 worktree 不存在），故不以路徑形式引用
 - `tests/archive/` — 歷史 Rules 測試封存
 - 測試指令表見 `CLAUDE.md` §7 與 `package.json` scripts，本檔不複製。
 - 已知 drift：`tests/firestore-rules/tournament-match-rules.test.js` 未被 aggregate 收錄（R-QA-008）。
