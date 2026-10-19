@@ -15,6 +15,8 @@ const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
+const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
+const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -3742,6 +3744,26 @@ exports.adjustEventCapacity = createAdjustEventCapacityCallable({
   normalizeTeamReservationSummaries,
   registrationTeamReservationTeamId,
 });
+// 名單確認出席：取代舊站前端 _confirmAllAttendance 的直寫（只用 uid，不以名稱比對）。
+exports.confirmEventAttendance = createConfirmEventAttendanceCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  getCallerAccessContext,
+  canOperateEventSiteForAccess,
+  getEventDocByPublicIdInTransaction,
+});
+
+// 俱樂部人數重算：teams.members 由伺服器依三個來源計算（取代前端用 adminUsers 快取計算後寫回）。
+exports.recountTeamMembers = createRecountTeamMembersCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  getCallerAccessContext,
+});
+
 
 
 exports.backfillRoleClaims = onCall(
