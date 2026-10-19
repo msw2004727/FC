@@ -10596,6 +10596,7 @@ exports.migrateUidFields = onCall(
     timeoutSeconds: 540,
     memory: "512MiB",
     maxInstances: 1,
+    secrets: [DATA_SYNC_SETTINGS_PASSWORD],
   },
   async (request) => {
     if (!request.auth) {
@@ -15930,7 +15931,8 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
 });
 const ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT = 80;
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
-const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121";
+// 資料同步設定密碼：只從 Secret Manager 讀取，不再寫死預設值（2026-10-19 取代原 process.env 後備值）。
+const DATA_SYNC_SETTINGS_PASSWORD = defineSecret("DATA_SYNC_SETTINGS_PASSWORD");
 const NO_SHOW_FEATURE_ENABLED = true;
 const UID_HEALTH_CHECK_LOG_LIMIT = 30;
 const UID_HEALTH_SAMPLE_LIMIT = 8;
@@ -15957,8 +15959,17 @@ function readActivityRecordRepairConfig(data = {}) {
 }
 
 function assertDataSyncSettingsPassword(request) {
+  // Secret 未設定時一律拒絕（fail closed），不得退回任何預設值。
+  const expected = String(DATA_SYNC_SETTINGS_PASSWORD.value() || "");
+  if (!expected) {
+    console.error("[assertDataSyncSettingsPassword] DATA_SYNC_SETTINGS_PASSWORD secret is not configured", {
+      uid: request?.auth?.uid ? "present" : "absent",
+    });
+    throw new HttpsError("failed-precondition", "data sync password not configured");
+  }
+  // 呼叫端沒帶密碼時不得套用預設值。
   const password = String(request?.data?.password || "");
-  if (!password || password !== DATA_SYNC_SETTINGS_PASSWORD) {
+  if (!password || password !== expected) {
     throw new HttpsError("permission-denied", "data sync password invalid");
   }
 }
@@ -17103,7 +17114,7 @@ exports.repairActivityRecordsScheduled = onSchedule(
 );
 
 exports.saveRealtimeConfig = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", secrets: [DATA_SYNC_SETTINGS_PASSWORD] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
     const access = await getCallerAccessContext(request);
@@ -17155,7 +17166,7 @@ exports.saveRealtimeConfig = onCall(
 );
 
 exports.verifyDataSyncPassword = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", secrets: [DATA_SYNC_SETTINGS_PASSWORD] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
     const access = await getCallerAccessContext(request);
@@ -17168,7 +17179,7 @@ exports.verifyDataSyncPassword = onCall(
 );
 
 exports.repairActivityRecordsManual = onCall(
-  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
+  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB", secrets: [DATA_SYNC_SETTINGS_PASSWORD] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
     const access = await getCallerAccessContext(request);
