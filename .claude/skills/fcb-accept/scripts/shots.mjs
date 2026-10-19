@@ -5,6 +5,8 @@
 // 產出：每個路徑 × 手機 390／桌機 1280 × 亮／暗 的整頁截圖，與 report.json（console error、水平溢出、頁面前段文字）。
 // 前置：FC-B dev server 跑在 5181（VITE_FIREBASE_EMULATOR=1），emulator 已 seed（npm run seed:emulator）。
 // 注意：Firestore 長連線會讓 networkidle 等不到，所以只等 3 秒上限。
+// 彈窗類畫面：設 SHOTS_CLICK="按鈕文字" 會在每頁載入後點該按鈕；再設 SHOTS_SCROLL="捲動容器選擇器"
+// （例如 .ui-modal__body）會在容器內分段捲動、每段拍一張可視範圍截圖（檔名加 -s0、-s1…）。
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -34,7 +36,7 @@ for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 200)); });
     page.on('pageerror', (e) => errors.push(`pageerror: ${String(e).slice(0, 200)}`));
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-    await page.evaluate((th) => { try { localStorage.setItem('toosterx:theme', th); } catch (_) {} }, theme);
+    await page.evaluate((th) => { try { localStorage.setItem('sporthub_theme', th); } catch (_) {} }, theme);
     if (UID) await page.evaluate(async (u) => { const m = await import('/src/data/auth.ts'); await m.devSignIn(u); }, UID);
     await page.waitForTimeout(600);
     for (const p of PAGES) {
@@ -42,12 +44,31 @@ for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
       await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
       await page.waitForTimeout(1200);
       const name = `${tag}-${p.replace(/\//g, '_').replace(/^_/, '') || 'root'}-${vp}-${theme}`;
-      await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true });
+      if (process.env.SHOTS_CLICK) {
+        await page.getByText(process.env.SHOTS_CLICK, { exact: true }).first().click().catch((e) => errors.push(`click: ${String(e).slice(0, 120)}`));
+        await page.waitForTimeout(800);
+      }
+      const scrollSel = process.env.SHOTS_SCROLL;
+      if (scrollSel && await page.locator(scrollSel).count()) {
+        for (let i = 0; i < 12; i++) {
+          await page.screenshot({ path: path.join(OUT, `${name}-s${i}.png`) });
+          const done = await page.evaluate(([sel, step]) => {
+            const el = document.querySelector(sel);
+            const before = el.scrollTop;
+            el.scrollTop = before + el.clientHeight * step;
+            return el.scrollTop === before;
+          }, [scrollSel, 0.85]);
+          if (done) break;
+          await page.waitForTimeout(250);
+        }
+      } else {
+        await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true });
+      }
       const info = await page.evaluate(() => {
         const vw = document.documentElement.clientWidth;
         return {
           pageScrollsSideways: document.documentElement.scrollWidth > vw + 1,
-          overflowing: [...document.querySelectorAll('main *')]
+          overflowing: [...document.querySelectorAll('main *, [role=dialog] *')]
             .filter((el) => el.getBoundingClientRect().right > vw + 1)
             .slice(0, 5).map((el) => `${el.tagName}.${el.className}`),
           text: (document.querySelector('main')?.innerText || '').slice(0, 160).replace(/\s+/g, ' '),
