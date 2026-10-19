@@ -415,6 +415,39 @@ function planAttendanceConfirm({
   };
 }
 
+/**
+ * 結算後要發「完成活動」經驗值的對象（2026-10-19 PM＋技術顧問決定，取代 planAttendanceConfirm 的差異式 grantExp）：
+ * 以交易內「套用本次新增／軟刪除後的最終紀錄」判斷，本人（非同行者）同時有有效簽到與簽退者全部列入。
+ * 理由：A 的完成會先 flush 即時存檔，差異式 grantExp 在 B（即時存檔不發經驗值）會幾乎永遠是空的。
+ * 前端對每位 target 呼叫 adjustExp（mode auto、requestId 'autoexp_'+uid+'_complete_activity_'+eventId）自行冪等。
+ * 不以 expLogs reason 或 _expDedupe 前綴猜測「是否已發過」（同名活動會誤判）。
+ */
+function computeCompleteActivityTargets(people, currentRecords, plan) {
+  const removedDocIds = new Set(
+    (plan?.removes || []).map((r) => r && r._docId).filter(Boolean)
+  );
+  const finalRecords = [
+    ...(Array.isArray(currentRecords) ? currentRecords : []).filter(
+      (r) => !(r && r._docId && removedDocIds.has(r._docId))
+    ),
+    ...(plan?.adds || []),
+  ];
+  const targets = [];
+  const seen = new Set();
+  for (const person of Array.isArray(people) ? people : []) {
+    if (!person || person.isCompanion || isCompanionPseudoUid(person.uid)) continue;
+    const uid = String(person.uid || "").trim();
+    if (!uid || seen.has(uid)) continue;
+    const hasCheckin = finalRecords.some((r) => matchAttendanceRecord(r, person) && r.type === "checkin");
+    const hasCheckout = finalRecords.some((r) => matchAttendanceRecord(r, person) && r.type === "checkout");
+    if (hasCheckin && hasCheckout) {
+      seen.add(uid);
+      targets.push(uid);
+    }
+  }
+  return targets;
+}
+
 async function defaultGetEventDocByPublicIdInTransaction(transaction, db, eventId) {
   const query = db.collection("events").where("id", "==", eventId).limit(1);
   const snap = await transaction.get(query);
@@ -553,6 +586,7 @@ function createConfirmEventAttendanceHandler({
         return {
           added: addedCount,
           removed: removedCount,
+          expTargets: computeCompleteActivityTargets(plan.people, currentRecords, plan),
         };
       });
 
@@ -560,6 +594,7 @@ function createConfirmEventAttendanceHandler({
         success: true,
         added: txResult.added,
         removed: txResult.removed,
+        expTargets: txResult.expTargets,
       };
     } catch (err) {
       if (err instanceof HttpsError) {
@@ -592,6 +627,7 @@ module.exports = {
   matchAttendanceRecord,
   collectAttendanceOps,
   planAttendanceConfirm,
+  computeCompleteActivityTargets,
   createConfirmEventAttendanceHandler,
   createConfirmEventAttendanceCallable,
 };

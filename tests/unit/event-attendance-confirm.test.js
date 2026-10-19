@@ -5,6 +5,7 @@ const {
   buildBaseRecord,
   collectAttendanceOps,
   planAttendanceConfirm,
+  computeCompleteActivityTargets,
   createConfirmEventAttendanceHandler,
 } = require("../../functions/event-attendance-confirm");
 
@@ -490,7 +491,8 @@ describe("confirmEventAttendance — pure function & callable", () => {
         },
       });
 
-      expect(res).toEqual({ success: true, added: 2, removed: 1 });
+      // 測試同步更新（R-QA-005）：回傳新增 expTargets（取消簽退後未完成，故為空）。
+      expect(res).toEqual({ success: true, added: 2, removed: 1, expTargets: [] });
 
       // 驗證新增寫入路徑與 payload 形狀（uid 為 LINE UID，eventId 為 public id）
       expect(setCalls).toHaveLength(2);
@@ -524,6 +526,38 @@ describe("confirmEventAttendance — pure function & callable", () => {
         removedAt: "SERVER_TS",
       });
     });
+  });
+});
+
+describe("computeCompleteActivityTargets（完成活動經驗值對象：最終狀態同時有簽到與簽退）", () => {
+  const self = (uid) => ({ uid, name: uid, isCompanion: false });
+  const rec = (docId, uid, type, extra = {}) => ({ _docId: docId, uid, type, participantType: "self", status: "active", ...extra });
+
+  test("既有紀錄已完整簽到簽退的人也列入（即時存檔先寫好的情況）", () => {
+    const records = [rec("a", "U1", "checkin"), rec("b", "U1", "checkout"), rec("c", "U2", "checkin")];
+    expect(computeCompleteActivityTargets([self("U1"), self("U2")], records, { adds: [], removes: [] })).toEqual(["U1"]);
+  });
+
+  test("套用本次新增與軟刪除後再判斷", () => {
+    const records = [rec("a", "U1", "checkin"), rec("b", "U1", "checkout"), rec("c", "U2", "checkin")];
+    const plan = {
+      adds: [{ uid: "U2", type: "checkout", participantType: "self", status: "active" }],
+      removes: [{ _docId: "b" }],
+    };
+    expect(computeCompleteActivityTargets([self("U1"), self("U2")], records, plan)).toEqual(["U2"]);
+  });
+
+  test("已移除的紀錄、同行者不列入，重複 uid 只算一次", () => {
+    const records = [
+      rec("a", "U1", "checkin"),
+      rec("b", "U1", "checkout", { status: "removed" }),
+      rec("c", "U1", "checkin", { participantType: "companion", companionId: "C1", companionName: "小明" }),
+      rec("d", "U1", "checkout", { participantType: "companion", companionId: "C1", companionName: "小明" }),
+      rec("e", "U3", "checkin"),
+      rec("f", "U3", "checkout"),
+    ];
+    const people = [self("U1"), { uid: "C1", name: "小明", isCompanion: true }, self("U3"), self("U3")];
+    expect(computeCompleteActivityTargets(people, records, { adds: [], removes: [] })).toEqual(["U3"]);
   });
 });
 
