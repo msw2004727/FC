@@ -477,6 +477,48 @@ describe('B oracle: activity visibility fixture', () => {
       }
     }
 
+    // 2026-10-19 Fable：A 的 _canListPrivateEvent 以 ROLE_LEVEL_MAP[roleKey] || 0 判斷，不解析自訂角色 level；
+    // B 照 A。以兩案鎖住：排在 admin 之後的自訂角色看不到他人私密活動，但仍看得到自己的。
+    const customRoles = [{ key: 'custom_vip', label: 'VIP', afterRole: 'admin' }];
+    app._getCustomRoles = () => customRoles;
+    const normalViewer = viewerDefs.find(viewer => viewer.key === 'normal');
+    for (const scenario of [8, 6]) {
+      const role = 'custom_vip';
+      const userDoc = buildUserDoc(normalViewer, role, 'teamIds');
+      const team = buildTeam(0, normalViewer.uid);
+      const event = buildEvent(scenario, normalViewer.uid);
+      const input = {
+        viewer: { uid: normalViewer.uid },
+        role,
+        customRoles,
+        userDoc,
+        teams: [team],
+        event,
+        viewerRegistrations: [],
+      };
+
+      cache.currentUser = userDoc;
+      cache.adminUsers = [{ uid: normalViewer.uid }];
+      cache.teams = input.teams;
+      cache.events = [event];
+      cache.registrations = [];
+      app.currentRole = role;
+
+      const visibleEvents = app._getVisibleEvents();
+      cases.push({
+        id: `case-${String(index + 1).padStart(3, '0')}`,
+        input,
+        expected: {
+          isEventVisibleToUser: app._isEventVisibleToUser(event, normalViewer.uid),
+          visibleTeamIds: Array.from(app._getVisibleTeamIdsForLimitedEvents()).sort(),
+          canListPrivateEvent: app._canListPrivateEvent(event),
+          visibleInList: visibleEvents.length === 1 && visibleEvents[0].id === event.id,
+        },
+      });
+      index += 1;
+    }
+    delete app._getCustomRoles;
+
     const meta = {
       generatedAt: new Date().toISOString(),
       fcHead: getGitHead(),
