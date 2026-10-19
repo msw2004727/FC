@@ -14,6 +14,7 @@ const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
+const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -3722,6 +3723,26 @@ exports.autoPromoteTeamRole = createAutoPromoteTeamRoleCallable({
   ensureAuthUser,
   setRoleClaimMerged,
 });
+// 活動名額變更：遞補／降級在 transaction 內完成（取代舊站前端 _adjustWaitlistOnCapacityChange 的直寫）。
+exports.adjustEventCapacity = createAdjustEventCapacityCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  getCallerAccessContext,
+  canManageSingleEventRosterForAccess,
+  getEventDocByPublicIdInTransaction,
+  isCourseLinkedEventData,
+  promoteWaitlistForAvailableSeats,
+  demoteConfirmedRegistrationsToCapacity,
+  sortWaitlistCandidates,
+  rebuildOccupancy,
+  preserveUpcomingEventOccupancyStatus,
+  findActivityRecordForRegistration,
+  normalizeTeamReservationSummaries,
+  registrationTeamReservationTeamId,
+});
+
 
 exports.backfillRoleClaims = onCall(
   { region: "asia-east1", timeoutSeconds: 120 },
