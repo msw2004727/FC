@@ -66,12 +66,11 @@ async function firstAEventPath() {
   const page = await context.newPage();
   await page.goto(`${A_BASE}/activities`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(6000);
+  // A 的 ApiService 是頁面內 const，不在 window 上；改讀時間軸卡片的 data-event-id（優先非已結束）。
   const id = await page.evaluate(() => {
-    try {
-      const list = (window.ApiService && window.ApiService.getEvents && window.ApiService.getEvents()) || [];
-      const open = list.find((e) => e && (e.status === 'open' || e.status === 'full') && !e.privateEvent) || list[0];
-      return open ? open.id : '';
-    } catch (_) { return ''; }
+    const rows = Array.from(document.querySelectorAll('.tl-event-row[data-event-id]'));
+    const open = rows.find((r) => !r.classList.contains('tl-past')) || rows[0];
+    return open ? open.getAttribute('data-event-id') || '' : '';
   });
   await context.close();
   return id ? `/events/${id}` : '/activities';
