@@ -5922,7 +5922,7 @@ async function resolveCourseCallerName(request, callerUid) {
 }
 
 exports.listEduCourseEnrollments = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -5983,7 +5983,7 @@ exports.listEduCourseEnrollments = onCall(
 );
 
 exports.listEduCourseEnrollmentSummaries = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -6037,7 +6037,7 @@ exports.listEduCourseEnrollmentSummaries = onCall(
 );
 
 exports.syncEduCoursePlanAutoSessionRosters = onCall(
-  { ...EDU_COURSE_ROSTER_SYNC_FUNCTION_OPTIONS, minInstances: 1 },
+  { ...EDU_COURSE_ROSTER_SYNC_FUNCTION_OPTIONS, minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7065,7 +7065,7 @@ async function finalizeEduRosterResponse({ teamRef, callerUid, payload, studentI
 }
 
 exports.listEduCoursePublicRoster = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     const callerUid = sanitizeStr(request.auth?.uid, 128);
     const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
@@ -7235,7 +7235,7 @@ exports.listEduCoursePublicRoster = onCall(
 );
 
 exports.saveEduCourseSelfLeave = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7366,7 +7366,7 @@ exports.saveEduCourseSelfLeave = onCall(
 );
 
 exports.saveEduCourseSelfAttendance = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7536,7 +7536,7 @@ exports.saveEduCourseSelfAttendance = onCall(
 );
 
 exports.updateEduCourseSession = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7624,7 +7624,7 @@ exports.updateEduCourseSession = onCall(
   }
 );
 exports.saveEduSessionAttendanceChanges = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7753,7 +7753,7 @@ exports.saveEduSessionAttendanceChanges = onCall(
   }
 );
 exports.createEventFromCourseLesson = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7930,7 +7930,7 @@ exports.createEventFromCourseLesson = onCall(
 );
 
 exports.syncCourseLessonRosterToEvent = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -7953,7 +7953,7 @@ exports.syncCourseLessonRosterToEvent = onCall(
 );
 
 exports.registerForEduCoursePlan = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -8034,7 +8034,7 @@ exports.registerForEduCoursePlan = onCall(
 );
 
 exports.cancelCourseEnrollment = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -8122,7 +8122,7 @@ exports.cancelCourseEnrollment = onCall(
 );
 
 exports.approveCourseEnrollment = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -13702,7 +13702,7 @@ function courseRosterMutationResult(reg) {
 }
 
 exports.updateCourseLinkedEvent = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Authentication required");
     const callerUid = request.auth.uid;
@@ -13941,7 +13941,7 @@ exports.updateCourseLinkedEvent = onCall(
 );
 
 exports.manageCourseLinkedRegistrationStatus = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Authentication required");
     const callerUid = request.auth.uid;
@@ -14572,7 +14572,7 @@ exports.runRegistrationSyntheticSmoke = onCall(
 );
 
 exports.adjustTeamReservation = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 0 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
