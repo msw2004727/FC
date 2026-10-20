@@ -67,6 +67,10 @@ exports.incrementEventViewCount = createIncrementEventViewCountCallable({
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 const NEWS_API_KEY = defineSecret("NEWS_API_KEY");
 const GOOGLE_MAPS_BROWSER_API_KEY = defineSecret("GOOGLE_MAPS_BROWSER_API_KEY");
+// 資料同步設定密碼：只從 Secret Manager 讀取，不再寫死預設值（2026-10-19 取代原 process.env 後備值）。
+// 必須與其他 Secret 一起在檔頭宣告：exports 的 options（secrets: [...]）在載入時就會讀取，
+// 宣告在使用處之後會觸發 TDZ（2026-10-20 部署分析時 migrateUidFields 報 ReferenceError，因此移到這裡）。
+const DATA_SYNC_SETTINGS_PASSWORD = defineSecret("DATA_SYNC_SETTINGS_PASSWORD");
 const VALID_ROLES = new Set([
   "user",
   "coach",
@@ -15974,8 +15978,6 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
 });
 const ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT = 80;
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
-// 資料同步設定密碼：只從 Secret Manager 讀取，不再寫死預設值（2026-10-19 取代原 process.env 後備值）。
-const DATA_SYNC_SETTINGS_PASSWORD = defineSecret("DATA_SYNC_SETTINGS_PASSWORD");
 const NO_SHOW_FEATURE_ENABLED = true;
 const UID_HEALTH_CHECK_LOG_LIMIT = 30;
 const UID_HEALTH_SAMPLE_LIMIT = 8;
