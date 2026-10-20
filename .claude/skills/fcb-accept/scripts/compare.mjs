@@ -4,7 +4,7 @@
 //    （2026-10-19 事故；FC-B 4201c25 起本機網址連正式資料庫會被 assertFirebaseTargetAllowed 擋下）。
 // 用法：node compare.mjs <輸出目錄> <B 的 base URL> <路徑1> [路徑2 ...]
 //   路徑可寫 "A路徑|B路徑"，兩邊不同時用（例如 "/events/@first|/events/ce_xxx"）。
-//   A 路徑 "/events/@first" 會自動換成舊版活動列表的第一個活動。
+//   A 路徑 "/events/@first"、"/teams/@first" 會自動換成舊版列表的第一個活動／俱樂部。
 // 產出：每頁手機首屏截圖（A、B、並排合成圖）＋ report.json（冷啟動／二次開啟的 FCP、LCP、
 //       請求數、傳輸量、JS／CSS 位元組）。
 // 注意：B 連本機 emulator，資料比正式站少、網路比正式站快；速度只能看相對趨勢與資源量。
@@ -76,10 +76,22 @@ async function firstAEventPath() {
   return id ? `/events/${id}` : '/activities';
 }
 
+// 舊版第一個俱樂部：讀俱樂部列表卡片的 data-team-id（優先置頂卡以外的第一張也無妨，取第一張）。
+async function firstATeamPath() {
+  const context = await browser.newContext({ viewport: VIEWPORT });
+  const page = await context.newPage();
+  await page.goto(`${A_BASE}/teams`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(6000);
+  const id = await page.evaluate(() => document.querySelector('.tc-card[data-team-id]')?.getAttribute('data-team-id') || '');
+  await context.close();
+  return id ? `/teams/${id}` : '/teams';
+}
+
 const report = [];
 for (const spec of PAGES) {
   let [aPath, bPath] = spec.includes('|') ? spec.split('|') : [spec, spec];
   if (aPath === '/events/@first') aPath = await firstAEventPath();
+  if (aPath === '/teams/@first') aPath = await firstATeamPath();
   const name = bPath.replace(/\//g, '_').replace(/^_/, '') || 'home';
   const row = { page: name, aPath, bPath };
   for (const [side, base, p] of [['A', A_BASE, aPath], ['B', B_BASE, bPath]]) {
