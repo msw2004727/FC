@@ -5,7 +5,7 @@
 // 產出：每個路徑 × 手機 390／桌機 1280 × 亮／暗 的整頁截圖，與 report.json（console error、水平溢出、頁面前段文字）。
 // 前置：FC-B dev server 跑在 5181（VITE_FIREBASE_EMULATOR=1），emulator 已 seed（npm run seed:emulator）。
 // 注意：Firestore 長連線會讓 networkidle 等不到，所以只等 3 秒上限。
-// 彈窗類畫面：設 SHOTS_CLICK="按鈕文字"（或 "css:選擇器"）會在每頁載入後點該按鈕；再設 SHOTS_SCROLL="捲動容器選擇器"
+// 彈窗類畫面：設 SHOTS_CLICK="按鈕文字"（或 "css:選擇器"，多步用「 >> 」分隔）會在每頁載入後依序點擊；再設 SHOTS_SCROLL="捲動容器選擇器"
 // （例如 .ui-modal__body）會在容器內分段捲動、每段拍一張可視範圍截圖（檔名加 -s0、-s1…）。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,10 +46,14 @@ for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
       const name = `${tag}-${p.replace(/\//g, '_').replace(/^_/, '') || 'root'}-${vp}-${theme}`;
       if (process.env.SHOTS_CLICK) {
         // "css:選擇器" 用 CSS 選擇器點擊（同名文字有多個時用，例如分頁按鈕）；其他照文字精確比對。
-        const clickTarget = process.env.SHOTS_CLICK.startsWith('css:')
-          ? page.locator(process.env.SHOTS_CLICK.slice(4))
-          : page.getByText(process.env.SHOTS_CLICK, { exact: true });
-        await clickTarget.first().click().catch((e) => errors.push(`click: ${String(e).slice(0, 120)}`));
+        // 多步驟用「 >> 」分隔，依序點擊（例如展開區塊再按編輯）。
+        for (const step of process.env.SHOTS_CLICK.split(' >> ')) {
+          const clickTarget = step.startsWith('css:')
+            ? page.locator(step.slice(4))
+            : page.getByText(step, { exact: true });
+          await clickTarget.first().click().catch((e) => errors.push(`click: ${String(e).slice(0, 120)}`));
+          await page.waitForTimeout(1200);
+        }
         await page.waitForTimeout(800);
       }
       const scrollSel = process.env.SHOTS_SCROLL;
