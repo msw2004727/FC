@@ -41,8 +41,9 @@ describe('startup performance guardrails', () => {
 
     expect(scripts.length).toBeLessThanOrEqual(54);
     // Reviewed safe-directory, atomic event writes, reliable-message, delegated-profile,
-    // and create-modal navigation guards; gzip remains below the existing 390 KB ceiling.
-    expect(rawBytes).toBeLessThanOrEqual(1_546_000);
+    // and create-modal navigation guards, plus the PageLoader robots-meta strip;
+    // gzip remains below the existing 390 KB ceiling.
+    expect(rawBytes).toBeLessThanOrEqual(1_546_400);
     expect(gzipBytes).toBeLessThanOrEqual(390_000);
   });
 

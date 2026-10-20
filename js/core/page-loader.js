@@ -109,6 +109,11 @@ const PageLoader = {
     'page-edu-student-apply':  'education',
   },
 
+  /** 片段的 robots meta 會混進整頁 body，插入前剝掉；/pages/* 索引改由 _headers 管 */
+  _stripRobotsMeta(html) {
+    return String(html || '').replace(/<meta\b[^>]*\bname\s*=\s*(["']?)robots\1(?=[\s/>])[^>]*>\s*/gi, '');
+  },
+
   _appendToMainContent(html) {
     const mainEl = document.getElementById('main-content');
     const temp = document.createElement('div');
@@ -161,7 +166,7 @@ const PageLoader = {
             console.warn(`[PageLoader] ${fileName} HTTP ${r.status}`);
             return '';
           }
-          return await r.text();
+          return this._stripRobotsMeta(await r.text());
         });
       request.catch(() => {});
       const timeout = new Promise((_, reject) => {
