@@ -2,7 +2,7 @@
 name: delegate
 description: 當要把機械性或大量產文工作派給外部 AI 時使用。依任務選 DeepSeek、MiMo、Gemini 或 Codex，產出先進 staging 再驗收。
 disable-model-invocation: false
-allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *)
+allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/pack-prompt.py *)
 ---
 
 # delegate
@@ -16,7 +16,7 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *)
 | 寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 主力；禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出。取代原本未指定 effort 的做法） |
 | 格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
 | 審查、長 context | Gemini `gemini-4-argon` | 長文與審查 |
-| 審查 | Codex GPT-6 Astra | 本機無法執行子程序，只能純文字：`codex exec --skip-git-repo-check -s read-only < prompt.md` |
+| 審查、較細的產碼 | Codex GPT-6 Astra | 本機無法執行子程序，只能純文字，見下方「Codex 純文字派工」 |
 
 ## 金鑰
 
@@ -33,6 +33,41 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *)
 3. 需要多檔輸出時用 `--split-dir`；格式為 `===== FILE: name =====` 與 `===== END FILE =====`。
 4. 產出先放 staging，例如 `docs/specs/.../out/`。
 5. 用腳本驗證編碼、路徑存在、行數後，才複製到正式位置。
+
+## 打包附件（pack-prompt.py）
+
+只能讀純文字的模型（Codex、或不想整檔附上時）用它把「規格＋檔案節錄＋頁尾」打包成一個 UTF-8 檔，不必每次手寫組裝腳本（2026-10-22 T-001 新增；取代各任務自寫 build_prompt.py）：
+
+```
+python -I ${CLAUDE_SKILL_DIR}/scripts/pack-prompt.py --spec spec.md --out prompt.md \
+  --root D:/Users/msw74/Documents/github/FC-B \
+  --footer D:/Users/msw74/Documents/github/FC/docs/specs/lite-convergence/codex-footer.md \
+  src/data/op-log.ts \
+  "src/features/events/data/attendance-roster-model.ts#107-133" \
+  "src/data/callables.ts#|// ── CallableError|" \
+  "src/features/events/data/event-lifecycle.ts#|export function parseEventStartDate|  return new Date(y, m, d);|" \
+  .claude/rules/review-lessons.md
+```
+
+- 選擇器：`#起-迄` 行號；`#|起始字串|結束字串|` 字串區段（含頭尾、各取第一次出現；用 `|` 分隔，因程式碼常含 `/`）；`#|起始字串|` 到檔尾。找不到檔案、字串或行號越界會直接失敗，不會靜默少附。
+- 附常數清單一律用字串區段從宣告抓到結尾括號，不用固定行數（曾因截斷漏欄位）。
+- 直接以 UTF-8 bytes 寫檔，避開 cp950 讓 Codex 拒收。
+
+## Codex 純文字派工
+
+```
+codex exec --skip-git-repo-check -s read-only -m gpt-6-astra --output-last-message resp.md - < prompt.md > codex.out 2> codex.err
+python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
+```
+
+- 背景執行（約數分鐘）；`resp.md` 是最後一則回覆，`codex.err` 先看有無 usage limit／UTF-8 錯誤。
+- prompt 結尾附 `codex-footer.md`、附件附 FC-B `.claude/rules/review-lessons.md`；附「所有會被改的檔案＋測試＋引用它們的檔案」。
+- 規格裡把「要 export 的 API 簽章」與「逐條規則」寫死，Codex 會照名稱產出，驗收時才好對。
+- 交件測試的假回應常比伺服器真實形狀精簡（例如 `adjustExp` 少了 `results`）：驗收時拿 `functions/` 的 return 對照 mock。
+
+## FC-B Callable 契約人工補登
+
+`src/data/contract/callables.ts` 標 AUTO-GENERATED，但產生器在 FC local docs、新 Callable 不會自動進來。補登照 `adjustEventCapacity` 先例，四處一起改：檔頭「人工補登：…」那一行加名稱、`<Pascal>Request/Response` 介面（欄位逐條對 `functions/` 的 `request.data` 與 return，註解寫伺服器出處）、`CALLABLES` 表（照字母序、region 照 `functions/index.js`）、`src/data/callables.ts` 的 import 與 `CallableMap`。改完 `npx tsc --noEmit`。不到百行的補登 PM 自己用 Python 精確替換即可，派工說明會比改動還長。
 
 ## 審查派工
 
