@@ -5,7 +5,7 @@ description: FC 主站跑完 node scripts/bump-version.js 之後、commit 之前
 
 # bump-check
 
-`scripts/bump-version.js` 用 `/\?v=0\.\d{8}[a-z]*/g` 換掉 `index.html` 所有 `?v=`，會連 GitHub Actions 產生的 `boot-public-lists-data` 快照 JSON 裡的圖片網址（如 `Nocoverimage%20set.png?v=0.20260923d`）一起改，違反 R-REL-003（2026-10-22 T-007 發現）。腳本修好前，每次 bump 後先跑：
+`scripts/bump-version.js` 曾把 GitHub Actions 產生的 `boot-*-data` 快照 JSON 裡的圖片網址（如 `Nocoverimage%20set.png?v=0.20260923d`）一起改掉，違反 R-REL-003（2026-10-22 T-007 發現）。T-008 已修：腳本跳過所有 `<script type="application/json">` 區塊（`bumpIndexHtml`，測試在 `tests/unit/bump-version-script.test.js`）。仍建議每次 bump 後跑一次當保險（取代原「腳本修好前」的暫時做法）：
 
 ```
 node scripts/bump-version.js

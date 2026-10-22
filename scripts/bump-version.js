@@ -14,7 +14,7 @@
  *   1. js/config.js        — CACHE_VERSION
  *   2. sw.js               — CACHE_NAME
  *   3. index.html          — var V='...'
- *   4. index.html          — 所有 ?v=... 參數
+ *   4. index.html          — 所有 ?v=...（跳過 type="application/json" 資料區塊）
  */
 
 const fs = require('fs');
@@ -92,40 +92,77 @@ function incrementVersion(ver) {
   return `0.${date}${suffix}a`;
 }
 
+// 更新 index.html：
+//   1. 先替換 var V='...'
+//   2. 再替換 ?v=0.YYYYMMDD{suffix}，但跳過 type="application/json" 的資料區塊
+// 回傳 { html, count }，count 只計算實際被替換的 ?v= 數量。
+function bumpIndexHtml(html, newVer) {
+  // 先替換 var V（同既有正則）
+  let out = html.replace(/var V='[^']+'/, `var V='${newVer}'`);
+
+  // 用正則把 HTML 切成「JSON 資料區塊」與「其他」，只在「其他」片段替換 ?v=
+  const jsonBlockRe = /<script\b[^>]*\btype=["']application\/json["'][^>]*>[\s\S]*?<\/script>/gi;
+  const assetVersionPattern = /\?v=0\.\d{8}[a-z]*/g;
+
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  jsonBlockRe.lastIndex = 0;
+  while ((match = jsonBlockRe.exec(out)) !== null) {
+    segments.push({ text: out.slice(lastIndex, match.index), isJson: false });
+    segments.push({ text: match[0], isJson: true });
+    lastIndex = match.index + match[0].length;
+  }
+  segments.push({ text: out.slice(lastIndex), isJson: false });
+
+  let count = 0;
+  const rebuilt = segments.map(seg => {
+    if (seg.isJson) return seg.text;
+    return seg.text.replace(assetVersionPattern, () => {
+      count++;
+      return '?v=' + newVer;
+    });
+  }).join('');
+
+  return { html: rebuilt, count };
+}
+
 // 主流程
-const oldVer = getCurrentVersion();
-const newVer = process.argv[2] || incrementVersion(oldVer);
+function main(argv) {
+  const oldVer = getCurrentVersion();
+  const newVer = argv[2] || incrementVersion(oldVer);
 
-console.log(`Bumping version: ${oldVer} → ${newVer}`);
+  console.log(`Bumping version: ${oldVer} → ${newVer}`);
 
-// 1. js/config.js
-let config = readFile('js/config.js');
-config = config.replace(
-  /CACHE_VERSION\s*=\s*'[^']+'/,
-  `CACHE_VERSION = '${newVer}'`
-);
-writeFile('js/config.js', config);
+  // 1. js/config.js
+  let config = readFile('js/config.js');
+  config = config.replace(
+    /CACHE_VERSION\s*=\s*'[^']+'/,
+    `CACHE_VERSION = '${newVer}'`
+  );
+  writeFile('js/config.js', config);
 
-// 2. sw.js
-let sw = readFile('sw.js');
-sw = sw.replace(
-  /CACHE_NAME\s*=\s*'sporthub-[^']+'/,
-  `CACHE_NAME       = 'sporthub-${newVer}'`
-);
-writeFile('sw.js', sw);
+  // 2. sw.js
+  let sw = readFile('sw.js');
+  sw = sw.replace(
+    /CACHE_NAME\s*=\s*'sporthub-[^']+'/,
+    `CACHE_NAME       = 'sporthub-${newVer}'`
+  );
+  writeFile('sw.js', sw);
 
-// 3+4. index.html — var V + 所有 ?v=
-let html = readFile('index.html');
-html = html.replace(
-  /var V='[^']+'/,
-  `var V='${newVer}'`
-);
-const assetVersionPattern = /\?v=0\.\d{8}[a-z]*/g;
-const vCount = (html.match(assetVersionPattern) || []).length;
-html = html.replace(assetVersionPattern, '?v=' + newVer);
-writeFile('index.html', html);
+  // 3+4. index.html — var V + 所有 ?v=（跳過 type="application/json" 資料區塊）
+  const html = readFile('index.html');
+  const { html: newHtml, count: vCount } = bumpIndexHtml(html, newVer);
+  writeFile('index.html', newHtml);
 
-console.log(`  config.js  ✓`);
-console.log(`  sw.js      ✓`);
-console.log(`  index.html ✓ (var V + ${vCount} ?v= params)`);
-console.log(`Done.`);
+  console.log(`  config.js  ✓`);
+  console.log(`  sw.js      ✓`);
+  console.log(`  index.html ✓ (var V + ${vCount} ?v= params)`);
+  console.log(`Done.`);
+}
+
+if (require.main === module) {
+  main(process.argv);
+}
+
+module.exports = { bumpIndexHtml, incrementVersion };

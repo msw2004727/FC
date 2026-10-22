@@ -13,6 +13,64 @@ const DETAIL_SPA_ROOTS = new Set(["events", "teams", "tournaments"]);
 const OPS_REPORT_PATHS = new Set(["/ops-report", "/ops-report.html"]);
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
 
+// Pages 輸出目錄是 repo 根目錄，這些 repo 內部檔不得公開；新增項目要同步 `_routes.json` include
+const PRIVATE_REPO_PATH_PREFIXES = [
+  "/.claude/",
+  "/.agents/",
+  "/.github/",
+  "/scripts/",
+  "/tests/",
+  "/functions/",
+];
+const PRIVATE_REPO_FILES = new Set([
+  "/CLAUDE.md",
+  "/AGENTS.md",
+  "/GEMINI.md",
+  "/NAVIGATION.md",
+  "/README.md",
+  "/LICENSE",
+  "/firestore.rules",
+  "/firestore.indexes.json",
+  "/storage.rules",
+  "/firebase.json",
+  "/.firebaserc",
+  "/.gitignore",
+  "/.node-version",
+  "/.nojekyll",
+  "/.env.example",
+  "/package.json",
+  "/package-lock.json",
+  "/playwright.config.js",
+]);
+
+// Pages 靜態檔服務會解碼 %XX 並接受連續斜線（實測 /CLAUDE%2Emd、//CLAUDE.md 都會給原文），比對前先正規化
+function normalizeRepoCheckPath(pathname) {
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch (_) {
+    // 非法編碼維持原字串比對
+  }
+  return decoded.replace(/\/{2,}/g, "/");
+}
+
+function isPrivateRepoPath(pathname) {
+  const normalized = normalizeRepoCheckPath(pathname);
+  return PRIVATE_REPO_FILES.has(normalized)
+    || PRIVATE_REPO_PATH_PREFIXES.some(prefix => normalized.startsWith(prefix));
+}
+
+function handlePrivateRepoPath() {
+  return new Response("Not Found", {
+    status: 404,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
+    },
+  });
+}
+
 function isTeamSharePath(pathname) {
   return pathname === TEAM_SHARE_PATH || pathname.startsWith(`${TEAM_SHARE_PATH}/`);
 }
@@ -241,6 +299,9 @@ async function handleRuntimeConfig(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (isPrivateRepoPath(url.pathname)) {
+      return handlePrivateRepoPath();
+    }
     if (isRuntimeConfigPath(url.pathname)) {
       return handleRuntimeConfig(request);
     }

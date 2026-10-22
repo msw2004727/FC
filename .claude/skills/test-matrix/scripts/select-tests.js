@@ -35,7 +35,9 @@ if (!files.length) {
 const norm = files.map(f => f.replace(/\\/g, '/').replace(/^\.\//, '').trim()).filter(Boolean);
 const some = (pred) => norm.some(pred);
 
-const unit = some(f => f.startsWith('js/') || f.startsWith('css/') || f.startsWith('pages/') || f === 'index.html' || f === 'app.js' || f === 'sw.js');
+// 2026-10-22 T-008：加入 Pages 託管檔與 bump 腳本（原本選不出任何測試，worker 封鎖／hosting／bump 測試都在 test:unit）
+const hosting = some(f => f === '_worker.js' || f === '_routes.json' || f === '_headers' || f === '404.html' || f === 'scripts/bump-version.js');
+const unit = hosting || some(f => f.startsWith('js/') || f.startsWith('css/') || f.startsWith('pages/') || f === 'index.html' || f === 'app.js' || f === 'sw.js');
 const ui = some(f => f.startsWith('css/') || f.startsWith('pages/') || f === 'index.html');
 const lockedSet = new Set([
   'js/firebase-crud.js',
