@@ -31,6 +31,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 4. 有長篇對照表（例如欄位對照 `fields.md`）時，設定檔加 `"appendix": ["fields.md"]`，`build-index.mjs` 會把它內嵌成頁尾可摺疊附錄（支援標題、表格、條列、行內 code／粗體；表格在框內橫向捲動，不造成整頁水平捲動）。（2026-10-22 T-012 新增）
 5. `node scripts/build-index.mjs <outDir>` → `index.html`（單檔、離線、資料內嵌、深淺色截圖切換、需站長決定置頂琥珀色）。
 6. `node scripts/verify.mjs <outDir>`：0 console error、0 破圖、無水平捲動才算過；會存 `overview-desktop.png`、`overview-mobile-dark.png`。再自己看一張需站長決定區塊的截圖。
+   - 驗收截圖內容用 `node scripts/sheet.mjs <outDir> light <情境,…最多 6 個> <out.png>` 拼縮圖總表，一次看 6 組 A｜B，比逐張開圖省用量；被彈窗擋住、點擊失敗、mock 錯版一眼可見。（2026-10-22 T-017 新增）
 7. 跑 `encoding-check`；確認 FC-B `git status` 乾淨（預覽任務不得改 `src/`）。
 
 ## 踩過的坑
@@ -51,3 +52,10 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 - **照 A 的尺寸驗收用量的，不要只看圖**：Playwright 在 A、B 量同一元件的 `getBoundingClientRect().height`，B−A ≤ 2px 才算過；改前改後各量一次。A 需登入的元件（例如類型選單）可把 A 原始碼的同一段 HTML 注入 A 訪客頁的 DOM 量（只在本機瀏覽器、不送請求），但**要連同 A 的外層容器一起注入**：T-018 只注入 `.ce-row label` 量到 16px，A 實際包在 `.modal-body`（行高 1.7）裡是 19.9px，差點誤判成 B 有問題。量測腳本範例 `p75-uiux/t018-line-height/work/measure.mjs`。（2026-10-22 T-018）
 - 截改前／改後同一份 B 程式時，在 FC-B 開 worktree 跑自己的 dev server（`node_modules` 用 PowerShell `New-Item -ItemType Junction` 連到 FC-B），改前狀態用「暫時註解掉那行 import」取得，不必動共用目錄（別的分支的 5181 截圖不受影響）。但 worktree 裡 `npm run check` 會有 `scanner.test.ts` 9 個「Denied ID …zxing_reader.wasm?url」失敗（junction 讓 node_modules 落在 Vite fs.allow 之外），屬環境問題：全綠要在 FC-B 主目錄單跑。收尾先用 `(Get-Item <junction>).Delete()` 拆 junction 再 `git worktree remove`，以免刪到 FC-B 的 node_modules。（2026-10-22 T-018）
 - 三欄並排（A｜B 改前｜B 改後）用 PIL 拼圖即可，範例 `p75-uiux/t018-line-height/compose.py`；A 是 mock 的情境在欄標註「依原始碼重現」。（2026-10-22 T-018）
+- **emulator 是共用的，別的分支會改你補的種子**：T-017 補的教練個資，被同時在跑的 T-018 `coach-profile.mjs off` 刪掉，B 個人頁又跳「完善個人資料」蓋住畫面。自己的補種子寫成腳本（範例 `p75-uiux/batch6-preview/work/seed-pm.mjs`），**每次跑 shots 前重跑一次**，不要只在開工時跑。（2026-10-22 T-017）
+- B 個人頁、開團等畫面遇到種子帳號缺性別／生日／地區會先跳「完善個人資料」：補種子時用 `updateMask` PATCH 只寫這三欄（seed-pm.mjs），不要整份覆寫 users 文件。
+- 有權限碼才出現的卡（例如第二身份卡 `profile.secondary_identity`，A 對 role=user 一律關）：在 emulator 寫 `userPermissionGrants/{uid}`，**文件必須帶 `uid`（與文件 id 相同）與 `enabled: true`**，只有 `permissions` 陣列時 B 照 A 視為無效授權。（2026-10-22 T-017）
+- B 個人頁的收折標題與卡內按鈕，Playwright `locator.click` 會等到逾時（判定不可操作）；截圖用 `p.evaluate(() => document.querySelector(sel)?.click())` 觸發 DOM click。私訊對話卡的名稱列會 stopPropagation（點名字跳個人頁），要點 `.pm-thread-preview` 才開對話。（2026-10-22 T-017）
+- A 示意圖量大時派 DeepSeek 寫 `mocks-a.mjs`（`--effort low`，約 3 分鐘、52k 輸入）：規格寫死情境名與「class、文案逐字照附件 render 函式」，附件用 `pack-prompt.py` 依函式行號切。交件檢查三件事：①回覆常是 ```` ```js ```` 包住且只有 `===== END FILE =====`、沒有 FILE 開頭，`--split-dir` 會切不出檔，要手動去掉圍欄；②搜 `不確定` 註解——附件行號範圍切太短的函式（T-017 的收藏、報名紀錄）它會自己猜，PM 照完整函式補正；③跨檔 helper（例如皇冠 `_identityCrownBadgeHtml`）沒附就會用 emoji 代替，要補附件或自己補。範例 `p75-uiux/batch6-preview/work/mocks-spec.md`。（2026-10-22 T-017）
+- 站長提供的截圖（通常只有淺色）：複製成某情境的 `<情境>-A|B-light.png` 與 `-dark.png`（同一張），並在 `mockNotes` 寫明「站長提供、只有淺色」；用 C- 附圖項目承載，不佔盤點項目的 shot（範例 `batch6-preview/work/owner-shots.mjs`）。（2026-10-22 T-017）
+- 計畫書與 FC-B `docs/handover.md` 的現況描述可能過期：T-017 計畫書要標「入隊核准鈕需等 P 階段」，但 FC-B `git log` 顯示 P 階段已在 3da1d95 完成（handover 第 71、104 行沒更新）。標「已完成／需等」前一律以 `git log` 與程式碼為準，盤點的「B 沒有 X」也要 grep 確認（M-124 的 LINE 綁定其實已在活動頁）。（2026-10-22 T-017）
