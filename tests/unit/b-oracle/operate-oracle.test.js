@@ -470,6 +470,7 @@ describe('B oracle: activity operate fixture', () => {
                 canManageEvent: app._canManageEvent(event),
                 canViewEventOperationLog: app._canViewEventOperationLog(event),
                 canManageTeamOnlyVisibility: app._canManageTeamOnlyVisibility(teamEvent),
+                canManageTeamSplit: app._canManageTeamSplit(event),
                 capabilities: capabilitiesExpected,
               };
 
@@ -552,6 +553,7 @@ describe('B oracle: activity operate fixture', () => {
                     canViewEventOperationLog: app._canViewEventOperationLog(event),
                     canManageTeamOnlyVisibility: app._canManageTeamOnlyVisibility(teamEvent),
                     canManageTeamOnlyVisibilityNonTeamEvent: app._canManageTeamOnlyVisibility(event),
+                    canManageTeamSplit: app._canManageTeamSplit(event),
                   },
                 });
                 tvIndex += 1;
@@ -608,6 +610,7 @@ describe('B oracle: activity operate fixture', () => {
       'canManageEvent',
       'canViewEventOperationLog',
       'canManageTeamOnlyVisibility',
+      'canManageTeamSplit',
     ];
 
     for (const c of cases) {
