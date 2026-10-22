@@ -187,6 +187,12 @@ def main():
         print(f"  wrote {n} ({l} lines)")
     if ch.get("finish_reason") == "length":
         print("WARNING: output truncated (finish_reason=length)")
+    # 2026-10-23 T-019：DeepSeek 偶發 finish=stop、只有推理、正文 0 字（同一 prompt 重送即正常），自動重送一次。
+    if not text and ch.get("finish_reason") == "stop" and not os.environ.get("LLM_RUN_RETRIED"):
+        print("EMPTY OUTPUT: 正文 0 字，自動重送一次")
+        import subprocess
+        env = dict(os.environ, LLM_RUN_RETRIED="1")
+        sys.exit(subprocess.run([sys.executable, *sys.argv], env=env).returncode)
 
 if __name__ == "__main__":
     main()

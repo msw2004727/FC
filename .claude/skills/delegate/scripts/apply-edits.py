@@ -10,7 +10,7 @@
   ===== END EDIT =====
 
 用法：
-  python -I apply-edits.py <回應檔> <repo 根目錄> [--dry-run] [--only 路徑]
+  python -I apply-edits.py <回應檔> <repo 根目錄> [--dry-run] [--only 路徑] [--allow-overwrite]
 
 規則：
 - SEARCH 先逐字比對；找不到時退一步「忽略每行行尾空白」比對；仍找不到或出現多次就失敗並列出，不會猜。
@@ -18,6 +18,8 @@
 - `===== END EDIT =====` 可省略：區塊延伸到下一個 EDIT／FILE 標記或檔尾（模型常漏結束標記）。
 - 寫檔一律 UTF-8 無 BOM；既有檔保留原本換行（CRLF 檔不轉成 LF，避免整檔 diff），新檔用 LF。
 - `===== FILE: path =====` 區塊（新檔完整內容，到 `===== END FILE =====` 或下一個標記為止，去掉 Markdown 圍欄）一併寫入；已存在的檔案不會被 FILE 覆蓋，會列為失敗。
+  加 `--allow-overwrite` 才允許 FILE 覆寫既有檔（印出行數變化與「原有註解行消失幾行」供審 diff；同一檔同時有 FILE 與 EDIT 仍失敗）。
+  （2026-10-23 T-019 新增：模型常把既有檔整檔重寫，原本要手動 split-loose＋抽 EDIT 再分兩次套，一張卡要多 3～4 次工具呼叫。）
 （2026-10-22 T-004 首建、T-005a 改寫時誤覆蓋後補回相同行為。）
 """
 import pathlib
@@ -50,6 +52,7 @@ def main() -> int:
     sys.stdout.reconfigure(encoding='utf-8')
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     dry = '--dry-run' in sys.argv
+    allow_overwrite = '--allow-overwrite' in sys.argv
     only = None
     if '--only' in sys.argv:
         only = sys.argv[sys.argv.index('--only') + 1]
@@ -74,7 +77,13 @@ def main() -> int:
         end = END_RE.search(body)
         if end:
             body = body[:end.start()]
-        edits.setdefault(m.group(2).strip().replace('\\', '/'), []).extend(BLOCK_RE.findall(body))
+        found = BLOCK_RE.findall(body)
+        opened = len(re.findall(r'^<<<<<<< SEARCH[ \t]*$', body, re.M))
+        if opened != len(found):
+            # 2026-10-23 T-019：輸出被截斷時最後一個區塊只有 SEARCH，原本會被靜默略過。
+            print(f'FAIL {m.group(2).strip()}: 有 {opened - len(found)} 個 SEARCH 區塊不完整（輸出截斷或缺 REPLACE）')
+            failed = True
+        edits.setdefault(m.group(2).strip().replace('\\', '/'), []).extend(found)
     if not edits and not new_files:
         print('[apply-edits] 回應中沒有 EDIT／FILE 區塊')
     pending = []
@@ -86,8 +95,20 @@ def main() -> int:
             continue
         path = root / rel
         if path.exists():
-            print(f'FAIL {rel}: FILE 區塊不能覆蓋既有檔，請改用 EDIT')
-            failed = True
+            if not allow_overwrite:
+                print(f'FAIL {rel}: FILE 區塊不能覆蓋既有檔，請改用 EDIT（確認是刻意整檔改寫再加 --allow-overwrite）')
+                failed = True
+                continue
+            if rel in edits:
+                print(f'FAIL {rel}: 同一檔同時有 FILE 與 EDIT，無法判斷基準')
+                failed = True
+                continue
+            old = path.read_bytes().decode('utf-8').replace('\r\n', '\n').split('\n')
+            new = content.split('\n')
+            gone = [l for l in old if l.strip().startswith(('//', '/*', '*')) and l not in new]
+            print(f'  {rel}: 整檔覆寫 {len(old)} → {len(new)} 行，原有註解行消失 {len(gone)} 行'
+                  + ('（請逐行看 diff，可能被刪註解）' if gone else ''))
+            pending.append((rel, path, content, 'overwrite'))
             continue
         pending.append((rel, path, content, 'new'))
     for rel, blocks in edits.items():
@@ -97,6 +118,11 @@ def main() -> int:
             print(f'skip {rel}')
             continue
         path = root / rel
+        if not blocks:
+            # 2026-10-23 T-019：模型把結尾寫成「======= END EDIT =====」時原本會靜默套用 0 區塊。
+            print(f'FAIL {rel}: EDIT 內解析不到任何 SEARCH/REPLACE（多半缺 >>>>>>> REPLACE）')
+            failed = True
+            continue
         if not path.is_file():
             print(f'FAIL {rel}: 檔案不存在')
             failed = True
@@ -135,7 +161,7 @@ def main() -> int:
         if not dry:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(src.encode('utf-8'))
-        what = '新檔' if n == 'new' else f'{n} 個區塊'
+        what = {'new': '新檔', 'overwrite': '整檔覆寫'}.get(n, f'{n} 個區塊')
         print(f'{"(dry) " if dry else ""}applied {rel}: {what}')
     return 0
 

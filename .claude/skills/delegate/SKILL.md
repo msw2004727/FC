@@ -85,6 +85,13 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 
 ## 已知限制
 
+- **2026-10-23 T-019 補強（取代「FILE 覆寫既有檔一律失敗、要手動 split-loose＋抽 EDIT 分兩次套」）**：
+  - 模型常把既有檔整檔用 FILE 輸出：確認是刻意整檔改寫後加 `apply-edits.py ... --allow-overwrite`，腳本會印「原有註解行消失幾行」，>0 就逐行看 diff。同一檔同時有 FILE 與 EDIT 仍會失敗。
+  - apply-edits 現在會擋兩種以前會**靜默略過**的壞格式：EDIT 內一個 SEARCH/REPLACE 都解析不到（模型把結尾寫成 `======= END EDIT =====`）、以及輸出被截斷只剩 SEARCH 的最後一塊。截斷時用 `head -n <最後完整區塊行號>` 切出完整部分先套，剩下的改小卡重派或 PM 手補。
+  - DeepSeek 偶發 `finish=stop`、只有推理、正文 0 字（同一 prompt 重送就正常，T-019 遇到 2 次）：llm-run.py 會自動重送一次（`LLM_RUN_RETRIED` 防無限重送）。
+  - 多張卡平行改同一個測試大檔（`profile.test.tsx`）一定衝突：只讓一張卡擁有它，其他卡的測試寫在自己的新測試檔；功能卡全部套完後再派一張「只改測試」的卡，附 `vitest` 失敗摘要（`grep -E "^ FAIL |^(AssertionError|TestingLibraryElementError|Error|TypeError)"`）。
+  - 一段同時派 5 張以上 DeepSeek 卡時，回應會明顯變慢（各卡 3～5 分鐘），但不會失敗；不必分批。
+
 - 非串流會 `IncompleteRead`；一律使用腳本內建 SSE。
 - Windows 命令列 32K 上限；prompt 一律走檔案。
 - Bash 工具會還原 `\\`；含反斜線的補丁先用 Write 寫成 `.py` 再執行。
