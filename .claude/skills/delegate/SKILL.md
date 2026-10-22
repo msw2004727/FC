@@ -49,6 +49,7 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/pack-prompt.py --spec spec.md --out prompt
   .claude/rules/review-lessons.md
 ```
 
+- 混附兩個 repo：`--alias A=D:/…/FC --alias B=D:/…/FC-B-xxx`，附件寫 `A:js/x.js#10-20`、`B:src/y.ts`（只有登記過的別名才當別名，不會誤判磁碟代號）。（2026-10-22 T-005a 新增）
 - 選擇器：`#起-迄` 行號；`#|起始字串|結束字串|` 字串區段（含頭尾、各取第一次出現；用 `|` 分隔，因程式碼常含 `/`）；`#|起始字串|` 到檔尾。找不到檔案、字串或行號越界會直接失敗，不會靜默少附。
 - 附常數清單一律用字串區段從宣告抓到結尾括號，不用固定行數（曾因截斷漏欄位）。
 - 直接以 UTF-8 bytes 寫檔，避開 cp950 讓 Codex 拒收。
@@ -80,3 +81,5 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 - Windows 命令列 32K 上限；prompt 一律走檔案。
 - Bash 工具會還原 `\\`；含反斜線的補丁先用 Write 寫成 `.py` 再執行。
 - 模型常省略 `===== END FILE =====`、在檔案外包 Markdown 圍欄、或在結束標記後附說明文字；此時 llm-run.py 的 `--split-dir` 會切不出檔案或切錯（log 沒有「wrote …」行）。改用 `python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py <回應檔> <輸出目錄>`：以 FILE 標記為界、在第一個 END 標記截斷、去掉圍欄。Codex 的輸出一律用它切。（2026-10-19 新增）
+- 多張卡平行改同一個大檔（例如 `ActivitiesPage.tsx`）：每張卡在 spec 寫死「只能動哪些區塊」，要求 EDIT 區塊；後套的卡 SEARCH 常因前一張改過而對不上（import 列、加了 ref 的元素），用小 Python 腳本把該區塊的 SEARCH 改錨到新內容再套，不要退回整檔輸出。spec 也要明講「含 JSX 的測試副檔名用 `.tsx`」（DeepSeek 三張卡都寫成 `.ts`，tsc 全紅）。（2026-10-22 T-005a）
+- 背景平行派工前先 `mkdir -p out`（不要和第一個背景命令寫在同一行），否則其他背景命令的 `> out/x.log` 會因資料夾還不存在而直接失敗。（2026-10-22 T-005a）

@@ -8,7 +8,9 @@ ATTACH 格式（路徑相對 --root，可混用）：
   path#120-180               第 120～180 行（含頭尾）
   path#|起始字串|結束字串|      從起始字串到結束字串（含），各取第一次出現（用 | 分隔，因程式碼常含 /）
   path#|起始字串|              從起始字串到檔尾
+  NAME:path#...              用 --alias NAME=DIR 指定的根目錄（同一份 prompt 混附 A 與 B 兩個 repo 時用）
 附件標題就是 ATTACH 原字串。找不到檔案或字串會直接失敗，不會靜默少附。
+（2026-10-22 T-005a 新增 --alias；取代「A、B 各打包一次再手動串接」。）
 """
 import argparse
 import pathlib
@@ -53,13 +55,23 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--root", default=".")
     ap.add_argument("--footer")
+    ap.add_argument("--alias", action="append", default=[], help="NAME=DIR，附件寫 NAME:path 時以 DIR 為根")
     ap.add_argument("attach", nargs="*")
     args = ap.parse_args()
 
     root = pathlib.Path(args.root)
+    aliases = {}
+    for item in args.alias:
+        name, sep, d = item.partition("=")
+        if not sep or not name or not d:
+            sys.exit(f"[pack-prompt] --alias 格式應為 NAME=DIR：{item}")
+        aliases[name] = pathlib.Path(d)
     out = [pathlib.Path(args.spec).read_text(encoding="utf-8"), "\n\n# 附件\n"]
     for spec in args.attach:
-        out.append(f"\n===== ATTACHMENT: {spec} =====\n{extract(root, spec)}\n===== END ATTACHMENT =====\n")
+        name, sep, rest = spec.partition(":")
+        # 只有 NAME 是已登記別名才當別名（避免把 Windows 磁碟代號 D: 誤判）。
+        base, rel = (aliases[name], rest) if sep and name in aliases else (root, spec)
+        out.append(f"\n===== ATTACHMENT: {spec} =====\n{extract(base, rel)}\n===== END ATTACHMENT =====\n")
     if args.footer:
         out.append("\n" + pathlib.Path(args.footer).read_text(encoding="utf-8"))
     body = "".join(out)

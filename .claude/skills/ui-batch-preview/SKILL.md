@@ -22,7 +22,7 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
    - 先查 FC-B `git log` 有沒有前面批次已做掉的項目（第 3 批的 M-024、U-026 就是），已做的不列或標「已完成（請追認）」。
    - PM 建議用語固定：照舊版／採優化／建議略過／已完成（請追認）。
 2. `node scripts/pick-items.mjs <config.json>` → `<outDir>/items.json`。
-3. **截圖情境**：複製 `examples/batch3.scenes.mjs` 改情境；`node scripts/shots.mjs <scenes.mjs> <outDir>/shots [單一情境]`。
+3. **截圖情境**：複製 `examples/batch3.scenes.mjs` 改情境；`node scripts/shots.mjs <scenes.mjs> <outDir>/shots [單一情境]`。B 不在 5181 時用環境變數 `B_BASE=http://localhost:5182`（平行 PM 分支各有自己的 dev server；2026-10-22 T-005a 新增）。
    - A 需登入的畫面截不到：設定檔 `loginOnly` 列這些情境、`loginFallback` 指定改用哪張 A 訪客圖，頁上自動註明。
    - 連登入都進不去的 A 畫面（例如名單編輯模式）：用 A 原始碼的 inline style 在 Playwright `setContent` 重現一張示意圖，檔名照 `<情境>-A-<theme>.png`，並在 `mockNotes` 註明「依原始碼重現，非實拍」。
 4. `node scripts/build-index.mjs <outDir>` → `index.html`（單檔、離線、資料內嵌、深淺色截圖切換、需站長決定置頂琥珀色）。

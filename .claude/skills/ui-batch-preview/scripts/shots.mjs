@@ -10,7 +10,8 @@ const FCB = 'D:/Users/msw74/Documents/github/FC-B';
 const require = createRequire(path.join(FCB, 'package.json'));
 const { chromium } = require('@playwright/test');
 const A_BASE = 'https://toosterx.com';
-const B_BASE = 'http://localhost:5181';
+// B_BASE 環境變數可覆寫（2026-10-22 T-005a：平行分支各用自己的 dev server port）。
+const B_BASE = process.env.B_BASE || 'http://localhost:5181';
 
 const [scenesFile, OUT, ONLY] = process.argv.slice(2);
 fs.mkdirSync(OUT, { recursive: true });
