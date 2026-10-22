@@ -33,6 +33,11 @@ FC-B（B 收斂版）與舊站 A 共用 Firestore／Rules／Functions，**資料
    種子 UID：user1 `U…0001`、coach `U…0002`（俱樂部 A 隊長，角色 coach）、admin `U…0003`（俱樂部 B 隊長）、blocked `U…0004`。看 report 與至少手機亮色、桌機暗色各一張圖。
    - 要測 Callable 流程：另起 `VITE_FIREBASE_EMULATOR=1 VITE_CALLABLE_MODE=mock` 的 dev server（FC `.claude/launch.json` 的 `fc-b-emulator-mock`，port 5183），`FCB_BASE=http://localhost:5183`；mock 定義在 FC-B `src/dev/callable-mocks.ts`，失敗情境用 `SHOTS_LOCALSTORAGE="fcb:mock:settleFail=1"` 切換。`SHOTS_MOBILE_ONLY=1` 只拍 390、`SHOTS_TAG` 區分情境檔名。
    - 要等 toast：截圖前等文字出現後再等約 700ms（淡入動畫中途截圖會看不到）。shots.mjs 不等 toast，互動流程複雜時另寫小 Playwright 腳本。（2026-10-22 T-004 新增）
+5b. **審查**：每張卡 commit 後 `bash ${CLAUDE_SKILL_DIR}/scripts/review-card.sh <工作資料夾> <卡號> <commit> <原 prompt>` 送 Gemini 4；權限（R-IAM-010／011）與寫入卡另送 Codex 第二審。Gemini 常抓到「真瀏覽器」問題（Safari／LINE WebView 點擊後經多層 `await import()` 才 `window.open`／`navigator.share`／`clipboard`，手勢權限過期被擋），這類以審查為準修掉。（2026-10-22 T-005b）
+5c. **FC Rules 測試**（B 直寫或新寫入路徑必做，檔放 FC `tests/firestore-rules/b-contract/`）：
+   - 角色一定放 custom claim：`testEnv.authenticatedContext(uid, { role })`（admin 再加 `admin: true`），並 seed `rolePermissions/{role}`（含 `permissions` 陣列）、`roleActivityCapabilities/user`（含 `catalogVersion`）、完整 `users/{uid}`；照 FC `tests/firestore.rules.test.js` 的 seed helper。少了任何一項，Rules 會出現「maximum of 1000 expressions」「Property permissions is undefined」而全拒，看起來像 Rules 擋掉其實是測試資料不對。
+   - 本機已有 emulator 在 8080 時（`firebase emulators:exec` 會因 port 被占失敗），直接 `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx jest --runInBand <測試檔>`；測試用自己的 projectId，不會動到開發資料。
+   - 測試要記錄「現行 Rules」實況；若 A 前端顯示按鈕但 Rules 會拒（例：活動公開開關 `isPublic` 不在 owner／scoped 白名單），照實寫成 assertFails 並註明是 A 落差，不改 Rules、不改 payload，回報待站長決定。
 6. **commit**（本機，不推送）：精確 `git add` 本次檔案；commit 訊息用中文列出「照 A 修正了什麼、未採用什麼與理由、驗證結果、已知限制」，結尾附 attribution。
 7. **更新看板**：見 memory `reference_fcb_progress_board.md`（只更新變動的 items 與 `meta/board`，帶 `if_version`；看板公開，**不寫授權事項**）。
 

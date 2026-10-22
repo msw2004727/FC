@@ -82,4 +82,6 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 - Bash 工具會還原 `\\`；含反斜線的補丁先用 Write 寫成 `.py` 再執行。
 - 模型常省略 `===== END FILE =====`、在檔案外包 Markdown 圍欄、或在結束標記後附說明文字；此時 llm-run.py 的 `--split-dir` 會切不出檔案或切錯（log 沒有「wrote …」行）。改用 `python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py <回應檔> <輸出目錄>`：以 FILE 標記為界、在第一個 END 標記截斷、去掉圍欄。Codex 的輸出一律用它切。（2026-10-19 新增）
 - 多張卡平行改同一個大檔（例如 `ActivitiesPage.tsx`）：每張卡在 spec 寫死「只能動哪些區塊」，要求 EDIT 區塊；後套的卡 SEARCH 常因前一張改過而對不上（import 列、加了 ref 的元素），用小 Python 腳本把該區塊的 SEARCH 改錨到新內容再套，不要退回整檔輸出。spec 也要明講「含 JSX 的測試副檔名用 `.tsx`」（DeepSeek 三張卡都寫成 `.ts`，tsc 全紅）。（2026-10-22 T-005a）
+- **DeepSeek 一張卡的 prompt 超過約 50k token（約 18 萬字元以上）就會把 64k 輸出額度吃在推理、交件被截斷**（2026-10-22 T-005b：兩張 20～32 個附件的卡 `finish=length`，只交出 1～5 個檔）。一張卡只做「純函式＋元件＋測試」、附件控制在 10～17 個（約 3～9 萬字元），頁面接線另開一張給 Codex；截斷時先用 split-loose 切出已完整的檔留用，剩下的拆小卡重派。
+- **Codex 遇到「附件只附了函式片段、看不到它依賴的介面」會拒做**（T-005b 接線卡回報「缺少寫入 context 契約」，10 項只做 1 項）。要呼叫的模組整檔附上；若 PM 已查證是既有缺陷，在第 2 輪 spec 明寫「PM 已核實、照此設計做，不要再以缺契約為由停下」並給出介面設計。
 - 背景平行派工前先 `mkdir -p out`（不要和第一個背景命令寫在同一行），否則其他背景命令的 `> out/x.log` 會因資料夾還不存在而直接失敗。（2026-10-22 T-005a）
