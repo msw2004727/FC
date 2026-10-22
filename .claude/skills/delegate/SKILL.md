@@ -74,6 +74,10 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 ## 審查派工
 
 - 使用 R-REVIEW-011～013 規定的開頭句與欄位。
+- 單一小改動的 Gemini 審查（2026-10-22 T-011，約 45 秒、3k token 輸出）：先 `git diff > diff.patch`，審查 prompt 寫明背景、逐項檢查點與「情境 × 改前 × 改後」表格要求，再
+  `pack-prompt.py --spec review-prompt.md --out review-packed.md --alias A=… --alias B=… A:…/diff.patch B:<改後全文> <呼叫鏈片段>`，
+  `llm-run.py --provider gemini --prompt review-packed.md --out out/gemini-review.md --timeout 600`。
+  附「改後全文＋diff＋上下游片段」比只附 diff 好：T-011 的 Gemini 因看得到 `parseEventStartDate` 全文才抓到 Invalid Date 的 NaN 漏洞。
 
 ## 已知限制
 
