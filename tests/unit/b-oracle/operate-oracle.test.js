@@ -277,6 +277,18 @@ function createFcSandbox() {
   };
 }
 
+const TEAM_STAFF_MODES = ['none', 'captain', 'leader', 'coach', 'member'];
+
+/** 照 A `_isCurrentUserTeamStaff`：captainUid／leaderUids（或 leaderUid）／coachUids 任一含本人。 */
+function buildTeams(mode, uid) {
+  const team = { id: 't1', name: 'Team 1', captainUid: 'other-captain', leaderUids: [], coachUids: [] };
+  if (mode === 'none') return [];
+  if (mode === 'captain') team.captainUid = uid;
+  if (mode === 'leader') team.leaderUids = [uid];
+  if (mode === 'coach') team.coachUids = [uid];
+  return [team];
+}
+
 function buildEvent(relation, uid, status) {
   let creatorUid;
   let delegateUids;
@@ -429,12 +441,17 @@ describe('B oracle: activity operate fixture', () => {
               const uid = uidVar.uid;
 
               const event = buildEvent(relation, uid, status);
+              // T-005b（M-089）：俱樂部限定活動變體＋幹部身分輪替，供公開切換 helper 對照。
+              const teamStaffMode = TEAM_STAFF_MODES[Math.floor(index / 4) % TEAM_STAFF_MODES.length];
+              const teamEvent = { ...event, teamOnly: true, creatorTeamId: 't1', creatorTeamIds: ['t1'] };
+              const teams = buildTeams(teamStaffMode, uid);
 
               cache.currentUser = { uid, role };
               applyRolePermissions(cache, role, rpMode);
               applyUserGrant(cache, uid, ugMode);
               applyCapabilities(cache, capMode);
               cache.customRoles = [];
+              cache.teams = teams;
               app.currentRole = role;
 
               const capabilitiesExpected = {};
@@ -451,6 +468,8 @@ describe('B oracle: activity operate fixture', () => {
                 canRemoveConfirmedParticipant: app._canRemoveConfirmedParticipant(event),
                 hasActivityManageEntry: app._hasActivityManageEntry(),
                 canManageEvent: app._canManageEvent(event),
+                canViewEventOperationLog: app._canViewEventOperationLog(event),
+                canManageTeamOnlyVisibility: app._canManageTeamOnlyVisibility(teamEvent),
                 capabilities: capabilitiesExpected,
               };
 
@@ -472,6 +491,8 @@ describe('B oracle: activity operate fixture', () => {
                   : [],
                 customRoles: [],
                 event,
+                teamEvent,
+                teams,
               };
 
               cases.push({
@@ -487,6 +508,60 @@ describe('B oracle: activity operate fixture', () => {
       }
     }
 
+    // T-005b（M-089）：主 sweep 的身分組合分不出兩個新 helper 的差異（432 案全同），
+    // 另建一組聚焦 user／coach × 附加功能能力 × team.* 授權 × 幹部身分 × 私密的案例。
+    const teamVisibilityCases = [];
+    const tvGrants = [null, ['team.toggle_event_visibility'], ['team.create_event']];
+    const tvCaps = [[], ['user.activity.addons_use'], ['user.activity.own_manage_entry']];
+    let tvIndex = 0;
+    for (const role of ['user', 'coach']) {
+      for (const caps of tvCaps) {
+        for (const grantCodes of tvGrants) {
+          for (const relation of relations) {
+            for (const teamStaffMode of TEAM_STAFF_MODES) {
+              for (const privateEvent of [false, true]) {
+                const uid = 'u1';
+                const event = { ...buildEvent(relation, uid, 'open'), privateEvent };
+                const teamEvent = { ...event, teamOnly: true, creatorTeamId: 't1', creatorTeamIds: ['t1'] };
+                const teams = buildTeams(teamStaffMode, uid);
+                cache.currentUser = { uid, role };
+                cache.rolePermissions = {};
+                cache.currentUserPermissionGrant = grantCodes
+                  ? { uid, enabled: true, permissions: grantCodes.slice() }
+                  : null;
+                cache.roleActivityCapabilities = { user: caps.slice() };
+                cache.customRoles = [];
+                cache.teams = teams;
+                app.currentRole = role;
+                teamVisibilityCases.push({
+                  id: `team-${String(tvIndex + 1).padStart(4, '0')}`,
+                  input: {
+                    role,
+                    uid,
+                    rolePermissions: null,
+                    userGrants: cache.currentUserPermissionGrant
+                      ? { ...cache.currentUserPermissionGrant, permissions: grantCodes.slice() }
+                      : null,
+                    capabilities: caps.slice(),
+                    customRoles: [],
+                    event,
+                    teamEvent,
+                    teams,
+                  },
+                  expected: {
+                    canViewEventOperationLog: app._canViewEventOperationLog(event),
+                    canManageTeamOnlyVisibility: app._canManageTeamOnlyVisibility(teamEvent),
+                    canManageTeamOnlyVisibilityNonTeamEvent: app._canManageTeamOnlyVisibility(event),
+                  },
+                });
+                tvIndex += 1;
+              }
+            }
+          }
+        }
+      }
+    }
+
     const meta = {
       generatedAt: new Date().toISOString(),
       fcHead: getGitHead(),
@@ -495,6 +570,7 @@ describe('B oracle: activity operate fixture', () => {
         sha256: sha256File(path.join(root, rel)),
       })),
       caseCount: cases.length,
+      teamVisibilityCaseCount: teamVisibilityCases.length,
     };
 
     if (process.env.B_ORACLE_WRITE === '1') {
@@ -505,7 +581,7 @@ describe('B oracle: activity operate fixture', () => {
       fs.mkdirSync(path.dirname(outPath), { recursive: true });
       fs.writeFileSync(
         outPath,
-        `${JSON.stringify({ meta, cases }, null, 2)}\n`,
+        `${JSON.stringify({ meta, cases, teamVisibilityCases }, null, 2)}\n`,
         'utf8'
       );
     }
@@ -513,6 +589,13 @@ describe('B oracle: activity operate fixture', () => {
     // Smoke assertions — must fire only after successful run.
     expect(cases.length).toBeGreaterThanOrEqual(400);
     expect(meta.caseCount).toBe(cases.length);
+    for (const field of ['canViewEventOperationLog', 'canManageTeamOnlyVisibility']) {
+      const values = new Set(teamVisibilityCases.map(c => c.expected[field]));
+      expect(values.has(true)).toBe(true);
+      expect(values.has(false)).toBe(true);
+    }
+    expect(teamVisibilityCases.some(c =>
+      c.expected.canViewEventOperationLog !== c.expected.canManageTeamOnlyVisibility)).toBe(true);
 
     const boolFields = [
       'canEditOwnActivityBasic',
@@ -523,6 +606,8 @@ describe('B oracle: activity operate fixture', () => {
       'canRemoveConfirmedParticipant',
       'hasActivityManageEntry',
       'canManageEvent',
+      'canViewEventOperationLog',
+      'canManageTeamOnlyVisibility',
     ];
 
     for (const c of cases) {
