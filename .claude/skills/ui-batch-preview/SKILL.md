@@ -24,7 +24,9 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 2. `node scripts/pick-items.mjs <config.json>` → `<outDir>/items.json`。
 3. **截圖情境**：複製 `examples/batch3.scenes.mjs` 改情境；`node scripts/shots.mjs <scenes.mjs> <outDir>/shots [單一情境]`。B 不在 5181 時用環境變數 `B_BASE=http://localhost:5182`（平行 PM 分支各有自己的 dev server；2026-10-22 T-005a 新增）。
    - A 需登入的畫面截不到：設定檔 `loginOnly` 列這些情境、`loginFallback` 指定改用哪張 A 訪客圖，頁上自動註明。
-   - 連登入都進不去的 A 畫面（例如名單編輯模式）：用 A 原始碼的 inline style 在 Playwright `setContent` 重現一張示意圖，檔名照 `<情境>-A-<theme>.png`，並在 `mockNotes` 註明「依原始碼重現，非實拍」。
+   - 連登入都進不去的 A 畫面（例如名單編輯模式、整個簽到頁）：寫 `<outDir>/mocks-a.mjs`（匯出 `{ css: ['css/base.css', ...], scenes: [{ name, html }] }`，html 照抄 A 的 pages／render 函式輸出），跑 `node scripts/mock-a.mjs <mocks-a.mjs> <outDir>/shots`，會讀 FC 本機 css、用 A 的 `data-theme` 切深淺色，產出 `<情境>-A-<theme>.png`；再在 `mockNotes` 註明「依原始碼重現，非實拍」。範例見 `p75-uiux/batch4-preview/mocks-a.mjs`（2026-10-22 T-009 新增，取代第 3 批在情境裡手寫 setContent）。
+   - 每個項目的 `shot` 情境都必須同時有 A 與 B 兩張圖，否則預覽頁破圖、`verify.mjs` 不過。B 缺功能時也要截一張「目前畫面」（例如被掃者首頁），並在 `mockNotes` 寫明。
+   - 只重跑單一情境（第三個參數）不會更新 `shots-report.json`；先跑完整版，再補跑單一情境。
 4. `node scripts/build-index.mjs <outDir>` → `index.html`（單檔、離線、資料內嵌、深淺色截圖切換、需站長決定置頂琥珀色）。
 5. `node scripts/verify.mjs <outDir>`：0 console error、0 破圖、無水平捲動才算過；會存 `overview-desktop.png`、`overview-mobile-dark.png`。再自己看一張需站長決定區塊的截圖。
 6. 跑 `encoding-check`；確認 FC-B `git status` 乾淨（預覽任務不得改 `src/`）。
@@ -37,4 +39,6 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 - Playwright 按鈕名稱預設子字串比對：「管理名單」會先撈到「管理名單 / 出席紀錄」→ `h.clickButton(p, '管理名單', true)`。
 - B 名單編輯要兩步：摘要卡「管理名單 / 出席紀錄」展開表格，表格內「管理名單」才進編輯模式。
 - 預覽頁用 file:// 開，不能 `fetch('items.json')`，資料必須在產生時內嵌（`build-index.mjs` 已處理）。
+- 「照 A」前先確認 A 的那段程式真的有呼叫端：第 4 批的被掃方通知（`attendance-notify.js#startAttendanceListener`）從未被呼叫，A 實際行為是「沒有通知」，盤點寫的是死碼（2026-10-22 T-009）。用 `git grep -n <函式名>` 與 `git log -S` 查。
+- 前一個 PM 分支可能留著 emulator 與 5181 dev server：用 `Get-NetTCPConnection -LocalPort 5181` 查行程命令列，並 `curl -s http://localhost:5181/src/data/firebase.ts | grep VITE_FIREBASE_EMULATOR` 確認是 `"1"`（emulator 模式）才沿用；再 `npm run seed:emulator` 重灌種子。
 - 產頁腳本當初是派 DeepSeek（`--effort low`）寫的，一次過；要改版面就改 `build-index.mjs`，不必再派。
