@@ -16,7 +16,8 @@
 - SEARCH 先逐字比對；找不到時退一步「忽略每行行尾空白」比對；仍找不到或出現多次就失敗並列出，不會猜。
 - 任一區塊失敗時整批都不寫（所有檔案），列出失敗區塊；結束碼 1（照 SKILL.md 2026-10-22 T-004 說明）。
 - `===== END EDIT =====` 可省略：區塊延伸到下一個 EDIT／FILE 標記或檔尾（模型常漏結束標記）。
-- 寫檔一律 UTF-8 無 BOM、LF。
+- 寫檔一律 UTF-8 無 BOM；既有檔保留原本換行（CRLF 檔不轉成 LF，避免整檔 diff），新檔用 LF。
+- `===== FILE: path =====` 區塊（新檔完整內容，到 `===== END FILE =====` 或下一個標記為止，去掉 Markdown 圍欄）一併寫入；已存在的檔案不會被 FILE 覆蓋，會列為失敗。
 （2026-10-22 T-004 首建、T-005a 改寫時誤覆蓋後補回相同行為。）
 """
 import pathlib
@@ -57,18 +58,38 @@ def main() -> int:
     text = resp.read_text(encoding='utf-8')
     failed = False
     edits = {}
+    new_files = {}
     heads = list(HEAD_RE.finditer(text))
     for i, m in enumerate(heads):
-        if m.group(1) != 'EDIT':
-            continue
         body = text[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(text)]
+        if m.group(1) == 'FILE':
+            cut = body.find('===== END FILE =====')
+            lines = (body[:cut] if cut >= 0 else body).replace('\r\n', '\n').strip('\n').split('\n')
+            if lines and lines[0].startswith('```'):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == '```':
+                lines = lines[:-1]
+            new_files[m.group(2).strip().replace('\\', '/')] = '\n'.join(lines) + '\n'
+            continue
         end = END_RE.search(body)
         if end:
             body = body[:end.start()]
         edits.setdefault(m.group(2).strip().replace('\\', '/'), []).extend(BLOCK_RE.findall(body))
-    if not edits:
-        print('[apply-edits] 回應中沒有 EDIT 區塊')
+    if not edits and not new_files:
+        print('[apply-edits] 回應中沒有 EDIT／FILE 區塊')
     pending = []
+    for rel, content in new_files.items():
+        if only and rel != only:
+            continue
+        if '..' in rel or rel.startswith('/'):
+            print(f'skip {rel}')
+            continue
+        path = root / rel
+        if path.exists():
+            print(f'FAIL {rel}: FILE 區塊不能覆蓋既有檔，請改用 EDIT')
+            failed = True
+            continue
+        pending.append((rel, path, content, 'new'))
     for rel, blocks in edits.items():
         if only and rel != only:
             continue
@@ -80,7 +101,9 @@ def main() -> int:
             print(f'FAIL {rel}: 檔案不存在')
             failed = True
             continue
-        src = path.read_text(encoding='utf-8').replace('\r\n', '\n')
+        raw = path.read_bytes().decode('utf-8')  # read_text 會把 \r\n 轉成 \n，無法判斷原換行
+        nl = '\r\n' if '\r\n' in raw else '\n'
+        src = raw.replace('\r\n', '\n')
         ok = True
         for n, (search, replace) in enumerate(blocks, 1):
             search = search.rstrip('\n')
@@ -104,14 +127,16 @@ def main() -> int:
         if not ok:
             failed = True
             continue
-        pending.append((rel, path, src, len(blocks)))
+        pending.append((rel, path, src.replace('\n', nl), len(blocks)))
     if failed:
         print('[apply-edits] 有區塊失敗，整批未寫入任何檔案')
         return 1
     for rel, path, src, n in pending:
         if not dry:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(src.encode('utf-8'))
-        print(f'{"(dry) " if dry else ""}applied {rel}: {n} 個區塊')
+        what = '新檔' if n == 'new' else f'{n} 個區塊'
+        print(f'{"(dry) " if dry else ""}applied {rel}: {what}')
     return 0
 
 
