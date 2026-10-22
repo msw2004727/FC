@@ -47,5 +47,6 @@ Firestore Rules 每個請求最多評估 1000 個運算式，超過就拒絕（�
   java -Duser.language=en -jar ~/.cache/firebase/emulators/cloud-firestore-emulator-v1.19.8.jar --host 127.0.0.1 --port 8181 --websocket_port 9181   # run_in_background
   FIRESTORE_EMULATOR_HOST=127.0.0.1:8181 npm run test:rules:unit
   ```
+  直接跑 jar 預設不是 single project mode，各 suite 的不同 projectId 都能用；若改用 `firebase emulators:start --config …` 起，config 要設 `"singleProjectMode": false`，否則 projectId 不同的 suite（如 tournament-match-rules）初始化失敗而誤判（指揮官 2026-10-22 補）。
   HEAD 完整套件：`git archive HEAD | tar -x -C <scratch>/fc-head`，再 `cmd //c mklink //J <scratch>\fc-head\node_modules <repo>\node_modules`，在該目錄跑同一命令。干擾造成的 `PERMISSION_DENIED` 可能讓 `assertFails` 假通過，所以被干擾過的「全綠」也不能採信。（T-016）
 - `git checkout-index --temp` 會在 repo 根目錄留下 `.merge_file_*`，改用 `git show HEAD:檔案 > scratch`。
