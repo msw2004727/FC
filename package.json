@@ -5,6 +5,8 @@
     "test:rules:unit": "jest --runInBand --testMatch \"<rootDir>/tests/firestore.rules.test.js\" \"<rootDir>/tests/firestore-rules-extended.test.js\" \"<rootDir>/tests/team-split-rules.test.js\" \"<rootDir>/tests/firestore-rules/**/*.test.js\"",
     "test:rules": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit\"",
     "test:rules:watch": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit -- --watch\"",
+    "test:storage-rules:unit": "jest --runInBand --testMatch \"<rootDir>/tests/storage-rules/**/*.test.js\"",
+    "test:storage-rules": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only storage --project demo-storage-rules-test \"npm run test:storage-rules:unit\"",
     "test:unit": "jest tests/unit/",
     "test:unit:coverage": "jest tests/unit/ --coverage",
     "test:functions": "jest tests/unit/cloud-functions.test.js",

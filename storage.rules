@@ -6,8 +6,10 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    function isSecondaryIdentityAvatarPath(path) {
-      return path.matches('users/[^/]+/identities/secondary/[^/]+');
+    // 只用於 create／update：request.resource.name 是不含 bucket 的完整物件路徑字串。
+    // {allPaths=**} 是 Path 型別，沒有 matches()／size()，string(path) 也不支援（2026-10-22 T-015 emulator 實測）。
+    function isSecondaryIdentityUpload() {
+      return request.resource.name.matches('(?s)images/users/[^/]+/identities/secondary/.*');
     }
 
     match /images/users/{uid}/identities/secondary/{fileName} {
@@ -15,13 +17,15 @@ service firebase.storage {
       allow create, update: if request.auth != null
         && request.auth.uid == uid
         && isImageUpload();
-      allow delete: if request.auth != null && request.auth.uid == uid;
+      // 正式部署版（2026-03-06）任何路徑都刪不掉；A 清除頭像走 commitSecondaryIdentityAvatar，不用用戶端刪除。
+      // 開放本人刪除屬放寬，需站長授權（T-015 取代 5d3afd302 的「本人可刪」）。
+      allow delete: if false;
     }
 
     match /images/{allPaths=**} {
       allow read: if true;
       allow create, update: if request.auth != null
-        && !isSecondaryIdentityAvatarPath(allPaths)
+        && !isSecondaryIdentityUpload()
         && isImageUpload();
       allow delete: if false;
     }
