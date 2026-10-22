@@ -45,7 +45,11 @@ FC-B（B 收斂版）與舊站 A 共用 Firestore／Rules／Functions，**資料
    - 本機已有 emulator 在 8080 時（`firebase emulators:exec` 會因 port 被占失敗），直接 `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx jest --runInBand <測試檔>`；測試用自己的 projectId，不會動到開發資料。
    - **其他分支同時在改 `firestore.rules`**（8080 的 emulator 會被它們的未 commit Rules 熱載入，跑全套 `test:rules:unit` 出現大量與你無關的失敗）：開乾淨 worktree（`git worktree add --detach <scratchpad>/fc-head HEAD`，`node_modules` 用 junction 指回 FC），在 worktree 起自己的 Firestore emulator（另一個 port，例如 8095，hub／logging port 也換掉），**用 FC 本地 `node_modules/.bin/firebase`**（全域新版在這台機器啟動 jar 會 EPERM），再 `FIRESTORE_EMULATOR_HOST=127.0.0.1:8095 npm run test:rules:unit`。收尾先刪 junction 再 `git worktree remove`，避免把 FC 的 node_modules 一起刪掉。（2026-10-22 T-013）
    - 測試要記錄「現行 Rules」實況；若 A 前端顯示按鈕但 Rules 會拒（例：活動公開開關 `isPublic` 不在 owner／scoped 白名單），照實寫成 assertFails 並註明是 A 落差，不改 Rules、不改 payload，回報待站長決定。
-6. **commit**（本機，不推送）：精確 `git add` 本次檔案；commit 訊息用中文列出「照 A 修正了什麼、未採用什麼與理由、驗證結果、已知限制」，結尾附 attribution。
+5d. **看圖改派 Gemini，PM 不親自看截圖**（2026-10-23 T-019）：`llm-run.py --provider gemini --image <A 參考圖…> <B 截圖…>`，prompt 寫明圖片順序、逐項要查什麼、最後一行「需修正：N 項」。Gemini 的結論**一律對 A 原始碼核實再修**：T-019 它 4 次提的缺陷有一半不成立（A 參考圖是依原始碼重現的示意圖，可能畫了 A 沒有的按鈕；A 本來就隱藏的元素被當成缺漏）。它對「整頁空白」「浮層沒開」這類大問題很可靠。
+   - **整頁空白先查 `.page.active`**：A 的 CSS 是 `.page{display:none}`，新頁面 `<section class="page">` 少了 `active` 就整頁不見，單元測試全過也看不出（T-019 收件匣）。新頁面驗收必查。
+   - 抓 DOM／console 用 Playwright 小腳本（`devSignIn(uid)` 後 `page.evaluate` 讀 DOM、訂閱 store、`new Error().stack` 找誰關掉了浮層），比看截圖快又準。
+   - **種子帳號 UID 是 `U`＋31 位數，私訊功能（A 與 B 都要求 `U`＋32 位十六進位）在種子之間一定打不開**；測私訊改用 `devSignIn('U'+'a'.repeat(32))` 並直接 `openPmDialog({ uid: 'U'+'b'.repeat(32) })`。
+6. **commit**（本機，不推送）：**一律 `git commit -F - -- <路徑…>` 只提交指定檔**（T-019 兩次因先前 `git rm` 已 stage 的刪除被帶進不相干的 commit，造成中間 commit 單獨建置失敗）；精確 `git add` 本次檔案；commit 訊息用中文列出「照 A 修正了什麼、未採用什麼與理由、驗證結果、已知限制」，結尾附 attribution。
 7. **更新看板**：見 memory `reference_fcb_progress_board.md`（只更新變動的 items 與 `meta/board`，帶 `if_version`；看板公開，**不寫授權事項**）。
 
 ## 不要做
