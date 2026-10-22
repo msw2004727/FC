@@ -29,6 +29,7 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/check-exposure.py --repo D:/Users/msw74/Do
 
 - `wrangler pages dev` 會照 `_routes.json` 決定進不進 `_worker.js`，最接近正式站行為；Windows 檔案系統不分大小寫，所以本機 `/claude.md` 會是 200，正式站是 404（正常）。
 - 還沒 commit 的檔案記得複製進暫存資料夾。
+- 停止：TaskStop 只會結束外層 shell，`workerd.exe` 會留著鎖住暫存資料夾。只按**完整暫存資料夾路徑**比對命令列並排除不相干程式，例如 PowerShell `Get-CimInstance Win32_Process | ? { $_.Name -in 'workerd.exe','node.exe' -and $_.CommandLine -like '*<暫存資料夾完整路徑>*' }`。**不要用連接埠號這類短字串比對**（T-008 用 `*8799*` 誤殺了 ChatGPT 桌面版的子程序）。
 
 ## 新增根目錄檔時
 
