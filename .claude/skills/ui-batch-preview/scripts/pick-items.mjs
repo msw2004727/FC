@@ -57,6 +57,7 @@ fs.writeFileSync(path.join(cfg.outDir, 'items.json'), JSON.stringify({
   count: items.length,
   count_from_inventory: pick.length,
   extra_from_commander: (cfg.extra || []).map((x) => x.id),
+  appendix: cfg.appendix || [], // 內嵌到預覽頁的 .md 附錄（2026-10-22 T-012 新增）
   items,
 }, null, 1) + '\n');
 console.log(`items=${items.length} 盤點=${pick.length} 追加=${(cfg.extra || []).length} 需站長決定=${items.filter((i) => i.needs_owner_decision).map((i) => i.id).join(',') || '無'}`);

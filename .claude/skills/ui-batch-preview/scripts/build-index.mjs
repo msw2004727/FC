@@ -22,6 +22,41 @@ const ruleText = data.rule || '';
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (v) => (v == null ? '' : String(v).replace(/[&<>"']/g, (c) => ESC[c]));
 
+// ---- 附錄：items.json 的 appendix（預覽資料夾內的 .md 檔名清單）內嵌成可摺疊區塊 ----
+// 只支援標題、表格、條列、段落與行內 `code`／**粗體**，夠放欄位對照表這類文件。2026-10-22 T-012 新增。
+const mdInline = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<i>$2</i>');
+function mdToHtml(md) {
+  const out = [];
+  const lines = md.replace(/\r\n?/g, '\n').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\|/.test(l)) {
+      const rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      i--;
+      const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const body = rows.filter((r, k) => k !== 1 || !/^\|[\s:|-]+\|$/.test(r));
+      out.push('<div class="appendix-table"><table>' + body.map((r, k) => '<tr>' + cells(r).map((c) => (k === 0 ? `<th>${mdInline(c)}</th>` : `<td>${mdInline(c)}</td>`)).join('') + '</tr>').join('') + '</table></div>');
+    } else if (/^- /.test(l)) {
+      const lis = [];
+      while (i < lines.length && /^- /.test(lines[i])) lis.push(`<li>${mdInline(lines[i++].slice(2))}</li>`);
+      i--;
+      out.push(`<ul>${lis.join('')}</ul>`);
+    } else if (/^#{1,4} /.test(l)) {
+      const n = Math.min(l.match(/^#+/)[0].length + 2, 6);
+      out.push(`<h${n}>${mdInline(l.replace(/^#+ /, ''))}</h${n}>`);
+    } else if (l.trim()) {
+      out.push(`<p>${mdInline(l)}</p>`);
+    }
+  }
+  return out.join('\n');
+}
+const appendixHtml = (Array.isArray(data.appendix) ? data.appendix : []).map((f) => {
+  const md = readFileSync(join(dir, f), 'utf8');
+  const title = (md.match(/^# (.+)$/m) || [null, f])[1];
+  return `<details class="appendix" id="appendix-${esc(f.replace(/\W+/g, '-'))}"><summary>附錄：${esc(title)}（點開看完整內容；原始檔 ${esc(f)}）</summary>\n${mdToHtml(md.replace(/^# .+$/m, ''))}\n</details>`;
+}).join('\n');
+
 // ---- 統計與分區 ----
 const totalCount = items.length;
 const ownerItems = items.filter((it) => it.needs_owner_decision === true);
@@ -361,6 +396,13 @@ details.group[open] > summary::before { content: "▼"; }
 .tag-missing { background: var(--red-badge-bg); color: var(--red-badge-fg); font-weight: 700; }
 
 /* 截圖 */
+.appendix { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px 16px; margin: 20px 0; min-width: 0; }
+.appendix > summary { cursor: pointer; font-weight: 700; }
+.appendix-table { overflow-x: auto; max-width: 100%; margin: 8px 0; }
+.appendix-table table { border-collapse: collapse; font-size: 13px; min-width: 900px; }
+.appendix-table th, .appendix-table td { border: 1px solid var(--card-border); padding: 4px 6px; vertical-align: top; text-align: left; }
+.appendix-table th { background: var(--badge-bg); }
+.appendix code { font-size: 12px; word-break: break-all; }
 .shots { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 4px 0 14px; }
 @media (min-width: 701px) { .shots { grid-template-columns: 1fr 1fr; } }
 .shot-col { min-width: 0; }
@@ -487,6 +529,7 @@ ${renderToc(items)}
 
 <main>
 ${sections.join('\n\n')}
+${appendixHtml}
 </main>
 
 <footer>本頁由 build-index.mjs 依 items.json 產生</footer>
