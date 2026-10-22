@@ -248,29 +248,36 @@ service cloud.firestore {
         && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
     }
 
-    function hasActivityCap(cap) {
+    // 2026-10-22 T-016：hasActivityCap 原本 exists／get 各讀兩次，拆成 userActivityCapData()＋capListHas() 讓 create 路徑讀一次、傳下去
+    // （create 帶委託人時原寫法超過 1000 運算式上限）。回傳文件 data 而非 .capabilities，缺欄位的錯誤值留在 capListHas 內，結果與原寫法逐狀態相同。
+    function userActivityCapData() {
       let capPath = /databases/$(database)/documents/roleActivityCapabilities/user;
+      return exists(capPath)
+        ? get(capPath).data
+        : {
+          'capabilities': [
+            'user.activity.basic_create',
+            'user.activity.external_create',
+            'user.activity.own_manage_entry',
+            'user.activity.own_edit_basic',
+            'user.activity.own_cancel',
+            'user.activity.site_operate',
+            'user.activity.delegate_assign'
+          ]
+        };
+    }
+
+    // 不檢查角色：只給 hasActivityCap 與已確定 authRole() == 'user' 的 create helper（isUserActivityCapEventCreate 一族）用。
+    function capListHas(capData, cap) {
+      return request.auth != null
+        && capData.capabilities is list
+        && cap in capData.capabilities;
+    }
+
+    function hasActivityCap(cap) {
       return request.auth != null
         && authRole() == 'user'
-        && (
-          (
-            exists(capPath)
-            && get(capPath).data.capabilities is list
-            && cap in get(capPath).data.capabilities
-          )
-          || (
-            !exists(capPath)
-            && cap in [
-              'user.activity.basic_create',
-              'user.activity.external_create',
-              'user.activity.own_manage_entry',
-              'user.activity.own_edit_basic',
-              'user.activity.own_cancel',
-              'user.activity.site_operate',
-              'user.activity.delegate_assign'
-            ]
-          )
-        );
+        && capListHas(userActivityCapData(), cap);
     }
 
     function hasActivityManageEntry() {
@@ -875,8 +882,9 @@ service cloud.firestore {
         return isSuperAdmin() || hasEffectivePerm('event.edit_all');
       }
 
-      function eventCreateAddonsAllowed() {
-        return hasActivityCap('user.activity.addons_use')
+      // 2026-10-22 T-016：capData 由 isUserActivityCapEventCreate 傳入（見該處說明）；只能從那裡呼叫。
+      function eventCreateAddonsAllowed(capData) {
+        return capListHas(capData, 'user.activity.addons_use')
           ? (
               !eventCreateHasTeamScopedAddon()
               || (
@@ -906,15 +914,17 @@ service cloud.firestore {
           && isEmptyOptionalList(request.resource.data.get('waitlistWithUid', []));
       }
 
-      function eventCreateDelegateFieldsAllowed() {
-        return (!request.resource.data.keys().hasAny(['delegates']) || (
-            request.resource.data.delegates is list
-            && (request.resource.data.delegates.size() == 0 || hasActivityCap('user.activity.delegate_assign'))
-          ))
-          && (!request.resource.data.keys().hasAny(['delegateUids']) || (
-            request.resource.data.delegateUids is list
-            && (request.resource.data.delegateUids.size() == 0 || hasActivityCap('user.activity.delegate_assign'))
-          ));
+      // 2026-10-22 T-016：取代兩欄各自呼叫 hasActivityCap；缺欄位視為空、非 list 拒絕，任一欄非空才需 delegate_assign（與原逐欄寫法等價）。
+      // capData 由 isUserActivityCapEventCreate 傳入；只能從那裡呼叫。
+      function eventCreateDelegateFieldsAllowed(capData) {
+        let delegates = request.resource.data.get('delegates', []);
+        let delegateUids = request.resource.data.get('delegateUids', []);
+        return delegates is list
+          && delegateUids is list
+          && (
+            (delegates.size() == 0 && delegateUids.size() == 0)
+            || capListHas(capData, 'user.activity.delegate_assign')
+          );
       }
 
       function hasValidEventMapPoint(data) {
@@ -976,10 +986,13 @@ service cloud.firestore {
           );
       }
 
+      // 2026-10-22 T-016：取代每次 hasActivityCap 都重算 authRole() 與讀 cap 文件（帶委託人時超過 1000 運算式上限），改為讀一次 capData 傳下去。
+      // 省略角色檢查的前提：唯一呼叫端是 canCreateEventRoot() 的 role == 'user' 分支（role = authRole()）；本函式與上面兩個 create helper 不得從別處呼叫。
       function isUserActivityCapEventCreate() {
         let isExternal = request.resource.data.get('type', '') == 'external';
+        let capData = userActivityCapData();
         return eventCreateHasSafeInitialProjection()
-          && eventCreateDelegateFieldsAllowed()
+          && eventCreateDelegateFieldsAllowed(capData)
           && (
             request.resource.data.get('teamOnly', false) == true
               ? (
@@ -989,19 +1002,19 @@ service cloud.firestore {
                     && eventCreateHasOnlyTeamScopedAddon()
                   )
                   || (
-                    eventCreateAddonsAllowed()
+                    eventCreateAddonsAllowed(capData)
                     && (
-                      (isExternal && hasActivityCap('user.activity.external_create'))
-                      || (!isExternal && hasActivityCap('user.activity.basic_create'))
+                      (isExternal && capListHas(capData, 'user.activity.external_create'))
+                      || (!isExternal && capListHas(capData, 'user.activity.basic_create'))
                       || hasUserPermissionGrant('event.create')
                     )
                   )
                 )
               : (
-                  eventCreateAddonsAllowed()
+                  eventCreateAddonsAllowed(capData)
                   && (
-                    (isExternal && hasActivityCap('user.activity.external_create'))
-                    || (!isExternal && hasActivityCap('user.activity.basic_create'))
+                    (isExternal && capListHas(capData, 'user.activity.external_create'))
+                    || (!isExternal && capListHas(capData, 'user.activity.basic_create'))
                     || hasUserPermissionGrant('event.create')
                   )
                 )

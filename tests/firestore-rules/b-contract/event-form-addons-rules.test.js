@@ -3,6 +3,7 @@
  *
  * ⚠️  B 與 A 共用同一份 `firestore.rules`；寫入格式必須是 Rules 允許的 A 格式。
  *      本檔只驗證現行 Rules 的行為，不改 Rules、不改 payload 去湊。
+ *      （例外：2026-10-22 T-016 修正 create 帶委託人的運算式超限誤拒，案例 10 翻為允許、補 24～35 邊界案例。）
  *
  * 相關規則：
  *   - R-CAP-004（一般 user 沒有 addons_use 時事件加值欄位必須全關）
@@ -30,6 +31,7 @@ const {
 const {
   doc,
   setDoc,
+  deleteDoc,
   updateDoc,
   setLogLevel,
   serverTimestamp,
@@ -295,17 +297,16 @@ describe("allow: 建立", () => {
     );
   });
 
-  // A 落差（T-013 PM 2026-10-22 實測）：A 前端 _canManageEventDelegates(null) 對 user＋delegate_assign 允許建立時帶委託人，
-  // 但現行 Rules 在 create 路徑超過 1000 運算式上限（Unable to evaluate … maximum of 1000 expressions）而拒絕。
-  // 案例 1（全部加值欄位、無委託人）可過，只差在帶 delegates／delegateUids（eventCreateDelegateFieldsAllowed 兩次 hasActivityCap）。
-  // 照實記錄為拒，不改 Rules、不改 payload；已回報指揮官待站長決定。
-  test("10. 一般 user（basic_create＋delegate_assign）帶 1 位委託人（delegates＝[{uid,name}]、delegateUids） → 拒（A 落差：Rules 運算式超限）", async () => {
+  // T-013 PM 2026-10-22 發現：A 前端 _canManageEventDelegates(null) 對 user＋delegate_assign 允許建立時帶委託人，
+  // 但當時 Rules 在 create 路徑超過 1000 運算式上限而拒絕（本案原記錄為拒）。
+  // 2026-10-22 T-016 改寫 create 路徑的 capability 判斷（讀一次 capData 傳下去）後翻為允許；測試同步更新。
+  test("10. 一般 user（basic_create＋delegate_assign）帶 1 位委託人（delegates＝[{uid,name}]、delegateUids） → 允許（T-016 修正 Rules 運算式超限）", async () => {
     await seedUserCaps(["user.activity.delegate_assign"]);
     const payload = basePayload({
       delegates: [{ uid: "uid_delegate_1", name: "張三" }],
       delegateUids: ["uid_delegate_1"],
     });
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
     );
   });
@@ -375,6 +376,129 @@ describe("allow: 建立", () => {
     });
     await assertSucceeds(
       setDoc(doc(authAs(COACH_UID, "coach"), "events", EVENT_COACH_ID), payload)
+    );
+  });
+
+  test("24. 一般 user（basic_create＋addons_use＋delegate_assign）帶全部加值欄位＋1 位委託人＋payloadRevision／payloadDigest＋upcoming／regOpenTime（A 實際寫入形狀） → 允許（T-016）", async () => {
+    await seedUserCaps([
+      "user.activity.addons_use",
+      "user.activity.delegate_assign",
+    ]);
+    const payload = basePayload({
+      payloadRevision: 1,
+      payloadDigest: "v1-0123456789abcdef0123456789abcdef",
+      status: "upcoming",
+      regOpenTime: "2026-05-01T00:00",
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+      feeEnabled: true,
+      fee: 100,
+      genderRestrictionEnabled: true,
+      allowedGender: "male",
+      privateEvent: true,
+      socialLinksEnabled: true,
+      socialLinks: [{ label: "Line", url: "https://line.me/R/ti/g/xxx" }],
+      earlyBirdEnabled: true,
+      earlyBirdCost: 10,
+      earlyBirdPolicyVersion: 1,
+      teamSplit: {
+        enabled: true,
+        teams: ["A", "B"],
+        mode: "self-select",
+        lockAt: new Date("2026-05-14T15:00:00.000Z"),
+      },
+      gpsEnabled: true,
+      lat: 25.026,
+      lng: 121.543,
+      mapAddress: "台北市大安運動中心",
+      mapPlaceId: "ChIJxxx",
+      mapProvider: "google",
+      mapLocationConfirmed: true,
+      mapLocationUpdatedAt: "2026-04-01T00:00:00.000Z",
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("25. 一般 user（basic_create＋delegate_assign）只有 delegates 非空、delegateUids 為 [] → 允許（T-016）", async () => {
+    await seedUserCaps(["user.activity.delegate_assign"]);
+    const payload = basePayload({
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: [],
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("26. roleActivityCapabilities/user 文件不存在（預設清單含 basic_create＋delegate_assign）帶 1 位委託人 → 允許（T-016）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), "roleActivityCapabilities", "user"));
+    });
+    const payload = basePayload({
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("32. 一般 user（external_create＋delegate_assign，無 basic_create）建立外部活動帶 1 位委託人 → 允許（T-016）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "roleActivityCapabilities", "user"), {
+        catalogVersion: 1,
+        capabilities: ["user.activity.external_create", "user.activity.delegate_assign"],
+      });
+    });
+    const payload = basePayload({
+      type: "external",
+      externalUrl: "https://example.com/event",
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("33. 一般 user（僅 delegate_assign）＋個別授權 event.create／team.create_event，建立自己是隊長的俱樂部限定活動帶 1 位委託人 → 允許（T-016，teamOnly 第一分支）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "roleActivityCapabilities", "user"), {
+        catalogVersion: 1,
+        capabilities: ["user.activity.delegate_assign"],
+      });
+    });
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "userPermissionGrants", USER_UID), {
+        permissions: ["event.create", "team.create_event"],
+        enabled: true,
+      });
+    });
+    const payload = basePayload({
+      teamOnly: true,
+      isPublic: true,
+      creatorTeamId: TEAM_USER_ID,
+      creatorTeamName: "小明隊",
+      creatorTeamIds: [TEAM_USER_ID],
+      creatorTeamNames: ["小明隊"],
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("34. 一般 user（basic_create＋delegate_assign）只有 delegateUids 非空、delegates 為 [] → 允許（T-016）", async () => {
+    await seedUserCaps(["user.activity.delegate_assign"]);
+    const payload = basePayload({
+      delegates: [],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertSucceeds(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
     );
   });
 });
@@ -485,6 +609,91 @@ describe("deny: 建立（一般 user 無 addons_use 只帶單一加值欄位）"
     });
     await assertFails(
       setDoc(doc(authAs(COACH_UID, "coach"), "events", EVENT_COACH_ID), payload)
+    );
+  });
+
+  test("27. 一般 user 無 delegate_assign、delegates 為 []、delegateUids 為 [\"u1\"] → 拒（T-016，任一欄非空就需 delegate_assign）", async () => {
+    const payload = basePayload({
+      delegates: [],
+      delegateUids: ["u1"],
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("28. 一般 user（basic_create＋delegate_assign）delegates 是字串 → 拒（T-016，必須是 list）", async () => {
+    await seedUserCaps(["user.activity.delegate_assign"]);
+    const payload = basePayload({
+      delegates: "uid_delegate_1",
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("29. 一般 user（basic_create＋delegate_assign）delegateUids 為 null → 拒（T-016，必須是 list）", async () => {
+    await seedUserCaps(["user.activity.delegate_assign"]);
+    const payload = basePayload({
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: null,
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("30. roleActivityCapabilities/user 存在但缺 capabilities 欄位、帶 1 位委託人 → 拒（T-016，保留錯誤值語意）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "roleActivityCapabilities", "user"), {
+        catalogVersion: 1,
+      });
+    });
+    const payload = basePayload({
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("31. 一般 user 只有 delegate_assign、沒有 basic_create，帶 1 位委託人 → 拒（T-016，委託權限不替代建立權限）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "roleActivityCapabilities", "user"), {
+        catalogVersion: 1,
+        capabilities: ["user.activity.delegate_assign"],
+      });
+    });
+    const payload = basePayload({
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
+    );
+  });
+
+  test("35. 一般 user 無 delegate_assign、有個別授權 event.create／team.create_event，建立俱樂部限定活動帶 1 位委託人 → 拒（T-016，個別授權不繞過 delegate_assign）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "userPermissionGrants", USER_UID), {
+        permissions: ["event.create", "team.create_event"],
+        enabled: true,
+      });
+    });
+    const payload = basePayload({
+      teamOnly: true,
+      isPublic: true,
+      creatorTeamId: TEAM_USER_ID,
+      creatorTeamName: "小明隊",
+      creatorTeamIds: [TEAM_USER_ID],
+      creatorTeamNames: ["小明隊"],
+      delegates: [{ uid: "uid_delegate_1", name: "張三" }],
+      delegateUids: ["uid_delegate_1"],
+    });
+    await assertFails(
+      setDoc(doc(authAs(USER_UID, "user"), "events", EVENT_ID), payload)
     );
   });
 });
