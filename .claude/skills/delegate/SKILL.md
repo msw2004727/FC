@@ -11,12 +11,16 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 
 ## 選模型
 
+2026-10-22 站長指示：節省 Claude 用量，粗活主力改派 Grok（取代原本「DeepSeek 主力、Codex／Gemini 審查與較細產碼」的分工）。
+
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
-| 寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 主力；禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出。取代原本未指定 effort 的做法） |
-| 格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
-| 審查、長 context | Gemini `gemini-4-argon` | 長文與審查 |
-| 審查、較細的產碼 | Codex GPT-6 Astra | 本機無法執行子程序，只能純文字，見下方「Codex 純文字派工」 |
+| 主力：產碼、整理、第一輪審查 | Grok `grok-4.7`（`--provider xai`） | 金鑰 `XAI_API_KEY` 只在 Windows User 層級，照下方 MIMO 方式讀入，永不印出。**2026-10-22 T-018 實測：該值不是 `xai-` 開頭，API 與 Codex 兩條路都回「Incorrect API key」，待站長換金鑰；修好前照備援用 DeepSeek** |
+| 備援：寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出） |
+| 備援：格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
+| 第二審（只限寫入／權限／鎖定域） | Gemini `gemini-4-argon`、Codex GPT-6 Astra | Codex 本機無法執行子程序，只能純文字，見下方「Codex 純文字派工」 |
+
+Grok 也可走 Codex 純文字：`CODEX_HOME=~/.codex-grok codex exec --skip-git-repo-check -s read-only --output-last-message resp.md - < prompt.md`（`~/.codex-grok/config.toml` 已關掉帶 namespace 型工具的功能，因為 xAI 會回 422 拒收；不放金鑰，讀 `XAI_API_KEY`）。
 
 ## 金鑰
 

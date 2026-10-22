@@ -23,6 +23,9 @@ PROVIDERS = {
                  model="mimo-v2.6-pro", key_env="MIMO_API_KEY"),
     "gemini": dict(url="https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:streamGenerateContent?alt=sse",
                    model="gemini-4-argon", key_env="GEMINI_API_KEY"),
+    # 2026-10-22 站長指示：粗活主力改派 Grok（OpenAI 相容，走下方 SSE 串流路徑）
+    "xai": dict(url="https://api.x.ai/v1/chat/completions",
+                model="grok-4.7", key_env="XAI_API_KEY"),
 }
 
 IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg",
