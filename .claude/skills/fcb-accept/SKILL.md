@@ -31,6 +31,8 @@ FC-B（B 收斂版）與舊站 A 共用 Firestore／Rules／Functions，**資料
 5. **瀏覽器**（UI 變更必做，R-QA-010～013）：dev server 5181（emulator 模式）＋ `npm run seed:emulator`，然後
    `node ${CLAUDE_SKILL_DIR}/scripts/shots.mjs <輸出目錄> <uid|guest> <路徑...>`
    種子 UID：user1 `U…0001`、coach `U…0002`（俱樂部 A 隊長，角色 coach）、admin `U…0003`（俱樂部 B 隊長）、blocked `U…0004`。看 report 與至少手機亮色、桌機暗色各一張圖。
+   - 要測 Callable 流程：另起 `VITE_FIREBASE_EMULATOR=1 VITE_CALLABLE_MODE=mock` 的 dev server（FC `.claude/launch.json` 的 `fc-b-emulator-mock`，port 5183），`FCB_BASE=http://localhost:5183`；mock 定義在 FC-B `src/dev/callable-mocks.ts`，失敗情境用 `SHOTS_LOCALSTORAGE="fcb:mock:settleFail=1"` 切換。`SHOTS_MOBILE_ONLY=1` 只拍 390、`SHOTS_TAG` 區分情境檔名。
+   - 要等 toast：截圖前等文字出現後再等約 700ms（淡入動畫中途截圖會看不到）。shots.mjs 不等 toast，互動流程複雜時另寫小 Playwright 腳本。（2026-10-22 T-004 新增）
 6. **commit**（本機，不推送）：精確 `git add` 本次檔案；commit 訊息用中文列出「照 A 修正了什麼、未採用什麼與理由、驗證結果、已知限制」，結尾附 attribution。
 7. **更新看板**：見 memory `reference_fcb_progress_board.md`（只更新變動的 items 與 `meta/board`，帶 `if_version`；看板公開，**不寫授權事項**）。
 

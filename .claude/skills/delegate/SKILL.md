@@ -61,6 +61,7 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 ```
 
 - 背景執行（約數分鐘）；`resp.md` 是最後一則回覆，`codex.err` 先看有無 usage limit／UTF-8 錯誤。
+- **改大檔（數百行以上）不要叫模型整檔輸出**，改要求 SEARCH/REPLACE 區塊（`===== EDIT: path =====` 內含 `<<<<<<< SEARCH`／`=======`／`>>>>>>> REPLACE`，格式見腳本檔頭），新檔才用 `===== FILE`。套用：`python -I ${CLAUDE_SKILL_DIR}/scripts/apply-edits.py resp.md <repo> --dry-run` 確認後去掉 `--dry-run`；任何 SEARCH 不唯一就整批不寫、列出失敗區塊。（2026-10-22 T-004 新增；取代「一律整檔輸出再 split-loose」，因多個大檔整檔輸出易截斷且浪費輸出額度。）
 - prompt 結尾附 `codex-footer.md`、附件附 FC-B `.claude/rules/review-lessons.md`；附「所有會被改的檔案＋測試＋引用它們的檔案」。
 - 規格裡把「要 export 的 API 簽章」與「逐條規則」寫死，Codex 會照名稱產出，驗收時才好對。
 - 交件測試的假回應常比伺服器真實形狀精簡（例如 `adjustExp` 少了 `results`）：驗收時拿 `functions/` 的 return 對照 mock。

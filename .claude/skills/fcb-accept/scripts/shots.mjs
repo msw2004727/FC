@@ -7,6 +7,7 @@
 // 注意：Firestore 長連線會讓 networkidle 等不到，所以只等 3 秒上限。
 // 彈窗類畫面：設 SHOTS_CLICK="按鈕文字"（或 "css:選擇器"，多步用「 >> 」分隔）會在每頁載入後依序點擊；再設 SHOTS_SCROLL="捲動容器選擇器"
 // （例如 .ui-modal__body）會在容器內分段捲動、每段拍一張可視範圍截圖（檔名加 -s0、-s1…）。
+// SHOTS_LOCALSTORAGE="k=v;k2=v2" 先寫入 localStorage；SHOTS_MOBILE_ONLY=1 只拍 390 寬；SHOTS_TAG 加在檔名前綴區分情境。
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -22,13 +23,13 @@ if (!OUT || !who || PAGES.length === 0) {
   process.exit(2);
 }
 const UID = who === 'guest' ? '' : who;
-const tag = who === 'guest' ? 'guest' : who.slice(-4);
+const tag = (process.env.SHOTS_TAG ? `${process.env.SHOTS_TAG}-` : '') + (who === 'guest' ? 'guest' : who.slice(-4));
 fs.mkdirSync(OUT, { recursive: true });
 const VIEWPORTS = { mobile: { width: 390, height: 844 }, desktop: { width: 1280, height: 800 } };
 
 const browser = await chromium.launch();
 const report = [];
-for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
+for (const [vp, viewport] of Object.entries(VIEWPORTS).filter(([k]) => !process.env.SHOTS_MOBILE_ONLY || k === 'mobile')) {
   for (const theme of ['light', 'dark']) {
     const context = await browser.newContext({ viewport, colorScheme: theme });
     const page = await context.newPage();
@@ -37,6 +38,11 @@ for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
     page.on('pageerror', (e) => errors.push(`pageerror: ${String(e).slice(0, 200)}`));
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await page.evaluate((th) => { try { localStorage.setItem('sporthub_theme', th); } catch (_) {} }, theme);
+    if (process.env.SHOTS_LOCALSTORAGE) {
+      // "k1=v1;k2=v2"：載入頁面前先寫入 localStorage（例如切換 dev mock 的失敗模式 fcb:mock:settleFail=1）。
+      const pairs = process.env.SHOTS_LOCALSTORAGE.split(';').filter(Boolean).map((kv) => kv.split('='));
+      await page.evaluate((ps) => { for (const [k, v] of ps) { try { localStorage.setItem(k, v ?? ''); } catch (_) {} } }, pairs);
+    }
     if (UID) await page.evaluate(async (u) => { const m = await import('/src/data/auth.ts'); await m.devSignIn(u); }, UID);
     await page.waitForTimeout(600);
     for (const p of PAGES) {
