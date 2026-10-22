@@ -36,6 +36,7 @@ FC-B（B 收斂版）與舊站 A 共用 Firestore／Rules／Functions，**資料
 5b. **審查**：每張卡 commit 後 `bash ${CLAUDE_SKILL_DIR}/scripts/review-card.sh <工作資料夾> <卡號> <commit> <原 prompt>` 送 Gemini 4；權限（R-IAM-010／011）與寫入卡另送 Codex 第二審。Gemini 常抓到「真瀏覽器」問題（Safari／LINE WebView 點擊後經多層 `await import()` 才 `window.open`／`navigator.share`／`clipboard`，手勢權限過期被擋），這類以審查為準修掉。（2026-10-22 T-005b）
 5c. **FC Rules 測試**（B 直寫或新寫入路徑必做，檔放 FC `tests/firestore-rules/b-contract/`）：
    - 角色一定放 custom claim：`testEnv.authenticatedContext(uid, { role })`（admin 再加 `admin: true`），並 seed `rolePermissions/{role}`（含 `permissions` 陣列）、`roleActivityCapabilities/user`（含 `catalogVersion`）、完整 `users/{uid}`；照 FC `tests/firestore.rules.test.js` 的 seed helper。少了任何一項，Rules 會出現「maximum of 1000 expressions」「Property permissions is undefined」而全拒，看起來像 Rules 擋掉其實是測試資料不對。
+   - 測試資料都齊了仍出現「maximum of 1000 expressions」，或改 Rules 後**既有**案例開始失敗：是運算式預算問題，照 `rules-budget` skill 量測與差分（events update 已貼近上限）。（2026-10-22 T-006）
    - 本機已有 emulator 在 8080 時（`firebase emulators:exec` 會因 port 被占失敗），直接 `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx jest --runInBand <測試檔>`；測試用自己的 projectId，不會動到開發資料。
    - 測試要記錄「現行 Rules」實況；若 A 前端顯示按鈕但 Rules 會拒（例：活動公開開關 `isPublic` 不在 owner／scoped 白名單），照實寫成 assertFails 並註明是 A 落差，不改 Rules、不改 payload，回報待站長決定。
 6. **commit**（本機，不推送）：精確 `git add` 本次檔案；commit 訊息用中文列出「照 A 修正了什麼、未採用什麼與理由、驗證結果、已知限制」，結尾附 attribution。

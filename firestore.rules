@@ -281,17 +281,19 @@ service cloud.firestore {
         || hasUserPermissionGrant('event.edit_all');
     }
 
+    // 2026-10-22 T-006：以下三個 helper 由「直接讀欄位」改為 .get(欄位, null)，缺欄位時回 false 而非錯誤值。
+    // 呼叫端都在 &&／|| 正向語境（無否定、無三元式），允許／拒絕結果不變；錯誤值無法短路、會讓 events update 撞 1000 運算式上限。
     function eventDataHasDelegateUid(eventData, uid) {
-      return eventData.delegateUids is list && uid in eventData.delegateUids;
+      return eventData.get('delegateUids', null) is list && uid in eventData.delegateUids;
     }
 
     function isEventOwnerOrDelegateForData(eventData) {
       return isAuth()
         && eventData != null
         && (
-          eventData.creatorUid == request.auth.uid
-          || eventData.ownerUid == request.auth.uid
-          || eventData.captainUid == request.auth.uid
+          eventData.get('creatorUid', null) == request.auth.uid
+          || eventData.get('ownerUid', null) == request.auth.uid
+          || eventData.get('captainUid', null) == request.auth.uid
           || eventDataHasDelegateUid(eventData, request.auth.uid)
         );
     }
@@ -300,9 +302,9 @@ service cloud.firestore {
       return isAuth()
         && eventData != null
         && (
-          eventData.creatorUid == request.auth.uid
-          || eventData.ownerUid == request.auth.uid
-          || eventData.captainUid == request.auth.uid
+          eventData.get('creatorUid', null) == request.auth.uid
+          || eventData.get('ownerUid', null) == request.auth.uid
+          || eventData.get('captainUid', null) == request.auth.uid
         );
     }
 
@@ -1109,6 +1111,67 @@ service cloud.firestore {
           && (canScopedManageEventData(resource.data) || canBroadManageEventData(resource.data));
       }
 
+      // T-006：對齊 A _canManageTeamOnlyVisibility 的俱樂部限定活動公開開關（一般活動與課程連結活動皆適用）。
+      // 依站長 2026-10-22 決定只放寬 isPublic（連同 updatedAt）；刻意不含 coach+ 角色後備（R-IAM-004 授權漂移）。
+      // 運算式預算（2026-10-22 emulator rule coverage 實測）：events update 既有那條 allow 在多個案例已貼近 1000 上限，
+      // 且 emulator 會以 resource 未定的回合評估、無法短路，所以本規則獨立一條 allow 並排在既有那條之前；
+      // 但「排在前」會讓 owner＋event.edit_self 只改 isPublic 時先算完本規則再走既有路徑而超限，
+      // 因此把既有 edit_self 分支已允許的範圍（非課程連結、無 courseLinkId、owner）併入此處判斷，不擴權。
+      function isPublicOnlyVisibilityUpdate() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPublic', 'updatedAt'])
+          && request.resource.data.isPublic is bool
+          && resource.data.get('teamOnly', false) == true
+          && isPublicToggleActorAllowed(
+            resource.data.get('courseLinked', false) != true && !('courseLinkId' in resource.data)
+          );
+      }
+
+      // owner／delegate 判斷與 isEventOwnerForData／isEventOwnerOrDelegateForData 同義，在此只算一次並把 isOwner 傳下去。
+      function isPublicToggleActorAllowed(allowEditSelf) {
+        let uid = request.auth.uid;
+        let isOwner = resource.data.get('creatorUid', '') == uid
+          || resource.data.get('ownerUid', '') == uid
+          || resource.data.get('captainUid', '') == uid;
+        let isDelegate = resource.data.get('delegateUids', []) is list
+          && uid in resource.data.get('delegateUids', []);
+        return (isOwner || isDelegate)
+          && isPublicToggleGranted(authRole(), uid, isOwner, allowEditSelf);
+      }
+
+      // owner／delegate 有 activity.manage.entry 或 team.toggle_event_visibility；owner 另可憑 team.create_event、
+      // allowEditSelf 時的 event.edit_self，或角色 user＋user.activity.addons_use。角色只算一次、三份權限文件各讀一次；
+      // 語意逐條同 hasPerm(role)／hasUserPermissionGrantForUid(uid)／hasActivityCap('user.activity.addons_use')
+      // （addons_use 不在 hasActivityCap 的缺文件預設清單，所以缺文件＝沒有）。
+      function isPublicToggleGranted(role, uid, isOwner, allowEditSelf) {
+        let codes = !isOwner
+          ? ['activity.manage.entry', 'team.toggle_event_visibility']
+          : (allowEditSelf
+            ? ['activity.manage.entry', 'team.toggle_event_visibility', 'team.create_event', 'event.edit_self']
+            : ['activity.manage.entry', 'team.toggle_event_visibility', 'team.create_event']);
+        let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+        let grantPath = /databases/$(database)/documents/userPermissionGrants/$(uid);
+        let capPath = /databases/$(database)/documents/roleActivityCapabilities/user;
+        return (
+            role != 'user'
+            && exists(rpPath)
+            && get(rpPath).data.get('permissions', null) is list
+            && get(rpPath).data.permissions.hasAny(codes)
+          )
+          || (
+            exists(grantPath)
+            && get(grantPath).data.get('permissions', null) is list
+            && get(grantPath).data.get('enabled', true) == true
+            && get(grantPath).data.permissions.hasAny(codes)
+          )
+          || (
+            isOwner
+            && role == 'user'
+            && exists(capPath)
+            && get(capPath).data.get('capabilities', null) is list
+            && 'user.activity.addons_use' in get(capPath).data.capabilities
+          );
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -1155,6 +1218,9 @@ service cloud.firestore {
         && eventEarlyBirdFieldsValid(request.resource.data)
         && isValidEventMapFields(request.resource.data)
         && request.resource.data.get('viewCount', 0) == 0;
+      // T-006：獨立一條 allow，排在既有 allow update 之前、不併入其 OR 清單（運算式預算說明見 isPublicOnlyVisibilityUpdate）。
+      // hasOnly(['isPublic','updatedAt']) 使 courseLinked／courseLinkId／viewCount 等受保護欄位都不可能經此變更。
+      allow update: if isAuth() && isPublicOnlyVisibilityUpdate();
       allow update: if isAuth()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'viewCount', 'id', 'clientRequestId', 'creatorUid', 'payloadRevision', 'payloadDigest'
