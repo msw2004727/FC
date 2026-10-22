@@ -41,6 +41,10 @@ def extract(root: pathlib.Path, spec: str) -> str:
     a, _, b = sel.partition("-")
     lines = text.split("\n")
     lo, hi = int(a), int(b or a)
+    if b and lo >= 1 and lo <= len(lines) < hi:
+        # 2026-10-23 T-019：結束行超過檔尾只會少附「不存在的行」，截到檔尾並提醒，不再整批失敗（一段內踩到 4 次）。
+        print(f"[pack-prompt] 注意：{path} 結束行 {hi} 超過檔尾，截到第 {len(lines)} 行", file=sys.stderr)
+        hi = len(lines)
     if lo < 1 or hi > len(lines) or lo > hi:
         sys.exit(f"[pack-prompt] {path} 行號超出範圍：{sel}（共 {len(lines)} 行）")
     return "\n".join(lines[lo - 1:hi])
