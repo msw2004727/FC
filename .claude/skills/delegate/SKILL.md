@@ -96,6 +96,9 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 
 ## 已知限制
 
+- **2026-10-23 T-022：要以 `vm.runInNewContext` 測的 Functions 程式，規格要寫明「判斷 plain object 用 `Object.prototype.toString.call(v) === "[object Object]"`，不要比對 `Object.getPrototypeOf(v) === Object.prototype`」**：測試的 request.data 來自外層 realm，比對 prototype 會把合法物件判成非物件（Codex 第 1 輪就這樣寫，PM 派第 2 輪修）。
+- **Grok CLI 寫 Functions 測試（T-022 實測）**：在乾淨 worktree 跑（node_modules 用 junction），卡放 `.grok-input/`（UTF-8 加 BOM），一張卡 23 項約 18 回合交 35 案、整檔全綠；核心碼之後若再改，要把新版 `functions/index.js` 複製進 worktree 重跑，再派小卡補案。收件先 `cmp` 確認它沒動 `functions/`。
+
 - **2026-10-23 T-019 補強（取代「FILE 覆寫既有檔一律失敗、要手動 split-loose＋抽 EDIT 分兩次套」）**：
   - 模型常把既有檔整檔用 FILE 輸出：確認是刻意整檔改寫後加 `apply-edits.py ... --allow-overwrite`，腳本會印「原有註解行消失幾行」，>0 就逐行看 diff。同一檔同時有 FILE 與 EDIT 仍會失敗。
   - apply-edits 現在會擋兩種以前會**靜默略過**的壞格式：EDIT 內一個 SEARCH/REPLACE 都解析不到（模型把結尾寫成 `======= END EDIT =====`）、以及輸出被截斷只剩 SEARCH 的最後一塊。截斷時用 `head -n <最後完整區塊行號>` 切出完整部分先套，剩下的改小卡重派或 PM 手補。

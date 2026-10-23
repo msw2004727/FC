@@ -38,10 +38,8 @@ allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/select-tests.js *) Bash(git
 
 主目錄常有 docs 副本與 CRLF 污染，完整 `npm run test:unit` 在乾淨 worktree 判斷：
 1. `git worktree add --detach <scratchpad>/wt HEAD`，把本次改動的檔 `cp` 進去（不 stash、不切分支）。
-2. node_modules 用 PowerShell 建 junction：`New-Item -ItemType Junction -Path "<wt>
-ode_modules" -Target "<FC>
-ode_modules"`，`functions
-ode_modules` 同樣做。（bash 內 `cmd //c mklink /J` 會因引號跳脫失敗。）
-3. 跑完先拆 junction：`[System.IO.Directory]::Delete("<wt>
-ode_modules")`（只刪連結）；**不要用 `Remove-Item -Recurse`**，PowerShell 5.1 可能連目標內容一起刪。再 `git worktree remove --force <wt>`（有複製進去的改動所以要 --force）。
+2. node_modules 用 PowerShell 建 junction：`New-Item -ItemType Junction -Path "<wt>\node_modules" -Target "<FC>\node_modules"`，`functions\node_modules` 同樣做。（bash 內 `cmd //c mklink /J` 會因引號跳脫失敗。）
+3. 跑完先拆 junction：`[System.IO.Directory]::Delete("<wt>\node_modules")`（只刪連結）；**不要用 `Remove-Item -Recurse`**，PowerShell 5.1 可能連目標內容一起刪。再 `git worktree remove --force <wt>`（有複製進去的改動所以要 --force）。
 4. 授權類改動可在 worktree 做一次突變檢查：把授權呼叫行註解掉，deny 案例應全紅，再還原。
+   - （2026-10-23 T-022 補）用 bash 小函式逐一突變：`cp 原檔 → sed -i '單一守衛' → npx jest <檔> -t <describe 關鍵字>` 數轉紅案數，`cmp` 確認 sed 真的改到，最後 `cmp` 確認已還原。**同一句守衛出現在兩個分支時要分開突變**（T-022 一次拿掉兩個 `applicantUid !== callerUid`，只有 1 案轉紅，才發現賽事分支沒測）。
+   - 本段原本把 `\node_modules` 寫成跳脫後的換行而斷字，已改回反斜線路徑（2026-10-23 T-022）。
