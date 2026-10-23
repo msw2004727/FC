@@ -15743,9 +15743,116 @@ exports.deliverToInbox = onCall(
   }
 );
 
+// T-020: 逐筆驗證呼叫者對該群組每則 inbox 審核訊息有審核權限（fail-closed）
+async function assertCallerCanReviewGroupActionDocs(request, docs, groupId) {
+  const callerUid = String(request?.auth?.uid || "").trim();
+  const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
+  const KNOWN_ACTION_TYPES = ["team_join_request", "tournament_register_request", "tournament_friendly_application"];
+  const deny = (reason, actionType) => {
+    // log 只留白名單內容：groupId／actionType 是外部資料，不合格式就不原樣寫出（Codex 第二審 Finding 1）
+    console.warn("[syncGroupActionStatus] permission denied", {
+      groupId: SAFE_ID_RE.test(String(groupId || "")) ? groupId : "(non-standard)",
+      reason,
+      actionType: KNOWN_ACTION_TYPES.includes(actionType) ? actionType : "(other)",
+    });
+    throw new HttpsError("permission-denied", "NO_PERMISSION_TO_REVIEW_GROUP_ACTION");
+  };
+  if (!callerUid) {
+    deny("UNAUTHENTICATED", "");
+  }
+
+  // Lazy 取得 caller access（整批共用一次）
+  let access = null;
+  const getAccess = async () => {
+    if (!access) access = await getCallerAccessContext(request);
+    return access;
+  };
+
+  // teamId → getTeamDocByTeamId 的 Promise 快取
+  const teamDocCache = new Map();
+  const getTeamDocCached = (teamId) => {
+    if (!teamDocCache.has(teamId)) {
+      teamDocCache.set(teamId, getTeamDocByTeamId(teamId));
+    }
+    return teamDocCache.get(teamId);
+  };
+
+  // tournamentId → 賽事資料的 Promise 快取（doc 直查為主、where(id) 為輔）
+  const tournamentDataCache = new Map();
+  const getTournamentDataCached = (tournamentId) => {
+    if (!tournamentDataCache.has(tournamentId)) {
+      tournamentDataCache.set(tournamentId, (async () => {
+        const directSnap = await db.collection("tournaments").doc(tournamentId).get();
+        if (directSnap.exists) return directSnap.data() || {};
+        const querySnap = await db.collection("tournaments")
+          .where("id", "==", tournamentId)
+          .limit(1)
+          .get();
+        if (!querySnap.empty) {
+          const doc = querySnap.docs[0];
+          return doc.data() || {};
+        }
+        return null;
+      })());
+    }
+    return tournamentDataCache.get(tournamentId);
+  };
+
+  for (const doc of docs) {
+    const data = doc.data() || {};
+    const actionType = String(data.actionType || "").trim();
+    const meta = data.meta;
+    if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+      deny("META_MISSING", actionType);
+    }
+
+    if (actionType === "team_join_request") {
+      const teamId = String(meta.teamId || "").trim();
+      if (!SAFE_ID_RE.test(teamId)) {
+        deny("TEAM_ID_MISSING", actionType);
+      }
+      const accessCtx = await getAccess();
+      const hasPerm = accessCtx.hasPermission("team.review_join")
+        || accessCtx.hasPermission("team.manage.entry");
+      if (!hasPerm) {
+        deny("TEAM_REVIEW_PERMISSION_REQUIRED", actionType);
+      }
+      const teamDoc = await getTeamDocCached(teamId);
+      if (!teamDoc) {
+        deny("TEAM_NOT_FOUND", actionType);
+      }
+      const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+        || isRoleAdminOrAbove(accessCtx.role);
+      if (!isStaff) {
+        deny("NOT_TEAM_STAFF", actionType);
+      }
+    } else if (actionType === "tournament_register_request" || actionType === "tournament_friendly_application") {
+      const tournamentId = String(meta.tournamentId || "").trim();
+      if (!SAFE_ID_RE.test(tournamentId)) {
+        deny("TOURNAMENT_ID_MISSING", actionType);
+      }
+      const tournament = await getTournamentDataCached(tournamentId);
+      if (!tournament) {
+        deny("TOURNAMENT_NOT_FOUND", actionType);
+      }
+      const accessCtx = await getAccess();
+      const directReader = { get: (refOrQuery) => refOrQuery.get() };
+      const canManage = await canManageTournamentDataInTransaction(
+        directReader, tournament, callerUid, accessCtx.role
+      );
+      if (!canManage) {
+        deny("TOURNAMENT_MANAGE_PERMISSION_REQUIRED", actionType);
+      }
+    } else {
+      deny("UNSUPPORTED_ACTION_TYPE", actionType);
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 //  syncGroupActionStatus — 跨 inbox 審核狀態同步
 //  當幹部核准/拒絕團隊加入或賽事申請後，同步更新同群組其他幹部 inbox
+//  [T-020] 已補呼叫者授權檢查：逐筆驗證呼叫者對每則訊息有審核權限
 // ═══════════════════════════════════════════════════════
 exports.syncGroupActionStatus = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
@@ -15757,7 +15864,7 @@ exports.syncGroupActionStatus = onCall(
 
     // 白名單驗證 newStatus（三方審核修正）
     const VALID_STATUSES = ["approved", "rejected", "ignored"];
-    if (!groupId || !newStatus) {
+    if (typeof groupId !== "string" || !groupId || !newStatus) {
       throw new HttpsError("invalid-argument", "groupId and newStatus are required");
     }
     if (!VALID_STATUSES.includes(newStatus)) {
@@ -15775,6 +15882,9 @@ exports.syncGroupActionStatus = onCall(
         return { success: true, updated: 0 };
       }
 
+      // T-020: 授權檢查（建立 batch 之前）
+      await assertCallerCanReviewGroupActionDocs(request, snapshot.docs, groupId);
+
       const batch = db.batch();
       let count = 0;
       snapshot.forEach(doc => {
@@ -15788,6 +15898,7 @@ exports.syncGroupActionStatus = onCall(
 
       return { success: true, updated: count };
     } catch (err) {
+      if (err instanceof HttpsError) throw err;
       console.error("[syncGroupActionStatus]", err);
       throw new HttpsError("internal", "Failed to sync group action status");
     }

@@ -3910,3 +3910,618 @@ describe('ApiService tournament delete source', () => {
     expect(source).toContain('if (statusUpdate) update.status = statusUpdate;');
   });
 });
+
+describe('syncGroupActionStatus caller authorization', () => {
+  function makeAccess(role, permissions = []) {
+    return {
+      role,
+      permissions,
+      isSuperAdmin: role === 'super_admin',
+      hasPermission(code) {
+        return role === 'super_admin' || permissions.includes(code);
+      },
+    };
+  }
+
+  function cloneDeep(value) {
+    if (Array.isArray(value)) return value.map(cloneDeep);
+    if (!value || typeof value !== 'object') return value;
+    return Object.entries(value).reduce((copy, [k, v]) => {
+      copy[k] = cloneDeep(v);
+      return copy;
+    }, {});
+  }
+
+  function readField(data, fieldPath) {
+    return String(fieldPath || '').split('.').reduce(
+      (v, k) => (v == null ? undefined : v[k]),
+      data
+    );
+  }
+
+  // ASSUMPTION: inbox items are { path: 'users/{uid}/inbox/{msgId}', data: { ...meta } }
+  function createSyncGroupMemoryDb({ inbox = [], teams = {}, tournaments = {}, failQuery = false, ignoreQueryFilters = false } = {}) {
+    const inboxDocs = inbox.map(item => ({ path: item.path, data: cloneDeep(item.data) }));
+    const teamsMap = new Map(Object.entries(teams).map(([k, v]) => [k, cloneDeep(v)]));
+    const tournamentsMap = new Map(Object.entries(tournaments).map(([k, v]) => [k, cloneDeep(v)]));
+    const db = { commits: [] };
+    let pendingPatches = [];
+
+    const wrap = (docs) => ({
+      empty: docs.length === 0,
+      size: docs.length,
+      docs,
+      forEach(cb) { docs.forEach(cb); },
+    });
+
+    const makeTeamSnap = (id, data, exists = true) => ({
+      exists,
+      id,
+      data: () => (exists ? cloneDeep(data) : undefined),
+      ref: { path: `teams/${id}`, id },
+    });
+    const makeTournamentSnap = (id, data, exists = true) => ({
+      exists,
+      id,
+      data: () => (exists ? cloneDeep(data) : undefined),
+      ref: { path: `tournaments/${id}`, id },
+    });
+    const makeInboxSnap = (item) => ({
+      ref: { path: item.path },
+      data: () => cloneDeep(item.data),
+    });
+
+    const lookupByField = (map, makeSnap) => {
+      const state = { field: null, value: null };
+      const api = {
+        where(field, op, value) {
+          if (op !== '==') throw new Error(`unsupported operator: ${op}`);
+          state.field = field; state.value = value; return api;
+        },
+        limit() { return api; },
+        async get() {
+          // 照正式 Firestore 語意：只比對欄位實際值、型別嚴格相等，不以文件 key 補（Codex 第二審 Finding 2）
+          for (const [key, data] of map.entries()) {
+            const candidate = data ? data[state.field] : undefined;
+            if (candidate === state.value) {
+              return wrap([makeSnap(key, data)]);
+            }
+          }
+          return wrap([]);
+        },
+      };
+      return api;
+    };
+
+    db.collection = (name) => ({
+      doc(id) {
+        if (typeof id !== 'string' || id.includes('/')) {
+          throw new Error(`Invalid document path: ${name}/${id}`);
+        }
+        if (name === 'teams') {
+          const data = teamsMap.get(id);
+          return { id, async get() { return makeTeamSnap(id, data, !!data); } };
+        }
+        const data = tournamentsMap.get(id);
+        return { id, async get() { return makeTournamentSnap(id, data, !!data); } };
+      },
+      where(field, op, value) {
+        return name === 'teams'
+          ? lookupByField(teamsMap, makeTeamSnap).where(field, op, value)
+          : lookupByField(tournamentsMap, makeTournamentSnap).where(field, op, value);
+      },
+    });
+
+    db.collectionGroup = (collectionId) => {
+      if (collectionId !== 'inbox') throw new Error(`unexpected collectionGroup: ${collectionId}`);
+      const filters = [];
+      const api = {
+        where(field, op, value) { filters.push({ field, op, value }); return api; },
+        async get() {
+          if (failQuery) throw new Error('query-failed');
+          // ignoreQueryFilters：模擬查詢回傳缺 meta 的異常文件，驗證 helper 的防禦分支
+          const matched = ignoreQueryFilters ? inboxDocs : inboxDocs.filter(item => filters.every(f => (
+            f.op === '==' && readField(item.data, f.field) === f.value
+          )));
+          return wrap(matched.map(makeInboxSnap));
+        },
+      };
+      return api;
+    };
+
+    db.batch = () => {
+      pendingPatches = [];
+      return {
+        update(ref, patch) { pendingPatches.push({ ref, patch: cloneDeep(patch) }); },
+        async commit() {
+          db.commits.push(pendingPatches.length);
+          pendingPatches.forEach(({ ref, patch }) => {
+            const item = inboxDocs.find(i => i.path === ref.path);
+            if (item) Object.assign(item.data, patch);
+          });
+          pendingPatches = [];
+        },
+      };
+    };
+
+    db._inboxDocs = inboxDocs;
+    return db;
+  }
+
+  function loadSyncGroupActionStatus(db, access, consoleImpl = console) {
+    const normalizeRoleSource = readSourceBetween('function normalizeRole(', 'function normalizeBuiltInRole');
+    const teamDocSources = readSourceBetween('async function getTeamDocByTeamId(', 'function isRoleAdminOrAbove');
+    const roleAdminSources = readSourceBetween('function isRoleAdminOrAbove', 'function getEduCourseRosterAgentUids');
+    const delegateSources = readSourceBetween('function getTournamentDelegateUidSet', 'function buildRegisteredTeamIdsFromEntries');
+    const helperSources = readSourceBetween(
+      'async function assertCallerCanReviewGroupActionDocs',
+      'async function _notifyTranslateQuotaWarning'
+    );
+    const getCallerAccessContext = jest.fn(async () => access);
+    const sandbox = {
+      db,
+      HttpsError: TestHttpsError,
+      onCall: (options, handler) => ({ options, handler }),
+      getCallerAccessContext,
+      exports: {},
+      console: consoleImpl,
+    };
+    vm.runInNewContext(`
+      ${normalizeRoleSource}
+      ${teamDocSources}
+      ${roleAdminSources}
+      ${delegateSources}
+      ${helperSources}
+    `, sandbox, { filename: 'sync-group-action-status.vm.js' });
+    return {
+      callable: sandbox.exports.syncGroupActionStatus,
+      getCallerAccessContext,
+    };
+  }
+
+  function makeConsole() {
+    const warns = [];
+    return {
+      warns,
+      log() {},
+      info() {},
+      warn(...args) { warns.push(args); },
+      error() {},
+    };
+  }
+
+  const teamJoinDoc = (teamId, groupId, extraMeta = {}) => ({
+    actionType: 'team_join_request',
+    actionStatus: 'pending',
+    meta: { teamId, groupId, ...extraMeta },
+  });
+
+  test('allow: club captain with team.review_join updates all pending docs in the group', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [
+        { path: 'users/uid-staff-a/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') },
+        { path: 'users/uid-staff-b/inbox/m2', data: teamJoinDoc('t1', 'tjr_g1') },
+        { path: 'users/uid-staff-c/inbox/m3', data: teamJoinDoc('t1', 'tjr_other') },
+      ],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']));
+
+    expect(callable.options).toEqual({ region: 'asia-east1', timeoutSeconds: 30 });
+    const result = await callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'Capt' },
+    });
+
+    expect(result).toEqual({ success: true, updated: 2 });
+    const m1 = db._inboxDocs.find(i => i.path === 'users/uid-staff-a/inbox/m1');
+    const m2 = db._inboxDocs.find(i => i.path === 'users/uid-staff-b/inbox/m2');
+    const m3 = db._inboxDocs.find(i => i.path === 'users/uid-staff-c/inbox/m3');
+    expect(m1.data.actionStatus).toBe('approved');
+    expect(m1.data.reviewerName).toBe('Capt');
+    expect(m2.data.actionStatus).toBe('approved');
+    expect(m2.data.reviewerName).toBe('Capt');
+    expect(m3.data.actionStatus).toBe('pending');
+  });
+
+  test('allow: coachUids via team.manage.entry', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-other', coachUids: ['uid-coach'] } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('coach', ['team.manage.entry']));
+    const result = await callable.handler({
+      auth: { uid: 'uid-coach' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'Coach' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('approved');
+  });
+
+  test('allow: legacy leaderUid via team.manage.entry', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-other', leaderUid: 'uid-leader' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.manage.entry']));
+    const result = await callable.handler({
+      auth: { uid: 'uid-leader' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'Leader' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('approved');
+  });
+
+  test('allow: admin role non-staff via team.manage.entry', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-other' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('admin', ['team.manage.entry']));
+    const result = await callable.handler({
+      auth: { uid: 'uid-admin' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'Admin' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('approved');
+  });
+
+  test.each([
+    {
+      name: 'creatorUid',
+      tournament: { id: 'ti1', creatorUid: 'uid-creator' },
+      teams: {},
+      uid: 'uid-creator',
+      role: 'user',
+    },
+    {
+      name: 'delegates[].uid',
+      tournament: { id: 'ti1', delegates: [{ uid: 'uid-delegate' }] },
+      teams: {},
+      uid: 'uid-delegate',
+      role: 'user',
+    },
+    {
+      name: 'host team captain',
+      tournament: { id: 'ti1', hostTeamId: 'host1' },
+      teams: { host1: { id: 'host1', captainUid: 'uid-host' } },
+      uid: 'uid-host',
+      role: 'user',
+    },
+    {
+      name: 'admin role',
+      tournament: { id: 'ti1', creatorUid: 'uid-other' },
+      teams: {},
+      uid: 'uid-admin',
+      role: 'admin',
+    },
+  ])('allow: tournament $name', async ({ tournament, teams, uid, role }) => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_register_request',
+          actionStatus: 'pending',
+          meta: { tournamentId: tournament.id, groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: { [tournament.id]: tournament },
+      teams,
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess(role, []));
+    const result = await callable.handler({
+      auth: { uid },
+      data: { groupId: 'trg_g1', newStatus: 'approved', reviewerName: 'R' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('approved');
+  });
+
+  test('allow: legacy tournament via where(id) when doc id differs', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_register_request',
+          actionStatus: 'pending',
+          meta: { tournamentId: 'legacy-id', groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: { 'doc-id-abc': { id: 'legacy-id', creatorUid: 'uid-creator' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    const result = await callable.handler({
+      auth: { uid: 'uid-creator' },
+      data: { groupId: 'trg_g1', newStatus: 'approved', reviewerName: 'R' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('approved');
+  });
+
+  test('allow: empty result returns success without calling access context', async () => {
+    const db = createSyncGroupMemoryDb({ inbox: [] });
+    const { callable, getCallerAccessContext } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    const result = await callable.handler({
+      auth: { uid: 'uid-anyone' },
+      data: { groupId: 'tjr_none', newStatus: 'approved', reviewerName: 'X' },
+    });
+    expect(result).toEqual({ success: true, updated: 0 });
+    expect(getCallerAccessContext).not.toHaveBeenCalled();
+  });
+
+  test('deny: unauthenticated', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    await expect(callable.handler({
+      auth: null,
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(db.commits.length).toBe(0);
+  });
+
+  test('deny: outsider with permission but not staff', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', ['team.review_join']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-outsider' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: other club captain with team.manage.entry', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.manage.entry']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-outsider' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: staff without required permission', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test.each([
+    { name: 'missing meta.teamId', data: { actionType: 'team_join_request', actionStatus: 'pending', meta: { groupId: 'tjr_g1' } } },
+    { name: 'missing meta entirely', data: { actionType: 'team_join_request', actionStatus: 'pending' }, ignoreQueryFilters: true },
+    { name: 'meta.teamId contains /', data: { actionType: 'team_join_request', actionStatus: 'pending', meta: { teamId: '../evil', groupId: 'tjr_g1' } } },
+  ])('deny: $name (permission-denied, not internal)', async ({ data, ignoreQueryFilters = false }) => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data }],
+      teams: {},
+      ignoreQueryFilters,
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: unknown actionType (edu_reminder)', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: { actionType: 'edu_reminder', actionStatus: 'pending', meta: { groupId: 'tjr_g1' } },
+      }],
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('admin', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-admin' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: mixed clubs in same groupId rejects whole batch', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [
+        { path: 'users/uid-a/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') },
+        { path: 'users/uid-b/inbox/m2', data: teamJoinDoc('t2', 'tjr_g1') },
+      ],
+      teams: {
+        t1: { id: 't1', captainUid: 'uid-captain' },
+        t2: { id: 't2', captainUid: 'uid-other' },
+      },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    db._inboxDocs.forEach(i => expect(i.data.actionStatus).toBe('pending'));
+  });
+
+  test('deny: tournament not found', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_register_request',
+          actionStatus: 'pending',
+          meta: { tournamentId: 'ti-missing', groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: {},
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-anyone' },
+      data: { groupId: 'trg_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: caller is not a tournament manager', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_register_request',
+          actionStatus: 'pending',
+          meta: { tournamentId: 'ti1', groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: { ti1: { id: 'ti1', creatorUid: 'uid-other', hostTeamId: '' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-outsider' },
+      data: { groupId: 'trg_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('allow: tournament_friendly_application with meta.groupId uses tournament manager check', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_friendly_application',
+          actionStatus: 'pending',
+          meta: { tournamentId: 'ti1', groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: { ti1: { id: 'ti1', creatorUid: 'uid-creator' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    const result = await callable.handler({
+      auth: { uid: 'uid-creator' },
+      data: { groupId: 'trg_g1', newStatus: 'rejected', reviewerName: 'R' },
+    });
+    expect(result).toEqual({ success: true, updated: 1 });
+    expect(db._inboxDocs[0].data.actionStatus).toBe('rejected');
+  });
+
+  test('deny: admin role without team.review_join / team.manage.entry (A parity)', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-other' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('admin', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-admin' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'Admin' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+    expect(db._inboxDocs[0].data.actionStatus).toBe('pending');
+  });
+
+  test('deny: where(id) fallback does not match numeric id against string tournamentId', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-target/inbox/m1',
+        data: {
+          actionType: 'tournament_register_request',
+          actionStatus: 'pending',
+          meta: { tournamentId: '123', groupId: 'trg_g1' },
+        },
+      }],
+      tournaments: { 'doc-x': { id: 123, creatorUid: 'uid-creator' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('user', []));
+    await expect(callable.handler({
+      auth: { uid: 'uid-creator' },
+      data: { groupId: 'trg_g1', newStatus: 'approved', reviewerName: 'R' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.commits.length).toBe(0);
+  });
+
+  test('deny: log masks non-standard groupId and unknown actionType', async () => {
+    const consoleImpl = makeConsole();
+    const db = createSyncGroupMemoryDb({
+      inbox: [{
+        path: 'users/uid-staff/inbox/m1',
+        data: { actionType: 'weird_type', actionStatus: 'pending', meta: { groupId: 'g/uid-captain' } },
+      }],
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']), consoleImpl);
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'g/uid-captain', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    const serialized = JSON.stringify(consoleImpl.warns);
+    expect(serialized).not.toContain('uid-captain');
+    expect(serialized).not.toContain('weird_type');
+    expect(serialized).toContain('(non-standard)');
+    expect(serialized).toContain('(other)');
+    expect(db.commits.length).toBe(0);
+  });
+
+  test('deny: console.warn does not include caller uid', async () => {
+    const consoleImpl = makeConsole();
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable } = loadSyncGroupActionStatus(
+      db,
+      makeAccess('captain', []),
+      consoleImpl
+    );
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(consoleImpl.warns.length).toBeGreaterThan(0);
+    const serialized = JSON.stringify(consoleImpl.warns);
+    expect(serialized).not.toContain('uid-captain');
+    expect(serialized).toContain('permission denied');
+  });
+
+  test('invalid newStatus returns invalid-argument before access check', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+    });
+    const { callable, getCallerAccessContext } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'bogus', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(getCallerAccessContext).not.toHaveBeenCalled();
+  });
+
+  test('query failure returns internal', async () => {
+    const db = createSyncGroupMemoryDb({
+      inbox: [{ path: 'users/uid-staff/inbox/m1', data: teamJoinDoc('t1', 'tjr_g1') }],
+      teams: { t1: { id: 't1', captainUid: 'uid-captain' } },
+      failQuery: true,
+    });
+    const { callable } = loadSyncGroupActionStatus(db, makeAccess('captain', ['team.review_join']));
+    await expect(callable.handler({
+      auth: { uid: 'uid-captain' },
+      data: { groupId: 'tjr_g1', newStatus: 'approved', reviewerName: 'X' },
+    })).rejects.toMatchObject({ code: 'internal' });
+    expect(db.commits.length).toBe(0);
+  });
+});
