@@ -36,6 +36,51 @@ function isMissingUser(err) {
   return String(err && err.code || "") === "auth/user-not-found";
 }
 
+function checkExistingAuthUser(key, user) {
+  const name = user.displayName === undefined || user.displayName === null ? "" : user.displayName;
+  if (typeof name !== "string") {
+    return { ok: false, message: `Auth 已有 persona ${key} 但顯示名稱不是 QA 前綴，已停止` };
+  }
+  if (name.startsWith(QA_DISPLAY_NAME_PREFIX)) {
+    const dangerousKeys = findDangerousClaimKeys(user.customClaims);
+    if (dangerousKeys.length > 0) {
+      return { ok: false, message: `Auth 已有 persona ${key} 但 customClaims 含不安全鍵名：${dangerousKeys.join("、")}，已停止` };
+    }
+    return { ok: true, autoCreated: false };
+  }
+  if (name !== "") {
+    return { ok: false, message: `Auth 已有 persona ${key} 但顯示名稱不是 QA 前綴，已停止` };
+  }
+  const hasValue = (value) => value !== undefined && value !== null && value !== "";
+  if (hasValue(user.email)) {
+    return { ok: false, message: `Auth 已有 persona ${key} 但有 email，已停止` };
+  }
+  if (hasValue(user.phoneNumber)) {
+    return { ok: false, message: `Auth 已有 persona ${key} 但有 phoneNumber，已停止` };
+  }
+  if (user.providerData != null &&
+      (!Array.isArray(user.providerData) || user.providerData.length > 0)) {
+    return { ok: false, message: `Auth 已有 persona ${key} 但有登入方式，已停止` };
+  }
+  if (hasValue(user.passwordHash) || hasValue(user.passwordSalt)) {
+    return { ok: false, message: `Auth 已有 persona ${key} 但有密碼登入，已停止` };
+  }
+  const dangerousKeys = findDangerousClaimKeys(user.customClaims);
+  if (dangerousKeys.length > 0) {
+    return { ok: false, message: `Auth 已有 persona ${key} 但 customClaims 含不安全鍵名：${dangerousKeys.join("、")}，已停止` };
+  }
+  if (user.customClaims !== undefined && user.customClaims !== null) {
+    const claims = user.customClaims;
+    const prototype = Object.getPrototypeOf(claims);
+    if (Object.prototype.toString.call(claims) !== "[object Object]" ||
+        (prototype !== null && prototype !== Object.prototype) ||
+        Reflect.ownKeys(claims).length !== 0) {
+      return { ok: false, message: `Auth 已有 persona ${key} 但 customClaims 非空，已停止` };
+    }
+  }
+  return { ok: true, autoCreated: true };
+}
+
 function sameList(left, right) {
   const a = Array.isArray(left) ? left : [];
   const b = Array.isArray(right) ? right : [];
@@ -155,15 +200,13 @@ async function main() {
   for (const [key, persona] of entries) {
     try {
       const user = await auth.getUser(persona.uid);
-      const name = typeof user.displayName === "string" ? user.displayName : "";
-      if (!name.startsWith(QA_DISPLAY_NAME_PREFIX)) {
-        console.error(`Auth 已有 persona ${key} 但顯示名稱不是 QA 前綴，已停止`);
+      const result = checkExistingAuthUser(key, user);
+      if (!result.ok) {
+        console.error(result.message);
         process.exit(1);
       }
-      const dangerousKeys = findDangerousClaimKeys(user.customClaims);
-      if (dangerousKeys.length > 0) {
-        console.error(`Auth 已有 persona ${key} 但 customClaims 含不安全鍵名：${dangerousKeys.join("、")}，已停止`);
-        process.exit(1);
+      if (result.ok && result.autoCreated) {
+        console.log(`Auth 帳號 ${key} 為登入時自動建立（無 email／無登入方式／無 claims）`);
       }
     } catch (err) {
       if (!isMissingUser(err)) {
@@ -246,3 +289,5 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+module.exports = { checkExistingAuthUser };

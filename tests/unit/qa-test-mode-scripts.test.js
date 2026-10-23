@@ -5,6 +5,7 @@ const path = require("path");
 const lib = require("../../scripts/qa-test-mode/lib");
 const core = require("../../functions/qa-test-mode-core");
 const listCustomRolesScript = require("../../scripts/qa-test-mode/list-custom-roles");
+const provisionScript = require("../../scripts/qa-test-mode/provision-accounts");
 
 const ROOT = path.resolve(__dirname, "../..");
 const SCRIPT_DIR = path.join(ROOT, "scripts", "qa-test-mode");
@@ -395,8 +396,295 @@ describe("qa-test-mode scripts", () => {
     });
   });
 
+  describe("provision-accounts checkExistingAuthUser", () => {
+    function autoCreatedUser(overrides = {}) {
+      return { displayName: "", providerData: [], ...overrides };
+    }
+
+    function expectRejected(overrides, reason) {
+      const result = provisionScript.checkExistingAuthUser("member", autoCreatedUser(overrides));
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain(reason);
+    }
+
+    it("放行登入時自動建立且無 claims 的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser()))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行缺少顯示名稱欄位的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", { providerData: [] }))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行顯示名稱為 undefined 的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ displayName: undefined })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行缺少登入方式欄位的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", { displayName: "" }))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行登入方式為 null 的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ providerData: null })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行 claims 為空物件的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ customClaims: {} })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行 claims 為 null 的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ customClaims: null })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行已有 QA 前綴且無 claims 的帳號", () => {
+      const user = autoCreatedUser({ displayName: `${lib.QA_DISPLAY_NAME_PREFIX}測試` });
+      expect(provisionScript.checkExistingAuthUser("member", user))
+        .toEqual({ ok: true, autoCreated: false });
+    });
+
+    it("放行已有 QA 前綴且含 qa claim 的帳號", () => {
+      const user = autoCreatedUser({
+        displayName: `${lib.QA_DISPLAY_NAME_PREFIX}測試`,
+        customClaims: { qa: true },
+      });
+      expect(provisionScript.checkExistingAuthUser("member", user))
+        .toEqual({ ok: true, autoCreated: false });
+    });
+
+    it("已有 QA 前綴時維持只檢查危險 claims 的行為", () => {
+      const user = autoCreatedUser({
+        displayName: `${lib.QA_DISPLAY_NAME_PREFIX}測試`,
+        email: "qa@example.com",
+        phoneNumber: "+886900000000",
+        providerData: [{ providerId: "password" }],
+        passwordHash: "hash",
+        passwordSalt: "salt",
+        customClaims: { qa: true },
+      });
+      expect(provisionScript.checkExistingAuthUser("member", user))
+        .toEqual({ ok: true, autoCreated: false });
+    });
+
+    it("拒絕非空且沒有 QA 前綴的顯示名稱", () => {
+      expectRejected({ displayName: "王小明" }, "顯示名稱不是 QA 前綴");
+    });
+
+    it("拒絕有 email 的空名稱帳號", () => {
+      expectRejected({ email: "qa@example.com" }, "有 email");
+    });
+
+    it("拒絕有 phoneNumber 的空名稱帳號", () => {
+      expectRejected({ phoneNumber: "+886900000000" }, "有 phoneNumber");
+    });
+
+    it("拒絕登入方式非空的空名稱帳號", () => {
+      expectRejected({ providerData: [{ providerId: "password" }] }, "有登入方式");
+    });
+
+    it("拒絕登入方式為非陣列的空名稱帳號", () => {
+      expectRejected({ providerData: {} }, "有登入方式");
+    });
+
+    it("拒絕有 passwordHash 的空名稱帳號", () => {
+      expectRejected({ passwordHash: "hash" }, "有密碼登入");
+    });
+
+    it("拒絕有 passwordSalt 的空名稱帳號", () => {
+      expectRejected({ passwordSalt: "salt" }, "有密碼登入");
+    });
+
+    it("拒絕有危險 role claim 的空名稱帳號", () => {
+      expectRejected({ customClaims: { role: "admin" } }, "customClaims 含不安全鍵名：role");
+    });
+
+    it("拒絕有 foo claim 的空名稱帳號", () => {
+      expectRejected({ customClaims: { foo: 1 } }, "customClaims 非空");
+    });
+
+    it("拒絕有 qa claim 的空名稱帳號", () => {
+      expectRejected({ customClaims: { qa: true } }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 為字串的空名稱帳號", () => {
+      expectRejected({ customClaims: "" }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 為陣列的空名稱帳號", () => {
+      expectRejected({ customClaims: [] }, "customClaims 非空");
+    });
+
+    it("拒絕已有 QA 前綴但含危險 admin claim 的帳號", () => {
+      expectRejected({
+        displayName: `${lib.QA_DISPLAY_NAME_PREFIX}測試`,
+        customClaims: { admin: true },
+      }, "customClaims 含不安全鍵名：admin");
+    });
+
+    it("拒絕顯示名稱為半形空白的帳號，防止 trim 放寬邊界", () => {
+      expectRejected({ displayName: " " }, "顯示名稱不是 QA 前綴");
+    });
+
+    it("拒絕顯示名稱為全形空白的帳號", () => {
+      expectRejected({ displayName: "　" }, "顯示名稱不是 QA 前綴");
+    });
+
+    it.each([
+      ["數字", 123],
+      ["布林", false],
+      ["物件", {}],
+      ["陣列", []],
+    ])("拒絕顯示名稱為%s的帳號", (_label, displayName) => {
+      expectRejected({ displayName }, "顯示名稱不是 QA 前綴");
+    });
+
+    it("放行顯示名稱為 null 的帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ displayName: null })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    ["email", "phoneNumber", "passwordHash", "passwordSalt"].forEach((field) => {
+      it.each([
+        ["undefined", undefined],
+        ["null", null],
+        ["空字串", ""],
+      ])(`放行 ${field} 為%s的空名稱帳號`, (_label, value) => {
+        expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ [field]: value })))
+          .toEqual({ ok: true, autoCreated: true });
+      });
+    });
+
+    it.each([
+      ["email", false, "有 email"],
+      ["email", 0, "有 email"],
+      ["phoneNumber", false, "有 phoneNumber"],
+      ["phoneNumber", 0, "有 phoneNumber"],
+      ["passwordHash", false, "有密碼登入"],
+      ["passwordHash", 0, "有密碼登入"],
+      ["passwordSalt", false, "有密碼登入"],
+      ["passwordSalt", 0, "有密碼登入"],
+    ])("拒絕 %s 為 %s 的空名稱帳號", (field, value, reason) => {
+      expectRejected({ [field]: value }, reason);
+    });
+
+    it("拒絕登入方式為空字串的空名稱帳號", () => {
+      expectRejected({ providerData: "" }, "有登入方式");
+    });
+
+    it("拒絕 claims 含繼承屬性的空名稱帳號", () => {
+      expectRejected({ customClaims: Object.create({ foo: 1 }) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 為 Date 的空名稱帳號", () => {
+      expectRejected({ customClaims: new Date() }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 為非純資料物件（toStringTag 非 Object）的空名稱帳號", () => {
+      const middle = Object.create(null);
+      middle[Symbol.toStringTag] = "Other";
+      expectRejected({ customClaims: Object.create(middle) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 繼承帶屬性的 null 原型物件的空名稱帳號", () => {
+      const customClaims = Object.create(Object.assign(Object.create(null), { foo: 1 }));
+      expectRejected({ customClaims }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 繼承偽造根原型（只缺 constructor 或只缺 hasOwnProperty）的空名稱帳號", () => {
+      const noConstructor = Object.assign(Object.create(null), {
+        hasOwnProperty: Object.prototype.hasOwnProperty,
+        foo: 1,
+      });
+      expectRejected({ customClaims: Object.create(noConstructor) }, "customClaims 非空");
+
+      const noHasOwn = Object.create(null);
+      noHasOwn.constructor = function Fake() {};
+      noHasOwn.constructor.prototype = noHasOwn;
+      noHasOwn.foo = 1;
+      expectRejected({ customClaims: Object.create(noHasOwn) }, "customClaims 非空");
+
+      const wrongConstructor = Object.assign(Object.create(null), {
+        hasOwnProperty: Object.prototype.hasOwnProperty,
+        constructor: function Fake() {},
+        foo: 1,
+      });
+      expectRejected({ customClaims: Object.create(wrongConstructor) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 繼承符合所有舊特徵但帶 foo 的偽造根原型的空名稱帳號", () => {
+      const proto = Object.create(null);
+      proto.constructor = function Fake() {};
+      proto.constructor.prototype = proto;
+      proto.hasOwnProperty = Object.prototype.hasOwnProperty;
+      proto.foo = 1;
+
+      expectRejected({ customClaims: Object.create(proto) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 繼承額外帶 Symbol.toStringTag 的偽造根原型的空名稱帳號", () => {
+      const proto = Object.create(null, Object.getOwnPropertyDescriptors(Object.prototype));
+      proto.constructor = function Fake() {};
+      proto.constructor.prototype = proto;
+      proto[Symbol.toStringTag] = "Other";
+
+      expectRejected({ customClaims: Object.create(proto) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 原型鍵集合像根原型但自身還有上層原型的空名稱帳號", () => {
+      const fakeRoot = Object.create({ foo: 1 });
+      for (const key of Reflect.ownKeys(Object.prototype)) {
+        Object.defineProperty(fakeRoot, key, Object.getOwnPropertyDescriptor(Object.prototype, key));
+      }
+      expectRejected({ customClaims: Object.create(fakeRoot) }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 含 symbol 自有鍵的空名稱帳號", () => {
+      expectRejected({ customClaims: { [Symbol("x")]: 1 } }, "customClaims 非空");
+    });
+
+    it("拒絕 claims 含不可列舉自有鍵的空名稱帳號", () => {
+      const customClaims = Object.defineProperty({}, "foo", { value: 1 });
+      expectRejected({ customClaims }, "customClaims 非空");
+    });
+
+    it.each([
+      ["數字", 0],
+      ["布林", false],
+    ])("拒絕 claims 為%s的空名稱帳號", (_label, customClaims) => {
+      expectRejected({ customClaims }, "customClaims 非空");
+    });
+
+    it("放行 claims 為 undefined 的空名稱帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({ customClaims: undefined })))
+        .toEqual({ ok: true, autoCreated: true });
+    });
+
+    it("放行 claims 為 null 原型空物件的空名稱帳號", () => {
+      expect(provisionScript.checkExistingAuthUser("member", autoCreatedUser({
+        customClaims: Object.create(null),
+      }))).toEqual({ ok: true, autoCreated: true });
+    });
+
+    // 測試同步更新：原「放行跨 realm 空物件」改為拒絕。原型必須是 null 或本 realm 的 Object.prototype，
+    // 原型鏈身分無法偽造；正式資料來自本 process 的 JSON 解析，不會有跨 realm 物件，無法證明者一律 fail-closed。
+    it("拒絕 claims 為跨 realm 物件的空名稱帳號（fail-closed）", () => {
+      const customClaims = require("node:vm").runInNewContext("({})");
+      expectRejected({ customClaims }, "customClaims 非空");
+    });
+  });
+
   describe("靜態掃描", () => {
     const files = walk(SCRIPT_DIR);
+
+    it("provision-accounts 不得包含 Auth 建立或寫入方法", () => {
+      const text = fs.readFileSync(path.join(SCRIPT_DIR, "provision-accounts.js"), "utf8");
+      expect(text).not.toMatch(/createUser|updateUser|setCustomUserClaims/);
+    });
 
     it("腳本目錄不得寫死專案 ID", () => {
       expect(files.length).toBeGreaterThan(0);
