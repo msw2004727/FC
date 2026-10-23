@@ -100,6 +100,13 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 - **2026-10-23 T-022：要以 `vm.runInNewContext` 測的 Functions 程式，規格要寫明「判斷 plain object 用 `Object.prototype.toString.call(v) === "[object Object]"`，不要比對 `Object.getPrototypeOf(v) === Object.prototype`」**：測試的 request.data 來自外層 realm，比對 prototype 會把合法物件判成非物件（Codex 第 1 輪就這樣寫，PM 派第 2 輪修）。
 - **Grok CLI 寫 Functions 測試（T-022 實測）**：在乾淨 worktree 跑（node_modules 用 junction），卡放 `.grok-input/`（UTF-8 加 BOM），一張卡 23 項約 18 回合交 35 案、整檔全綠；核心碼之後若再改，要把新版 `functions/index.js` 複製進 worktree 重跑，再派小卡補案。收件先 `cmp` 確認它沒動 `functions/`。
 
+- **2026-10-23 T-024 第二輪 a（Functions 授權核心）實戰**：
+  - Codex 核心產碼用「規格檔＋pack-prompt」一次出 3 檔（2 個新檔 FILE＋index.js 4 處 EDIT），`apply-edits.py` 一次套完；新檔過 1000 行前先拆成「純函式 core」與「handler 工廠」兩個檔，Codex 才不會寫出難審的長檔。Codex 偶爾回 `Selected model is at capacity`（暫時性，非額度）：背景迴圈重試最多 4 次、間隔 60 秒即可。
+  - 授權核心走「Codex 產碼 → fresh-context Codex 主審 → 退修（只給差異規格＋審查報告＋現行檔）」；本任務 3 輪審查逐輪找到真問題（並行節流空窗、成功清零、IPv4-mapped 正規化、鎖定到期語意），第 3 輪才 GO。審查報告的個別 finding 仍要自己驗證（第 3 輪 P3「regex `$` 接受尾端換行」用 node 實測反駁：JS 無 m 旗標的 `$` 不匹配 `
+`）。
+  - Grok CLI 同時跑兩張卡（測試、腳本）各約 20～40 分鐘、30～45 輪；核心之後又改版時，不必重派整張，改寫「差異卡」（列出新版行為摘要＋要更新的舊斷言＋新增案例），22 個過時斷言一輪就改完。記憶體 Firestore 替身要支援 `set(..., {merge:true})` 與用 promise 互斥鎖串行化 `runTransaction`（模擬 Firestore 樂觀衝突重試），並行節流測試才有意義。
+  - emulator 實測：`firebase emulators:exec --config <自訂 json 避開 8080/4000/9099 被別人佔用的 port> --only auth,firestore --project demo-xxx "node chain.js"`；Auth emulator 的 `revokeRefreshTokens` 不強制撤銷 refresh（`refreshFailsAfterRevoke` 恆為 false），正式行為只能部署後觀察。
+
 - **2026-10-23 T-019 補強（取代「FILE 覆寫既有檔一律失敗、要手動 split-loose＋抽 EDIT 分兩次套」）**：
   - 模型常把既有檔整檔用 FILE 輸出：確認是刻意整檔改寫後加 `apply-edits.py ... --allow-overwrite`，腳本會印「原有註解行消失幾行」，>0 就逐行看 diff。同一檔同時有 FILE 與 EDIT 仍會失敗。
   - apply-edits 現在會擋兩種以前會**靜默略過**的壞格式：EDIT 內一個 SEARCH/REPLACE 都解析不到（模型把結尾寫成 `======= END EDIT =====`）、以及輸出被截斷只剩 SEARCH 的最後一塊。截斷時用 `head -n <最後完整區塊行號>` 切出完整部分先套，剩下的改小卡重派或 PM 手補。
