@@ -15611,6 +15611,269 @@ exports.eduCheckin = onCall(
   }
 );
 
+// T-022: deliverToInbox actionType／meta 白名單（fail-closed）
+const DELIVER_INBOX_SAFE_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
+const DELIVER_INBOX_TEAM_JOIN_GROUP_RE = /^tjr_\d{10,16}_[a-z0-9]{1,8}$/;
+const DELIVER_INBOX_TOURNAMENT_REG_GROUP_RE = /^trg_\d{10,16}_[a-z0-9]{1,8}$/;
+const DELIVER_INBOX_REVIEW_GROUP_PREFIX_RE = /^(tjr|trg|tfa)_/i;
+
+async function getDeliverInboxTournament(tournamentId) {
+  const directSnap = await db.collection("tournaments").doc(tournamentId).get();
+  if (directSnap.exists) {
+    return { docId: directSnap.id, data: directSnap.data() || {} };
+  }
+  const querySnap = await db.collection("tournaments")
+    .where("id", "==", tournamentId)
+    .limit(1)
+    .get();
+  if (querySnap.empty) return null;
+  const doc = querySnap.docs[0];
+  return { docId: doc.id, data: doc.data() || {} };
+}
+
+async function sanitizeDeliverToInboxMessage(request, message, { targetUid, isBroadcast }) {
+  const callerUid = request.auth.uid;
+  const actionType = message.actionType;
+  const knownActionTypes = [
+    "team_join_request",
+    "tournament_register_request",
+    "tournament_friendly_application",
+    "edu_checkin",
+    "edu_reminder",
+    "edu_report",
+  ];
+  const reject = (code, reason) => {
+    console.warn("[deliverToInbox] rejected", {
+      reason,
+      actionType: knownActionTypes.includes(actionType) ? actionType : "(other)",
+      broadcast: !!isBroadcast,
+    });
+    throw new HttpsError(code, reason);
+  };
+  const invalid = (reason) => reject("invalid-argument", reason);
+  const denied = (reason) => reject("permission-denied", reason);
+  const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value) && Object.prototype.toString.call(value) === "[object Object]";
+  const isNonEmpty = (value) => value !== undefined && value !== null && value !== "";
+  const requireSafeId = (value, reason) => {
+    if (typeof value !== "string" || !DELIVER_INBOX_SAFE_ID_RE.test(value)) {
+      invalid(reason);
+    }
+    return value;
+  };
+  const normalizeName = (value, reason) => {
+    if (value === undefined || value === null) return "";
+    if (typeof value !== "string") invalid(reason);
+    const trimmed = value.trim();
+    if (trimmed.length > 200) invalid(reason);
+    return trimmed;
+  };
+  const optionalShortString = (value, maxLength, reason) => {
+    if (value === undefined || value === null) return "";
+    if (typeof value !== "string" || value.length > maxLength) invalid(reason);
+    return value;
+  };
+
+  requireSafeId(message.id, "INVALID_MESSAGE_ID");
+  if (!isBroadcast) requireSafeId(targetUid, "INVALID_TARGET_UID");
+
+  if (actionType === undefined || actionType === null || actionType === "") {
+    const stripped = [];
+    if (isNonEmpty(message.actionStatus)) stripped.push("actionStatus");
+    if (isNonEmpty(message.reviewerName)) stripped.push("reviewerName");
+    let meta = null;
+    if (isPlainObject(message.meta)) {
+      meta = { ...message.meta };
+      if (hasOwn(message.meta, "groupId")) {
+        delete meta.groupId;
+        stripped.push("meta.groupId");
+      }
+    } else if (message.meta !== undefined && message.meta !== null) {
+      stripped.push("meta");
+    }
+    if (stripped.length > 0) {
+      console.warn("[deliverToInbox] stripped review fields from untyped message", {
+        stripped,
+        broadcast: !!isBroadcast,
+      });
+    }
+    return { actionType: null, actionStatus: null, reviewerName: null, meta };
+  }
+
+  if (typeof actionType !== "string") invalid("INVALID_ACTION_TYPE");
+  if (isBroadcast) invalid("ACTION_TYPE_NOT_ALLOWED_FOR_BROADCAST");
+  if (!knownActionTypes.includes(actionType)) invalid("UNSUPPORTED_ACTION_TYPE");
+  if (isNonEmpty(message.reviewerName)) invalid("REVIEWER_NAME_NOT_ALLOWED");
+  if (!isPlainObject(message.meta)) invalid("META_REQUIRED");
+
+  const meta = message.meta;
+  const actionStatus = message.actionStatus;
+  const result = (sanitizedMeta) => ({
+    actionType,
+    actionStatus,
+    reviewerName: null,
+    meta: sanitizedMeta,
+  });
+  const directReader = { get: (refOrQuery) => refOrQuery.get() };
+
+  if (actionType === "team_join_request") {
+    if (actionStatus !== "pending") invalid("INVALID_ACTION_STATUS");
+    const teamId = requireSafeId(meta.teamId, "INVALID_TEAM_ID");
+    const applicantUid = requireSafeId(meta.applicantUid, "INVALID_APPLICANT_UID");
+    if (typeof meta.groupId !== "string" || !DELIVER_INBOX_TEAM_JOIN_GROUP_RE.test(meta.groupId)) {
+      invalid("INVALID_GROUP_ID");
+    }
+    const sanitizedMeta = {
+      teamId,
+      teamName: normalizeName(meta.teamName, "INVALID_TEAM_NAME"),
+      applicantUid,
+      applicantName: normalizeName(meta.applicantName, "INVALID_APPLICANT_NAME"),
+      groupId: meta.groupId,
+    };
+    if (applicantUid !== callerUid) denied("APPLICANT_MUST_BE_CALLER");
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) denied("TEAM_NOT_FOUND");
+    if (!isTeamStaffForData(teamDoc.data, targetUid)) denied("RECIPIENT_NOT_TEAM_STAFF");
+    return result(sanitizedMeta);
+  }
+
+  if (actionType === "tournament_register_request") {
+    if (actionStatus !== "pending") invalid("INVALID_ACTION_STATUS");
+    const tournamentId = requireSafeId(meta.tournamentId, "INVALID_TOURNAMENT_ID");
+    const teamId = requireSafeId(meta.teamId, "INVALID_TEAM_ID");
+    const applicantUid = requireSafeId(meta.applicantUid, "INVALID_APPLICANT_UID");
+    if (typeof meta.groupId !== "string" || !DELIVER_INBOX_TOURNAMENT_REG_GROUP_RE.test(meta.groupId)) {
+      invalid("INVALID_GROUP_ID");
+    }
+    const sanitizedMeta = {
+      tournamentId,
+      tournamentName: normalizeName(meta.tournamentName, "INVALID_TOURNAMENT_NAME"),
+      teamId,
+      teamName: normalizeName(meta.teamName, "INVALID_TEAM_NAME"),
+      applicantUid,
+      applicantName: normalizeName(meta.applicantName, "INVALID_APPLICANT_NAME"),
+      groupId: meta.groupId,
+    };
+    if (applicantUid !== callerUid) denied("APPLICANT_MUST_BE_CALLER");
+    const tournament = await getDeliverInboxTournament(tournamentId);
+    if (!tournament) denied("TOURNAMENT_NOT_FOUND");
+    const recipientDoc = await db.collection("users").doc(targetUid).get();
+    const recipientRole = recipientDoc.exists ? recipientDoc.data().role : "user";
+    const canManage = await canManageTournamentDataInTransaction(
+      directReader, tournament.data, targetUid, recipientRole
+    );
+    if (!canManage) denied("RECIPIENT_CANNOT_MANAGE_TOURNAMENT");
+    return result(sanitizedMeta);
+  }
+
+  if (actionType === "tournament_friendly_application") {
+    if (!["opened", "pending", "approved", "rejected"].includes(actionStatus)) {
+      invalid("INVALID_ACTION_STATUS");
+    }
+    if (hasOwn(meta, "groupId")) invalid("GROUP_ID_NOT_ALLOWED");
+    const tournamentId = requireSafeId(meta.tournamentId, "INVALID_TOURNAMENT_ID");
+    const hostTeamId = meta.hostTeamId === ""
+      ? ""
+      : requireSafeId(meta.hostTeamId, "INVALID_HOST_TEAM_ID");
+    const teamId = meta.teamId === ""
+      ? ""
+      : requireSafeId(meta.teamId, "INVALID_TEAM_ID");
+    if (meta.applicationId !== "" && (!teamId || meta.applicationId !== `ta_${teamId}`)) {
+      invalid("INVALID_APPLICATION_ID");
+    }
+    if (meta.messageGroupId !== "" && meta.messageGroupId !== `tfa_${tournamentId}_${teamId}`) {
+      invalid("INVALID_MESSAGE_GROUP_ID");
+    }
+    if (meta.linkType !== undefined && meta.linkType !== "" && meta.linkType !== "tournament") {
+      invalid("INVALID_LINK_TYPE");
+    }
+    if (hasOwn(meta, "actionType") && meta.actionType !== actionType) {
+      invalid("META_ACTION_TYPE_MISMATCH");
+    }
+    if (hasOwn(meta, "actionStatus") && meta.actionStatus !== actionStatus) {
+      invalid("META_ACTION_STATUS_MISMATCH");
+    }
+    const sanitizedMeta = {
+      tournamentId,
+      tournamentName: normalizeName(meta.tournamentName, "INVALID_TOURNAMENT_NAME"),
+      hostTeamId,
+      hostTeamName: normalizeName(meta.hostTeamName, "INVALID_HOST_TEAM_NAME"),
+      teamId,
+      teamName: normalizeName(meta.teamName, "INVALID_TEAM_NAME"),
+      applicationId: meta.applicationId,
+      messageGroupId: meta.messageGroupId,
+      ...(hasOwn(meta, "actionType") ? { actionType: meta.actionType } : {}),
+      ...(hasOwn(meta, "actionStatus") ? { actionStatus: meta.actionStatus } : {}),
+      ...(meta.linkType !== undefined ? { linkType: meta.linkType } : {}),
+    };
+    if (actionStatus === "pending" && !teamId) invalid("INVALID_TEAM_ID");
+    const tournament = await getDeliverInboxTournament(tournamentId);
+    if (!tournament) denied("TOURNAMENT_NOT_FOUND");
+    if (actionStatus === "pending") {
+      const applicationDoc = await db.collection("tournaments").doc(tournament.docId)
+        .collection("applications").doc(`ta_${teamId}`).get();
+      if (!applicationDoc.exists
+        || String((applicationDoc.data() || {}).requestedByUid || "").trim() !== callerUid) {
+        denied("CALLER_NOT_APPLICANT");
+      }
+    } else {
+      const callerDoc = await db.collection("users").doc(callerUid).get();
+      const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
+      const canManage = await canManageTournamentDataInTransaction(
+        directReader, tournament.data, callerUid, callerRole
+      );
+      if (!canManage) denied("CALLER_CANNOT_MANAGE_TOURNAMENT");
+    }
+    // 此類訊息在信箱內沒有審核按鈕（A message-actions.js 會轉去賽事詳情），
+    // 實際審核走有授權的 Callable；收件人含主辦隊／申請隊成員，
+    // 逐一驗證要讀多份成員資料，成本高（指揮官 2026-10-23 裁定）。
+    return result(sanitizedMeta);
+  }
+
+  const expectedStatus = actionType === "edu_reminder" ? "pending" : "completed";
+  if (actionStatus !== expectedStatus) invalid("INVALID_ACTION_STATUS");
+  const teamId = requireSafeId(meta.teamId, "INVALID_TEAM_ID");
+  const groupId = requireSafeId(meta.groupId, "INVALID_GROUP_ID");
+  if (DELIVER_INBOX_REVIEW_GROUP_PREFIX_RE.test(groupId)) invalid("INVALID_GROUP_ID");
+
+  // 教育通知不檢查呼叫者／收件人關係：簽到者可能是課程名單代理人，
+  // 不一定是俱樂部幹部。
+  if (actionType === "edu_checkin") {
+    return result({
+      teamId,
+      groupId,
+      studentId: optionalShortString(meta.studentId, 120, "INVALID_STUDENT_ID"),
+      studentName: normalizeName(meta.studentName, "INVALID_STUDENT_NAME"),
+      date: optionalShortString(meta.date, 120, "INVALID_DATE"),
+    });
+  }
+  if (actionType === "edu_reminder") {
+    // A 無呼叫端、僅相容，下次清理可刪
+    return result({
+      teamId,
+      groupId,
+      groupName: normalizeName(meta.groupName, "INVALID_GROUP_NAME"),
+    });
+  }
+
+  // A 無呼叫端、僅相容，下次清理可刪
+  // ASSUMPTION: edu_report.studentId 沿用 edu_checkin 的缺值與 120 字元限制；
+  // period 未列為可缺，故必須是長度不超過 20 的字串。
+  if (typeof meta.period !== "string" || meta.period.length > 20) {
+    invalid("INVALID_PERIOD");
+  }
+  if (meta.count !== undefined && (!Number.isFinite(meta.count) || meta.count < 0)) {
+    invalid("INVALID_COUNT");
+  }
+  return result({
+    teamId,
+    groupId,
+    studentId: optionalShortString(meta.studentId, 120, "INVALID_STUDENT_ID"),
+    period: meta.period,
+    ...(meta.count !== undefined ? { count: meta.count } : {}),
+  });
+}
+
 // ═══════════════════════════════════════════════════════
 //  deliverToInbox — Per-user inbox fan-out 寫入
 //  前端呼叫此 CF，由 Admin SDK 寫入收件人的 inbox 子集合
@@ -15653,16 +15916,23 @@ exports.deliverToInbox = onCall(
           // 用戶 → 管理員廣播（如：角色申請通知）
           // 僅限目標純粹是 admin / super_admin、避免用戶濫用廣播到其他角色
           console.log("[deliverToInbox] user-to-admin broadcast permitted:", {
-            callerUid,
             callerRole,
             targetRoles,
-            messageType: safeMessage.type,
-            messageTitle: safeMessage.title,
           });
         } else {
           throw new HttpsError("permission-denied", "Only admins can broadcast to roles or all users");
         }
       }
+    }
+
+    // 無 targetUid 一律以廣播規則處理（含原本 delivered 0 的空投遞），typed 訊息不得走此路
+    let sanitized;
+    try {
+      sanitized = await sanitizeDeliverToInboxMessage(request, message, { targetUid, isBroadcast: !targetUid });
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      console.error("[deliverToInbox] authorization lookup failed", { code: err?.code ?? null, broadcast: !targetUid });
+      throw new HttpsError("internal", "Failed to deliver to inbox");
     }
 
     try {
@@ -15711,7 +15981,7 @@ exports.deliverToInbox = onCall(
         const batch = db.batch();
         for (const uid of chunk) {
           const ref = db.collection("users").doc(uid).collection("inbox").doc(safeMessage.id);
-          batch.set(ref, {
+          const inboxMessage = {
             id: safeMessage.id,
             title: String(safeMessage.title || "").slice(0, 200),
             body: String(safeMessage.body || "").slice(0, 2000),
@@ -15723,13 +15993,18 @@ exports.deliverToInbox = onCall(
             fromUid: safeMessage.fromUid,
             read: false,
             readAt: null,
-            actionType: safeMessage.actionType || null,
-            actionStatus: safeMessage.actionStatus || null,
-            reviewerName: safeMessage.reviewerName || null,
-            meta: safeMessage.meta || null,
+            actionType: sanitized.actionType,
+            actionStatus: sanitized.actionStatus,
+            reviewerName: sanitized.reviewerName,
+            meta: sanitized.meta,
             ref: `messages/${safeMessage.id}`,
             createdAt: FieldValue.serverTimestamp(),
-          });
+          };
+          if (targetUid) {
+            batch.create(ref, inboxMessage);
+          } else {
+            batch.set(ref, inboxMessage);
+          }
         }
         await batch.commit();
         delivered += chunk.length;
@@ -15737,7 +16012,16 @@ exports.deliverToInbox = onCall(
 
       return { success: true, delivered };
     } catch (err) {
-      console.error("[deliverToInbox]", err);
+      if (err instanceof HttpsError) throw err;
+      if (targetUid && (
+        err.code === 6
+        || err.code === "already-exists"
+        || /ALREADY_EXISTS/.test(String(err.message))
+      )) {
+        console.warn("[deliverToInbox] message id already exists");
+        throw new HttpsError("already-exists", "MESSAGE_ID_ALREADY_EXISTS");
+      }
+      console.error("[deliverToInbox] delivery failed", { code: err?.code ?? null, broadcast: !targetUid });
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
   }

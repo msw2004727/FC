@@ -4525,3 +4525,1882 @@ describe('syncGroupActionStatus caller authorization', () => {
     expect(db.commits.length).toBe(0);
   });
 });
+
+describe('deliverToInbox actionType/meta guard (T-022)', () => {
+  const TEAM_JOIN_GROUP = 'tjr_1729650000000_ab3d';
+  const TOURNAMENT_GROUP = 'trg_1729650000000_9zq1';
+
+  function cloneDeep(value) {
+    if (Array.isArray(value)) return value.map(cloneDeep);
+    if (!value || typeof value !== 'object') return value;
+    return Object.entries(value).reduce((copy, [key, item]) => {
+      copy[key] = cloneDeep(item);
+      return copy;
+    }, {});
+  }
+
+  // where 只比欄位實際值、型別嚴格相等，不以文件 key 補（T-020 Codex 第二審）
+  function createDeliverInboxMemoryDb({
+    users: userSeed = {},
+    teams: teamSeed = {},
+    tournaments: tournamentSeed = {},
+    inbox: inboxSeed = {},
+    // teamGet / applicationGet / commit：該次讀取或提交改為拋出給定錯誤
+    faults = {},
+  } = {}) {
+    const users = new Map();
+    const teams = new Map();
+    const tournaments = new Map();
+
+    Object.entries(userSeed).forEach(([uid, profile]) => {
+      users.set(uid, { profile: cloneDeep(profile), inbox: new Map() });
+    });
+    Object.entries(inboxSeed).forEach(([uid, docs]) => {
+      if (!users.has(uid)) users.set(uid, { profile: null, inbox: new Map() });
+      Object.entries(docs).forEach(([msgId, data]) => {
+        users.get(uid).inbox.set(msgId, cloneDeep(data));
+      });
+    });
+    Object.entries(teamSeed).forEach(([id, data]) => {
+      teams.set(id, cloneDeep(data));
+    });
+    Object.entries(tournamentSeed).forEach(([id, raw]) => {
+      const { applications, ...data } = raw;
+      const appMap = new Map();
+      Object.entries(applications || {}).forEach(([appId, app]) => {
+        appMap.set(appId, cloneDeep(app));
+      });
+      tournaments.set(id, { data: cloneDeep(data), applications: appMap });
+    });
+
+    const db = {
+      commits: [],
+      appliedWrites: [],
+      commitAttempts: 0,
+    };
+
+    const wrap = (docs) => ({
+      empty: docs.length === 0,
+      size: docs.length,
+      docs,
+      forEach(cb) { docs.forEach(doc => cb(doc)); },
+    });
+
+    const fieldEquals = (candidate, op, value) => {
+      if (op === '==') return candidate === value;
+      if (op === 'array-contains') {
+        return Array.isArray(candidate) && candidate.some(item => item === value);
+      }
+      throw new Error(`unsupported operator: ${op}`);
+    };
+
+    const userSnap = (uid, profile) => {
+      const exists = profile != null;
+      return {
+        exists,
+        id: uid,
+        data() { return exists ? cloneDeep(profile) : undefined; },
+      };
+    };
+
+    const ensureUser = (uid) => {
+      if (!users.has(uid)) users.set(uid, { profile: null, inbox: new Map() });
+      return users.get(uid);
+    };
+
+    const queryCollection = (entries, readValue, makeSnap) => {
+      const state = { active: false, field: null, op: null, value: undefined, limitN: null };
+      const api = {
+        where(field, op, value) {
+          state.active = true;
+          state.field = field;
+          state.op = op;
+          state.value = value;
+          return api;
+        },
+        limit(n) {
+          state.limitN = n;
+          return api;
+        },
+        async get() {
+          const matched = [];
+          for (const [key, entry] of entries) {
+            if (state.active && !fieldEquals(readValue(entry), state.op, state.value)) continue;
+            matched.push(makeSnap(key, entry));
+            if (state.limitN != null && matched.length >= state.limitN) break;
+          }
+          return wrap(matched);
+        },
+      };
+      return api;
+    };
+
+    db.collection = (name) => {
+      if (name === 'users') {
+        return {
+          doc(uid) {
+            if (typeof uid !== 'string' || uid.includes('/')) {
+              throw new Error(`Invalid document path: users/${uid}`);
+            }
+            return {
+              id: uid,
+              async get() {
+                const entry = users.get(uid);
+                return userSnap(uid, entry ? entry.profile : null);
+              },
+              collection(sub) {
+                if (sub !== 'inbox') throw new Error(`unexpected subcollection: users/${sub}`);
+                return {
+                  doc(msgId) {
+                    if (typeof msgId !== 'string' || msgId.includes('/')) {
+                      throw new Error(`Invalid document path: users/${uid}/inbox/${msgId}`);
+                    }
+                    return { path: `users/${uid}/inbox/${msgId}`, uid, msgId, id: msgId };
+                  },
+                };
+              },
+            };
+          },
+          where(field, op, value) {
+            const existing = [...users.entries()].filter(([, entry]) => entry.profile != null);
+            return queryCollection(
+              existing,
+              (entry) => entry.profile[field],
+              (uid, entry) => userSnap(uid, entry.profile)
+            ).where(field, op, value);
+          },
+          async get() {
+            const docs = [];
+            for (const [uid, entry] of users.entries()) {
+              if (entry.profile == null) continue;
+              docs.push(userSnap(uid, entry.profile));
+            }
+            return wrap(docs);
+          },
+        };
+      }
+
+      if (name === 'teams') {
+        return {
+          doc(id) {
+            if (typeof id !== 'string' || id.includes('/')) {
+              throw new Error(`Invalid document path: teams/${id}`);
+            }
+            return {
+              id,
+              path: `teams/${id}`,
+              async get() {
+                if (faults.teamGet) throw faults.teamGet;
+                const data = teams.get(id);
+                const exists = data !== undefined;
+                return {
+                  exists,
+                  id,
+                  data() { return exists ? cloneDeep(data) : undefined; },
+                  ref: { path: `teams/${id}`, id },
+                };
+              },
+            };
+          },
+          where(field, op, value) {
+            return queryCollection(
+              [...teams.entries()].map(([key, data]) => [key, data]),
+              (data) => data[field],
+              (key, data) => ({
+                exists: true,
+                id: key,
+                data() { return cloneDeep(data); },
+                ref: { path: `teams/${key}`, id: key },
+              })
+            ).where(field, op, value);
+          },
+        };
+      }
+
+      if (name === 'tournaments') {
+        return {
+          doc(id) {
+            if (typeof id !== 'string' || id.includes('/')) {
+              throw new Error(`Invalid document path: tournaments/${id}`);
+            }
+            return {
+              id,
+              async get() {
+                const entry = tournaments.get(id);
+                return {
+                  exists: !!entry,
+                  id,
+                  data() { return entry ? cloneDeep(entry.data) : undefined; },
+                  ref: { path: `tournaments/${id}`, id },
+                };
+              },
+              collection(sub) {
+                if (sub !== 'applications') {
+                  throw new Error(`unexpected subcollection: tournaments/${sub}`);
+                }
+                return {
+                  doc(appId) {
+                    return {
+                      id: appId,
+                      async get() {
+                        if (faults.applicationGet) throw faults.applicationGet;
+                        const entry = tournaments.get(id);
+                        const app = entry ? entry.applications.get(appId) : undefined;
+                        return {
+                          exists: app !== undefined,
+                          id: appId,
+                          data() { return app !== undefined ? cloneDeep(app) : undefined; },
+                        };
+                      },
+                    };
+                  },
+                };
+              },
+            };
+          },
+          where(field, op, value) {
+            return queryCollection(
+              [...tournaments.entries()],
+              (entry) => entry.data[field],
+              (key, entry) => ({
+                exists: true,
+                id: key,
+                data() { return cloneDeep(entry.data); },
+                ref: { path: `tournaments/${key}`, id: key },
+              })
+            ).where(field, op, value);
+          },
+        };
+      }
+
+      throw new Error(`unexpected collection: ${name}`);
+    };
+
+    db.batch = () => {
+      const ops = [];
+      return {
+        set(ref, data) {
+          ops.push({ op: 'set', path: ref.path, uid: ref.uid, msgId: ref.msgId, data: cloneDeep(data) });
+        },
+        create(ref, data) {
+          ops.push({ op: 'create', path: ref.path, uid: ref.uid, msgId: ref.msgId, data: cloneDeep(data) });
+        },
+        async commit() {
+          db.commitAttempts += 1;
+          if (faults.commit) throw faults.commit;
+          const conflict = ops.some(op => {
+            if (op.op !== 'create') return false;
+            const entry = users.get(op.uid);
+            return !!(entry && entry.inbox.has(op.msgId));
+          });
+          if (conflict) {
+            throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
+          }
+          ops.forEach(op => {
+            const entry = ensureUser(op.uid);
+            entry.inbox.set(op.msgId, cloneDeep(op.data));
+            db.appliedWrites.push({ op: op.op, path: op.path, data: op.data });
+          });
+          db.commits.push(ops.map(op => ({ path: op.path, op: op.op })));
+        },
+      };
+    };
+
+    db.readInbox = (uid, msgId) => {
+      const doc = users.get(uid)?.inbox.get(msgId);
+      return doc ? cloneDeep(doc) : null;
+    };
+    return db;
+  }
+
+  const sourceParts = [
+    readSourceBetween('function normalizeRole(', 'function normalizeBuiltInRole'),
+    readSourceBetween('async function getTeamDocByTeamId(', 'function isRoleAdminOrAbove'),
+    readSourceBetween('function isRoleAdminOrAbove', 'function getEduCourseRosterAgentUids'),
+    readSourceBetween('function getTournamentDelegateUidSet', 'function buildRegisteredTeamIdsFromEntries'),
+    readSourceBetween('// T-022: deliverToInbox actionType', 'async function assertCallerCanReviewGroupActionDocs'),
+  ];
+
+  function loadDeliverToInbox(db, consoleImpl) {
+    const sandbox = {
+      db,
+      HttpsError: TestHttpsError,
+      onCall: (options, handler) => ({ options, handler }),
+      FieldValue: { serverTimestamp: () => '__ts__' },
+      exports: {},
+      console: consoleImpl,
+    };
+    vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-to-inbox-t022.vm.js' });
+    return sandbox.exports.deliverToInbox;
+  }
+
+  function makeConsole() {
+    const warns = [];
+    const logs = [];
+    const errors = [];
+    return {
+      warns,
+      logs,
+      errors,
+      log(...args) { logs.push(args); },
+      info() {},
+      warn(...args) { warns.push(args); },
+      error(...args) { errors.push(args); },
+    };
+  }
+
+  function message(partial = {}) {
+    return {
+      id: 'msg_t022',
+      title: '標題',
+      body: '內文',
+      type: 'system',
+      typeName: '系統',
+      senderName: '系統',
+      time: '2026/10/23 12:00',
+      ...partial,
+    };
+  }
+
+  function inboxPath(uid, msgId) {
+    return `users/${uid}/inbox/${msgId}`;
+  }
+
+  function expectNoWrite(db, consoleImpl, uids = []) {
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    const serialized = JSON.stringify(consoleImpl.warns);
+    uids.forEach(uid => expect(serialized).not.toContain(uid));
+  }
+
+  async function expectReject(db, uid, data, code, reason, uids = []) {
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    await expect(callable.handler({ auth: { uid }, data })).rejects.toMatchObject({
+      code,
+      message: reason,
+    });
+    expect(consoleImpl.warns.length).toBeGreaterThan(0);
+    expectNoWrite(db, consoleImpl, uids);
+    return consoleImpl;
+  }
+
+  function expectSingleCreate(db, uid, msgId) {
+    expect(db.commits).toHaveLength(1);
+    expect(db.appliedWrites).toHaveLength(1);
+    const write = db.appliedWrites[0];
+    expect(write.op).toBe('create');
+    expect(write.path).toBe(inboxPath(uid, msgId));
+    expect(write.data.read).toBe(false);
+    expect(write.data.readAt).toBeNull();
+    expect(write.data.createdAt).toBe('__ts__');
+    expect(write.data.reviewerName).toBeNull();
+    expect(write.data.fromUid).toBeDefined();
+    expect(db.readInbox(uid, msgId)).toEqual(write.data);
+    return write.data;
+  }
+
+  // ASSUMPTION: 本 worktree 沒有 FC-B membership.ts；B 的 team_join_request 沿用 A 的 5 個 meta 鍵。
+  function teamJoinMeta(overrides = {}) {
+    return {
+      teamId: 'tJoin',
+      teamName: '北區俱樂部',
+      applicantUid: 'uid_applicant_join',
+      applicantName: '王小明',
+      groupId: TEAM_JOIN_GROUP,
+      ...overrides,
+    };
+  }
+
+  function teamJoinMessage(meta, extra = {}) {
+    return message({
+      id: 'msg_t022_join',
+      title: '俱樂部加入申請',
+      body: '王小明 申請加入「北區俱樂部」俱樂部，請審核此申請。',
+      senderName: '王小明',
+      actionType: 'team_join_request',
+      actionStatus: 'pending',
+      meta,
+      ...extra,
+    });
+  }
+
+  function joinTeamDb(extraUsers = {}) {
+    return createDeliverInboxMemoryDb({
+      users: {
+        uid_applicant_join: { role: 'user', name: '王小明' },
+        uid_captain_join: { role: 'captain', teamId: 'tJoin' },
+        uid_coach_join: { role: 'coach', teamId: 'tJoin' },
+        ...extraUsers,
+      },
+      teams: {
+        tJoin: {
+          id: 'tJoin',
+          name: '北區俱樂部',
+          captainUid: 'uid_captain_join',
+          coachUids: ['uid_coach_join'],
+        },
+      },
+    });
+  }
+
+  function registerMeta(overrides = {}) {
+    return {
+      tournamentId: 'tnReg',
+      tournamentName: '週末聯賽',
+      teamId: 'clubReg',
+      teamName: '報名隊',
+      applicantUid: 'uid_applicant_reg',
+      applicantName: '陳申請',
+      groupId: TOURNAMENT_GROUP,
+      ...overrides,
+    };
+  }
+
+  function registerMessage(meta) {
+    return message({
+      id: 'msg_t022_reg',
+      title: '賽事報名申請',
+      body: '「報名隊」申請報名賽事「週末聯賽」，請審核此申請。',
+      type: 'tournament',
+      typeName: '賽事',
+      senderName: '陳申請',
+      actionType: 'tournament_register_request',
+      actionStatus: 'pending',
+      meta,
+    });
+  }
+
+  // 對齊 js/modules/tournament/tournament-friendly-notify.js#_buildFriendlyTournamentNotifExtra 的 meta
+  function friendlyMeta(tournament, extra = {}) {
+    return {
+      tournamentId: String(tournament.id || '').trim(),
+      tournamentName: String(tournament.name || '').trim(),
+      hostTeamId: String(tournament.hostTeamId || '').trim(),
+      hostTeamName: String(tournament.hostTeamName || '').trim(),
+      teamId: String(extra.teamId || '').trim(),
+      teamName: String(extra.teamName || '').trim(),
+      applicationId: String(extra.applicationId || '').trim(),
+      messageGroupId: String(extra.messageGroupId || '').trim(),
+      actionType: 'tournament_friendly_application',
+      actionStatus: String(extra.actionStatus || '').trim(),
+      linkType: 'tournament',
+    };
+  }
+
+  function friendlyMessage(meta, msgId) {
+    return message({
+      id: msgId,
+      title: '友誼賽通知',
+      body: '友誼賽狀態更新',
+      type: 'tournament',
+      typeName: '賽事',
+      actionType: 'tournament_friendly_application',
+      actionStatus: meta.actionStatus,
+      ...meta,
+      meta,
+    });
+  }
+
+  test('allow: team_join_request to captainUid keeps exact meta via create', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const meta = teamJoinMeta({ applicantUid: caller });
+    const db = joinTeamDb();
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+
+    expect(callable.options).toEqual({ region: 'asia-east1', timeoutSeconds: 60 });
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: teamJoinMessage(meta, { fromUid: 'forged_sender' }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_join');
+    expect(written.actionType).toBe('team_join_request');
+    expect(written.actionStatus).toBe('pending');
+    expect(written.fromUid).toBe(caller);
+    expect(written.meta).toEqual({
+      teamId: 'tJoin',
+      teamName: '北區俱樂部',
+      applicantUid: caller,
+      applicantName: '王小明',
+      groupId: TEAM_JOIN_GROUP,
+    });
+    expect(Object.keys(written.meta)).toEqual([
+      'teamId', 'teamName', 'applicantUid', 'applicantName', 'groupId',
+    ]);
+    expect(db.commits[0]).toEqual([{ path: inboxPath(target, 'msg_t022_join'), op: 'create' }]);
+  });
+
+  test('allow: team_join_request to coachUids drops extra meta key', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_coach_join';
+    const meta = teamJoinMeta({ applicantUid: caller, extra: 'x' });
+    const db = joinTeamDb();
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: teamJoinMessage(meta, { id: 'msg_t022_join_b' }), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_join_b');
+    expect(written.meta).toEqual({
+      teamId: 'tJoin',
+      teamName: '北區俱樂部',
+      applicantUid: caller,
+      applicantName: '王小明',
+      groupId: TEAM_JOIN_GROUP,
+    });
+    expect(written.meta.extra).toBeUndefined();
+    expect(Object.keys(written.meta)).toEqual([
+      'teamId', 'teamName', 'applicantUid', 'applicantName', 'groupId',
+    ]);
+    expect(db.appliedWrites[0].op).toBe('create');
+  });
+
+  test('allow: tournament_register_request to creatorUid', async () => {
+    const caller = 'uid_applicant_reg';
+    const target = 'uid_creator_reg';
+    const meta = registerMeta({ applicantUid: caller, tournamentId: 'tnCreator' });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '陳申請' },
+        [target]: { role: 'user', name: '主辦人' },
+      },
+      tournaments: {
+        tnCreator: { id: 'tnCreator', name: '週末聯賽', creatorUid: target },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: registerMessage(meta), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_reg');
+    expect(written.actionType).toBe('tournament_register_request');
+    expect(written.actionStatus).toBe('pending');
+    expect(written.meta).toEqual(meta);
+    expect(Object.keys(written.meta)).toEqual([
+      'tournamentId', 'tournamentName', 'teamId', 'teamName', 'applicantUid', 'applicantName', 'groupId',
+    ]);
+  });
+
+  test('allow: tournament_register_request to delegateUids', async () => {
+    const caller = 'uid_applicant_reg';
+    const target = 'uid_delegate_reg';
+    const meta = registerMeta({ applicantUid: caller, tournamentId: 'tnDelegate' });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user', name: '委託人' },
+        uid_creator_reg: { role: 'user' },
+      },
+      tournaments: {
+        tnDelegate: {
+          id: 'tnDelegate',
+          name: '週末聯賽',
+          creatorUid: 'uid_creator_reg',
+          delegateUids: [target],
+        },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: registerMessage(meta), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_reg');
+    expect(written.meta).toEqual(meta);
+    expect(db.appliedWrites[0].op).toBe('create');
+  });
+
+  test('allow: tournament_register_request legacy public id via where(id)', async () => {
+    const caller = 'uid_applicant_legacy';
+    const target = 'uid_creator_legacy';
+    const meta = registerMeta({
+      tournamentId: 'publicTnLegacy',
+      tournamentName: '舊賽事',
+      applicantUid: caller,
+      applicantName: '舊申請人',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user' },
+      },
+      tournaments: {
+        legacyDocT022: {
+          id: 'publicTnLegacy',
+          name: '舊賽事',
+          creatorUid: target,
+        },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: registerMessage(meta),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_reg');
+    expect(written.meta.tournamentId).toBe('publicTnLegacy');
+    expect(written.meta.groupId).toBe(TOURNAMENT_GROUP);
+    expect(db.appliedWrites[0].op).toBe('create');
+  });
+
+  test('allow: friendly opened by creator with empty application ids', async () => {
+    const caller = 'uid_creator_open';
+    const target = 'uid_host_member';
+    const tournament = {
+      id: 'tnOpen',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: caller,
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: tournament.hostTeamId,
+      teamName: tournament.hostTeamName,
+      actionStatus: 'opened',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '主辦人' },
+        [target]: { role: 'user' },
+      },
+      tournaments: { tnOpen: tournament },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: friendlyMessage(meta, 'msg_t022_friendly_open'), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_friendly_open');
+    expect(written.actionType).toBe('tournament_friendly_application');
+    expect(written.actionStatus).toBe('opened');
+    expect(meta.applicationId).toBe('');
+    expect(meta.messageGroupId).toBe('');
+    expect(written.meta).toEqual(meta);
+    expect(written.meta).toEqual(expect.objectContaining({
+      actionType: 'tournament_friendly_application',
+      actionStatus: 'opened',
+      linkType: 'tournament',
+    }));
+  });
+
+  test('allow: friendly pending by application requestedByUid', async () => {
+    const caller = 'uid_applicant_pend';
+    const target = 'uid_creator_pend';
+    const tournament = {
+      id: 'tnPend',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: target,
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: 't9',
+      teamName: '申請隊',
+      applicationId: 'ta_t9',
+      messageGroupId: 'tfa_tnPend_t9',
+      actionStatus: 'pending',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '申請人' },
+        [target]: { role: 'user' },
+      },
+      tournaments: {
+        tnPend: {
+          ...tournament,
+          applications: {
+            ta_t9: { requestedByUid: caller },
+          },
+        },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: friendlyMessage(meta, 'msg_t022_friendly_pend'), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_friendly_pend');
+    expect(written.actionStatus).toBe('pending');
+    expect(written.meta).toEqual(meta);
+    expect(written.meta.applicationId).toBe('ta_t9');
+    expect(written.meta.messageGroupId).toBe('tfa_tnPend_t9');
+  });
+
+  test('allow: friendly approved by delegate to arbitrary recipient', async () => {
+    const caller = 'uid_delegate_appr';
+    const target = 'uid_random_appr';
+    const tournament = {
+      id: 'tnAppr',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: 'uid_creator_appr',
+      delegateUids: [caller],
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: 't9',
+      teamName: '申請隊',
+      applicationId: 'ta_t9',
+      messageGroupId: 'tfa_tnAppr_t9',
+      actionStatus: 'approved',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user', name: '任意隊員' },
+        uid_creator_appr: { role: 'user' },
+      },
+      tournaments: { tnAppr: tournament },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: { message: friendlyMessage(meta, 'msg_t022_friendly_appr'), targetUid: target },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_friendly_appr');
+    expect(written.actionStatus).toBe('approved');
+    expect(written.fromUid).toBe(caller);
+    expect(written.meta).toEqual(meta);
+    expect(written.meta.linkType).toBe('tournament');
+  });
+
+  test('allow: edu_checkin completed accepts null studentId', async () => {
+    const caller = 'uid_coach_edu';
+    const target = 'uid_parent_edu';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'coach' },
+        [target]: { role: 'user' },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_edu_checkin',
+          title: '簽到成功',
+          body: '林同學 已在 2026-10-23 簽到',
+          actionType: 'edu_checkin',
+          actionStatus: 'completed',
+          meta: {
+            teamId: 'teamEdu',
+            groupId: 'grpAuto123',
+            studentId: null,
+            studentName: '林同學',
+            date: '2026-10-23',
+          },
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_edu_checkin');
+    expect(written.actionType).toBe('edu_checkin');
+    expect(written.actionStatus).toBe('completed');
+    expect(written.meta).toEqual({
+      teamId: 'teamEdu',
+      groupId: 'grpAuto123',
+      studentId: '',
+      studentName: '林同學',
+      date: '2026-10-23',
+    });
+  });
+
+  test('allow: edu_reminder pending', async () => {
+    const caller = 'uid_coach_edu';
+    const target = 'uid_parent_edu';
+    const db = createDeliverInboxMemoryDb();
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_edu_reminder',
+          title: '上課提醒',
+          body: '週末班即將上課，請準時出席！',
+          actionType: 'edu_reminder',
+          actionStatus: 'pending',
+          meta: { teamId: 'teamEdu', groupId: 'grpReminder9', groupName: '週末班' },
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_edu_reminder');
+    expect(written.actionStatus).toBe('pending');
+    expect(written.meta).toEqual({
+      teamId: 'teamEdu',
+      groupId: 'grpReminder9',
+      groupName: '週末班',
+    });
+  });
+
+  test('allow: edu_report completed keeps count', async () => {
+    const caller = 'uid_coach_edu';
+    const target = 'uid_parent_edu';
+    const db = createDeliverInboxMemoryDb();
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_edu_report',
+          title: '本週出席報告',
+          body: '林同學在本週共出席 3 次。',
+          actionType: 'edu_report',
+          actionStatus: 'completed',
+          meta: {
+            teamId: 'teamEdu',
+            groupId: 'grpReport9',
+            studentId: 'stu_1',
+            period: 'weekly',
+            count: 3,
+          },
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_edu_report');
+    expect(written.actionStatus).toBe('completed');
+    expect(written.meta).toEqual({
+      teamId: 'teamEdu',
+      groupId: 'grpReport9',
+      studentId: 'stu_1',
+      period: 'weekly',
+      count: 3,
+    });
+  });
+
+  test('allow: untyped point-to-point uses create and null meta', async () => {
+    const caller = 'uid_anyone';
+    const target = 'uid_other';
+    const db = createDeliverInboxMemoryDb();
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_plain',
+          title: '一般通知',
+          body: '這是一則沒有 actionType 的通知',
+          fromUid: 'forged_sender',
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_plain');
+    expect(written.fromUid).toBe(caller);
+    expect(written.actionType).toBeNull();
+    expect(written.actionStatus).toBeNull();
+    expect(written.meta).toBeNull();
+    expect(db.appliedWrites[0].op).toBe('create');
+  });
+
+  test('allow: untyped message strips review fields and warns once without uids', async () => {
+    const caller = 'UidCallerT022x7';
+    const target = 'UidTargetT022x7';
+    const db = createDeliverInboxMemoryDb();
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_strip',
+          title: '一般通知',
+          body: '帶了不該出現在未分類通知上的審核欄位',
+          actionStatus: 'pending',
+          reviewerName: 'X',
+          meta: { groupId: 'tjr_1_a', foo: 1 },
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_strip');
+    expect(written.actionType).toBeNull();
+    expect(written.actionStatus).toBeNull();
+    expect(written.reviewerName).toBeNull();
+    expect(written.meta).toEqual({ foo: 1 });
+    expect(consoleImpl.warns).toHaveLength(1);
+    expect(consoleImpl.warns[0][1]).toEqual({
+      stripped: ['actionStatus', 'reviewerName', 'meta.groupId'],
+      broadcast: false,
+    });
+    const serialized = JSON.stringify(consoleImpl.warns);
+    expect(serialized).not.toContain(caller);
+    expect(serialized).not.toContain(target);
+  });
+
+  test('allow: non-admin role broadcast to admin and super_admin uses set', async () => {
+    const caller = 'uid_user_broadcast';
+    const msgId = 'msg_t022_role_broadcast';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '一般用戶' },
+        uid_admin_a: { role: 'admin' },
+        uid_admin_b: { role: 'admin' },
+        uid_super_a: { role: 'super_admin' },
+        uid_coach_skip: { role: 'coach' },
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: msgId,
+          title: '有用戶欲申請身分權限',
+          body: '通知有用戶 王小明 欲申請相關權限，請至官方 LINE@ 確認訊息。',
+          targetType: 'role',
+          targetRoles: ['admin', 'super_admin'],
+          dedupeKey: 'notify-admins:role_application:1729650000000:abcd',
+        }),
+        targetUid: null,
+        targetTeamId: null,
+        targetRoles: ['admin', 'super_admin'],
+        targetType: 'role',
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 3 });
+    const recipients = ['uid_admin_a', 'uid_admin_b', 'uid_super_a'];
+    expect(db.commits).toHaveLength(1);
+    expect(db.appliedWrites.map(write => write.op)).toEqual(['set', 'set', 'set']);
+    expect(db.appliedWrites.map(write => write.path).sort()).toEqual(
+      recipients.map(uid => inboxPath(uid, msgId)).sort()
+    );
+    db.appliedWrites.forEach(write => {
+      expect(write.data.actionType).toBeNull();
+      expect(write.data.meta).toBeNull();
+      expect(write.data.fromUid).toBe(caller);
+    });
+    expect(db.readInbox('uid_coach_skip', msgId)).toBeNull();
+    expect(db.readInbox(caller, msgId)).toBeNull();
+  });
+
+  test('allow: admin targetType all broadcast uses set', async () => {
+    const caller = 'uid_admin_all';
+    const msgId = 'msg_t022_all';
+    const adminMsgId = 'mg_1729650000000_ab12';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'admin', name: '管理員' },
+        uid_member_all_a: { role: 'user' },
+        uid_member_all_b: { role: 'coach' },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: msgId,
+          title: '系統公告',
+          body: '本週維護通知',
+          senderName: '管理員',
+          adminMsgId,
+          targetType: 'all',
+        }),
+        targetUid: null,
+        targetTeamId: null,
+        targetRoles: null,
+        targetType: 'all',
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 3 });
+    expect(db.appliedWrites).toHaveLength(3);
+    expect(db.appliedWrites.every(write => write.op === 'set')).toBe(true);
+    db.appliedWrites.forEach(write => {
+      expect(write.data.adminMsgId).toBeUndefined();
+      expect(write.data.actionType).toBeNull();
+      expect(write.data.meta).toBeNull();
+      expect(write.data.fromUid).toBe(caller);
+    });
+  });
+
+  test('allow: admin team broadcast uses set', async () => {
+    const caller = 'uid_admin_team';
+    const msgId = 'msg_t022_team';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'admin' },
+        uid_member_teamid: { role: 'user', teamId: 't1' },
+        uid_member_teamids: { role: 'user', teamIds: ['other', 't1'] },
+        uid_member_both: { role: 'user', teamId: 't1', teamIds: ['t1'] },
+        uid_other_team: { role: 'user', teamId: 't2' },
+        uid_prefix_team: { role: 'user', teamIds: ['t10'] },
+        uid_similar_team: { role: 'user', teamId: 't1x' },
+      },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: msgId,
+          title: '球隊公告',
+          body: '週三練習改期',
+          senderName: '管理員',
+          adminMsgId: 'mg_sched_t1',
+          targetType: 'team',
+          targetTeamId: 't1',
+        }),
+        targetUid: null,
+        targetTeamId: 't1',
+        targetRoles: null,
+        targetType: 'team',
+      },
+    });
+
+    const recipients = ['uid_member_teamid', 'uid_member_teamids', 'uid_member_both'];
+    expect(result).toEqual({ success: true, delivered: recipients.length });
+    expect(db.commits).toHaveLength(1);
+    expect(db.appliedWrites.map(write => write.op)).toEqual(['set', 'set', 'set']);
+    expect(db.appliedWrites.map(write => write.path).sort()).toEqual(
+      recipients.map(uid => inboxPath(uid, msgId)).sort()
+    );
+    ['uid_admin_team', 'uid_other_team', 'uid_prefix_team', 'uid_similar_team'].forEach(uid => {
+      expect(db.readInbox(uid, msgId)).toBeNull();
+    });
+  });
+
+  test('allow: missing target and broadcast fields delivers zero', async () => {
+    const db = createDeliverInboxMemoryDb({
+      users: { uid_idle: { role: 'user' } },
+    });
+    const callable = loadDeliverToInbox(db, makeConsole());
+    const result = await callable.handler({
+      auth: { uid: 'uid_idle' },
+      data: {
+        message: message({ id: 'msg_t022_empty', title: '空投', body: '沒有收件人' }),
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 0 });
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    expect(db.commitAttempts).toBe(0);
+  });
+
+  test('deny: forged team_join_request applicantUid', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const db = joinTeamDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: 'uid_other_applicant' })),
+        targetUid: target,
+      },
+      'permission-denied',
+      'APPLICANT_MUST_BE_CALLER',
+      [caller, target, 'uid_other_applicant']
+    );
+  });
+
+  test('deny: team_join_request recipient is not staff', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_stranger_join';
+    const db = joinTeamDb({ [target]: { role: 'user', name: '路人' } });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), { id: 'msg_t022_join_staff' }),
+        targetUid: target,
+      },
+      'permission-denied',
+      'RECIPIENT_NOT_TEAM_STAFF',
+      [caller, target]
+    );
+  });
+
+  test('deny: team_join_request missing team', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'captain' },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({
+          applicantUid: caller,
+          teamId: 'tMissing',
+        }), { id: 'msg_t022_join_missing' }),
+        targetUid: target,
+      },
+      'permission-denied',
+      'TEAM_NOT_FOUND',
+      [caller, target]
+    );
+  });
+
+  test('deny: team_join_request approved status', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const db = joinTeamDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), {
+          id: 'msg_t022_join_approved',
+          actionStatus: 'approved',
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_ACTION_STATUS',
+      [caller, target]
+    );
+  });
+
+  test('deny: typed message reviewerName', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const db = joinTeamDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), {
+          id: 'msg_t022_join_reviewer',
+          reviewerName: 'X',
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'REVIEWER_NAME_NOT_ALLOWED',
+      [caller, target]
+    );
+  });
+
+  test('deny: team_join_request groupId tjr_abc', async () => {
+    const caller = 'uid_applicant_join';
+    const target = 'uid_captain_join';
+    const db = joinTeamDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({
+          applicantUid: caller,
+          groupId: 'tjr_abc',
+        }), { id: 'msg_t022_join_bad_group' }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_GROUP_ID',
+      [caller, target]
+    );
+  });
+
+  test('deny: unknown actionType foo_bar', async () => {
+    const caller = 'uid_caller_unknown';
+    const target = 'uid_target_unknown';
+    const db = createDeliverInboxMemoryDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: message({
+          id: 'msg_t022_foo',
+          body: '未知動作',
+          actionType: 'foo_bar',
+          actionStatus: 'pending',
+          meta: { teamId: 'tJoin' },
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'UNSUPPORTED_ACTION_TYPE',
+      [caller, target]
+    );
+  });
+
+  test('deny: actionType edu_student_apply', async () => {
+    const caller = 'uid_caller_edu_apply';
+    const target = 'uid_target_edu_apply';
+    const db = createDeliverInboxMemoryDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: message({
+          id: 'msg_t022_edu_apply',
+          body: '學員申請',
+          actionType: 'edu_student_apply',
+          actionStatus: 'pending',
+          meta: { teamId: 'teamEdu', groupId: 'grpAuto123' },
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'UNSUPPORTED_ACTION_TYPE',
+      [caller, target]
+    );
+  });
+
+  test('deny: role broadcast with team_join_request', async () => {
+    const caller = 'uid_user_typed_broadcast';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        uid_admin_typed: { role: 'admin' },
+        uid_super_typed: { role: 'super_admin' },
+      },
+      teams: {
+        tJoin: { id: 'tJoin', captainUid: 'uid_captain_join', coachUids: [] },
+      },
+    });
+    const consoleImpl = await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), { id: 'msg_t022_typed_broadcast' }),
+        targetUid: null,
+        targetRoles: ['admin', 'super_admin'],
+        targetType: 'role',
+      },
+      'invalid-argument',
+      'ACTION_TYPE_NOT_ALLOWED_FOR_BROADCAST',
+      [caller, 'uid_admin_typed', 'uid_super_typed']
+    );
+    expect(JSON.stringify(consoleImpl.warns)).not.toContain('uid_captain_join');
+  });
+
+  test('deny: tournament_register_request recipient cannot manage', async () => {
+    const caller = 'uid_applicant_reg';
+    const target = 'uid_outsider_reg';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user', name: '路人' },
+        uid_creator_reg: { role: 'user' },
+      },
+      tournaments: {
+        tnReg: { id: 'tnReg', name: '週末聯賽', creatorUid: 'uid_creator_reg' },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: registerMessage(registerMeta({ applicantUid: caller })),
+        targetUid: target,
+      },
+      'permission-denied',
+      'RECIPIENT_CANNOT_MANAGE_TOURNAMENT',
+      [caller, target, 'uid_creator_reg']
+    );
+  });
+
+  test('deny: organizer name without creatorUid cannot receive', async () => {
+    const caller = 'uid_applicant_org';
+    const target = 'uid_named_organizer';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '申請人' },
+        [target]: { role: 'user', name: '主辦人甲' },
+      },
+      tournaments: {
+        tnOrgOnly: { id: 'tnOrgOnly', name: '舊制賽事', organizer: '主辦人甲' },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: registerMessage(registerMeta({
+          tournamentId: 'tnOrgOnly',
+          tournamentName: '舊制賽事',
+          applicantUid: caller,
+          applicantName: '申請人',
+        })),
+        targetUid: target,
+      },
+      'permission-denied',
+      'RECIPIENT_CANNOT_MANAGE_TOURNAMENT',
+      [caller, target]
+    );
+  });
+
+  test('deny: friendly pending caller is not requestedByUid', async () => {
+    const caller = 'uid_not_applicant_pend';
+    const target = 'uid_creator_pend';
+    const tournament = {
+      id: 'tnPendDeny',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: target,
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: 't9',
+      teamName: '申請隊',
+      applicationId: 'ta_t9',
+      messageGroupId: 'tfa_tnPendDeny_t9',
+      actionStatus: 'pending',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user' },
+        uid_real_applicant: { role: 'user' },
+      },
+      tournaments: {
+        tnPendDeny: {
+          ...tournament,
+          applications: { ta_t9: { requestedByUid: 'uid_real_applicant' } },
+        },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      { message: friendlyMessage(meta, 'msg_t022_friendly_pend_deny'), targetUid: target },
+      'permission-denied',
+      'CALLER_NOT_APPLICANT',
+      [caller, target, 'uid_real_applicant']
+    );
+  });
+
+  test('deny: friendly approved caller cannot manage tournament', async () => {
+    const caller = 'uid_outsider_appr';
+    const target = 'uid_random_appr';
+    const tournament = {
+      id: 'tnApprDeny',
+      name: '週末友誼賽',
+      hostTeamId: '',
+      hostTeamName: '',
+      creatorUid: 'uid_creator_appr',
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: 't9',
+      teamName: '申請隊',
+      applicationId: 'ta_t9',
+      messageGroupId: 'tfa_tnApprDeny_t9',
+      actionStatus: 'approved',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user' },
+        uid_creator_appr: { role: 'user' },
+      },
+      tournaments: { tnApprDeny: tournament },
+    });
+    await expectReject(
+      db,
+      caller,
+      { message: friendlyMessage(meta, 'msg_t022_friendly_appr_deny'), targetUid: target },
+      'permission-denied',
+      'CALLER_CANNOT_MANAGE_TOURNAMENT',
+      [caller, target, 'uid_creator_appr']
+    );
+  });
+
+  test('deny: friendly meta groupId', async () => {
+    const caller = 'uid_creator_open';
+    const target = 'uid_host_member';
+    const tournament = {
+      id: 'tnOpen',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: caller,
+    };
+    const meta = {
+      ...friendlyMeta(tournament, {
+        teamId: 'host1',
+        teamName: '主辦隊',
+        actionStatus: 'opened',
+      }),
+      groupId: 'grpShouldNotBeHere',
+    };
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user' },
+      },
+      tournaments: { tnOpen: tournament },
+    });
+    await expectReject(
+      db,
+      caller,
+      { message: friendlyMessage(meta, 'msg_t022_friendly_group'), targetUid: target },
+      'invalid-argument',
+      'GROUP_ID_NOT_ALLOWED',
+      [caller, target]
+    );
+  });
+
+  test('deny: edu_reminder groupId uses review prefix', async () => {
+    const caller = 'uid_coach_edu';
+    const target = 'uid_parent_edu';
+    const db = createDeliverInboxMemoryDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: message({
+          id: 'msg_t022_edu_bad_group',
+          title: '上課提醒',
+          body: '不該使用審核群組編號',
+          actionType: 'edu_reminder',
+          actionStatus: 'pending',
+          meta: {
+            teamId: 'teamEdu',
+            groupId: TEAM_JOIN_GROUP,
+            groupName: '週末班',
+          },
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_GROUP_ID',
+      [caller, target]
+    );
+  });
+
+  test('deny: message id contains slash', async () => {
+    const caller = 'uid_caller_slash';
+    const target = 'uid_target_slash';
+    const db = createDeliverInboxMemoryDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: message({ id: 'msg/t022', body: '非法訊息編號' }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_MESSAGE_ID',
+      [caller, target]
+    );
+    expect(db.commitAttempts).toBe(0);
+  });
+
+  test('deny: existing inbox id returns already-exists and preserves read', async () => {
+    const caller = 'uid_caller_exists';
+    const target = 'uid_target_exists';
+    const msgId = 'msg_t022_exists';
+    const original = { id: msgId, read: true, body: 'original-body', title: 'old-title' };
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'user' },
+      },
+      inbox: {
+        [target]: { [msgId]: original },
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    await expect(callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({ id: msgId, title: '新標題', body: '想覆寫舊信' }),
+        targetUid: target,
+      },
+    })).rejects.toMatchObject({
+      code: 'already-exists',
+      message: 'MESSAGE_ID_ALREADY_EXISTS',
+    });
+
+    expect(db.commitAttempts).toBe(1);
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    expect(db.readInbox(target, msgId)).toEqual(original);
+    const serialized = JSON.stringify(consoleImpl.warns);
+    expect(consoleImpl.warns.length).toBeGreaterThan(0);
+    expect(serialized).not.toContain(caller);
+    expect(serialized).not.toContain(target);
+  });
+
+  test('deny: console.warn masks caller and recipient uids', async () => {
+    const caller = 'UidCallerMaskT022';
+    const target = 'UidTargetMaskT022';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user' },
+        [target]: { role: 'captain' },
+      },
+      teams: {
+        tJoin: { id: 'tJoin', name: '北區俱樂部', captainUid: 'uid_someone_else', coachUids: [] },
+      },
+    });
+    const consoleImpl = await expectReject(
+      db,
+      caller,
+      {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), { id: 'msg_t022_mask' }),
+        targetUid: target,
+      },
+      'permission-denied',
+      'RECIPIENT_NOT_TEAM_STAFF',
+      [caller, target]
+    );
+    expect(consoleImpl.warns.length).toBeGreaterThan(0);
+    expect(JSON.stringify(consoleImpl.warns)).not.toContain('uid_someone_else');
+  });
+
+  test('deny: team_join_request team read unavailable returns internal without inbox path', async () => {
+    const caller = 'uid_caller_teamread_36';
+    const target = 'uid_captain_teamread_36';
+    const leakedPath = 'users/uid-x/inbox';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '王小明' },
+        [target]: { role: 'captain', teamId: 'tJoin' },
+      },
+      teams: {
+        tJoin: {
+          id: 'tJoin',
+          name: '北區俱樂部',
+          captainUid: target,
+          coachUids: [],
+        },
+      },
+      faults: {
+        teamGet: Object.assign(new Error(`UNAVAILABLE ${leakedPath}`), { code: 14 }),
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+
+    await expect(callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: teamJoinMessage(teamJoinMeta({ applicantUid: caller }), { id: 'msg_t022_team_read' }),
+        targetUid: target,
+      },
+    })).rejects.toMatchObject({
+      code: 'internal',
+      message: 'Failed to deliver to inbox',
+    });
+
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    expect(db.commitAttempts).toBe(0);
+    expect(consoleImpl.errors).toEqual([
+      ['[deliverToInbox] authorization lookup failed', { code: 14, broadcast: false }],
+    ]);
+    const serialized = JSON.stringify(consoleImpl.errors);
+    expect(serialized).not.toContain(caller);
+    expect(serialized).not.toContain(target);
+    expect(serialized).not.toContain(leakedPath);
+    expect(serialized).not.toContain('inbox');
+  });
+
+  test('deny: friendly pending application read throws and returns internal', async () => {
+    const caller = 'uid_applicant_appfault_37';
+    const target = 'uid_creator_appfault_37';
+    const tournament = {
+      id: 'tnAppFault37',
+      name: '週末友誼賽',
+      hostTeamId: 'host1',
+      hostTeamName: '主辦隊',
+      creatorUid: target,
+    };
+    const meta = friendlyMeta(tournament, {
+      teamId: 't9',
+      teamName: '申請隊',
+      applicationId: 'ta_t9',
+      messageGroupId: 'tfa_tnAppFault37_t9',
+      actionStatus: 'pending',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '申請人' },
+        [target]: { role: 'user' },
+      },
+      tournaments: {
+        tnAppFault37: {
+          ...tournament,
+          applications: {
+            ta_t9: { requestedByUid: caller },
+          },
+        },
+      },
+      faults: {
+        applicationGet: Object.assign(new Error('application snapshot failed'), { code: 14 }),
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+
+    await expect(callable.handler({
+      auth: { uid: caller },
+      data: { message: friendlyMessage(meta, 'msg_t022_friendly_app_fault'), targetUid: target },
+    })).rejects.toMatchObject({
+      code: 'internal',
+      message: 'Failed to deliver to inbox',
+    });
+
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    expect(db.commitAttempts).toBe(0);
+    expect(consoleImpl.errors).toEqual([
+      ['[deliverToInbox] authorization lookup failed', { code: 14, broadcast: false }],
+    ]);
+  });
+
+  test('allow: user-to-admin broadcast log omits caller uid and title', async () => {
+    const caller = 'uid_caller_case38_secret';
+    const title = 'SecretTitleT022Case38';
+    const msgId = 'msg_t022_admin_log_38';
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '一般用戶' },
+        uid_admin_case38: { role: 'admin' },
+        uid_super_case38: { role: 'super_admin' },
+        uid_coach_case38: { role: 'coach' },
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: msgId,
+          title,
+          body: '通知有用戶欲申請相關權限，請至官方 LINE@ 確認訊息。',
+          type: 'system',
+        }),
+        targetUid: null,
+        targetTeamId: null,
+        targetRoles: ['admin', 'super_admin'],
+        targetType: 'role',
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 2 });
+    expect(db.appliedWrites.map(write => write.op)).toEqual(['set', 'set']);
+    expect(consoleImpl.logs).toEqual([
+      ['[deliverToInbox] user-to-admin broadcast permitted:', {
+        callerRole: 'user',
+        targetRoles: ['admin', 'super_admin'],
+      }],
+    ]);
+    const serialized = JSON.stringify(consoleImpl.logs);
+    expect(serialized).not.toContain(caller);
+    expect(serialized).not.toContain(title);
+    expect(consoleImpl.logs[0][1].callerUid).toBeUndefined();
+    expect(consoleImpl.logs[0][1].messageTitle).toBeUndefined();
+  });
+
+  test('deny: edu_checkin groupId tfa_ct1_t9', async () => {
+    const caller = 'uid_coach_edu_tfa39';
+    const target = 'uid_parent_edu_tfa39';
+    const db = createDeliverInboxMemoryDb();
+    await expectReject(
+      db,
+      caller,
+      {
+        message: message({
+          id: 'msg_t022_edu_tfa_group',
+          title: '簽到成功',
+          body: '不該使用審核群組前綴',
+          actionType: 'edu_checkin',
+          actionStatus: 'completed',
+          meta: {
+            teamId: 'teamEdu',
+            groupId: 'tfa_ct1_t9',
+            studentId: 'stu_1',
+            studentName: '林同學',
+            date: '2026-10-23',
+          },
+        }),
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_GROUP_ID',
+      [caller, target]
+    );
+    expect(db.commitAttempts).toBe(0);
+  });
+
+  test('deny: point-to-point commit code 14 returns internal not already-exists', async () => {
+    const caller = 'uid_caller_commit40';
+    const target = 'uid_target_commit40';
+    const msgId = 'msg_t022_commit40';
+    const leakedPath = `users/${target}/inbox/${msgId}`;
+    const db = createDeliverInboxMemoryDb({
+      faults: {
+        commit: Object.assign(new Error(`UNAVAILABLE ${leakedPath}`), { code: 14 }),
+      },
+    });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    const rejection = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: msgId,
+          title: '一般通知',
+          body: 'commit 應該失敗',
+        }),
+        targetUid: target,
+      },
+    }).catch(err => err);
+
+    expect(rejection).toMatchObject({
+      code: 'internal',
+      message: 'Failed to deliver to inbox',
+    });
+    expect(rejection.code).not.toBe('already-exists');
+    expect(JSON.stringify(consoleImpl.warns)).not.toContain('already exists');
+    expect(db.appliedWrites).toHaveLength(0);
+    expect(db.commits).toHaveLength(0);
+    expect(db.commitAttempts).toBe(1);
+    expect(consoleImpl.errors).toEqual([
+      ['[deliverToInbox] delivery failed', { code: 14, broadcast: false }],
+    ]);
+    const serialized = JSON.stringify(consoleImpl.errors);
+    expect(serialized).not.toContain(caller);
+    expect(serialized).not.toContain(target);
+    expect(serialized).not.toContain(leakedPath);
+    expect(serialized).not.toContain('inbox');
+  });
+
+  test('allow: untyped message array meta writes null and warns once', async () => {
+    const caller = 'uid_caller_metarray_41';
+    const target = 'uid_target_metarray_41';
+    const db = createDeliverInboxMemoryDb();
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    const result = await callable.handler({
+      auth: { uid: caller },
+      data: {
+        message: message({
+          id: 'msg_t022_meta_array',
+          title: '一般通知',
+          body: 'meta 是陣列',
+          meta: ['x'],
+        }),
+        targetUid: target,
+      },
+    });
+
+    expect(result).toEqual({ success: true, delivered: 1 });
+    const written = expectSingleCreate(db, target, 'msg_t022_meta_array');
+    expect(written.actionType).toBeNull();
+    expect(written.actionStatus).toBeNull();
+    expect(written.reviewerName).toBeNull();
+    expect(written.meta).toBeNull();
+    expect(consoleImpl.warns).toHaveLength(1);
+    expect(consoleImpl.warns[0]).toEqual([
+      '[deliverToInbox] stripped review fields from untyped message',
+      { stripped: ['meta'], broadcast: false },
+    ]);
+  });
+
+  test('deny: tournament_register_request forged applicantUid', async () => {
+    const caller = 'uid_caller_reg42';
+    const applicant = 'uid_applicant_b_reg42';
+    const target = 'uid_creator_reg42';
+    const meta = registerMeta({
+      applicantUid: applicant,
+      tournamentId: 'tnReg42',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '呼叫者A' },
+        [applicant]: { role: 'user', name: '申請人B' },
+        [target]: { role: 'user', name: '主辦人' },
+      },
+      tournaments: {
+        tnReg42: { id: 'tnReg42', name: '週末聯賽', creatorUid: target },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: registerMessage(meta),
+        targetUid: target,
+      },
+      'permission-denied',
+      'APPLICANT_MUST_BE_CALLER',
+      [caller, applicant, target]
+    );
+    expect(db.commitAttempts).toBe(0);
+  });
+
+  test('deny: tournament_register_request approved status', async () => {
+    const caller = 'uid_applicant_reg43';
+    const target = 'uid_creator_reg43';
+    const meta = registerMeta({
+      applicantUid: caller,
+      tournamentId: 'tnReg43',
+    });
+    const db = createDeliverInboxMemoryDb({
+      users: {
+        [caller]: { role: 'user', name: '陳申請' },
+        [target]: { role: 'user', name: '主辦人' },
+      },
+      tournaments: {
+        tnReg43: { id: 'tnReg43', name: '週末聯賽', creatorUid: target },
+      },
+    });
+    await expectReject(
+      db,
+      caller,
+      {
+        message: {
+          ...registerMessage(meta),
+          actionStatus: 'approved',
+        },
+        targetUid: target,
+      },
+      'invalid-argument',
+      'INVALID_ACTION_STATUS',
+      [caller, target]
+    );
+    expect(db.commitAttempts).toBe(0);
+  });
+});
