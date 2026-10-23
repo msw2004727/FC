@@ -32,6 +32,9 @@ description: 要讓 MiMo 平行做「唯讀查證」時使用：逐條核對條�
 
 ## 已知坑
 
+- **2026-10-23 T-024 實測**：5 張卡（每卡 7～8 題、max-turns 40）平行約 5 分鐘全部成功交件，`parse-results.py` 一次解析 38 題無失敗；`parsed.json` 再用幾行 Python 攤平成「題號｜結論｜假設影響｜證據」文字檔，比逐檔開 JSON 好讀。題目要求的 `fake_uid_impact` 之類「假設情境影響」欄位可直接當設計表素材，但每卡仍要抽查（本次 20 多條行號皆符）。
+- 卡片要說明「背景用途」（為什麼查這件事）與「找不到就寫找不到並列出搜尋過的關鍵字」，MiMo 才不會硬湊；同一批若發現缺口，追加一張小卡（本次追加「UID 鍵集合盤點」卡）比擴充原卡好。
+
 - `claude -p --output-format json` 的陣列在 `result` 字串裡，可能包 Markdown 圍欄；不能直接取 `[0]`。
 - stderr 的 `unrecognized_model` 警告無害。
 - MiMo 設定在 `C:/t/mimo-claude-home`，金鑰由 apiKeyHelper 讀，派工端不碰也不印。
