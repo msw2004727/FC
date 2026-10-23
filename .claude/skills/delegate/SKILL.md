@@ -11,16 +11,27 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 
 ## 選模型
 
-2026-10-22 站長指示：節省 Claude 用量，粗活主力改派 Grok（取代原本「DeepSeek 主力、Codex／Gemini 審查與較細產碼」的分工）。
+2026-10-23 依總司令布達第 3 號（站長口述）改為「專長 × 任務」分工（取代 2026-10-22「粗活一律 Grok 主力」）。每份回報第 1 行註明每項任務派給誰、為什麼；每張卡（含 Claude 子代理）登記進 `docs/specs/lite-convergence/ai-dispatch-log.md`。
 
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
-| 主力：產碼、整理、第一輪審查 | Grok `grok-4.7`（`--provider xai`） | 金鑰 `XAI_API_KEY` 只在 Windows User 層級，照下方 MIMO 方式讀入，永不印出。**2026-10-22 T-018 實測：該值不是 `xai-` 開頭，API 與 Codex 兩條路都回「Incorrect API key」，待站長換金鑰；修好前照備援用 DeepSeek**（2026-10-23 T-020 再測仍是 HTTP 400 Incorrect API key；派工前先用 20 字 prompt 實測，失敗就送 SendMessage 給 main 一行再改 DeepSeek） |
-| 備援：寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出） |
-| 備援：格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
-| 第二審（只限寫入／權限／鎖定域） | Gemini `gemini-4-argon`、Codex GPT-6 Astra | Codex 本機無法執行子程序，只能純文字，見下方「Codex 純文字派工」 |
+| 一般施工（中等規模、非核心）、退修輪、第一輪審查、文件／規則卡、測試與突變工具、調查對照 | Grok `grok-4.7`（**Grok Build CLI**） | 見下方「Grok 走 CLI」。**不碰金鑰、個資、正式站設定、Rules／Functions 授權核心；不當終審**；>5 項拆卡；交件一律另審 |
+| 主審查、合流疑難、核心施工（Rules、Functions 授權、金流、個資） | Codex GPT-6 Astra | 本機只能純文字，見下方「Codex 純文字派工」；15 分鐘無提交就停 |
+| 施工次選、畫面以外的大量施工 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字）；退修到第 4 輪就停派、重寫卡 |
+| 第一輪唯讀審查、審後小修、反例測試、文件對照 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think`；每卡 ≤8 題 |
+| 較難第二審、畫面對照 | Gemini `gemini-4-argon` | 引用的檔名行號常虛構，當線索不當證據 |
+| UI 畫面實作與巡查、看板、紀錄整理 | Claude Sonnet 子工作者 | 畫面照站長六點：多語、深淺色、360／375／1280、不拆字、對比、無英文代號 |
+| 錢／金鑰／個資／核心邏輯的最終短審 | Claude Opus 子代理 | 一般任務不開 Opus |
 
-Grok 也可走 Codex 純文字：`CODEX_HOME=~/.codex-grok codex exec --skip-git-repo-check -s read-only --output-last-message resp.md - < prompt.md`（`~/.codex-grok/config.toml` 已關掉帶 namespace 型工具的功能，因為 xAI 會回 422 拒收；不放金鑰，讀 `XAI_API_KEY`）。
+### Grok 走 CLI（2026-10-23 起為主；取代「`llm-run.py --provider xai` 直連為主」）
+
+站長的 Grok 訂閱走 Grok Build CLI（OAuth 登入），**不含 API 額度**，所以 `XAI_API_KEY` 回 400 不是故障、是沒儲值（2026-10-23 指揮官實測 CLI `modelCalls 1` 成功）。接法與坑以使用者層級 skill `C:\Users\msw74\.claude\skills\pmkit-runners\SKILL.md`「Grok 4.7」節為準，重點：
+- 無人值守：`grok -p "<提示>" --cwd <工作樹> -m grok-4.7 --effort xhigh --disable-web-search --no-subagents --always-approve --allow Bash --deny <清單>… --output-format json --max-turns N`，stdin 接 `/dev/null`。純文字快測：`grok -p "…" -m grok-4.7 --output-format json --max-turns 1 --disable-web-search`。
+- 子程序 `USERPROFILE`／`HOME` 指到空資料夾、`GROK_HOME` 指回 `~/.grok`、`GIT_CONFIG_GLOBAL` 指回真的 `.gitconfig`（否則會合併 Claude Code 的 allow 權限）；deny 至少含 `Bash(curl*)`、`Bash(*https://*)`、`Bash(git push*)`、`Bash(git checkout*)`、`Bash(git reset*)`、`Bash(git stash*)`、`Bash(rm -rf*)`、`Bash(gh *)`、`Bash(gcloud*)`、`Bash(firebase*)`、`Bash(ssh*)`。
+- 不支援 `--add-dir`：卡片與要讀的檔複製進工作樹 `.grok-input/`（加進 `git info/exclude`），卡上寫相對路徑；派工卡存 UTF-8 **加 BOM**（PowerShell 5.1 讀無 BOM 會亂碼）。
+- 收件看 diff 與 `grok export <sessionId>` 的 Execute 紀錄；輸出的成本欄位不回報金額。
+
+API 路線改為備用（需 `xai-` 開頭且有儲值的金鑰）：`llm-run.py --provider xai`，或 `CODEX_HOME=~/.codex-grok codex exec --skip-git-repo-check -s read-only --output-last-message resp.md - < prompt.md`（`~/.codex-grok/config.toml` 已關掉帶 namespace 型工具的功能，因為 xAI 會回 422 拒收；讀 `XAI_API_KEY`，永不印出）。
 
 ## 金鑰
 
