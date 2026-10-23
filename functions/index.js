@@ -13,6 +13,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
+const { createIssueQaTestTokenCallable } = require("./qa-test-mode");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
@@ -71,6 +72,9 @@ const GOOGLE_MAPS_BROWSER_API_KEY = defineSecret("GOOGLE_MAPS_BROWSER_API_KEY");
 // 必須與其他 Secret 一起在檔頭宣告：exports 的 options（secrets: [...]）在載入時就會讀取，
 // 宣告在使用處之後會觸發 TDZ（2026-10-20 部署分析時 migrateUidFields 報 ReferenceError，因此移到這裡）。
 const DATA_SYNC_SETTINGS_PASSWORD = defineSecret("DATA_SYNC_SETTINGS_PASSWORD");
+// T-024：放檔頭避免 Callable 載入時觸發 TDZ；密碼只存 Secret Manager。
+// 多筆密碼格式見 qa-test-mode-core.js。
+const QA_TEST_PASSWORD = defineSecret("QA_TEST_PASSWORD");
 const VALID_ROLES = new Set([
   "user",
   "coach",
@@ -261,6 +265,9 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "demotedCount",
   "registrationId",
   "courseStudentId",
+  "qaAgentId",
+  "qaPersona",
+  "ipHash",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const LOGIN_FAILURE_AUDIT_DEDUPE_WINDOW_MS = 60 * 1000;
@@ -3104,6 +3111,16 @@ exports.createCustomToken = onCall(
     return { customToken, role };
   }
 );
+
+exports.issueQaTestToken = createIssueQaTestTokenCallable({
+  onCall,
+  HttpsError,
+  db,
+  authAdmin,
+  secret: QA_TEST_PASSWORD,
+  writeAuditEntry,
+  writeDedupedAuditEntry,
+});
 
 exports.writeAuditLog = onCall(
   { region: "asia-east1", timeoutSeconds: 15 },
