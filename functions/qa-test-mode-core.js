@@ -13,7 +13,8 @@ const QA_CONFIG_DOC_ID = "config";
 const QA_THROTTLE_COLLECTION = "qaTestAuthThrottle";
 const QA_AGENT_ID_RE = /^[a-z0-9_-]{1,24}$/;
 const QA_PERSONA_KEY_RE = /^[A-Za-z0-9_-]{1,32}$/;
-const QA_PASSWORD_MIN_LENGTH = 12;
+// 2026-10-23 站長親口決定封閉測試期下限 6 碼（原 12；安全性靠節流與到期時間）。
+const QA_PASSWORD_MIN_LENGTH = 6;
 const QA_PASSWORD_MAX_LENGTH = 64;
 const QA_INPUT_PASSWORD_MAX_LENGTH = 128;
 const QA_CLIENT_IP_XFF_FROM_RIGHT = 1;

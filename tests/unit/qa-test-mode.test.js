@@ -594,7 +594,7 @@ describe('QA 測試模式', () => {
       ['缺時區的 ISO', `qa01:${PASSWORDS.alpha}|2026-10-25T00:00:00`],
       ['欄數只有 1', `qa01:${PASSWORDS.alpha}`],
       ['欄數有 4', `qa01:${PASSWORDS.alpha}|${new Date(FUTURE).toISOString()}|player|extra`],
-      ['密碼只有 11 字', `qa01:${'x'.repeat(11)}|${new Date(FUTURE).toISOString()}`],
+      ['密碼只有 5 字', `qa01:${'x'.repeat(5)}|${new Date(FUTURE).toISOString()}`],
       ['密碼有 65 字', `qa01:${'y'.repeat(65)}|${new Date(FUTURE).toISOString()}`],
       ['密碼含空白', `qa01:Fake Pw Alpha|${new Date(FUTURE).toISOString()}`],
       ['密碼含直線', `qa01:Fake|Pw-Alpha-001|${new Date(FUTURE).toISOString()}`],
