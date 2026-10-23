@@ -1,0 +1,40 @@
+{
+  "projectName": "ToosterX (FC)",
+  "primaryRepo": ".",
+  "repos": {
+    "A": ".",
+    "B": "../FC-B"
+  },
+  "codexFooter": "docs/specs/lite-convergence/codex-footer.md",
+  "reviewLessons": "../FC-B/.claude/rules/review-lessons.md",
+  "reviewRules": ".claude/rules/testing-review.md",
+  "testCommands": {
+    "unit": "npm run test:unit",
+    "functions": "npm run test:functions",
+    "rules": "npm run test:rules",
+    "storageRules": "npm run test:storage-rules",
+    "rulesIntegrity": "node scripts/check-rules-integrity.js",
+    "encoding": "node .claude/skills/encoding-check/scripts/check-encoding.js"
+  },
+  "prohibitions": [
+    "不得 push、deploy、改正式設定或寫正式資料，除非依 CLAUDE.md R-GOV-007／R-MODE-001 取得授權",
+    "不得 stash、reset、clean、checkout --、rebase、force-push、切分支",
+    "不得在輸出、log、卡片、fixture 印出金鑰、token、未遮罩 UID 或 email",
+    "新檔不得含真實 UID、email、金鑰、Firebase 專案 ID、網域",
+    "只改需求必要檔；既有未提交變更視為他人所有，不覆蓋",
+    "新增或修改的檔案一律 UTF-8 無 BOM（CLAUDE.md R-ENC-001～007）",
+    "禁用模型：deepseek-v4-pro",
+    "Grok 不碰金鑰、個資、正式站設定、Rules／Functions 授權核心，也不當終審"
+  ],
+  "reportFormat": "docs/specs/lite-convergence/commander-dispatch.md",
+  "dispatchLog": "docs/specs/lite-convergence/ai-dispatch-log.md",
+  "stagingDir": "docs/specs/lite-convergence",
+  "largeFiles": [
+    "docs/claude-memory.md",
+    "functions/index.js",
+    "index.html",
+    "app.js"
+  ],
+  "mimoHome": "C:/t/mimo-claude-home",
+  "encodingRules": "CLAUDE.md R-ENC-001～007（R-ENC-005：終端亂碼不等於檔案損壞）"
+}
