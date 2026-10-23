@@ -32,6 +32,20 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 - 收件看 diff 與 `grok export <sessionId>` 的 Execute 紀錄；輸出的成本欄位不回報金額。
 - **PowerShell 5.1 啟動範例（2026-10-23 T-024 實測一次過，約 10 分鐘出一個 35KB 單檔 HTML）**：`<` 在 PowerShell 是保留字不能接 stdin，改用 `Start-Process -FilePath grok.exe -ArgumentList $a -NoNewWindow -Wait -PassThru -RedirectStandardInput <空檔> -RedirectStandardOutput out.json -RedirectStandardError err.txt`；`-p` 的提示用純 ASCII（例如 `Read .grok-input/<卡>.md (UTF-8 with BOM) and do exactly what it says. Write only out/x.html`），中文規格放卡裡；參數含空白或萬用字元的 `--cwd`、`--deny` 值要各自包 `"…"`；整段寫成 `run-grok.ps1` 再用 `Start-Process powershell -File … -WindowStyle Hidden` 丟背景，結束時寫 `grok-exit.txt` 供 Monitor 等待。範例 `docs/specs/lite-convergence/tasks/T-024/ui-work/run-grok.ps1`（工作樹要 `git init`，`.grok-input/`、`out/` 加進 `.git/info/exclude`）。收件除看 `out/` 外，用 `grok export <sessionId>` 確認 Execute 只有預期指令。
 
+#### 一鍵腳本 grok-worktree.ps1
+
+PowerShell 5.1。把建 worktree、junction、卡片 BOM、`info/exclude`、啟動與收尾收成一支腳本。FC 版：`.claude/skills/delegate/scripts/grok-worktree.ps1`（`-Repo` 預設為腳本所在專案根）。跨專案版 `delegate-shared/grok-worktree.ps1`：`-Repo` 可寫路徑或別名；從目前目錄往上找第一個 `.claude/agent-dispatch.json`，用其中的 `primaryRepo`（預設 repo）與 `repos`（別名），相對路徑以 `.claude` 的上一層為準；找不到設定檔就只接受路徑。
+
+```
+powershell -NoProfile -File .claude/skills/delegate/scripts/grok-worktree.ps1 up -Card <主卡.md> [-Input <檔>...] [-Repo <路徑或別名>] [-Name <名>] [-Root <夾>] [-MaxTurns 70] [-Effort xhigh] [-Prompt "<ASCII>"] [-NoRun]
+powershell -NoProfile -File .claude/skills/delegate/scripts/grok-worktree.ps1 down -Name <名> [-Root <夾>] [-Repo <路徑或別名>] [-Save <夾>] [-Force]
+```
+
+- `up`：確認 git repo、工作樹路徑不存在 → `git worktree add --detach <wt> HEAD` → `node_modules` 與 `functions\node_modules`（目標存在才建，否則警告略過）→ `.grok-input` 文字檔重寫成 UTF-8 BOM（png/jpg/jpeg/gif/webp/pdf/ico 原樣）→ 共用 `info/exclude` 只補尚缺的 `.grok-input/` 與 `/out/` → 空 HOME 與 `nul.txt` → 寫 `<Root>\<Name>-run.ps1`。沒有 `-NoRun` 才隱藏背景啟動。最後一定印出工作樹、run／out／err／exit 路徑、手動啟動命令、輪詢 exit 檔的一行、以及 `down` 範例。
+- 預設：`-Name` 為 `grok-yyyyMMdd-HHmmss`；`-Root` 為 `$env:CLAUDE_SCRATCHPAD`，否則 `%TEMP%\grok-wt`；`-MaxTurns` 70、`-Effort` xhigh。預設提示為純 ASCII：`Read .grok-input/<主卡檔名> (UTF-8 with BOM) and do exactly what it says. Keep .grok-input/REPORT.md updated after each finished item.`
+- `down` 只靠 `-Name` 與 `-Root` 讀狀態檔；沒有狀態檔才用 `-Repo`＋`-Name` 推算。有 `-Save` 先複製未 ignore 的修改與未追蹤檔（相對路徑），並另存 `git diff`、`git status --short`。排除 `.grok-input/` 與 `out/` 後若仍有 porcelain 輸出，且沒給 `-Save` 或 `-Force`，印警告並停止。然後只對記錄的 junction 確認 ReparsePoint 後 `[IO.Directory]::Delete`（禁止 `Remove-Item -Recurse`、`rmdir /s`），確認目標仍在，才 `worktree remove --force` 與 `prune`，刪名稱以 `-home` 結尾且位於 Root 下的 HOME，刪狀態檔與 `run.ps1`。保留 `-out.json`、`-err.txt`、`-exit.txt`。任一步失敗就 `exit 1`。
+- 注意：路徑可含空白；不印 token／金鑰；`-NoRun` 不啟動 grok。多個附加檔在 PowerShell 寫 `-Input a.md,b.md`。
+
 API 路線改為備用（需 `xai-` 開頭且有儲值的金鑰）：`llm-run.py --provider xai`，或 `CODEX_HOME=~/.codex-grok codex exec --skip-git-repo-check -s read-only --output-last-message resp.md - < prompt.md`（`~/.codex-grok/config.toml` 已關掉帶 namespace 型工具的功能，因為 xAI 會回 422 拒收；讀 `XAI_API_KEY`，永不印出）。
 
 ## 金鑰
