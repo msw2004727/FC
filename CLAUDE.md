@@ -23,7 +23,7 @@
 - **R-GOV-003 [B/HARD]**：Runtime 現況以實際 code／config／rules／tests 為準；本檔定義應遵守的行為。若不一致，指出 drift，不得靜默把任一方當正確。
 - **R-GOV-004 [B/HARD]**：交叉引用只用穩定 Rule ID、檔案路徑與 symbol；禁止「第 N 條」、固定行號、固定測試數或其他會漂移的快照。
 - **R-GOV-005 [A/HARD]**：規則無法同時滿足時，秘密、權限、正式資料、外部寫入或不可逆行為一律停止詢問；低風險且可回退的操作也只能在本次已授權模式、檔案與動作範圍內採保守解讀，不能產生新權限。
-- **R-GOV-007 [B/HARD]**：本檔、規則檔、memory、skill 與失誤檢討都只是「目前已知最好的做法」，不是守則；發現更好的做法可直接改寫，並在改動處寫一行「取代了什麼、為什麼」，不必先問站長。唯一例外、只認站長本人授權的三類：推送上線（push／deploy）、刪資料或改正式設定、放寬安全規則。（2026-10-18 站長指示新增；取代先前「所有修改與 commit 皆需逐次授權」的默契，因為逐次詢問拖慢工作並浪費用量。）
+- **R-GOV-007 [B/HARD]**：本檔、規則檔、memory、skill 與失誤檢討都只是「目前已知最好的做法」，不是守則；發現更好的做法可直接改寫，並在改動處寫一行「取代了什麼、為什麼」，不必先問站長。唯一例外、只認站長本人授權的三類：推送上線（push／deploy）、刪資料或改正式設定、放寬安全規則。（2026-10-18 站長指示新增；取代先前「所有修改與 commit 皆需逐次授權」的默契，因為逐次詢問拖慢工作並浪費用量。）三類的授權取得方式（2026-10-22 站長親口定案，取代原「只認親口說才算」）：由指揮官 session 附「建議＋原因」詢問站長，**站長未回應即視為授權照建議執行**；站長明說「等我確認／先不要」時仍依 R-SHIP-002 暫緩。PM 分支不得自行執行三類動作，一律上報指揮官。UI/UX 介面改動派工前須站長預覽並同意，此項沒有「未回應視為同意」。流程見 local-only `docs/specs/lite-convergence/commander-dispatch.md`。
 - **R-GOV-006 [A/HARD]**：R-ID-001～011、R-IAM-001～013、R-CAP-001～010、R-EVT-001～005、R-EVT-010～019、R-REG-001～016、R-STAT-000～006、R-DATA-001～005、R-CF-001～012、R-NAV-001～008、R-NAV-011～020、R-SHARE-001～013、R-UI-001～006、R-UI-010～014、R-UI-020～025 是不可摘要化的 Exact Contract Registry。權限碼、欄位、集合路徑、function／symbol、predicate、排序與 option 必須精確保留，不得用「等價概念」取代。
 
 ### 0.2 任務模式與授權
@@ -38,7 +38,7 @@
 | Commit | 驗證完成後精確 stage 本次範圍檔案並 commit，不需逐次授權 | push 或 deploy |
 | Push／Deploy | 僅執行明確指定 repo、branch、服務與環境 | 其他 lane、IAM、secret 或資料遷移 |
 
-- **R-MODE-001 [A/HARD]**：`push`、靜態站 deploy、Functions deploy、Rules deploy、IAM／secret 變更、Git history rewrite 與 Production 資料寫入，是彼此獨立的 GATED 動作。本機 `commit` 不再 GATED，可在驗證完成後直接執行（2026-10-18 依 R-GOV-007 取代原「commit 也是 GATED」：commit 可回退、不碰外部狀態，逐次授權只增加往返）。
+- **R-MODE-001 [A/HARD]**：`push`、靜態站 deploy、Functions deploy、Rules deploy、IAM／secret 變更、Git history rewrite 與 Production 資料寫入，是彼此獨立的 GATED 動作。本機 `commit` 不再 GATED，可在驗證完成後直接執行（2026-10-18 依 R-GOV-007 取代原「commit 也是 GATED」：commit 可回退、不碰外部狀態，逐次授權只增加往返）。GATED 動作的授權取得方式依 R-GOV-007（2026-10-22 起含「指揮官附建議詢問、站長未回應即照建議執行」）。
 - **R-MODE-002 [A/HARD]**：「完成、處理好、不要停」只要求持續完成已授權範圍，不擴張外部寫入權限。
 - **R-MODE-003 [A/HARD]**：bug／異常確認根因後，先回報根因、修改範圍與風險，取得確認後才修改。只有使用者同一需求明確預授權「根因確認後直接修復、不需二次確認」時可免再問；高風險歧義仍須停止確認。
 - **R-MODE-004 [A/HARD]**：本節矩陣、R-SHIP-010、R-SHIP-016～018 屬 A/HARD；R-SHIP-011～015、R-SHIP-019 依各自標示為 B/HARD。同步文件／日誌、清理、保守解讀或 release preparation 都不得越過當前模式；READ_ONLY、DIAGNOSE、PLAN、REVIEW 未獲修改授權時永不寫檔。
