@@ -286,6 +286,7 @@ body {
   font-size: 16px;
   line-height: 1.6;
   overflow-x: hidden;
+  overflow-wrap: anywhere;
 }
 
 h1 { font-size: 1.45rem; line-height: 1.35; margin: 0 0 8px; }
