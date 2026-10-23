@@ -195,12 +195,14 @@ Object.assign(App, {
       }
     } else if (msg.actionType === 'tournament_register_request') {
       if (msg.actionStatus === 'pending') {
-        actionHtml = `
+        if (this._canManageTournamentRecord?.(ApiService.getTournament(msg.meta?.tournamentId), ApiService.getCurrentUser())) {
+          actionHtml = `
           <div class="msg-action-btns">
             <button class="msg-action-approve" onclick="App.handleTournamentRegAction('${msg.id}','approve')">同意</button>
             <button class="msg-action-reject" onclick="App.handleTournamentRegAction('${msg.id}','reject')">拒絕</button>
             <button class="msg-action-ignore" onclick="App.handleTournamentRegAction('${msg.id}','ignore')">忽略</button>
           </div>`;
+        }
       } else {
         const statusLabels = {
           approved: ['background:var(--success);color:#fff', '已同意'],

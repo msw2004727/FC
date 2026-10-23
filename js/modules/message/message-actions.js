@@ -257,6 +257,8 @@ Object.assign(App, {
       return;
     }
 
+    if (!this._canManageTournamentRecord?.(t, curUser)) { this.showToast('權限不足'); return; }
+
     if (action === 'approve') {
       if (!t) { this.showToast('找不到此賽事'); return; }
       if (!t.registeredTeams) t.registeredTeams = [];
