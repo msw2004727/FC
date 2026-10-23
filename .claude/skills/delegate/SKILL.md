@@ -15,7 +15,7 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
-| 主力：產碼、整理、第一輪審查 | Grok `grok-4.7`（`--provider xai`） | 金鑰 `XAI_API_KEY` 只在 Windows User 層級，照下方 MIMO 方式讀入，永不印出。**2026-10-22 T-018 實測：該值不是 `xai-` 開頭，API 與 Codex 兩條路都回「Incorrect API key」，待站長換金鑰；修好前照備援用 DeepSeek** |
+| 主力：產碼、整理、第一輪審查 | Grok `grok-4.7`（`--provider xai`） | 金鑰 `XAI_API_KEY` 只在 Windows User 層級，照下方 MIMO 方式讀入，永不印出。**2026-10-22 T-018 實測：該值不是 `xai-` 開頭，API 與 Codex 兩條路都回「Incorrect API key」，待站長換金鑰；修好前照備援用 DeepSeek**（2026-10-23 T-020 再測仍是 HTTP 400 Incorrect API key；派工前先用 20 字 prompt 實測，失敗就送 SendMessage 給 main 一行再改 DeepSeek） |
 | 備援：寫腳本、拆分、整理 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字；`low` 仍用約 41k 推理但能完整產出） |
 | 備援：格式化、整理 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think` |
 | 第二審（只限寫入／權限／鎖定域） | Gemini `gemini-4-argon`、Codex GPT-6 Astra | Codex 本機無法執行子程序，只能純文字，見下方「Codex 純文字派工」 |
@@ -67,7 +67,7 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 
 - 背景執行（約數分鐘）；`resp.md` 是最後一則回覆，`codex.err` 先看有無 usage limit／UTF-8 錯誤。
 - **改大檔（數百行以上）不要叫模型整檔輸出**，改要求 SEARCH/REPLACE 區塊（`===== EDIT: path =====` 內含 `<<<<<<< SEARCH`／`=======`／`>>>>>>> REPLACE`，格式見腳本檔頭），新檔才用 `===== FILE`。套用：`python -I ${CLAUDE_SKILL_DIR}/scripts/apply-edits.py resp.md <repo> --dry-run` 確認後去掉 `--dry-run`；任何 SEARCH 不唯一就整批不寫、列出失敗區塊。（2026-10-22 T-004 新增；取代「一律整檔輸出再 split-loose」，因多個大檔整檔輸出易截斷且浪費輸出額度。）
-- prompt 結尾附 `codex-footer.md`、附件附 FC-B `.claude/rules/review-lessons.md`；附「所有會被改的檔案＋測試＋引用它們的檔案」。
+- prompt 結尾附 `codex-footer.md`（footer 是 FC-B 前端專用；審 FC `functions/**` 時在 spec 開頭註明「footer 中 FC-B／Preact／tokens／locales 條目不適用」，T-020 這樣寫 Codex 照常審）、附件附 FC-B `.claude/rules/review-lessons.md`；附「所有會被改的檔案＋測試＋引用它們的檔案」。
 - 規格裡把「要 export 的 API 簽章」與「逐條規則」寫死，Codex 會照名稱產出，驗收時才好對。
 - 交件測試的假回應常比伺服器真實形狀精簡（例如 `adjustExp` 少了 `results`）：驗收時拿 `functions/` 的 return 對照 mock。
 
