@@ -6,7 +6,8 @@ const net = require("net");
 // ASSUMPTION: 未附專案規則檔，本次以附件規格及修訂為實作依據。
 const QA_UID_RE = /^U0{28}[0-9]{4}$/;
 const QA_DISPLAY_NAME_PREFIX = "QA測試-";
-const QA_ALLOWED_ROLES = new Set(["user", "coach", "captain"]);
+// 2026-10-23 T-028 站長決定測試身分補到管理員以下；admin／super_admin 與其以上的自訂角色仍禁止，白名單必須明確列舉。
+const QA_ALLOWED_ROLES = new Set(["user", "coach", "captain", "venue_owner"]);
 const QA_PUBLIC_ERROR_MESSAGE = "無法進入測試模式";
 const QA_CONFIG_COLLECTION = "qaTestMode";
 const QA_CONFIG_DOC_ID = "config";

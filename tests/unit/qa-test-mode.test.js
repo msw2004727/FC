@@ -68,6 +68,7 @@ function qaUid(suffix) {
 const PLAYER_UID = qaUid(1);
 const COACH_UID = qaUid(2);
 const CAPTAIN_UID = qaUid(3);
+const VENUE_OWNER_UID = qaUid(13);
 
 function clone(value) {
   if (value instanceof Date) return new Date(value.getTime());
@@ -847,7 +848,28 @@ describe('QA 測試模式', () => {
           owner: {
             uid: qaUid(7),
             displayName: 'QA測試-場館',
-            role: 'venue_owner',
+            role: 'bad_role',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          customRole: {
+            uid: qaUid(15),
+            displayName: 'QA測試-自訂',
+            role: 'custom_123',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          paddedOwner: {
+            uid: qaUid(16),
+            displayName: 'QA測試-空白',
+            role: 'venue_owner ',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          upperOwner: {
+            uid: qaUid(17),
+            displayName: 'QA測試-大寫',
+            role: 'VENUE_OWNER',
             teamKey: 'alpha',
             enabled: true,
           },
@@ -885,8 +907,69 @@ describe('QA 測試模式', () => {
       expect(normalized.personas.paused.enabled).toBe(false);
       expect(normalized.personas.player.enabled).toBe(true);
       expect(normalized.personas.coach.enabled).toBe(true);
+      expect(normalized.personas.admin).toBeUndefined();
+      expect(normalized.personas.superAdmin).toBeUndefined();
+      expect(normalized.personas.owner).toBeUndefined();
+      expect(normalized.personas.customRole).toBeUndefined();
+      expect(normalized.personas.paddedOwner).toBeUndefined();
+      expect(normalized.personas.upperOwner).toBeUndefined();
       expect(Object.keys(normalized.teams).sort()).toEqual(['alpha', 'boundary']);
       expect(normalized.teams.boundary.teamId).toHaveLength(120);
+    });
+
+    test('venue_owner 可正規化，未知角色與大小寫、尾端空白仍丟棄', () => {
+      const venueOwner = {
+        uid: VENUE_OWNER_UID,
+        displayName: 'QA測試-場主',
+        role: 'venue_owner',
+        teamKey: 'alpha',
+        enabled: true,
+      };
+      const normalized = normalizeQaConfig({
+        enabled: true,
+        personas: {
+          venueOwner,
+          boss: {
+            uid: qaUid(5),
+            displayName: 'QA測試-管理',
+            role: 'admin',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          over: {
+            uid: qaUid(6),
+            displayName: 'QA測試-超管',
+            role: 'super_admin',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          custom: {
+            uid: qaUid(15),
+            displayName: 'QA測試-自訂',
+            role: 'custom_123',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          padded: {
+            uid: qaUid(16),
+            displayName: 'QA測試-空白',
+            role: 'venue_owner ',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+          upper: {
+            uid: qaUid(17),
+            displayName: 'QA測試-大寫',
+            role: 'VENUE_OWNER',
+            teamKey: 'alpha',
+            enabled: true,
+          },
+        },
+        teams: { alpha: { teamId: 'team-alpha', name: 'QA Alpha' } },
+      });
+
+      expect(normalized.personas.venueOwner).toEqual(venueOwner);
+      expect(Object.keys(normalized.personas)).toEqual(['venueOwner']);
     });
 
     test('clientIpXffFromRight 只接受 1 到 5 的整數', () => {
@@ -1120,6 +1203,44 @@ describe('QA 測試模式', () => {
 
       expectIssued(harness, result, { qaExp });
       expect(result.qaExp).toBeLessThan(FUTURE);
+    });
+
+    test('venue_owner 可簽發 custom token，回傳角色為 venue_owner', async () => {
+      // 對照既有簽發成功案例：token claims 只有五個 qa* 欄位、沒有 role；角色在回傳 persona.role。
+      const base = defaultConfig();
+      const venueOwner = {
+        uid: VENUE_OWNER_UID,
+        displayName: 'QA測試-場主',
+        role: 'venue_owner',
+        teamKey: 'alpha',
+        enabled: true,
+      };
+      const harness = createHarness({
+        config: defaultConfig({
+          personas: { ...base.personas, venueOwner },
+        }),
+        users: {
+          ...defaultUsers(),
+          [VENUE_OWNER_UID]: {
+            uid: VENUE_OWNER_UID,
+            displayName: 'QA測試-場主',
+            role: 'venue_owner',
+          },
+        },
+      });
+      const qaExp = NOW + 12 * HOUR_MS;
+      const result = await invoke(harness, {
+        password: PASSWORDS.alpha,
+        persona: 'venueOwner',
+      });
+
+      expectIssued(harness, result, {
+        qaExp,
+        uid: VENUE_OWNER_UID,
+        persona: 'venueOwner',
+        role: 'venue_owner',
+        displayName: 'QA測試-場主',
+      });
     });
 
     test('夾帶 uid、role 與 claims 不影響簽發內容', async () => {
@@ -1366,6 +1487,42 @@ describe('QA 測試模式', () => {
           enabled: true,
         },
       }, 'boss'],
+      ['role 為 super_admin', {
+        over: {
+          uid: qaUid(14),
+          displayName: 'QA測試-超管',
+          role: 'super_admin',
+          teamKey: 'alpha',
+          enabled: true,
+        },
+      }, 'over'],
+      ['role 為未知 custom_123', {
+        custom: {
+          uid: qaUid(15),
+          displayName: 'QA測試-自訂',
+          role: 'custom_123',
+          teamKey: 'alpha',
+          enabled: true,
+        },
+      }, 'custom'],
+      ['role 尾端空白的 venue_owner', {
+        padded: {
+          uid: qaUid(16),
+          displayName: 'QA測試-空白',
+          role: 'venue_owner ',
+          teamKey: 'alpha',
+          enabled: true,
+        },
+      }, 'padded'],
+      ['role 大小寫不同的 VENUE_OWNER', {
+        upper: {
+          uid: qaUid(17),
+          displayName: 'QA測試-大寫',
+          role: 'VENUE_OWNER',
+          teamKey: 'alpha',
+          enabled: true,
+        },
+      }, 'upper'],
     ])('persona 設定為%s 時被丟棄並回 qa_persona_unknown', async (_label, personas, persona) => {
       const harness = createHarness({
         config: defaultConfig({ personas }),
@@ -1382,23 +1539,32 @@ describe('QA 測試模式', () => {
       expect(harness.authAdmin.createCustomToken).not.toHaveBeenCalled();
     });
 
-    test('team 不存在時為 qa_persona_unprovisioned 且不計節流、不簽 token', async () => {
+    test.each([
+      ['player', 'player', {
+        player: {
+          uid: PLAYER_UID,
+          displayName: 'QA測試-球員A',
+          role: 'user',
+          teamKey: 'ghost',
+          enabled: true,
+        },
+      }],
+      ['venue_owner', 'venueOwner', {
+        venueOwner: {
+          uid: VENUE_OWNER_UID,
+          displayName: 'QA測試-場主',
+          role: 'venue_owner',
+          teamKey: 'ghost',
+          enabled: true,
+        },
+      }],
+    ])('%s 的 team 不存在時為 qa_persona_unprovisioned 且不計節流、不簽 token', async (_label, personaKey, personas) => {
       const harness = createHarness({
-        config: defaultConfig({
-          personas: {
-            player: {
-              uid: PLAYER_UID,
-              displayName: 'QA測試-球員A',
-              role: 'user',
-              teamKey: 'ghost',
-              enabled: true,
-            },
-          },
-        }),
+        config: defaultConfig({ personas }),
       });
       await expectDenied(invoke(harness, {
         password: PASSWORDS.alpha,
-        persona: 'player',
+        persona: personaKey,
       }), {
         code: 'permission-denied',
         reasonCode: 'qa_persona_unprovisioned',
@@ -1409,21 +1575,39 @@ describe('QA 測試模式', () => {
     });
 
     test.each([
-      ['文件不存在', {}],
-      ['uid 欄位不符', {
+      ['文件不存在', 'player', {}, null],
+      ['uid 欄位不符', 'player', {
         [PLAYER_UID]: { uid: qaUid(99), displayName: 'QA測試-球員A', role: 'user' },
-      }],
-      ['displayName 被改掉前綴', {
+      }, null],
+      ['displayName 被改掉前綴', 'player', {
         [PLAYER_UID]: { uid: PLAYER_UID, displayName: '已改名的人', role: 'user' },
-      }],
-      ['role 與設定不一致', {
+      }, null],
+      ['role 與設定不一致', 'player', {
         [PLAYER_UID]: { uid: PLAYER_UID, displayName: 'QA測試-球員A', role: 'captain' },
+      }, null],
+      ['場主 role 與設定不一致', 'venueOwner', {
+        [VENUE_OWNER_UID]: {
+          uid: VENUE_OWNER_UID,
+          displayName: 'QA測試-場主',
+          role: 'user',
+        },
+      }, {
+        venueOwner: {
+          uid: VENUE_OWNER_UID,
+          displayName: 'QA測試-場主',
+          role: 'venue_owner',
+          teamKey: 'alpha',
+          enabled: true,
+        },
       }],
-    ])('users %s 時為 qa_persona_unprovisioned，不計節流也不簽 token', async (_label, users) => {
-      const harness = createHarness({ users });
+    ])('users %s 時為 qa_persona_unprovisioned，不計節流也不簽 token', async (_label, personaKey, users, personas) => {
+      const harness = createHarness({
+        users,
+        ...(personas ? { config: defaultConfig({ personas }) } : {}),
+      });
       await expectDenied(invoke(harness, {
         password: PASSWORDS.alpha,
-        persona: 'player',
+        persona: personaKey,
       }), {
         code: 'permission-denied',
         reasonCode: 'qa_persona_unprovisioned',

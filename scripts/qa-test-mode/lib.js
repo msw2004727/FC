@@ -4,7 +4,7 @@
 
 const QA_UID_RE = /^U0{28}[0-9]{4}$/;
 const QA_DISPLAY_NAME_PREFIX = "QA測試-";
-const QA_ALLOWED_ROLES = new Set(["user", "coach", "captain"]);
+const QA_ALLOWED_ROLES = new Set(["user", "coach", "captain", "venue_owner"]);
 const QA_CONFIG_COLLECTION = "qaTestMode";
 const QA_CONFIG_DOC_ID = "config";
 const QA_THROTTLE_COLLECTION = "qaTestAuthThrottle";
@@ -359,6 +359,14 @@ function defaultPersonas() {
       uid: qaUid("0002"),
       displayName: "QA測試-教練",
       role: "coach",
+      teamKey: "main",
+      enabled: true,
+    },
+    // 場主入測試俱樂部（作一般成員）：場主權限只看 role；入隊不影響且不會被自動降級；俱樂部限定活動可見／報名需 teamId
+    venueOwner: {
+      uid: qaUid("0003"),
+      displayName: "QA測試-場主",
+      role: "venue_owner",
       teamKey: "main",
       enabled: true,
     },

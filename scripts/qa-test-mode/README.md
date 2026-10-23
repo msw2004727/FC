@@ -6,14 +6,39 @@
 
 正式環境執行需站長授權，旗標為 `--production --execute --confirm-project <id>`。
 
+## 預設 persona
+
+預設 5 個 persona。uid 落在 QA 區段，下表的 AARR 槽號是 uid 末四碼。
+
+| key | 顯示名稱 | role | AARR 槽號 | 入測試俱樂部 |
+| --- | --- | --- | --- | --- |
+| captain | QA測試-隊長 | captain | 0001 | 是 |
+| coach | QA測試-教練 | coach | 0002 | 是 |
+| venueOwner | QA測試-場主 | venue_owner | 0003 | 是（一般成員） |
+| memberA | QA測試-會員甲 | user | 0011 | 是 |
+| memberB | QA測試-會員乙 | user | 0012 | 否 |
+
+`venueOwner`（場主）的 uid 槽是 `0003`，role 為 `venue_owner`（A 站 level 3，介於 captain 與 admin）。場主入測試俱樂部，身份是一般成員。理由：場主權限只看 role，入隊不影響，也不會被自動降級，而且可以同時測「俱樂部限定活動可見／報名」。若要驗證「非成員看不到限定活動」，請改用不入隊的 memberB，不要用場主當負例。場主若要管理該隊活動，仍需掛進 teams 的幹部欄位，或具備全域權限。
+
+## 白名單
+
+允許的 role 只有 `user`、`coach`、`captain`、`venue_owner`。`admin`、`super_admin` 及其以上一律禁止，包含插在它們之間或掛在它們之後的自訂角色。
+
+白名單寫在 `functions/qa-test-mode-core.js` 與 `scripts/qa-test-mode/lib.js`。測試會確認兩邊內容一致。改一處必須同步另一處。
+
+## 升級提醒
+
+既有正式設定文件不會自動出現 `venueOwner`。要等 setup-config 更新 persona（只補缺的 key，不覆蓋既有）、provision-accounts 建場主帳號，並重新部署 `issueQaTestToken`（新白名單才生效）。
+這三步都需站長授權，不在程式修改範圍內。
+
 ## 共同旗標
 
 - `--project <id>`：目標專案
 - `--execute`：真正寫入；省略則為 dry-run
 - `--production`：確認目前不是 emulator
-- `--confirm-project <id>`：必須與專案 ID 相同；正式環境寫入時必填
+- `--confirm-project <id>`：必須與專案 ID 相同。正式環境寫入時必填；`list-custom-roles.js` 在正式環境即使唯讀也必填
 - `--enable`：僅 setup-config 把總開關設為 true（預設 false）
-- `--out <path>`：僅 cleanup-report 寫出完整 JSON（UTF-8 無 BOM）
+- `--out <path>`：cleanup-report 與 list-custom-roles 寫出 JSON（UTF-8 無 BOM）
 - `--help`：說明
 
 emulator 必須同時設定 `FIRESTORE_EMULATOR_HOST` 與 `FIREBASE_AUTH_EMULATOR_HOST`。只設其中一個會拒絕執行。
@@ -21,10 +46,11 @@ emulator 必須同時設定 `FIRESTORE_EMULATOR_HOST` 與 `FIREBASE_AUTH_EMULATO
 ## 腳本
 
 - `setup-config.js`：建立或更新設定文件。已有 `teams.main.teamId` 與 persona 會保留。沒有 `--enable` 不主動打開總開關。`clientIpXffFromRight` 預設 1（整數 1～5），指定 `x-forwarded-for` 由右數第幾段視為客戶端 IP。部署後若發現 ipHash 不穩定或把所有人算成同一個，調整此值，無須重新部署。
-- `provision-accounts.js`：建立 QA 假帳號與「QA測試俱樂部」。不建立 Firebase Auth 使用者。請先跑 setup-config。`memberB` 不入隊。
+- `provision-accounts.js`：建立 QA 假帳號與「QA測試俱樂部」。不建立 Firebase Auth 使用者。請先跑 setup-config。`memberB` 不入隊。`venueOwner` 以一般成員入隊。
 - `cleanup-report.js`：只列出待清理資料，不刪除。刪除另需站長點頭。
 - `emergency-revoke.js`：把總開關設為 false，並對 persona 呼叫 `revokeRefreshTokens`。使用者不存在會略過。
 - `emulator-claims-check.js`：只在 emulator 檢查 `qa*` claims 經過 refresh 是否還在，以及撤銷後 refresh 是否失敗。不印 token。
+- `list-custom-roles.js`：唯讀列出集合 `customRoles`，level 由位置推導（可為小數）。預設只對 emulator。正式環境需 `--production --confirm-project <正式專案ID>`，且須站長放行。結果僅供裁定自訂角色是否納入白名單，不自動納入。傳入 `--execute` 只會印警告並忽略。輸出會標出 key 與文件 id 不一致、重複 key，需人工核對。
 
 ## 典型 emulator 指令
 
@@ -44,10 +70,18 @@ firebase emulators:exec --only auth,firestore --project demo-qa-test "node scrip
 firebase emulators:exec --only auth,firestore --project demo-qa-test "node scripts/qa-test-mode/emulator-claims-check.js --project demo-qa-test --execute"
 ```
 
+```
+firebase emulators:exec --only auth,firestore --project demo-qa-test "node scripts/qa-test-mode/list-custom-roles.js --project demo-qa-test"
+```
+
 正式環境（站長授權後）範例：
 
 ```
 node scripts/qa-test-mode/emergency-revoke.js --project <id> --production --execute --confirm-project <id>
+```
+
+```
+node scripts/qa-test-mode/list-custom-roles.js --project <正式專案ID> --production --confirm-project <正式專案ID>
 ```
 
 ## emulator 注入 Secret（Functions emulator）
