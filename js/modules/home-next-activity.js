@@ -11,7 +11,10 @@
   const CACHE_REVALIDATE_MS = 10 * 60 * 1000;
   const CACHE_DISPLAY_MAX_MS = 60 * 60 * 1000;
   const CACHE_STORAGE_PREFIX = 'toosterx.homeNextActivity.v1.';
-  const REGISTRATION_QUERY_LIMIT = 120;
+  // 只查進行中的報名，否則大量 cancelled 會佔滿 limit、截掉較新的有效報名（T-034）。
+  // 與 firebase-service.js 的 _isActiveRegistrationStatus、Rules 的 status in 同源（鎖定檔不改，tests 驗同源）。
+  const ACTIVE_REGISTRATION_STATUSES = ['confirmed', 'waitlisted', 'registered'];
+  const REGISTRATION_QUERY_LIMIT = 500;
   const EVENT_QUERY_LIMIT = 80;
   const TERMINAL_EVENT_STATUSES = new Set(['ended', 'cancelled', 'canceled', 'archived', 'removed']);
   const TERMINAL_REGISTRATION_STATUSES = new Set(['cancelled', 'canceled', 'removed', 'deleted', 'rejected', 'withdrawn']);
@@ -450,12 +453,23 @@
     try {
       const snaps = await Promise.all(queryUids.map(queryUid => db.collectionGroup('registrations')
         .where('userId', '==', queryUid)
+        .where('status', 'in', ACTIVE_REGISTRATION_STATUSES)
         .limit(REGISTRATION_QUERY_LIMIT)
         .get()
         .catch(err => {
           console.warn('[HomeNextActivity] registration query skipped:', queryUid, err);
           return null;
         })));
+      // 筆數小於上限＝完整的進行中集合，才可校正舊快取；打到上限不推論。
+      const completeUids = new Set();
+      snaps.forEach((snap, index) => {
+        if (!snap?.docs) return;
+        if (snap.docs.length >= REGISTRATION_QUERY_LIMIT) {
+          console.warn('[HomeNextActivity] registration query hit the limit; later registrations may be missing:', `${queryUids[index].slice(0, 6)}***`, REGISTRATION_QUERY_LIMIT);
+        } else {
+          completeUids.add(queryUids[index]);
+        }
+      });
       const rows = snaps.flatMap((snap, index) => {
         const fallbackUid = queryUids[index];
         return snap?.docs?.map(doc => {
@@ -469,11 +483,19 @@
         }
       });
       const merged = new Map();
-      [...cached, ...rows].forEach(record => {
-        const key = normalizeString(record?._docId || record?.id || `${record?.eventId || ''}:${record?.userId || record?.uid || ''}:${record?.participantType || ''}`);
+      const mergeKey = record => normalizeString(record?._docId || record?.id || `${record?.eventId || ''}:${record?.userId || record?.uid || ''}:${record?.participantType || ''}`);
+      const serverKeys = new Set(rows.map(mergeKey));
+      // 舊快取校正：完整集合的 uid，快取中進行中卻不在伺服器結果的紀錄視為已取消，丟掉。
+      const liveCached = cached.filter(record => !(
+        completeUids.has(normalizeString(record?.userId))
+        && ACTIVE_REGISTRATION_STATUSES.includes(normalizeString(record?.status))
+        && !serverKeys.has(mergeKey(record))
+      ));
+      [...liveCached, ...rows].forEach(record => {
+        const key = mergeKey(record);
         if (key) merged.set(key, { ...(merged.get(key) || {}), ...record });
       });
-      return merged.size ? Array.from(merged.values()) : cached;
+      return Array.from(merged.values());
     } catch (err) {
       console.warn('[HomeNextActivity] registration query skipped:', err);
       return cached;

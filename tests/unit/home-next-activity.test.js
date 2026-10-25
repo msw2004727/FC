@@ -47,7 +47,8 @@ function runModule(options = {}) {
     window: dom.window,
     globalThis: dom.window,
     document: dom.window.document,
-    console,
+    console: options.console || console,
+    ...(options.db ? { db: options.db } : {}),
     App: app,
     ApiService: {
       getCurrentUser: jest.fn(() => currentUser),
@@ -64,9 +65,134 @@ function runModule(options = {}) {
     },
     escapeHTML: value => String(value ?? ''),
   });
-  vm.runInContext(source, context, { filename: 'js/modules/home-next-activity.js' });
+  vm.runInContext(options.source || source, context, { filename: 'js/modules/home-next-activity.js' });
   return { app, dom, context };
 }
+
+// ── T-034：報名查詢（collectionGroup）相關輔助 ─────────────────────────
+
+// Firestore collectionGroup 預設依「完整文件路徑」逐段排序；這裡照做，limit 才會在排序之後才截。
+function comparePath(a, b) {
+  const pa = a.split('/');
+  const pb = b.split('/');
+  for (let i = 0; i < Math.min(pa.length, pb.length); i += 1) {
+    if (pa[i] !== pb[i]) return pa[i] < pb[i] ? -1 : 1;
+  }
+  return pa.length - pb.length;
+}
+
+// 假的 db.collectionGroup('registrations')：真的實作 where('==')、where('in')、依文件路徑排序後 limit。
+// 不支援的運算子直接丟錯；每個查詢的形狀與回傳筆數記在 db.queries，供測試斷言。
+// docs：[{ path, data }]；failUids：userId == 這些值的查詢會 reject（模擬單一 uid 查詢失敗）。
+function createFakeDb(docs, { failUids = [] } = {}) {
+  const queries = [];
+  const registrationSnap = list => ({
+    docs: list.map(item => ({
+      id: item.path.split('/').pop(),
+      data: () => ({ ...item.data }),
+    })),
+    size: list.length,
+  });
+  const emptySnap = { docs: [], size: 0 };
+  return {
+    queries,
+    collectionGroup(name) {
+      const query = { collection: name, filters: [], limit: null, returned: null };
+      queries.push(query);
+      const builder = {
+        where(field, op, value) {
+          query.filters.push({ field, op, value });
+          return builder;
+        },
+        limit(n) {
+          query.limit = n;
+          return builder;
+        },
+        async get() {
+          const userFilter = query.filters.find(f => f.field === 'userId' && f.op === '==');
+          if (userFilter && failUids.includes(userFilter.value)) throw new Error('fake registration query failure');
+          let rows = docs.slice().sort((a, b) => comparePath(a.path, b.path));
+          query.filters.forEach(({ field, op, value }) => {
+            if (op === '==') rows = rows.filter(row => row.data[field] === value);
+            else if (op === 'in') {
+              if (!Array.isArray(value)) throw new Error('fake db: "in" needs an array');
+              rows = rows.filter(row => value.includes(row.data[field]));
+            } else throw new Error(`fake db: unsupported operator ${op}`);
+          });
+          if (query.limit != null) rows = rows.slice(0, query.limit);
+          query.returned = rows.length;
+          return registrationSnap(rows);
+        },
+      };
+      return builder;
+    },
+    // 首頁卡片還會查「我主辦／受委託的活動」；測試資料沒有，一律回空。
+    collection() {
+      const builder = {
+        where: () => builder,
+        limit: () => builder,
+        get: async () => emptySnap,
+        doc: () => ({ get: async () => ({ exists: false }) }),
+      };
+      return builder;
+    },
+  };
+}
+
+function quietConsole() {
+  return { log: jest.fn(), info: jest.fn(), error: jest.fn(), warn: jest.fn() };
+}
+
+const pad3 = n => String(n).padStart(3, '0');
+
+// 站長帳號形狀：309 筆（217 筆 cancelled），依文件路徑排序後前 120 筆只有 6 筆有效（外加 1 筆 removed），
+// 明天與後天的有效報名排在路徑第 158、159 筆（0 起算 157、158）。這是依 2026-10-25 診斷數字人工排出的壓力資料，
+// 不是逐筆重放。另外放 3 筆別人的報名，證明 userId 篩選有真的在跑。
+function buildStressRegistrations(uid) {
+  const early = new Set([10, 30, 50, 70, 90, 110]);
+  const statuses = [];
+  for (let i = 0; i < 120; i += 1) statuses.push(early.has(i) ? 'confirmed' : (i === 119 ? 'removed' : 'cancelled'));
+  for (let i = 120; i < 157; i += 1) statuses.push('cancelled');
+  statuses.push('confirmed', 'waitlisted'); // 157、158：明天、後天的報名
+  const tail = Array(150).fill('cancelled');
+  for (let j = 0; j < 83; j += 1) {
+    tail[Math.round(j * 150 / 83)] = (j === 0 || j === 41) ? 'waitlisted' : (j === 82 ? 'removed' : 'confirmed');
+  }
+  statuses.push(...tail);
+  const docs = statuses.map((status, i) => {
+    let eventId = `evt-other-${pad3(i)}`;
+    if (i === 157) eventId = 'evt-tomorrow';
+    else if (i === 158) eventId = 'evt-day-after';
+    else if (early.has(i)) eventId = 'evt-past';
+    return {
+      path: `events/evt-doc-${pad3(i)}/registrations/reg-${pad3(i)}`,
+      data: { userId: uid, eventId, status, participantType: 'self' },
+    };
+  });
+  for (let k = 0; k < 3; k += 1) {
+    docs.push({
+      path: `events/evt-doc-${pad3(157)}/registrations/reg-someone-else-${k}`,
+      data: { userId: 'someone-else', eventId: 'evt-tomorrow', status: 'confirmed', participantType: 'self' },
+    });
+  }
+  return docs;
+}
+
+const STRESS_EVENTS = [
+  { id: 'evt-past', title: 'Past Match', date: '2000/05/21 20:00~22:00', location: 'Old Center', status: 'open' },
+  { id: 'evt-tomorrow', title: 'Tomorrow Match', date: '2099/05/20 18:00~20:00', location: 'Tomorrow Center', status: 'open' },
+  { id: 'evt-day-after', title: 'Day After Match', date: '2099/05/21 18:00~20:00', location: 'Day After Center', status: 'open' },
+];
+
+function bulkActiveRegistrations(uid, count) {
+  return Array.from({ length: count }, (_, i) => ({
+    path: `events/evt-bulk-${pad3(i)}/registrations/reg-bulk-${pad3(i)}`,
+    data: { userId: uid, eventId: `evt-bulk-${pad3(i)}`, status: 'confirmed', participantType: 'self' },
+  }));
+}
+
+const STATUS_IN = ['confirmed', 'waitlisted', 'registered'];
+const emptyCardText = '你目前還沒有報名活動';
 
 describe('home next activity', () => {
   test('renders the nearest future registered activity from cache', async () => {
@@ -397,5 +523,261 @@ describe('home next activity', () => {
 
     expect(app._homeNextActivityCache).toBeNull();
     expect(dom.window.localStorage.getItem('toosterx.homeNextActivity.v1.u1')).toBeNull();
+  });
+});
+
+describe('home next activity registration query (T-034)', () => {
+  async function renderWith(options) {
+    const result = runModule(options);
+    await result.app.renderHomeNextActivity({ force: true });
+    return { ...result, host: result.dom.window.document.getElementById('home-next-activity') };
+  }
+
+  const registrationQueries = db => db.queries.filter(query => query.collection === 'registrations');
+  const hasStatusIn = query => query.filters.some(f => f.field === 'status' && f.op === 'in');
+
+  test('309 registrations (217 cancelled): the status-in query reaches the target the old query truncated', async () => {
+    const docs = buildStressRegistrations('u1');
+    const mine = docs.filter(d => d.data.userId === 'u1');
+    expect(mine).toHaveLength(309);
+    expect(mine.filter(d => d.data.status === 'cancelled')).toHaveLength(217);
+    expect(mine.filter(d => d.data.status === 'removed')).toHaveLength(2);
+    expect(mine.filter(d => STATUS_IN.includes(d.data.status))).toHaveLength(90);
+    const db = createFakeDb(docs);
+
+    const { host } = await renderWith({ db, events: STRESS_EVENTS, console: quietConsole() });
+
+    expect(host.textContent).toContain('Tomorrow Match');
+    expect(host.textContent).not.toContain(emptyCardText);
+    const queries = registrationQueries(db);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].filters).toEqual([
+      { field: 'userId', op: '==', value: 'u1' },
+      { field: 'status', op: 'in', value: STATUS_IN },
+    ]);
+    expect(queries[0].limit).toBe(500);
+    expect(queries[0].returned).toBe(90);
+  });
+
+  test('the fake db really filters and sorts by document path before limit (guards against a false green)', async () => {
+    const docs = buildStressRegistrations('u1');
+    const db = createFakeDb(docs);
+
+    const oldShape = await db.collectionGroup('registrations').where('userId', '==', 'u1').limit(120).get();
+    const oldIds = oldShape.docs.map(d => d.id);
+    expect(oldIds).toHaveLength(120);
+    expect(oldIds).not.toContain('reg-157');
+    expect(oldIds).not.toContain('reg-158');
+    expect(oldShape.docs.filter(d => STATUS_IN.includes(d.data().status))).toHaveLength(6);
+    expect(oldShape.docs.filter(d => d.data().status === 'cancelled')).toHaveLength(113);
+
+    const newShape = await db.collectionGroup('registrations')
+      .where('userId', '==', 'u1')
+      .where('status', 'in', STATUS_IN)
+      .limit(500)
+      .get();
+    expect(newShape.docs).toHaveLength(90);
+    expect(newShape.docs.map(d => d.id)).toEqual(expect.arrayContaining(['reg-157', 'reg-158']));
+    expect(newShape.docs.every(d => STATUS_IN.includes(d.data().status))).toBe(true);
+    expect(newShape.docs.every(d => d.data().userId === 'u1')).toBe(true);
+
+    // 排序來自文件路徑，不是輸入順序：把輸入整個反過來，前 120 筆一樣。
+    const reversed = await createFakeDb(docs.slice().reverse())
+      .collectionGroup('registrations').where('userId', '==', 'u1').limit(120).get();
+    expect(reversed.docs.map(d => d.id)).toEqual(oldIds);
+  });
+
+  test('the same data truncates the card again when the module is mutated back to the old query', async () => {
+    const noStatus = source.replace(/\n\s*\.where\('status', 'in', ACTIVE_REGISTRATION_STATUSES\)/, '');
+    expect(noStatus).not.toBe(source);
+    const oldQuery = noStatus.replace('REGISTRATION_QUERY_LIMIT = 500', 'REGISTRATION_QUERY_LIMIT = 120');
+    expect(oldQuery).not.toBe(noStatus);
+
+    const oldDb = createFakeDb(buildStressRegistrations('u1'));
+    const old = await renderWith({ db: oldDb, events: STRESS_EVENTS, console: quietConsole(), source: oldQuery });
+    expect(old.host.textContent).toContain(emptyCardText);
+    expect(old.host.textContent).not.toContain('Tomorrow Match');
+    const [oldQ] = registrationQueries(oldDb);
+    expect(hasStatusIn(oldQ)).toBe(false);
+    expect(oldQ.returned).toBe(120);
+
+    // 只拿掉 status 條件（上限仍是 500）：查詢回傳全部 309 筆含取消紀錄，證明 status 篩選真的在縮減結果。
+    const noStatusDb = createFakeDb(buildStressRegistrations('u1'));
+    await renderWith({ db: noStatusDb, events: STRESS_EVENTS, console: quietConsole(), source: noStatus });
+    const [noStatusQ] = registrationQueries(noStatusDb);
+    expect(hasStatusIn(noStatusQ)).toBe(false);
+    expect(noStatusQ.returned).toBe(309);
+  });
+
+  test('every uid of the identity gets its own query with the status filter', async () => {
+    const docs = [
+      ...buildStressRegistrations('u1'),
+      {
+        path: 'events/evt-doc-line/registrations/reg-line-1',
+        data: { userId: 'line-u1', eventId: 'evt-day-after', status: 'confirmed', participantType: 'self' },
+      },
+    ];
+    const db = createFakeDb(docs);
+
+    await renderWith({
+      db,
+      events: STRESS_EVENTS,
+      currentUser: { uid: 'u1', lineUserId: 'line-u1', displayName: 'User One' },
+      console: quietConsole(),
+    });
+
+    const queries = registrationQueries(db);
+    expect(queries.map(q => q.filters.find(f => f.field === 'userId').value).sort()).toEqual(['line-u1', 'u1']);
+    queries.forEach(query => {
+      expect(query.filters).toContainEqual({ field: 'status', op: 'in', value: STATUS_IN });
+      expect(query.limit).toBe(500);
+    });
+  });
+
+  test.each([
+    [499, false],
+    [500, true],
+    [501, true],
+  ])('limit warning with %i active registrations (warned: %s)', async (count, warned) => {
+    const uid = 'Uabcdef1234567890';
+    const db = createFakeDb(bulkActiveRegistrations(uid, count));
+    const logger = quietConsole();
+
+    await renderWith({ db, currentUser: { uid, displayName: 'Heavy User' }, console: logger });
+
+    const limitWarns = logger.warn.mock.calls
+      .filter(args => String(args[0]).startsWith('[HomeNextActivity] registration query hit the limit'));
+    if (!warned) {
+      expect(limitWarns).toHaveLength(0);
+      return;
+    }
+    expect(limitWarns).toHaveLength(1);
+    const text = limitWarns[0].map(String).join(' ');
+    expect(text).toContain('Uabcde');
+    expect(text).not.toContain(uid);
+    expect(limitWarns[0]).toContain(500);
+  });
+
+  describe('stale cache calibration', () => {
+    const events = [
+      { id: 'evt-old', title: 'Old Match', date: '2099/05/19 18:00~20:00', location: 'Old Center', status: 'open' },
+      { id: 'evt-new', title: 'New Match', date: '2099/05/22 18:00~20:00', location: 'New Center', status: 'open' },
+    ];
+    const staleCached = { id: 'r-old', eventId: 'evt-old', userId: 'u1', status: 'confirmed' };
+    const serverNew = {
+      path: 'events/evt-doc-new/registrations/r-new',
+      data: { userId: 'u1', eventId: 'evt-new', status: 'confirmed', participantType: 'self' },
+    };
+
+    test('drops a cached active registration that a below-limit query no longer returns', async () => {
+      const { host } = await renderWith({
+        db: createFakeDb([serverNew]),
+        events,
+        registrations: [staleCached],
+        console: quietConsole(),
+      });
+      expect(host.textContent).toContain('New Match');
+      expect(host.textContent).not.toContain('Old Match');
+
+      // 對照：拿掉校正（視同打到上限）舊的那筆就會留著並搶走卡片，證明上面的斷言不是巧合。
+      const noCalibration = source.replace('completeUids.has(normalizeString(record?.userId))', 'false');
+      expect(noCalibration).not.toBe(source);
+      const control = await renderWith({
+        db: createFakeDb([serverNew]),
+        events,
+        registrations: [staleCached],
+        console: quietConsole(),
+        source: noCalibration,
+      });
+      expect(control.host.textContent).toContain('Old Match');
+    });
+
+    test('drops it even when the server returns nothing at all', async () => {
+      const { host } = await renderWith({
+        db: createFakeDb([]),
+        events,
+        registrations: [staleCached],
+        console: quietConsole(),
+      });
+      expect(host.textContent).toContain(emptyCardText);
+      expect(host.textContent).not.toContain('Old Match');
+    });
+
+    test('keeps a cached active registration that the server still returns (merged, not replaced)', async () => {
+      const { host } = await renderWith({
+        db: createFakeDb([
+          serverNew,
+          { path: 'events/evt-doc-old/registrations/r-old', data: { userId: 'u1', eventId: 'evt-old', status: 'confirmed', participantType: 'self' } },
+        ]),
+        events,
+        // managedRole 只存在於快取、伺服器文件沒有；它還在卡片上＝快取紀錄與伺服器列是合併的，沒有被丟掉重來。
+        registrations: [{ ...staleCached, managedRole: 'delegate' }],
+        console: quietConsole(),
+      });
+      expect(host.textContent).toContain('Old Match');
+      expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('委託');
+    });
+
+    test('keeps the cached registration when the query hits the limit (result incomplete, no inference)', async () => {
+      const logger = quietConsole();
+      const { host } = await renderWith({
+        db: createFakeDb(bulkActiveRegistrations('u1', 500)),
+        events,
+        registrations: [staleCached],
+        console: logger,
+      });
+      expect(host.textContent).toContain('Old Match');
+      expect(logger.warn.mock.calls.some(args => String(args[0]).includes('hit the limit'))).toBe(true);
+    });
+
+    test('calibrates per uid: a failed query for one uid keeps that uid cache, the other uid is calibrated', async () => {
+      const lineEvents = [
+        ...events,
+        { id: 'evt-line', title: 'Line Match', date: '2099/05/20 18:00~20:00', location: 'Line Center', status: 'open' },
+      ];
+      const { host } = await renderWith({
+        db: createFakeDb([serverNew], { failUids: ['line-u1'] }),
+        events: lineEvents,
+        registrations: [
+          staleCached,
+          { id: 'r-line', eventId: 'evt-line', userId: 'line-u1', status: 'confirmed' },
+        ],
+        currentUser: { uid: 'u1', lineUserId: 'line-u1', displayName: 'User One' },
+        console: quietConsole(),
+      });
+      // u1 查詢完整 → 舊的 Old Match 被丟；line-u1 查詢失敗 → 無法推論，Line Match 留著且比 New Match 近。
+      expect(host.textContent).toContain('Line Match');
+      expect(host.textContent).not.toContain('Old Match');
+    });
+  });
+
+  test('ACTIVE_REGISTRATION_STATUSES stays in sync with FirebaseService._isActiveRegistrationStatus', async () => {
+    // 常數宣告在 home-next-activity.js 的 IIFE 裡不對外匯出，所以從實際送出的查詢取值；
+    // FirebaseService 用 canonical-cache.test.js 同樣的方式載入（js/firebase-service.js 是 R-EXEC-016 鎖定檔，只讀）。
+    const sandbox = {
+      console,
+      setTimeout,
+      clearTimeout,
+      Promise,
+      Date,
+      Math,
+      localStorage: { getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn(), key: jest.fn(), get length() { return 0; } },
+    };
+    vm.createContext(sandbox);
+    const firebaseSource = fs.readFileSync(path.join(__dirname, '../../js/firebase-service.js'), 'utf8');
+    vm.runInContext(`${firebaseSource}\nglobalThis.FirebaseService = FirebaseService;`, sandbox, { filename: 'js/firebase-service.js' });
+    const isActive = status => sandbox.FirebaseService._isActiveRegistrationStatus(status);
+
+    const db = createFakeDb([]);
+    await renderWith({ db, console: quietConsole() });
+    const statusFilter = registrationQueries(db)[0].filters.find(f => f.field === 'status').value;
+
+    expect(statusFilter.length).toBeGreaterThan(0);
+    statusFilter.forEach(status => expect(isActive(status)).toBe(true));
+    const probes = [
+      'confirmed', 'waitlisted', 'registered', 'cancelled', 'canceled', 'removed', 'deleted', 'rejected',
+      'withdrawn', 'pending', 'invited', 'checked_in', 'attended', 'approved', 'no_show', '', 'unknown',
+    ];
+    probes.forEach(status => expect([status, isActive(status)]).toEqual([status, statusFilter.includes(status)]));
   });
 });
