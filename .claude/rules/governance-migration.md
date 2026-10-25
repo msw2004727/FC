@@ -34,7 +34,7 @@ paths:
 | 委託人僅簽到／掃碼 vs action-specific edit／cancel／close／reopen scope | R-IAM-004、R-IAM-010～013、R-CAP-002 | STALE_CONTRACT_CORRECTED |
 | staff rolePermissions 可完整撤權 vs Rules `isCoachPlus()`／Functions 跨活動 fallback | R-IAM-004、R-IAM-008 | RUNTIME_DRIFT_DISCLOSED |
 | 三種活動紀錄子集合契約被縮成 registrations | R-REG-014 | SEMANTIC_RESTORED |
-| collectionGroup 必須排除 legacy root vs home next registrations 漏 filter | R-REG-014 | RUNTIME_DRIFT_DISCLOSED |
+| collectionGroup 必須排除 legacy root vs home next registrations 漏 filter（T-034 已修，2026-10-26） | R-REG-014 | RUNTIME_DRIFT_RESOLVED |
 | 統計只准 UID vs achievement batch 歷史姓名補查 | R-STAT-003 | LEGACY_EXCEPTION_DISCLOSED |
 | history 全路徑 non-null vs preserve-state null fallback | R-NAV-011 | RUNTIME_DRIFT_DISCLOSED |
 | R-SHIP authority 區間與逐條標記不一致 | R-MODE-004、R-SHIP-010～019 | CONFLICT_RESOLVED |

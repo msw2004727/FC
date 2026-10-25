@@ -679,7 +679,8 @@ describe('home next activity registration query (T-034)', () => {
     }
     expect(limitWarns).toHaveLength(1);
     const text = limitWarns[0].map(String).join(' ');
-    expect(text).toContain('Uabcde');
+    expect(text).toContain('Uabcde***');
+    expect(text).not.toContain('Uabcdef');
     expect(text).not.toContain(uid);
     expect(limitWarns[0]).toContain(500);
   });
