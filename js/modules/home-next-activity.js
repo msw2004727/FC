@@ -11,8 +11,7 @@
   const CACHE_REVALIDATE_MS = 10 * 60 * 1000;
   const CACHE_DISPLAY_MAX_MS = 60 * 60 * 1000;
   const CACHE_STORAGE_PREFIX = 'toosterx.homeNextActivity.v1.';
-  // 只查進行中的報名，否則大量 cancelled 會佔滿 limit、截掉較新的有效報名（T-034）。
-  // 與 firebase-service.js 的 _isActiveRegistrationStatus、Rules 的 status in 同源（鎖定檔不改，tests 驗同源）。
+  // 只查進行中報名，免得 cancelled 佔滿 limit 截掉新報名（T-034）；與 _isActiveRegistrationStatus 對齊（tests 驗證）、對應 Rules status in。
   const ACTIVE_REGISTRATION_STATUSES = ['confirmed', 'waitlisted', 'registered'];
   const REGISTRATION_QUERY_LIMIT = 500;
   const EVENT_QUERY_LIMIT = 80;
@@ -460,19 +459,20 @@
           console.warn('[HomeNextActivity] registration query skipped:', queryUid, err);
           return null;
         })));
-      // 筆數小於上限＝完整的進行中集合，才可校正舊快取；打到上限不推論。
+      // 伺服器結果（非本機快取）且過濾前筆數小於上限＝完整進行中集合，才校正舊快取。
       const completeUids = new Set();
       snaps.forEach((snap, index) => {
         if (!snap?.docs) return;
         if (snap.docs.length >= REGISTRATION_QUERY_LIMIT) {
           console.warn('[HomeNextActivity] registration query hit the limit; later registrations may be missing:', `${queryUids[index].slice(0, 6)}***`, REGISTRATION_QUERY_LIMIT);
-        } else {
+        } else if (snap.metadata?.fromCache === false) {
           completeUids.add(queryUids[index]);
         }
       });
       const rows = snaps.flatMap((snap, index) => {
         const fallbackUid = queryUids[index];
-        return snap?.docs?.map(doc => {
+        // R-REG-014：只收子集合文件，排除舊根文件。
+        return snap?.docs?.filter(doc => doc.ref.parent.parent !== null).map(doc => {
           if (firebase?._mapSubcollectionDoc) return firebase._mapSubcollectionDoc(doc, 'registrations');
           return { ...doc.data(), _docId: doc.id, userId: doc.data()?.userId || doc.data()?.uid || fallbackUid };
         }) || [];

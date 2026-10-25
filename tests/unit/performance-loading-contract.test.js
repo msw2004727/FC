@@ -43,8 +43,8 @@ describe('startup performance guardrails', () => {
     // Reviewed safe-directory, atomic event writes, reliable-message, delegated-profile,
     // and create-modal navigation guards, plus the PageLoader robots-meta strip,
     // and the home next-activity registration query (status-in filter, limit warning,
-    // stale-cache calibration; T-034); gzip remains below the existing 390 KB ceiling.
-    expect(rawBytes).toBeLessThanOrEqual(1_547_800);
+    // stale-cache calibration, legacy-root filter; T-034); gzip remains below the existing 390 KB ceiling.
+    expect(rawBytes).toBeLessThanOrEqual(1_547_900);
     expect(gzipBytes).toBeLessThanOrEqual(390_000);
   });
 
