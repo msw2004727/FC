@@ -210,6 +210,14 @@ describe('ad edit modal wiring', () => {
     expect(sources.index).not.toContain('cfg.marginTop');
   });
 
+  test('home banner upload keeps 1200x545 output but lowers WebP quality to 0.72 (T-046)', () => {
+    const block = sources.banner.match(/bindImageUpload\('banner-image', 'banner-preview', \{[\s\S]*?\}\);/);
+    expect(block).not.toBeNull();
+    expect(block[0]).toContain('outputWidth: 1200');
+    expect(block[0]).toContain('outputHeight: 545');
+    expect(block[0]).toContain('quality: 0.72');
+  });
+
   test('sponsor management no longer renders inline edit fields', () => {
     expect(sources.popupSponsor).not.toContain('sp-row-link');
     expect(sources.popupSponsor).not.toContain('saveSponsorRow');

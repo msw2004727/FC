@@ -103,6 +103,8 @@ Object.assign(App, {
       aspectRatio: 1200 / 545,
       outputWidth: 1200,
       outputHeight: 545,
+      // T-046（2026-10-26）：預設 0.9 輸出約 140～190 KB，首頁最晚出現；降到 0.72 約 70～95 KB，尺寸不變。
+      quality: 0.72,
       title: 'Banner 圖片',
       targetLabel: '首頁 Banner',
       recommendedSize: '1200 x 545',
