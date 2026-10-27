@@ -15,6 +15,7 @@ const {
   createSportsApiProScoreboardExports,
   __test: sportsApiProTest,
 } = require('../../functions/scoreboard-sportsapipro');
+const { createNotificationGuards } = require('../../functions/notification-guards');
 
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
@@ -4821,7 +4822,18 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     readSourceBetween('// T-022: deliverToInbox actionType', 'async function assertCallerCanReviewGroupActionDocs'),
   ];
 
+  // 測試同步更新（通知發送授權強化第 1 批）：deliverToInbox 新增 notificationGuards 依賴；
+  // 這裡注入真實 guards 但計數集合為空操作（永遠讀回 0），既有斷言與 fake db 皆不需改。
+  function createNullCounterDb() {
+    const ref = { set: async () => {}, create: async () => {} };
+    return {
+      collection: () => ({ doc: () => ref }),
+      getAll: async (...refs) => refs.map(() => ({ exists: false, data: () => undefined })),
+    };
+  }
+
   function loadDeliverToInbox(db, consoleImpl) {
+    const guardFieldValue = { increment: (n) => n, serverTimestamp: () => '__ts__' };
     const sandbox = {
       db,
       HttpsError: TestHttpsError,
@@ -4829,6 +4841,12 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
       FieldValue: { serverTimestamp: () => '__ts__' },
       exports: {},
       console: consoleImpl,
+      notificationGuards: createNotificationGuards({
+        db: createNullCounterDb(),
+        FieldValue: guardFieldValue,
+        HttpsError: TestHttpsError,
+        logger: consoleImpl,
+      }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-to-inbox-t022.vm.js' });
     return sandbox.exports.deliverToInbox;

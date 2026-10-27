@@ -19,7 +19,6 @@ const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000; // dedupeKey 去重視窗
 
 const COUNTER_COLLECTION = "notificationGuardCounters";
 const DEDUPE_COLLECTION = "linePushDedupe";
-const STAFF_ROLES = new Set(["coach", "captain", "venue_owner", "admin", "super_admin"]);
 const STAFF_CALLER_SHARDS = 8; // 批次通知時分散同一呼叫者的寫入
 const GLOBAL_SHARDS = 10;
 const COUNTER_TTL_MS = 3 * 24 * 60 * 60 * 1000;
@@ -29,7 +28,8 @@ const CALLER_LIMITS = Object.freeze({
 });
 
 const hashId = (value) => crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
-const isStaffRole = (role) => STAFF_ROLES.has(role);
+// 教練以上＝任何非 user 的角色（含後台自訂角色；角色欄位客戶端不可自行修改）
+const isStaffRole = (role) => typeof role === "string" && role.trim() !== "" && role.trim() !== "user";
 
 function createNotificationGuards({
   db,
