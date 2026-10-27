@@ -27,11 +27,11 @@ const gateLogs = (logger, gate) => logger.warns.filter(([msg, data]) => msg === 
 describe('閾值與角色層級', () => {
   test('閾值對照（暫定值；調整時需同步 docs/tunables.md）', () => {
     expect(L).toMatchObject({
-      enqueue: { userPerMinute: 150, staffPerMinute: 2000, userPerDay: 300 },
+      enqueue: { userPerMinute: 150, staffPerMinute: 2000, userPerDay: 100 },
       inbox: { userPerMinute: 300, staffPerMinute: 2000, userPerDay: 600 },
-      targetPerDay: 30,
+      targetPerDay: 12,
       callerTargetPerDay: 10,
-      globalPerDay: { user: 1000, staff: 2000 },
+      globalPerDay: { user: 400, staff: 2000 },
       dedupeWindowMs: 600000,
     });
     [L, L.enqueue, L.inbox, L.globalPerDay].forEach((group) => expect(Object.isFrozen(group)).toBe(true));
@@ -201,10 +201,8 @@ describe('每日上限（enforceDailyLimits）', () => {
 
   test('每目標每日：多位一般層呼叫者合計達上限後，下一位被拒絕並記錄', async () => {
     const { guards, logger } = createGuardsEnv();
-    const callers = L.targetPerDay / L.callerTargetPerDay;
-    for (let i = 0; i < callers; i += 1) {
-      await repeat(L.callerTargetPerDay, () => daily(guards, { callerUid: `${CALLER}${i}` }));
-    }
+    // 每位呼叫者最多 callerTargetPerDay 筆，逐位累計到剛好 targetPerDay（不超過任何單一呼叫者的上限）
+    await repeat(L.targetPerDay, (i) => daily(guards, { callerUid: `${CALLER}${Math.floor(i / L.callerTargetPerDay)}` }));
     await expect(daily(guards, { callerUid: `${CALLER}extra` })).rejects.toMatchObject(RATE_LIMITED);
     expect(gateLogs(logger, 'target_day')).toHaveLength(1);
   });
@@ -225,8 +223,10 @@ describe('每日上限（enforceDailyLimits）', () => {
     const logs = gateLogs(logger, 'caller_day');
     expect(logs).toHaveLength(1);
     expect(logs[0][1]).toMatchObject({ gate: 'caller_day', kind: 'enqueue', limit: L.enqueue.userPerDay });
+    const before = sumCounters(db, 'caller_day_enqueue');
+    expect(before).toBe(L.enqueue.userPerDay + 1);
     await repeat(L.enqueue.userPerDay + 20, (i) => daily(guards, { callerRole: 'admin', targetUid: `${TARGET}s${i}` }));
-    expect(sumCounters(db, 'caller_day_enqueue')).toBeGreaterThan(0);
+    expect(sumCounters(db, 'caller_day_enqueue')).toBe(before); // 教練以上不計入每日上限
   }, 60000);
 
   test('台北換日（23:59 → 00:01）後各項每日計數重置', async () => {

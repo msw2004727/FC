@@ -9,7 +9,7 @@ const NOTIFICATION_GUARD_LIMITS = Object.freeze({
   enqueue: Object.freeze({
     userPerMinute: 150, // 一般層：每呼叫者每分鐘
     staffPerMinute: 2000, // 教練以上：批次通知（活動異動／取消、全體廣播）
-    userPerDay: 300, // 一般層：每呼叫者每日（只計實際入列）
+    userPerDay: 100, // 一般層：每呼叫者每日（只計實際入列）；每日類閾值依用量盤點設定，暫定
   }),
   // 站內信投遞（deliverToInbox）
   inbox: Object.freeze({
@@ -17,10 +17,10 @@ const NOTIFICATION_GUARD_LIMITS = Object.freeze({
     staffPerMinute: 2000,
     userPerDay: 600,
   }),
-  targetPerDay: 30, // 每目標每日（只計一般層呼叫者）
+  targetPerDay: 12, // 每目標每日（只計一般層呼叫者）
   callerTargetPerDay: 10, // 每（呼叫者, 目標）每日（一般層）
   // 全域每日實際推播量，兩池互不影響；教練以上與系統共用 staff 池
-  globalPerDay: Object.freeze({ user: 1000, staff: 2000 }),
+  globalPerDay: Object.freeze({ user: 400, staff: 2000 }),
   dedupeWindowMs: 10 * 60 * 1000, // dedupeKey 去重視窗（防重送／連點）
   // 實作參數（非業務閾值）
   staffCallerShards: 8, // 教練以上呼叫者計數分片數（批次通知時分散寫入）
