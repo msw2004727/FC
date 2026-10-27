@@ -391,6 +391,56 @@ describe("deleteTeam Phase 1：成員集合與分批清除", () => {
   });
 });
 
+describe("deleteTeam Phase 1：已清人數逐筆回寫 progress（MiMo 核對 P3-3）", () => {
+  test("整批階段：第二批 commit 拋非衝突錯誤 → 失敗 log 的 cleanedMembers 是已成功清掉的 450，不是 0", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ docs: manyMembers(1000), logger });
+    fake.state.failCommit = ({ commitNumber }) => (commitNumber === 2 ? new FakeFirestoreError(14, "UNAVAILABLE") : null);
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.writesTo("users/U-bulk-")).toHaveLength(450);
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] failed",
+      expect.objectContaining({ phase: "clean-members", cleanedMembers: 450, roleChanges: 0 }),
+    );
+  });
+
+  test("逐位階段：前面已清掉 4 位、第 5 位 U-race 重試耗盡、第 6 位拋非衝突錯誤 → 失敗 log 的 cleanedMembers 是 4", async () => {
+    const logger = createLogger();
+    const docs = seedDocs({
+      "users/U-race": { uid: "U-race", role: "user", teamId: TEAM, teamName: "x", teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] },
+    });
+    const { call, fake } = setup({ docs, logger });
+    // U-race 每次寫入（整批或逐位）都先被製造衝突 → 整批 3 次失敗後進入逐位階段；逐位階段 U-m2 的 update 直接拋非衝突錯誤
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-race")) fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+    fake.state.failWrite = ({ path }) => (path === "users/U-m2" ? new Error("boom") : null);
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    ["U-cap", "U-coach", "U-lead", "U-m1"].forEach((uid) => expect(fake.get(`users/${uid}`).teamIds).toEqual([]));
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] failed",
+      expect.objectContaining({ phase: "clean-members", cleanedMembers: 4 }),
+    );
+  });
+
+  test("成員文件在讀與 commit 之間被刪除（NOT_FOUND）→ 視為 gone：重讀後略過，不重試空轉、不算 failed、不 partial", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ logger });
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) fake.remove("users/U-m1");
+    };
+    const result = await call();
+    expect(result.partial).toBeUndefined();
+    // 口徑：cleanedMembers 只計「本次實際寫入」的人；被刪除（以及自行退出）者不計入 cleaned、也不計入 failed
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 4 });
+    expect(fake.state.commits[0]).toMatchObject({ ok: false });
+    expect(fake.state.commits[1]).toMatchObject({ ok: true });
+    expect(logger.warn.mock.calls.filter(([message]) => message.includes("conflicted"))).toHaveLength(1);
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+});
+
 describe("deleteTeam Phase 1：讀與寫之間的併發變更不會被蓋掉（審查 P2-1）", () => {
   const raceDocs = () => seedDocs({
     "users/U-race": { uid: "U-race", role: "user", teamId: TEAM, teamName: "x", teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] },

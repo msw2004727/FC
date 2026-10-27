@@ -55,8 +55,12 @@ async function rereadStillInTeam(docs, teamDocId) {
   return snaps.filter((snap) => snap.exists && isUserInTeam(snap.data() || {}, teamDocId));
 }
 
-// 依每位成員「目前文件」重算四欄；回傳 { cleaned, failed }，failed 為遮罩後的成員識別清單。
-async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx }) {
+// 依每位成員「目前文件」重算四欄；回傳 { failed }（遮罩後的成員識別清單）。
+// 已寫入的人數逐筆累加到呼叫端傳入的 progress.cleanedMembers（每次 commit／update 成功就加），所以中途拋出非衝突錯誤時，
+// 呼叫端的失敗 log 看到的是「已成功清掉的人數」而不是 0。
+// 口徑：cleanedMembers 只計「本次呼叫實際寫入隊伍欄位」的人；重讀後發現已自行退出本隊或文件已不存在（gone）者
+// 既不計入 cleanedMembers 也不計入 failed（他們不需要、也沒有被我們寫）。
+async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress }) {
   const nameCache = new Map();
   const namesFor = async (docs) => {
     const missing = new Set();
@@ -97,7 +101,6 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
     return "failed";
   };
 
-  let cleaned = 0;
   const failed = [];
   for (let i = 0; i < memberDocs.length; i += BATCH_LIMIT) {
     let pending = memberDocs.slice(i, i + BATCH_LIMIT);
@@ -107,7 +110,7 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
       pending.forEach((doc) => batch.update(doc.ref, updatesFor(doc, names), precondition(doc)));
       try {
         await batch.commit();
-        cleaned += pending.length;
+        progress.cleanedMembers += pending.length;
         pending = [];
       } catch (error) {
         if (!isConflict(error)) throw error;
@@ -121,11 +124,11 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
     }
     for (const doc of pending) {
       const outcome = await cleanOne(doc);
-      if (outcome === "cleaned") cleaned += 1;
+      if (outcome === "cleaned") progress.cleanedMembers += 1;
       else if (outcome === "failed") failed.push(maskId(doc.data()?.uid || doc.id));
     }
   }
-  return { cleaned, failed };
+  return { failed };
 }
 
 module.exports = { cleanMemberships, listTeamMemberDocs };

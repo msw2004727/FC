@@ -93,8 +93,7 @@ function createDeleteTeamHandler({
 
       phase = "clean-members";
       const memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData });
-      const cleanup = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx });
-      progress.cleanedMembers = cleanup.cleaned;
+      const cleanup = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress });
       if (cleanup.failed.length > 0) {
         // 有成員在重試上限內仍清不掉（持續與併發寫入衝突）：不進角色重算、不刪 team，讓呼叫者重跑。
         logger.error?.("[deleteTeam] partial: members left uncleaned, team kept", {
