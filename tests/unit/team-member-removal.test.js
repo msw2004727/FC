@@ -379,6 +379,73 @@ describe("removeTeamMember members 重算", () => {
   });
 });
 
+describe("removeTeamMember 審查退修（P3 與測試強化）", () => {
+  test("被剔者 users 的寫入與 opLog 在同一個 transaction 提交（把 users 寫入移出 transaction 會變紅）", async () => {
+    const { call, fake } = setup();
+    await call({ teamId: TEAM, memberUid: "U-m1" });
+    const [userWrite] = fake.writesTo("users/U-m1");
+    const [logWrite] = fake.writesTo("operationLogs/");
+    expect(userWrite.via).toBe("tx");
+    expect(logWrite.via).toBe("tx");
+    expect(userWrite.commit).toBe(logWrite.commit);
+    // 提交後的 members 重算是另一次（直接）寫入
+    expect(fake.writesTo(`teams/${TEAM}`)[0].via).toBe("direct");
+  });
+
+  test("持有 admin.repair.team_join_repair 的自訂角色通過（與 Rules 1712 一致），沒有該權限的自訂角色仍被拒", async () => {
+    const allowed = setup({ access: createAccess({ role: "my_custom_role", permissions: ["admin.repair.team_join_repair"] }) });
+    await expect(allowed.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
+    const denied = setup({ access: createAccess({ role: "my_custom_role", permissions: ["team.manage_all"] }) });
+    expect(await rejection(denied.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+  });
+
+  test("操作者名稱對齊 A：沒有 displayName 時 operator 用角色標籤、內文用 name，再不然「職員」", async () => {
+    const docs = seedDocs();
+    docs["users/U-cap"] = { uid: "U-cap", role: "captain", name: "正式姓名", ...membership([TEAM]) };
+    const withName = setup({ docs });
+    await withName.call({ teamId: TEAM, memberUid: "U-m1" });
+    expect(withName.fake.writesTo("operationLogs/")[0].data).toMatchObject({
+      operator: "領隊", content: `正式姓名 將「小明」移出「${TEAM_NAME}」`,
+    });
+
+    const docs2 = seedDocs();
+    docs2["users/U-cap"] = { uid: "U-cap", role: "captain", ...membership([TEAM]) };
+    const bare = setup({ docs: docs2 });
+    await bare.call({ teamId: TEAM, memberUid: "U-m1" });
+    expect(bare.fake.writesTo("operationLogs/")[0].data.content).toBe(`職員 將「小明」移出「${TEAM_NAME}」`);
+  });
+
+  test("被剔者名稱對齊 A：name 優先於 displayName", async () => {
+    const docs = seedDocs({ "users/U-both": { uid: "U-both", name: "正式姓名", displayName: "LINE 暱稱", ...membership([TEAM]) } });
+    const { call, fake } = setup({ docs });
+    await call({ teamId: TEAM, memberUid: "U-both" });
+    expect(fake.writesTo("operationLogs/")[0].data.content).toBe(`隊長 將「正式姓名」移出「${TEAM_NAME}」`);
+  });
+
+  test("文件 id 與 id 欄位不同（owner 把自己隊的 id 改成別隊）→ TEAM_ID_MISMATCH，別隊成員不被動到", async () => {
+    const docs = seedDocs({
+      "teams/tm_atk": { id: "tm_victim", name: "攻擊者的隊", captainUid: "U-cap" },
+      "teams/tm_victim": { id: "tm_victim", name: "受害隊", captainUid: "U-victimcap" },
+      "users/U-v": { uid: "U-v", role: "user", ...membership(["tm_victim"], ["受害隊"]) },
+    });
+    const { call, fake } = setup({ docs });
+    expect(await rejection(call({ teamId: "tm_atk", memberUid: "U-v" })))
+      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("兩份文件宣稱同一個邏輯 id（且沒有該 id 的文件）→ TEAM_ID_AMBIGUOUS", async () => {
+    const docs = seedDocs({
+      "teams/a1": { id: "tm_dup", name: "A", captainUid: "U-cap" },
+      "teams/a2": { id: "tm_dup", name: "B", captainUid: "U-cap" },
+    });
+    const { call, fake } = setup({ docs });
+    expect(await rejection(call({ teamId: "tm_dup", memberUid: "U-m1" })))
+      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+});
+
 describe("removeTeamMember 非預期錯誤", () => {
   test("非 HttpsError 轉成 internal TEAM_REMOVE_MEMBER_FAILED，log 內 teamId 已遮罩", async () => {
     const logger = createLogger();

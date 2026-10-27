@@ -3,8 +3,14 @@
 /**
  * team Callable 單元測試共用的記憶體版 Firestore（T-027 7b(A)）。
  * 只實作用得到的子集：doc／collection／subcollection、where(==, array-contains)、orderBy(documentId)＋limit＋startAfter、
- * batch（單批上限 500）、transaction（讀必須在寫之前、ABORTED 會重跑 callback）。
- * 寫入全部記在 state.writes，供測試斷言「到底碰了哪些路徑」。
+ * batch（單批上限 500）、transaction（讀必須在寫之前、ABORTED 會重跑 callback）、
+ * 文件 updateTime＋update 的 lastUpdateTime 前置條件、delete 的 exists 前置條件。
+ *
+ * 限制（不要假裝它有）：
+ *  - 不模擬 transaction 隔離：交易內讀到的永遠是「目前值」，不會因為別人並發寫入而自動 ABORT；
+ *    並發行為要用 state.beforeCommit 在 commit 前手動插入外部寫入（fake.touch／fake.remove）來模擬前置條件衝突。
+ *  - 查詢沒有索引概念，orderBy 一律視為依文件 id 升冪；不支援其他運算子。
+ *  - 寫入全部記在 state.writes（含 via＝direct／batch／tx 與 commit 序號），供測試斷言「碰了哪些路徑、是否同一次提交」。
  */
 
 class FakeFirestoreError extends Error {
@@ -28,6 +34,12 @@ const clone = (value) => (value === undefined ? value : JSON.parse(JSON.stringif
 
 function createFakeFirestore(seed = {}) {
   const store = new Map(Object.entries(seed).map(([path, data]) => [path, clone(data)]));
+  const versions = new Map([...store.keys()].map((path) => [path, 1]));
+  let versionCounter = 1;
+  const bump = (path) => {
+    versionCounter += 1;
+    versions.set(path, versionCounter);
+  };
   const state = {
     writes: [],
     commits: [],
@@ -36,6 +48,7 @@ function createFakeFirestore(seed = {}) {
     abortTransactions: 0,
     failCommit: null, // ({ ops, commitNumber }) => Error | null
     failWrite: null, // ({ op, path }) => Error | null（只作用於 ref.update／ref.set 直接寫入）
+    beforeCommit: null, // ({ ops, commitNumber }) => void，可在 commit 前呼叫 fake.touch／fake.remove 模擬並發寫入
   };
 
   function snapshot(path) {
@@ -44,37 +57,59 @@ function createFakeFirestore(seed = {}) {
       id: path.split("/").pop(),
       exists,
       ref: docRef(path),
+      updateTime: exists ? versions.get(path) : undefined,
       data: () => (exists ? clone(store.get(path)) : undefined),
     };
   }
 
-  function applyOps(ops) {
+  function validate(ops) {
     ops.forEach((item) => {
       if (item.op === "update" && !store.has(item.path)) throw new FakeFirestoreError(5, `NOT_FOUND ${item.path}`);
+      if (item.op === "update" && item.precondition?.lastUpdateTime !== undefined
+        && versions.get(item.path) !== item.precondition.lastUpdateTime) {
+        throw new FakeFirestoreError(9, `FAILED_PRECONDITION lastUpdateTime ${item.path}`);
+      }
+      if (item.op === "delete" && item.precondition?.exists === true && !store.has(item.path)) {
+        throw new FakeFirestoreError(5, `NOT_FOUND ${item.path}`);
+      }
     });
+  }
+
+  function applyOps(ops, meta) {
+    validate(ops);
     ops.forEach((item) => {
       if (item.op === "update") store.set(item.path, { ...store.get(item.path), ...clone(item.data) });
       else if (item.op === "set") {
         store.set(item.path, item.merge ? { ...(store.get(item.path) || {}), ...clone(item.data) } : clone(item.data));
       } else store.delete(item.path);
-      state.writes.push({ op: item.op, path: item.path, data: clone(item.data) });
+      if (item.op === "delete") versions.delete(item.path);
+      else bump(item.path);
+      state.writes.push({ op: item.op, path: item.path, data: clone(item.data), via: meta.via, commit: meta.commit });
     });
   }
 
-  function commitOps(ops) {
+  function commitOps(ops, via) {
     if (ops.length > 500) throw new FakeFirestoreError(3, "INVALID_ARGUMENT: maximum 500 writes per commit");
     const commitNumber = state.commits.length + 1;
+    if (state.beforeCommit) state.beforeCommit({ ops, commitNumber });
     const failure = state.failCommit ? state.failCommit({ ops, commitNumber }) : null;
-    state.commits.push({ size: ops.length, ok: !failure });
-    if (failure) throw failure;
-    applyOps(ops);
+    let outcome = failure;
+    if (!outcome) {
+      try {
+        applyOps(ops, { via, commit: commitNumber });
+      } catch (error) {
+        outcome = error;
+      }
+    }
+    state.commits.push({ size: ops.length, ok: !outcome });
+    if (outcome) throw outcome;
   }
 
   function docRef(path) {
     const direct = (op) => async (data, options) => {
       const failure = state.failWrite ? state.failWrite({ op, path }) : null;
       if (failure) throw failure;
-      applyOps([{ op, path, data, merge: !!options?.merge }]);
+      applyOps([{ op, path, data, merge: !!options?.merge }], { via: "direct", commit: null });
     };
     return {
       id: path.split("/").pop(),
@@ -83,7 +118,7 @@ function createFakeFirestore(seed = {}) {
       get: async () => snapshot(path),
       update: direct("update"),
       set: direct("set"),
-      delete: async () => applyOps([{ op: "delete", path }]),
+      delete: async () => applyOps([{ op: "delete", path }], { via: "direct", commit: null }),
       collection: (name) => collectionRef(`${path}/${name}`),
     };
   }
@@ -126,9 +161,18 @@ function createFakeFirestore(seed = {}) {
 
   function writer(ops, beforeWrite = () => {}) {
     return {
-      update: (ref, data) => { beforeWrite(); ops.push({ op: "update", path: ref.path, data }); },
-      set: (ref, data, options) => { beforeWrite(); ops.push({ op: "set", path: ref.path, data, merge: !!options?.merge }); },
-      delete: (ref) => { beforeWrite(); ops.push({ op: "delete", path: ref.path }); },
+      update: (ref, data, precondition) => {
+        beforeWrite();
+        ops.push({ op: "update", path: ref.path, data, precondition });
+      },
+      set: (ref, data, options) => {
+        beforeWrite();
+        ops.push({ op: "set", path: ref.path, data, merge: !!options?.merge });
+      },
+      delete: (ref, precondition) => {
+        beforeWrite();
+        ops.push({ op: "delete", path: ref.path, precondition });
+      },
     };
   }
 
@@ -136,7 +180,7 @@ function createFakeFirestore(seed = {}) {
     collection: (name) => collectionRef(name),
     batch: () => {
       const ops = [];
-      return { ...writer(ops), commit: async () => commitOps(ops) };
+      return { ...writer(ops), commit: async () => commitOps(ops, "batch") };
     },
     runTransaction: async (callback) => {
       for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -161,7 +205,7 @@ function createFakeFirestore(seed = {}) {
           state.abortTransactions -= 1;
           continue;
         }
-        commitOps(ops);
+        commitOps(ops, "tx");
         return result;
       }
       throw new FakeFirestoreError(10, "ABORTED");
@@ -175,6 +219,15 @@ function createFakeFirestore(seed = {}) {
     has: (path) => store.has(path),
     list: (collectionPath) => listIds(collectionPath),
     writesTo: (prefix) => state.writes.filter((item) => item.path.startsWith(prefix)),
+    // 模擬「別人」在讀與寫之間的並發寫入／刪除：不記在 state.writes，但會改變文件版本。
+    touch: (path, patch) => {
+      store.set(path, { ...(store.get(path) || {}), ...clone(patch) });
+      bump(path);
+    },
+    remove: (path) => {
+      store.delete(path);
+      versions.delete(path);
+    },
   };
 }
 

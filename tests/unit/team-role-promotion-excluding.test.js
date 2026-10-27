@@ -44,6 +44,12 @@ describe("getSavedTeamRoleExcludingTeam（T-027 7b(A) 新增，deleteTeam 專用
     await expect(roleOf({ del: {} }, undefined)).resolves.toBe("user");
   });
 
+  test("排除依據是「文件 id」：邏輯 id≠文件 id 的隊伍也能正確排除；傳邏輯 id 不會排除", async () => {
+    const teams = { doc_x: { id: "tm_logic", captainUid: "U-x" } };
+    await expect(roleOf(teams, "doc_x")).resolves.toBe("user");
+    await expect(roleOf(teams, "tm_logic")).resolves.toBe("captain");
+  });
+
   test("同一人在被排除隊的多個欄位都有職務，仍只算別隊", async () => {
     const teams = {
       del: { captainUid: "U-x", coachUids: ["U-x"], leaderUids: ["U-x"], leaderUid: "U-x" },
