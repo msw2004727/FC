@@ -11,7 +11,9 @@ const {
   createAccess,
   createFakeFirestore,
   createLogger,
+  mockCallerAccess,
   normalizeRole,
+  permissionDocsFor,
 } = require("./team-callable-fake-db");
 
 const TEAM = "tm_del";
@@ -48,10 +50,15 @@ function seedDocs(extra = {}) {
 // 預設呼叫者帶 team.manage_all，所以刪隊會降級所有幹部（不帶任何權限時只會降級呼叫者本人，見 P2-3 測試）。
 const MANAGER_ACCESS = createAccess({ role: "captain", permissions: ["team.manage_all"] });
 
+// access 只決定 role；權限碼由 permissionDocsFor 轉成 Rules 看得到的文件（rolePermissions／userPermissionGrants）。
+// getCallerAccessContext 的 mock 讓 hasPermission 對任何權限碼回 true（模擬真實環境「文件不存在 → 回退預設權限」），
+// 驗證 Callable 沒有依賴它（審查 P3-7）。
 function setup({
   docs = seedDocs(),
   access = MANAGER_ACCESS,
-  // true：getCallerAccessContext 像真實環境一樣從 fake 的 users 文件讀 role（P1-1 重試情境必須如此）
+  callerUid = "U-cap",
+  // true：getCallerAccessContext 像真實環境一樣從 fake 的 users 文件讀 role（P1-1 重試情境必須如此）；
+  // 此時 captain／coach 的 rolePermissions 文件都帶 accessPermissions。
   accessFromDocs = false,
   accessPermissions = [],
   logger = createLogger(),
@@ -59,10 +66,13 @@ function setup({
   ensureAuthUser = jest.fn(async () => null),
   setRoleClaimMerged = jest.fn(async () => null),
 } = {}) {
-  const fake = createFakeFirestore(docs);
+  const permissionDocs = accessFromDocs
+    ? { "rolePermissions/captain": { permissions: accessPermissions }, "rolePermissions/coach": { permissions: accessPermissions } }
+    : permissionDocsFor(access, callerUid);
+  const fake = createFakeFirestore({ ...permissionDocs, ...docs });
   const getCallerAccessContext = jest.fn(async (request) => {
-    if (!accessFromDocs) return access;
-    return createAccess({ role: fake.get(`users/${request.auth.uid}`)?.role || "user", permissions: accessPermissions });
+    if (!accessFromDocs) return mockCallerAccess(access);
+    return mockCallerAccess(createAccess({ role: fake.get(`users/${request.auth.uid}`)?.role || "user" }));
   });
   const handler = createDeleteTeamHandler({
     db: fake.db,
@@ -79,7 +89,7 @@ function setup({
     logger,
     now: () => new Date("2026-10-27T08:00:00Z"),
   });
-  const call = (data = { teamId: TEAM }, uid = "U-cap") => handler({ auth: uid ? { uid } : undefined, data });
+  const call = (data = { teamId: TEAM }, uid = callerUid) => handler({ auth: uid ? { uid } : undefined, data });
   return { fake, call, logger, ensureAuthUser, setRoleClaimMerged, getCallerAccessContext };
 }
 
@@ -186,25 +196,32 @@ describe("deleteTeam 邏輯 id 加固（審查 P3-1）", () => {
     expect(fake.get("users/U-v").teamIds).toEqual(["tm_victim"]);
   });
 
-  test("兩份文件宣稱同一個邏輯 id（且沒有該 id 的文件）→ TEAM_ID_AMBIGUOUS", async () => {
-    const docs = seedDocs({
-      "teams/a1": { id: "tm_dup", name: "A", captainUid: "U-cap" },
-      "teams/a2": { id: "tm_dup", name: "B", captainUid: "U-cap" },
-    });
-    const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_dup" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
-    expect(fake.state.writes).toHaveLength(0);
-  });
-
-  test("舊資料（文件 id≠邏輯 id）以邏輯 id 呼叫：角色重算排除的是「文件 id」", async () => {
+  test("舊資料（文件 id≠id 欄位）以邏輯 id 呼叫 → TEAM_ID_MISMATCH，不誤報 alreadyDeleted（成員歸屬以文件 id 為準）", async () => {
     const docs = {
       "teams/doc_x": { id: "tm_logic", name: "舊制隊", captainUid: "U-cap" },
       "users/U-cap": { uid: "U-cap", displayName: "隊長", role: "captain", teamId: "tm_logic", teamIds: ["tm_logic"], teamNames: ["舊制隊"] },
     };
     const { call, fake } = setup({ docs });
-    await expect(call({ teamId: "tm_logic" })).resolves.toMatchObject({ ok: true, alreadyDeleted: false, roleChanges: 1 });
-    expect(fake.has("teams/doc_x")).toBe(false);
-    expect(fake.get("users/U-cap")).toMatchObject({ role: "user", teamIds: [] });
+    expect(await rejection(call({ teamId: "tm_logic" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.has("teams/doc_x")).toBe(true);
+  });
+
+  test("成員歸屬看文件 id：users 引用被竄改後的 id 欄位值時不會被當成本隊成員（id 欄位被改 → 直接拒絕）", async () => {
+    const docs = seedDocs();
+    docs[TEAM_PATH] = { ...docs[TEAM_PATH], id: "tm_other" };
+    const { call, fake } = setup({ docs });
+    expect(await rejection(call())).toMatchObject({ message: "TEAM_ID_MISMATCH" });
+    expect(fake.get("users/U-stranger").teamIds).toEqual(["tm_other"]);
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("id 欄位與文件 id 相同、或根本沒有 id 欄位 → 正常處理", async () => {
+    const docs = seedDocs();
+    delete docs[TEAM_PATH].id;
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has(TEAM_PATH)).toBe(false);
   });
 });
 
@@ -230,9 +247,9 @@ describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗
     expect(fake.has(TEAM_PATH)).toBe(true);
   });
 
-  test("team.manage_all 但 users.role=user → COACH_PLUS_REQUIRED", async () => {
-    const { call, fake } = setup({ access: createAccess({ role: "user", permissions: ["team.manage_all"] }) });
-    expect(await rejection(call({ teamId: TEAM }, "U-mgr"))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+  test("team.manage_all（個別授權）但 users.role=user → COACH_PLUS_REQUIRED", async () => {
+    const { call, fake } = setup({ access: createAccess({ role: "user", permissions: ["team.manage_all"] }), callerUid: "U-mgr" });
+    expect(await rejection(call({ teamId: TEAM }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
     expect(fake.state.writes).toHaveLength(0);
   });
 
@@ -250,6 +267,60 @@ describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗
       expect(fake.has(TEAM_PATH)).toBe(true);
     },
   );
+});
+
+describe("deleteTeam 權限碼與 Rules 一致（審查 P3-7：rolePermissions 文件不存在 ≠ 有預設權限）", () => {
+  // getCallerAccessContext 的 mock 對任何權限碼都回 true（模擬真實環境「文件不存在 → 回退預設權限，admin 因此帶 team.manage_all」）。
+  const strangerCall = (options) => {
+    const ctx = setup({ callerUid: "U-mgr", ...options });
+    return { ...ctx, run: () => ctx.call({ teamId: TEAM }) };
+  };
+
+  test("admin（非 owner）沒有 rolePermissions/admin 文件 → 不放行（Functions 預設權限不算）", async () => {
+    const { run, fake } = strangerCall({ access: createAccess({ role: "admin", permissions: null }) });
+    expect(await rejection(run())).toMatchObject({ code: "permission-denied", message: "TEAM_DELETE_DENIED" });
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+  });
+
+  test("admin 的 rolePermissions 文件存在但不含 team.manage_all → 不放行", async () => {
+    const { run } = strangerCall({ access: createAccess({ role: "admin", permissions: ["team.create"] }) });
+    expect(await rejection(run())).toMatchObject({ message: "TEAM_DELETE_DENIED" });
+  });
+
+  test("admin 的 rolePermissions 文件含 team.manage_all → 放行", async () => {
+    const { run, fake } = strangerCall({ access: createAccess({ role: "admin", permissions: ["team.manage_all"] }) });
+    await expect(run()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("個別授權 enabled:false → 不放行；沒有 enabled 欄位 → 放行（role 需 coach 以上才過第二關，這裡用 coach）", async () => {
+    const off = strangerCall({
+      docs: seedDocs({ "userPermissionGrants/U-mgr": { permissions: ["team.manage_all"], enabled: false } }),
+      access: createAccess({ role: "coach", permissions: null }),
+    });
+    expect(await rejection(off.run())).toMatchObject({ message: "TEAM_DELETE_DENIED" });
+    const on = strangerCall({
+      docs: seedDocs({ "userPermissionGrants/U-mgr": { permissions: ["team.manage_all"] } }),
+      access: createAccess({ role: "coach", permissions: null }),
+    });
+    await expect(on.run()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+  });
+
+  test("users.role=user 時 rolePermissions/user 文件不算", async () => {
+    const { run } = strangerCall({
+      docs: seedDocs({ "rolePermissions/user": { permissions: ["team.manage_all"] } }),
+      access: createAccess({ role: "user", permissions: null }),
+    });
+    expect(await rejection(run())).toMatchObject({ message: "TEAM_DELETE_DENIED" });
+  });
+
+  test("owner 帶 coach 角色但沒有 rolePermissions 文件：能刪隊，卻不能因預設權限降級別人（降他人也要看文件）", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    const { call, fake } = setup({ docs, access: createAccess({ role: "captain", permissions: null }) });
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 1, roleSkipped: 2 });
+    expect(fake.get("users/U-lead").role).toBe("coach");
+  });
 });
 
 describe("deleteTeam Phase 1：成員集合與分批清除", () => {
@@ -348,14 +419,120 @@ describe("deleteTeam Phase 1：讀與寫之間的併發變更不會被蓋掉（�
     expect(fake.writesTo("users/U-m1")).toHaveLength(0);
   });
 
-  test("衝突一直發生 → 有上限（3 次）後 TEAM_DELETE_FAILED，team 仍在、可再試", async () => {
+  test("一位成員的衝突不拖累其他人：整批重試 3 次後改逐位處理，其他人都清掉", async () => {
+    const { call, fake } = setup({ docs: raceDocs() });
+    let armed = true;
+    // 只在 U-race 被寫入時製造衝突（整批提交或逐位 update 都會觸發）
+    fake.state.beforeCommit = ({ ops }) => {
+      if (armed && ops.some((item) => item.path === "users/U-race")) fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+    const result = await call();
+    armed = false;
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 5 });
+    expect(result.partial).toMatchObject({ remainingMembers: 1, rerun: true });
+    ["U-cap", "U-lead", "U-coach", "U-m1", "U-m2"].forEach((uid) => {
+      expect(fake.get(`users/${uid}`)).toMatchObject({ teamId: null, teamIds: [], teamNames: [] });
+    });
+    expect(fake.get("users/U-race").teamIds).toEqual([TEAM, "tm_other"]);
+  });
+});
+
+describe("deleteTeam Phase 1 重試耗盡 → partial：不刪 team、不進角色重算，可重跑（FC 顧問裁示）", () => {
+  const raceDocs = () => seedDocs({
+    "users/U-race": { uid: "U-race-uid-0001", role: "user", teamId: TEAM, teamName: "x", teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] },
+  });
+  // 對 U-race 的每次寫入（整批或逐位）都先製造一次衝突
+  const conflictOnRace = (fake) => {
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-race")) fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+  };
+
+  test("重試成功（單次衝突）→ 沒有 partial，正常刪除", async () => {
+    const { call, fake } = setup({ docs: raceDocs() });
+    let once = true;
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (once && commitNumber === 1) {
+        once = false;
+        fake.touch("users/U-race", { teamNames: ["x", "別隊"], updatedAt: "touched" });
+      }
+    };
+    const result = await call();
+    expect(result.partial).toBeUndefined();
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 6 });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("重試耗盡 → 回 partial（遮罩識別＋可重跑旗標），team 文件仍在、沒有 team_delete、沒有角色變更", async () => {
     const logger = createLogger();
     const { call, fake } = setup({ docs: raceDocs(), logger });
-    fake.state.beforeCommit = () => fake.touch("users/U-race", { updatedAt: "touched" });
-    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
-    expect(fake.state.commits).toHaveLength(3);
+    conflictOnRace(fake);
+    const result = await call();
+    expect(result).toMatchObject({
+      ok: true,
+      alreadyDeleted: false,
+      cleanedMembers: 5,
+      roleChanges: 0,
+      roleSkipped: 0,
+      partial: { remainingMembers: 1, memberIds: [expect.any(String)], rerun: true },
+    });
+    expect(result.partial.memberIds[0]).not.toBe("U-race-uid-0001");
     expect(fake.has(TEAM_PATH)).toBe(true);
-    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "clean-members" }));
+    expect(fake.writesTo("operationLogs/")).toHaveLength(0);
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.list("users/U-cap/inbox")).toEqual([]);
+    expect(fake.get("users/U-race").teamIds).toEqual([TEAM, "tm_other"]);
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] member cleanup exhausted retries",
+      expect.objectContaining({ attempts: 3, memberId: expect.any(String) }),
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] partial: members left uncleaned, team kept",
+      expect.objectContaining({ remainingMembers: 1 }),
+    );
+    // log 內的成員識別一律遮罩
+    logger.error.mock.calls.forEach(([, context]) => {
+      expect(JSON.stringify(context)).not.toContain("U-race-uid-0001");
+    });
+  });
+
+  test("partial 之後衝突排除再重跑 → 只補剩下的一位，之後正常刪除、角色重算與刪 team 都完成", async () => {
+    const { call, fake } = setup({ docs: raceDocs() });
+    conflictOnRace(fake);
+    await call();
+    fake.state.beforeCommit = null;
+    const result = await call();
+    expect(result.partial).toBeUndefined();
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 1, roleChanges: 3 });
+    expect(fake.get("users/U-race")).toMatchObject({ teamId: "tm_other", teamIds: ["tm_other"] });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("逐位處理時成員已自己退出本隊 → 視為完成，不算 partial", async () => {
+    const { call, fake } = setup({ docs: raceDocs() });
+    let batchAttempts = 0;
+    fake.state.beforeCommit = ({ ops, commitNumber }) => {
+      if (!ops.some((item) => item.path === "users/U-race")) return;
+      if (commitNumber !== null) {
+        batchAttempts += 1;
+        fake.touch("users/U-race", { updatedAt: `t${batchAttempts}` });
+      } else {
+        // 逐位階段：成員在這一刻自己退出本隊
+        fake.touch("users/U-race", { teamId: "tm_other", teamIds: ["tm_other"], teamNames: ["別隊"] });
+      }
+    };
+    const result = await call();
+    expect(result.partial).toBeUndefined();
+    expect(result).toMatchObject({ ok: true, cleanedMembers: 5 });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+    expect(fake.get("users/U-race").teamIds).toEqual(["tm_other"]);
+  });
+
+  test("非衝突類錯誤（網路等）仍直接 TEAM_DELETE_FAILED，不當成 partial", async () => {
+    const { call, fake } = setup({ docs: raceDocs() });
+    fake.state.failCommit = () => new FakeFirestoreError(14, "UNAVAILABLE");
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
   });
 });
 
@@ -580,6 +757,20 @@ describe("deleteTeam 降級他人的範圍（審查 P2-3：比照 autoPromoteTea
     const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()), access });
     await expect(call()).resolves.toMatchObject({ roleChanges: 3, roleSkipped: 0 });
     STAFF.forEach((uid) => expect(fake.get(`users/${uid}`).role).toBe("user"));
+  });
+
+  test("coach 等級 owner 先把任意 UID 塞進 coachUids 再刪隊：該 UID 的角色不變（這條路被封）", async () => {
+    const docs = withoutStaffMembership(seedDocs({
+      "users/U-victim": { uid: "U-victim", displayName: "被塞進來的人", role: "captain", teamId: null, teamIds: [], teamNames: [] },
+    }));
+    docs[TEAM_PATH] = { ...docs[TEAM_PATH], coachUids: ["U-coach", "U-victim"] };
+    const logger = createLogger();
+    const { call, fake } = setup({ docs, access: createAccess({ role: "coach" }), logger });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false, roleChanges: 1, roleSkipped: 3 });
+    expect(fake.get("users/U-victim").role).toBe("captain");
+    expect(fake.list("users/U-victim/inbox")).toEqual([]);
+    expect(fake.writesTo("users/U-victim")).toHaveLength(0);
+    expect(fake.get("users/U-cap").role).toBe("user");
   });
 
   test("super_admin（不是該隊幹部）刪隊 → 所有幹部降級，沒有呼叫者本人的延後項", async () => {
