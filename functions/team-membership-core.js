@@ -11,10 +11,12 @@ const MAX_ID_LENGTH = 128;
 const PAGE_SIZE = 500;
 const TEAM_NAME_READ_CHUNK = 50;
 
+// 同時擋掉 Firestore 不允許的文件 id（"."、".."、"__x__"），否則 .doc(id) 會同步拋非 HttpsError 而變成 internal。
 function normalizeId(value) {
   if (typeof value !== "string") return "";
   const id = value.trim();
-  return id && id.length <= MAX_ID_LENGTH && !id.includes("/") ? id : "";
+  if (!id || id.length > MAX_ID_LENGTH || id.includes("/")) return "";
+  return id === "." || id === ".." || /^__.*__$/.test(id) ? "" : id;
 }
 
 // log 用：不印完整 teamId，只留頭尾供比對。

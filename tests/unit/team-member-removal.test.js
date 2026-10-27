@@ -111,6 +111,7 @@ describe("removeTeamMember 輸入與權限（失敗一律不寫任何東西）",
     [{}], [{ teamId: TEAM }], [{ memberUid: "U-m1" }], [{ teamId: "", memberUid: "U-m1" }],
     [{ teamId: TEAM, memberUid: "a/b" }], [{ teamId: "x".repeat(129), memberUid: "U-m1" }],
     [{ teamId: 123, memberUid: "U-m1" }], [null],
+    [{ teamId: "__reserved__", memberUid: "U-m1" }], [{ teamId: "..", memberUid: "U-m1" }],
   ])("參數錯誤 %j → invalid-argument", async (data) => {
     const { call, fake } = setup();
     expect(await rejection(call(data))).toMatchObject({ code: "invalid-argument" });

@@ -129,7 +129,10 @@ describe("deleteTeam 輸入與查無 team", () => {
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test.each([[{}], [{ teamId: "" }], [{ teamId: "a/b" }], [{ teamId: "x".repeat(129) }], [{ teamId: 5 }], [null]])(
+  test.each([
+    [{}], [{ teamId: "" }], [{ teamId: "a/b" }], [{ teamId: "x".repeat(129) }], [{ teamId: 5 }], [null],
+    [{ teamId: "__reserved__" }], [{ teamId: "." }],
+  ])(
     "參數錯誤 %j → invalid-argument",
     async (data) => {
       const { call, fake } = setup();
