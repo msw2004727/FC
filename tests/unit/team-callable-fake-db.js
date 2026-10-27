@@ -274,9 +274,7 @@ function buildOperationLogPayload({ operator, type, typeName, content }) {
   return { time: "01/01 00:00", operator, type, typeName, content, createdAt: SERVER_TS };
 }
 
-const ROLE_LEVELS = Object.freeze({
-  user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
-});
+const ROLE_LEVELS = Object.freeze({ user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5 });
 
 const normalizeRole = (role) => (typeof role === "string" && role.trim() ? role.trim() : "user");
 

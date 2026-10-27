@@ -127,7 +127,7 @@ const roleLogOf = (fake, namePrefix) => fake.writesTo("operationLogs/").map((ite
   .find((data) => data.type === "role" && data.content.startsWith(namePrefix));
 
 describe("isFrontendTeamDeleter（A _canEditTeamByRoleOrCaptain）", () => {
-  const team = { captainUid: "U-cap", creatorUid: " U-creator ", ownerUid: "U-owner", leaderUids: ["U-lead"], coachUids: ["U-coach"] };
+  const team = { captainUid: "U-cap", creatorUid: "U-creator", ownerUid: "U-owner", leaderUids: ["U-lead"], coachUids: ["U-coach"] };
   test.each([
     ["U-cap", createAccess({ role: "user" }), true],
     ["U-creator", createAccess({ role: "user" }), true],
@@ -143,6 +143,17 @@ describe("isFrontendTeamDeleter（A _canEditTeamByRoleOrCaptain）", () => {
   });
   test("沒有 team 一律 false", () => {
     expect(isFrontendTeamDeleter(null, "U-cap", createAccess({ role: "super_admin" }))).toBe(false);
+  });
+  test("owner 欄位比對對齊 Rules isResourceOwnerByField：必須是字串且完全相等（不 trim、不字串化、陣列不算）", () => {
+    const user = createAccess({ role: "user" });
+    ["captainUid", "creatorUid", "ownerUid"].forEach((field) => {
+      expect(isFrontendTeamDeleter({ [field]: "U-x" }, "U-x", user)).toBe(true);
+      expect(isFrontendTeamDeleter({ [field]: " U-x " }, "U-x", user)).toBe(false);
+      expect(isFrontendTeamDeleter({ [field]: "U-x " }, "U-x", user)).toBe(false);
+      expect(isFrontendTeamDeleter({ [field]: ["U-x"] }, "U-x", user)).toBe(false);
+      expect(isFrontendTeamDeleter({ [field]: 123 }, "123", user)).toBe(false);
+      expect(isFrontendTeamDeleter({ [field]: { uid: "U-x" } }, "U-x", user)).toBe(false);
+    });
   });
 });
 
@@ -267,6 +278,76 @@ describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗
       expect(fake.has(TEAM_PATH)).toBe(true);
     },
   );
+});
+
+describe("deleteTeam 終驗補強（Opus 終驗 F-1／F-3／F-4／M11／M12）", () => {
+  test.each([
+    ["captainUid 帶前後空白", { captainUid: " U-cap " }, "U-cap"],
+    ["ownerUid 是陣列", { ownerUid: ["U-owner"] }, "U-owner"],
+    ["creatorUid 是數字", { creatorUid: 123 }, "123"],
+  ])("F-1：%s → TEAM_DELETE_DENIED（owner 比對對齊 Rules isResourceOwnerByField，不 trim、不字串化）", async (_label, patch, callerUid) => {
+    const docs = seedDocs();
+    docs[TEAM_PATH] = { id: TEAM, name: "待刪俱樂部", ...patch }; // 只留這一個 owner 欄位，避免其他欄位讓呼叫者過關
+    const { call, fake } = setup({ docs, access: createAccess({ role: "admin" }), callerUid });
+    expect(await rejection(call())).toMatchObject({ code: "permission-denied", message: "TEAM_DELETE_DENIED" });
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+  });
+
+  test("F-3：team 文件沒有 id 欄位 → 角色重算仍以文件 id 排除本隊（隊長正確降級）", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    delete docs[TEAM_PATH].id;
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 3, roleSkipped: 0 });
+    STAFF.forEach((uid) => expect(fake.get(`users/${uid}`).role).toBe("user"));
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("F-3：team 文件沒有 id 欄位 → 成員查詢與清除也以文件 id 為準", async () => {
+    const docs = seedDocs();
+    delete docs[TEAM_PATH].id;
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ ok: true, cleanedMembers: 5 });
+    expect(fake.get("users/U-m1").teamIds).toEqual([]);
+  });
+
+  test("F-4：最後一批 NOT_FOUND 但 team 仍在（呼叫者文件在最後一批前被刪）→ 必須 TEAM_DELETE_FAILED，team 仍在、不寫 team_delete", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ logger });
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.op === "delete")) fake.remove("users/U-cap");
+    };
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(fake.writesTo("operationLogs/").map((item) => item.data.type)).not.toContain("team_delete");
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("concurrent"), expect.anything());
+    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "delete-team" }));
+  });
+
+  test("M11：呼叫者是非 canonical 文件（docId≠uid）→ 其降級仍延後到最後一批，角色寫在文件 id、站內信寫在 uid 路徑", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    delete docs["users/U-cap"];
+    docs["users/doc-cap"] = { uid: "U-cap", displayName: "隊長", role: "captain" };
+    const { call, fake } = setup({ docs });
+    await call();
+    const lastCommit = fake.state.commits.length;
+    const finalPaths = fake.state.writes
+      .filter((item) => item.commit === lastCommit)
+      .map((item) => item.path.replace(/(operationLogs\/op_).*/, "$1*"));
+    expect(finalPaths).toEqual(["users/doc-cap", `users/U-cap/inbox/${INBOX_ID}`, "operationLogs/op_*", "operationLogs/op_*", TEAM_PATH]);
+    expect(fake.get("users/doc-cap").role).toBe("user");
+  });
+
+  test("M12：被刪隊只有舊欄位 leaderUid 的領隊（沒有 leaderUids）→ 其角色重算也會被處理", async () => {
+    const docs = withoutStaffMembership(seedDocs({
+      "users/U-oldlead": { uid: "U-oldlead", displayName: "舊領隊", role: "coach" },
+    }));
+    docs[TEAM_PATH] = { id: TEAM, name: "待刪俱樂部", captainUid: "U-cap", leaderUid: "U-oldlead" };
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 2, roleSkipped: 0 }); // 舊領隊＋呼叫者
+    expect(fake.get("users/U-oldlead").role).toBe("user");
+    expect(fake.list("users/U-oldlead/inbox")).toEqual([INBOX_ID]);
+  });
 });
 
 describe("deleteTeam 權限碼與 Rules 一致（審查 P3-7：rolePermissions 文件不存在 ≠ 有預設權限）", () => {

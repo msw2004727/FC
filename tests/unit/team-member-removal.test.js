@@ -500,6 +500,43 @@ describe("removeTeamMember 權限碼與 Rules 一致（審查 P3-7：rolePermiss
   });
 });
 
+describe("removeTeamMember 終驗補強（Opus 終驗 F-2／F-3）", () => {
+  test("F-2：交易內用「交易內讀到的」被剔者資料計算——resolveMember 之後、tx.get 之前資料被改，結果用新值", async () => {
+    const docs = seedDocs({
+      "users/U-multi": { uid: "U-multi", role: "user", ...membership([TEAM, "tm_b"], [TEAM_NAME, "B 隊"]) },
+    });
+    const { call, fake } = setup({ docs });
+    // runTransaction 是在 resolveMember（含 target.data 的讀取）之後才被呼叫：在這裡模擬別人剛把第二隊從 tm_b 換成 tm_c
+    const realRunTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async (callback) => {
+      fake.touch("users/U-multi", { teamIds: [TEAM, "tm_c"], teamNames: [TEAM_NAME, "C 隊"] });
+      return realRunTransaction(callback);
+    };
+    await expect(call({ teamId: TEAM, memberUid: "U-multi" })).resolves.toMatchObject({ ok: true, alreadyRemoved: false });
+    expect(fake.get("users/U-multi")).toMatchObject({ teamId: "tm_c", teamName: "C 隊", teamIds: ["tm_c"], teamNames: ["C 隊"] });
+  });
+
+  test("F-2：同上，若資料被改成「已不在本隊」，交易內讀到後視為 alreadyRemoved，不再寫入", async () => {
+    const { call, fake } = setup();
+    const realRunTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async (callback) => {
+      fake.touch("users/U-m1", { teamId: null, teamName: null, teamIds: [], teamNames: [] });
+      return realRunTransaction(callback);
+    };
+    await expect(call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toEqual({ ok: true, alreadyRemoved: true });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("F-3：team 文件沒有 id 欄位 → 剔除與 members 重算都以文件 id 為準", async () => {
+    const docs = seedDocs();
+    delete docs[`teams/${TEAM}`].id;
+    const { call, fake } = setup({ docs });
+    await expect(call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toEqual({ ok: true, alreadyRemoved: false, memberCount: 4 });
+    expect(fake.get("users/U-m1")).toMatchObject({ teamId: null, teamIds: [] });
+    expect(fake.get(`teams/${TEAM}`).members).toBe(4);
+  });
+});
+
 describe("removeTeamMember 非預期錯誤", () => {
   test("非 HttpsError 轉成 internal TEAM_REMOVE_MEMBER_FAILED，log 內 teamId 已遮罩", async () => {
     const logger = createLogger();
