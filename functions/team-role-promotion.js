@@ -100,6 +100,26 @@ async function getSavedTeamRole({ db, uid }) {
   return "user";
 }
 
+// T-027 7b(A) deleteTeam 專用：與 getSavedTeamRole 相同的四個查詢，但不把即將被刪的那個 team 算進去。
+// 同一個 team 文件在單一查詢最多出現一次，limit(2) 就足以在「排除本隊後」找出是否另有一隊。
+async function hasOtherTeamAssignment(teamCollection, field, operator, uid, excludeTeamDocId) {
+  const snapshot = await teamCollection.where(field, operator, uid).limit(2).get();
+  return snapshot.docs.some(doc => doc.id !== excludeTeamDocId);
+}
+
+async function getSavedTeamRoleExcludingTeam({ db, uid, excludeTeamDocId }) {
+  const teams = db.collection("teams");
+  const [isCaptain, isCoach, isLegacyLeader, isLeader] = await Promise.all([
+    hasOtherTeamAssignment(teams, "captainUid", "==", uid, excludeTeamDocId),
+    hasOtherTeamAssignment(teams, "coachUids", "array-contains", uid, excludeTeamDocId),
+    hasOtherTeamAssignment(teams, "leaderUid", "==", uid, excludeTeamDocId),
+    hasOtherTeamAssignment(teams, "leaderUids", "array-contains", uid, excludeTeamDocId),
+  ]);
+  if (isCaptain) return "captain";
+  if (isCoach || isLegacyLeader || isLeader) return "coach";
+  return "user";
+}
+
 function getTeamIdsFromUser(data = {}) {
   const ids = [];
   if (Array.isArray(data.teamIds)) ids.push(...data.teamIds);
@@ -274,5 +294,6 @@ module.exports = {
   createAutoPromoteTeamRoleCallable,
   createAutoPromoteTeamRoleHandler,
   getRoleDecision,
+  getSavedTeamRoleExcludingTeam,
   resolveStrictUserIdentity,
 };
