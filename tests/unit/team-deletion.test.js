@@ -21,6 +21,8 @@ const DEFAULT_TEMPLATES = [{
   title: "身份變更通知",
   body: "恭喜 {userName}！您的身份已變更為「{roleName}」。",
 }];
+const INBOX_ID = `msg_teamdel_${TEAM}`;
+const STAFF = ["U-cap", "U-lead", "U-coach"];
 
 function inTeam(extra = {}) {
   return { teamId: TEAM, teamName: "待刪俱樂部", teamIds: [TEAM], teamNames: ["待刪俱樂部"], ...extra };
@@ -43,16 +45,25 @@ function seedDocs(extra = {}) {
   };
 }
 
+// 預設呼叫者帶 team.manage_all，所以刪隊會降級所有幹部（不帶任何權限時只會降級呼叫者本人，見 P2-3 測試）。
+const MANAGER_ACCESS = createAccess({ role: "captain", permissions: ["team.manage_all"] });
+
 function setup({
   docs = seedDocs(),
-  access = createAccess({ role: "captain" }),
+  access = MANAGER_ACCESS,
+  // true：getCallerAccessContext 像真實環境一樣從 fake 的 users 文件讀 role（P1-1 重試情境必須如此）
+  accessFromDocs = false,
+  accessPermissions = [],
   logger = createLogger(),
   templates = DEFAULT_TEMPLATES,
   ensureAuthUser = jest.fn(async () => null),
   setRoleClaimMerged = jest.fn(async () => null),
 } = {}) {
   const fake = createFakeFirestore(docs);
-  const getCallerAccessContext = jest.fn(async () => access);
+  const getCallerAccessContext = jest.fn(async (request) => {
+    if (!accessFromDocs) return access;
+    return createAccess({ role: fake.get(`users/${request.auth.uid}`)?.role || "user", permissions: accessPermissions });
+  });
   const handler = createDeleteTeamHandler({
     db: fake.db,
     HttpsError: FakeHttpsError,
@@ -83,7 +94,7 @@ async function rejection(promise) {
 
 // 把幹部的隊伍欄位拿掉，讓 Phase 1 的批次只剩一般成員（方便數批次）。
 function withoutStaffMembership(docs) {
-  ["U-cap", "U-lead", "U-coach"].forEach((uid) => {
+  STAFF.forEach((uid) => {
     docs[`users/${uid}`] = { ...docs[`users/${uid}`], teamId: null, teamName: null, teamIds: [], teamNames: [] };
   });
   return docs;
@@ -101,6 +112,9 @@ function manyMembers(count) {
   }
   return docs;
 }
+
+const roleLogOf = (fake, namePrefix) => fake.writesTo("operationLogs/").map((item) => item.data)
+  .find((data) => data.type === "role" && data.content.startsWith(namePrefix));
 
 describe("isFrontendTeamDeleter（A _canEditTeamByRoleOrCaptain）", () => {
   const team = { captainUid: "U-cap", creatorUid: " U-creator ", ownerUid: "U-owner", leaderUids: ["U-lead"], coachUids: ["U-coach"] };
@@ -156,6 +170,41 @@ describe("deleteTeam 輸入與查無 team", () => {
     const { call } = setup();
     await call();
     await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+  });
+});
+
+describe("deleteTeam 邏輯 id 加固（審查 P3-1）", () => {
+  test("文件 id 與 id 欄位不同（owner 把自己隊的 id 改成別隊）→ TEAM_ID_MISMATCH，別隊成員不被動到", async () => {
+    const docs = seedDocs({
+      "teams/tm_atk": { id: "tm_victim", name: "攻擊者的隊", captainUid: "U-cap" },
+      "teams/tm_victim": { id: "tm_victim", name: "受害隊", captainUid: "U-victimcap" },
+      "users/U-v": { uid: "U-v", role: "user", teamId: "tm_victim", teamIds: ["tm_victim"], teamNames: ["受害隊"] },
+    });
+    const { call, fake } = setup({ docs });
+    expect(await rejection(call({ teamId: "tm_atk" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.get("users/U-v").teamIds).toEqual(["tm_victim"]);
+  });
+
+  test("兩份文件宣稱同一個邏輯 id（且沒有該 id 的文件）→ TEAM_ID_AMBIGUOUS", async () => {
+    const docs = seedDocs({
+      "teams/a1": { id: "tm_dup", name: "A", captainUid: "U-cap" },
+      "teams/a2": { id: "tm_dup", name: "B", captainUid: "U-cap" },
+    });
+    const { call, fake } = setup({ docs });
+    expect(await rejection(call({ teamId: "tm_dup" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("舊資料（文件 id≠邏輯 id）以邏輯 id 呼叫：角色重算排除的是「文件 id」", async () => {
+    const docs = {
+      "teams/doc_x": { id: "tm_logic", name: "舊制隊", captainUid: "U-cap" },
+      "users/U-cap": { uid: "U-cap", displayName: "隊長", role: "captain", teamId: "tm_logic", teamIds: ["tm_logic"], teamNames: ["舊制隊"] },
+    };
+    const { call, fake } = setup({ docs });
+    await expect(call({ teamId: "tm_logic" })).resolves.toMatchObject({ ok: true, alreadyDeleted: false, roleChanges: 1 });
+    expect(fake.has("teams/doc_x")).toBe(false);
+    expect(fake.get("users/U-cap")).toMatchObject({ role: "user", teamIds: [] });
   });
 });
 
@@ -226,12 +275,27 @@ describe("deleteTeam Phase 1：成員集合與分批清除", () => {
     });
   });
 
+  test("幹部補齊：teamIds 元素帶空白而查詢比對不到的幹部文件，也會被清掉", async () => {
+    const docs = seedDocs();
+    docs["users/U-lead"] = { ...docs["users/U-lead"], teamId: null, teamName: null, teamIds: [` ${TEAM} `], teamNames: ["x"] };
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ cleanedMembers: 5 });
+    expect(fake.get("users/U-lead")).toMatchObject({ teamId: null, teamIds: [], teamNames: [] });
+  });
+
+  test("幹部補齊：不屬於本隊的幹部文件不會被寫入", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    const { call, fake } = setup({ docs });
+    await expect(call()).resolves.toMatchObject({ cleanedMembers: 2 });
+    expect(fake.writesTo("users/U-lead").map((item) => Object.keys(item.data).join())).toEqual(["role,updatedAt"]);
+  });
+
   test("1000 名成員（含只有舊 teamId 者）：分頁讀完、每批 ≤450、每人只寫一次", async () => {
     const { call, fake } = setup({ docs: manyMembers(1000) });
     const result = await call();
     expect(result).toMatchObject({ cleanedMembers: 1000, roleChanges: 3 });
-    // Phase 1 三批（≤450）→ 三位幹部各一批（角色＋站內信＋opLog）→ 最後一批（opLog＋刪 team）
-    expect(fake.state.commits.map((item) => item.size)).toEqual([450, 450, 100, 3, 3, 3, 2]);
+    // Phase 1 三批（≤450）→ 兩位非呼叫者幹部各一批（角色＋站內信＋opLog）→ 最後一批（呼叫者角色 3 筆＋opLog＋刪 team）
+    expect(fake.state.commits.map((item) => item.size)).toEqual([450, 450, 100, 3, 3, 5]);
     const userWrites = fake.state.writes.filter((item) => item.path.startsWith("users/U-bulk-"));
     expect(userWrites).toHaveLength(1000);
     expect(new Set(userWrites.map((item) => item.path)).size).toBe(1000);
@@ -254,49 +318,137 @@ describe("deleteTeam Phase 1：成員集合與分批清除", () => {
   });
 });
 
-describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內信", () => {
-  test("只在本隊任職 → 降為一般用戶；同一個 batch 寫角色、站內信、opLog；先改 claim 再改文件", async () => {
-    const docs = withoutStaffMembership(seedDocs());
-    const claimSeen = [];
-    const fakeHolder = {};
-    const setRoleClaimMerged = jest.fn(async (uid, role) => {
-      claimSeen.push([uid, role, fakeHolder.fake.get(`users/${uid}`).role]);
-    });
-    const ctx = setup({ docs, setRoleClaimMerged });
-    fakeHolder.fake = ctx.fake;
-    const result = await ctx.call();
-    expect(result).toMatchObject({ roleChanges: 3, roleSkipped: 0 });
-    expect(ctx.ensureAuthUser.mock.calls.map(([uid]) => uid)).toEqual(["U-cap", "U-lead", "U-coach"]);
-    // claim 設定當下，文件角色仍是舊的（文件在 claim 之後才改）
-    expect(claimSeen).toEqual([["U-cap", "user", "captain"], ["U-lead", "user", "coach"], ["U-coach", "user", "coach"]]);
-    ["U-cap", "U-lead", "U-coach"].forEach((uid) => expect(ctx.fake.get(`users/${uid}`).role).toBe("user"));
-
-    const writes = ctx.fake.state.writes;
-    const first = writes.findIndex((item) => item.path === "users/U-cap");
-    expect(writes.slice(first, first + 3).map((item) => [item.op, item.path.replace(/(inbox\/msg_|operationLogs\/op_).*/, "$1*")]))
-      .toEqual([["update", "users/U-cap"], ["set", "users/U-cap/inbox/msg_*"], ["set", "operationLogs/op_*"]]);
-    expect(writes[first].data).toEqual({ role: "user", updatedAt: "SERVER_TS" });
+describe("deleteTeam Phase 1：讀與寫之間的併發變更不會被蓋掉（審查 P2-1）", () => {
+  const raceDocs = () => seedDocs({
+    "users/U-race": { uid: "U-race", role: "user", teamId: TEAM, teamName: "x", teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] },
   });
 
-  test("站內信沿用 A 的 role_upgrade 樣板，不新增文案；opLog 為「角色變更」且不含 UID", async () => {
+  test("成員在讀與 commit 之間自己加了別隊 → 該批因前置條件失敗，重讀後保留新加的隊", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ docs: raceDocs(), logger });
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) {
+        fake.touch("users/U-race", { teamIds: [TEAM, "tm_other", "tm_z"], teamNames: ["x", "別隊", "Z"] });
+      }
+    };
+    await expect(call()).resolves.toMatchObject({ ok: true, cleanedMembers: 6 });
+    expect(fake.state.commits[0]).toMatchObject({ ok: false });
+    expect(fake.get("users/U-race")).toMatchObject({
+      teamId: "tm_other", teamIds: ["tm_other", "tm_z"], teamNames: ["別隊", "tm_z"],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("conflicted"), expect.objectContaining({ attempt: 1 }));
+  });
+
+  test("成員在讀與 commit 之間自己退出本隊 → 重讀後略過，不再寫他", async () => {
+    const { call, fake } = setup();
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) fake.touch("users/U-m1", { teamId: null, teamName: null, teamIds: [], teamNames: [] });
+    };
+    await expect(call()).resolves.toMatchObject({ ok: true, cleanedMembers: 4 });
+    expect(fake.writesTo("users/U-m1")).toHaveLength(0);
+  });
+
+  test("衝突一直發生 → 有上限（3 次）後 TEAM_DELETE_FAILED，team 仍在、可再試", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ docs: raceDocs(), logger });
+    fake.state.beforeCommit = () => fake.touch("users/U-race", { updatedAt: "touched" });
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.state.commits).toHaveLength(3);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "clean-members" }));
+  });
+});
+
+describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內信", () => {
+  test("只在本隊任職 → 降為一般用戶；非呼叫者各一個 batch，先改 claim 再改文件", async () => {
+    const claimSeen = [];
+    const holder = {};
+    const setRoleClaimMerged = jest.fn(async (uid, role) => {
+      claimSeen.push([uid, role, holder.fake.get(`users/${uid}`).role]);
+    });
+    const ctx = setup({ docs: withoutStaffMembership(seedDocs()), setRoleClaimMerged });
+    holder.fake = ctx.fake;
+    const result = await ctx.call();
+    expect(result).toMatchObject({ roleChanges: 3, roleSkipped: 0 });
+    // 呼叫者（U-cap）最後處理：其降級在 Phase 4
+    expect(ctx.ensureAuthUser.mock.calls.map(([uid]) => uid)).toEqual(["U-lead", "U-coach", "U-cap"]);
+    expect(claimSeen).toEqual([["U-lead", "user", "coach"], ["U-coach", "user", "coach"], ["U-cap", "user", "captain"]]);
+    STAFF.forEach((uid) => expect(ctx.fake.get(`users/${uid}`).role).toBe("user"));
+
+    const writes = ctx.fake.state.writes;
+    const first = writes.findIndex((item) => item.path === "users/U-lead");
+    expect(writes.slice(first, first + 3).map((item) => [item.op, item.path.replace(/(operationLogs\/op_).*/, "$1*")]))
+      .toEqual([["update", "users/U-lead"], ["set", `users/U-lead/inbox/${INBOX_ID}`], ["set", "operationLogs/op_*"]]);
+    expect(writes[first].data).toEqual({ role: "user", updatedAt: "SERVER_TS" });
+    expect(writes[first].commit).toBe(writes[first + 2].commit);
+  });
+
+  test("呼叫者本人的降級與 team_delete opLog、刪 team 在同一次 commit（最後一批）", async () => {
     const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
     await call();
-    const [inboxId] = fake.list("users/U-cap/inbox");
-    expect(fake.get(`users/U-cap/inbox/${inboxId}`)).toMatchObject({
+    const lastCommit = fake.state.commits.length;
+    const finalWrites = fake.state.writes.filter((item) => item.commit === lastCommit);
+    expect(finalWrites.map((item) => [item.op, item.path.replace(/(operationLogs\/op_).*/, "$1*")])).toEqual([
+      ["update", "users/U-cap"],
+      ["set", `users/U-cap/inbox/${INBOX_ID}`],
+      ["set", "operationLogs/op_*"],
+      ["set", "operationLogs/op_*"],
+      ["delete", TEAM_PATH],
+    ]);
+    expect(finalWrites[3].data).toMatchObject({ type: "team_delete" });
+    // 其他幹部的降級在更早的 commit，不在最後一批
+    expect(fake.writesTo("users/U-lead")[0].commit).toBeLessThan(lastCommit);
+  });
+
+  test("站內信沿用 A 的 role_upgrade 樣板；路徑用邏輯 uid、time 為台北時間；opLog 為「角色變更」且不含 UID", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    await call();
+    expect(fake.list("users/U-cap/inbox")).toEqual([INBOX_ID]);
+    expect(fake.get(`users/U-cap/inbox/${INBOX_ID}`)).toMatchObject({
       title: "身份變更通知",
       body: "恭喜 隊長！您的身份已變更為「一般用戶」。",
       type: "private",
       typeName: "私訊",
       senderName: "系統",
+      time: "2026/10/27 16:00",
       read: false,
       createdAt: "SERVER_TS",
     });
     const roleLogs = fake.writesTo("operationLogs/").map((item) => item.data).filter((item) => item.type === "role");
     expect(roleLogs).toHaveLength(3);
-    expect(roleLogs[0]).toMatchObject({
-      typeName: "角色變更", content: "隊長 自動調整為「一般用戶」（原：領隊）", actorUid: "U-cap", source: "callable",
+    expect(roleLogOf(fake, "隊長")).toMatchObject({
+      typeName: "角色變更", content: "隊長 自動調整為「一般用戶」（原：領隊）", actorUid: "U-cap", source: "callable", operator: "隊長",
     });
     roleLogs.forEach((item) => expect(item.content).not.toMatch(/U-/));
+  });
+
+  test("幹部文件 id 與 uid 不同（非 canonical）：角色寫在文件 id，站內信寫在 users/{uid}/inbox", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    delete docs["users/U-lead"];
+    docs["users/doc-lead"] = { uid: "U-lead", displayName: "領隊", role: "coach" };
+    const { call, fake } = setup({ docs });
+    await call();
+    expect(fake.get("users/doc-lead").role).toBe("user");
+    expect(fake.list("users/U-lead/inbox")).toEqual([INBOX_ID]);
+    expect(fake.list("users/doc-lead/inbox")).toEqual([]);
+  });
+
+  test("通知名稱對齊 A：users.name 優先於 displayName", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    docs["users/U-lead"] = { ...docs["users/U-lead"], name: "正式姓名", displayName: "LINE 暱稱" };
+    const { call, fake } = setup({ docs });
+    await call();
+    expect(fake.get(`users/U-lead/inbox/${INBOX_ID}`).body).toContain("恭喜 正式姓名！");
+    expect(roleLogOf(fake, "正式姓名")).toBeTruthy();
+  });
+
+  test("operationLogs 操作者名稱對齊 A：沒有 displayName 時用角色標籤", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    docs["users/U-cap"] = { ...docs["users/U-cap"], displayName: "" };
+    const { call, fake } = setup({ docs });
+    await call();
+    const teamDeleteLog = fake.writesTo("operationLogs/").map((item) => item.data).find((data) => data.type === "team_delete");
+    expect(teamDeleteLog.operator).toBe("領隊");
   });
 
   test("Firestore 的 notifTemplates/role_upgrade 優先於內建預設", async () => {
@@ -305,8 +457,7 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     }));
     const { call, fake } = setup({ docs });
     await call();
-    const [inboxId] = fake.list("users/U-cap/inbox");
-    expect(fake.get(`users/U-cap/inbox/${inboxId}`)).toMatchObject({ title: "自訂標題", body: "隊長 現為 一般用戶" });
+    expect(fake.get(`users/U-cap/inbox/${INBOX_ID}`)).toMatchObject({ title: "自訂標題", body: "隊長 現為 一般用戶" });
   });
 
   test("完全沒有樣板 → 角色照改、opLog 照寫，只是不發站內信", async () => {
@@ -341,8 +492,7 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     const { call, fake } = setup({ docs });
     await call();
     expect(fake.get("users/U-cap").role).toBe("coach");
-    const [inboxId] = fake.list("users/U-cap/inbox");
-    expect(fake.get(`users/U-cap/inbox/${inboxId}`).body).toContain("教練");
+    expect(fake.get(`users/U-cap/inbox/${INBOX_ID}`).body).toContain("教練");
   });
 
   test("manualRole 當底線：manualRole=coach 的隊長降為教練", async () => {
@@ -403,7 +553,42 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     docs[TEAM_PATH] = { ...docs[TEAM_PATH], leaderUids: ["U-cap", "U-lead", ""], coachUids: ["U-lead", "U-coach"] };
     const { call, ensureAuthUser } = setup({ docs });
     await call();
-    expect(ensureAuthUser.mock.calls.map(([uid]) => uid)).toEqual(["U-cap", "U-lead", "U-coach"]);
+    expect(ensureAuthUser.mock.calls.map(([uid]) => uid)).toEqual(["U-lead", "U-coach", "U-cap"]);
+  });
+});
+
+describe("deleteTeam 降級他人的範圍（審查 P2-3：比照 autoPromoteTeamRole 的 canCallerRecalculateRole）", () => {
+  test("一般 owner（無 team.manage_all／team.create）刪隊：只降級自己，其他幹部角色不動並計入 roleSkipped", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({
+      docs: withoutStaffMembership(seedDocs()),
+      access: createAccess({ role: "captain" }),
+      logger,
+    });
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 1, roleSkipped: 2 });
+    expect(fake.get("users/U-cap").role).toBe("user");
+    expect(fake.get("users/U-lead").role).toBe("coach");
+    expect(fake.get("users/U-coach").role).toBe("coach");
+    expect(fake.list("users/U-lead/inbox")).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not permitted"), expect.any(Object));
+  });
+
+  test.each([
+    ["team.create", createAccess({ role: "captain", permissions: ["team.create"] })],
+    ["team.manage_all", createAccess({ role: "captain", permissions: ["team.manage_all"] })],
+  ])("持有 %s → 其他幹部也降級", async (_label, access) => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()), access });
+    await expect(call()).resolves.toMatchObject({ roleChanges: 3, roleSkipped: 0 });
+    STAFF.forEach((uid) => expect(fake.get(`users/${uid}`).role).toBe("user"));
+  });
+
+  test("super_admin（不是該隊幹部）刪隊 → 所有幹部降級，沒有呼叫者本人的延後項", async () => {
+    const { call, fake } = setup({
+      docs: withoutStaffMembership(seedDocs()),
+      access: createAccess({ role: "super_admin" }),
+    });
+    await expect(call({ teamId: TEAM }, "U-boss")).resolves.toMatchObject({ roleChanges: 3, roleSkipped: 0 });
+    STAFF.forEach((uid) => expect(fake.get(`users/${uid}`).role).toBe("user"));
   });
 });
 
@@ -418,10 +603,10 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
       type: "team_delete", typeName: "刪除俱樂部", content: "刪除「待刪俱樂部」", actorUid: "U-cap", source: "callable",
     });
     expect(writes.filter((item) => item.path === TEAM_PATH)).toHaveLength(1);
-    expect(fake.state.commits[fake.state.commits.length - 1].size).toBe(2);
+    expect(writes[writes.length - 1].commit).toBe(writes[writes.length - 2].commit);
   });
 
-  test("Phase 2 失敗 → team 仍在、已清的成員不回復、角色未動；修好後重跑完成", async () => {
+  test("Phase 2 失敗 → team 仍在、已清的成員不回復、呼叫者角色未動；修好後重跑完成", async () => {
     const ensureAuthUser = jest.fn(async () => null);
     ensureAuthUser.mockRejectedValueOnce(new Error("auth backend down"));
     const logger = createLogger();
@@ -432,7 +617,7 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
     expect(fake.get("users/U-cap").role).toBe("captain");
     expect(logger.error).toHaveBeenCalledWith(
       "[deleteTeam] failed",
-      expect.objectContaining({ phase: "recalculate-roles", cleanedMembers: 5, code: "internal" }),
+      expect.objectContaining({ phase: "recalculate-roles", cleanedMembers: 5, roleChanges: 0, code: "internal" }),
     );
 
     const result = await call();
@@ -440,20 +625,81 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
     expect(fake.has(TEAM_PATH)).toBe(false);
   });
 
-  test("最後一批（opLog＋刪 team）失敗 → 重跑不重發通知、不重複降級，最終 team_delete 只有一筆", async () => {
-    const { call, fake } = setup();
+  test("最後一批（呼叫者角色＋opLog＋刪 team）失敗 → 重跑只補呼叫者本人，不重發他人通知，team_delete 只有一筆", async () => {
+    const { call, fake } = setup({ accessFromDocs: true, accessPermissions: ["team.create"] });
     fake.state.failCommit = ({ ops }) => (ops.some((item) => item.op === "delete") ? new FakeFirestoreError(14, "UNAVAILABLE") : null);
     expect(await rejection(call())).toMatchObject({ code: "internal" });
     expect(fake.has(TEAM_PATH)).toBe(true);
-    expect(fake.list("users/U-cap/inbox")).toHaveLength(1);
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.list("users/U-cap/inbox")).toEqual([]);
+    expect(fake.list("users/U-lead/inbox")).toHaveLength(1);
 
     fake.state.failCommit = null;
-    await expect(call()).resolves.toMatchObject({ ok: true, cleanedMembers: 0, roleChanges: 0 });
+    await expect(call()).resolves.toMatchObject({ ok: true, cleanedMembers: 0, roleChanges: 1 });
     expect(fake.has(TEAM_PATH)).toBe(false);
-    ["U-cap", "U-lead", "U-coach"].forEach((uid) => expect(fake.list(`users/${uid}/inbox`)).toHaveLength(1));
+    STAFF.forEach((uid) => expect(fake.list(`users/${uid}/inbox`)).toHaveLength(1));
     const logs = fake.writesTo("operationLogs/").map((item) => item.data.type);
     expect(logs.filter((type) => type === "team_delete")).toHaveLength(1);
     expect(logs.filter((type) => type === "role")).toHaveLength(3);
+  });
+
+  test("P1-1：隊長呼叫、最後一批失敗一次後重試要成功（角色讀自文件，呼叫者文件上的角色仍是舊的）", async () => {
+    const { call, fake, getCallerAccessContext } = setup({ accessFromDocs: true, accessPermissions: ["team.create"] });
+    let failuresLeft = 1;
+    fake.state.failCommit = ({ ops }) => {
+      if (failuresLeft > 0 && ops.some((item) => item.op === "delete")) {
+        failuresLeft -= 1;
+        return new FakeFirestoreError(14, "UNAVAILABLE");
+      }
+      return null;
+    };
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.get("users/U-cap").role).toBe("captain");
+
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(getCallerAccessContext).toHaveBeenCalledTimes(2);
+    expect(fake.get("users/U-cap").role).toBe("user");
+    expect(fake.list("users/U-cap/inbox")).toEqual([INBOX_ID]);
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("P1-1：第二位幹部的 ensureAuthUser 失敗一次後重試要成功，站內信各恰好一封，最終呼叫者是 user", async () => {
+    let failuresLeft = 1;
+    const ensureAuthUser = jest.fn(async (uid) => {
+      if (uid === "U-coach" && failuresLeft > 0) {
+        failuresLeft -= 1;
+        throw new Error("auth backend down");
+      }
+      return null;
+    });
+    const logger = createLogger();
+    const { call, fake } = setup({ accessFromDocs: true, accessPermissions: ["team.create"], ensureAuthUser, logger });
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.get("users/U-lead").role).toBe("user");
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] failed",
+      expect.objectContaining({ phase: "recalculate-roles", roleChanges: 1 }),
+    );
+
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 2 });
+    STAFF.forEach((uid) => {
+      expect(fake.get(`users/${uid}`).role).toBe("user");
+      expect(fake.list(`users/${uid}/inbox`)).toEqual([INBOX_ID]);
+    });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("兩個呼叫同時進行：後到者的刪除前置條件失敗 → 視為 alreadyDeleted，不寫第二筆 team_delete opLog", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ logger });
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.op === "delete")) fake.remove(TEAM_PATH);
+    };
+    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+    const logs = fake.writesTo("operationLogs/").map((item) => item.data.type);
+    expect(logs).not.toContain("team_delete");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("concurrent"), expect.any(Object));
   });
 
   test("保持不處理：子集合、events、tournaments、teamExpLogs 等一律不碰（A 現況也沒有）", async () => {
