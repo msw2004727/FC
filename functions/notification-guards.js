@@ -51,21 +51,23 @@ function createNotificationGuards({
     });
   }
 
-  // 先遞增再讀回總和（分片時加總）；回傳含本次的計數
-  async function bump({ windowKey, scope, subject, shards = 1, expireAtMs }) {
+  // 先遞增再讀回總和（分片時加總）；回傳含本次的計數。increment=false 時只讀回、不遞增
+  async function bump({ windowKey, scope, subject, shards = 1, expireAtMs }, increment = true) {
     const base = [windowKey, scope, subject ? hashId(subject) : null].filter(Boolean).join("_");
     const collection = db.collection(COUNTER_COLLECTION);
     const shardIds = shards > 1
       ? Array.from({ length: shards }, (_, index) => `${base}_s${index}`)
       : [base];
     const pick = shardIds[shards > 1 ? Math.floor(random() * shards) : 0];
-    await collection.doc(pick).set({
-      scope,
-      windowKey,
-      count: FieldValue.increment(1),
-      updatedAt: FieldValue.serverTimestamp(),
-      expireAt: new Date(expireAtMs),
-    }, { merge: true });
+    if (increment) {
+      await collection.doc(pick).set({
+        scope,
+        windowKey,
+        count: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+        expireAt: new Date(expireAtMs),
+      }, { merge: true });
+    }
     const snaps = await db.getAll(...shardIds.map((id) => collection.doc(id)));
     return snaps.reduce((sum, snap) => sum + (snap.exists ? Number(snap.data()?.count) || 0 : 0), 0);
   }
@@ -78,10 +80,10 @@ function createNotificationGuards({
   }
 
   // 遞增後與上限比較；超限記錄並回 true；計數故障依 onCounterFailure 處理（放行時回 false）
-  async function exceeded(gate, params, limit, ctx) {
+  async function exceeded(gate, params, limit, ctx, increment = true) {
     let total;
     try {
-      total = await bump(params);
+      total = await bump(params, increment);
     } catch (err) {
       onCounterFailure(gate, ctx, err);
       return false;
@@ -207,6 +209,7 @@ function createNotificationGuards({
     const staff = requestedByUid === "system" || isStaffRole(requestedByRole);
     const ctx = { kind: "send", callerUid: requestedByUid, source, staff, failOpen: true };
     let claimed = false;
+    let countThisSend = true; // 同一文件重試（own）第一次嘗試已計入全域池，不重複遞增，只檢查池是否已超限
     try {
       if (key) {
         const { outcome, ageMs } = await claimDedupe({ queueId, uid, dedupeKey: key });
@@ -215,6 +218,7 @@ function createNotificationGuards({
           return { skip: true, reason: "duplicate" };
         }
         claimed = outcome === "claimed";
+        countThisSend = outcome !== "own";
       }
       const pool = staff ? "staff" : "user";
       const day = fields.taipeiDayKey(now());
@@ -224,7 +228,7 @@ function createNotificationGuards({
         shards: LIMITS.globalShards,
         expireAtMs: now() + LIMITS.counterTtlMs,
       };
-      if (await exceeded(`global_pool_${pool}`, poolParams, LIMITS.globalPerDay[pool], ctx)) {
+      if (await exceeded(`global_pool_${pool}`, poolParams, LIMITS.globalPerDay[pool], ctx, countThisSend)) {
         if (claimed) await releaseDedupe({ queueId, uid, dedupeKey: key });
         await logCapOnce("send", pool, day);
         return { skip: true, reason: "daily_cap" };

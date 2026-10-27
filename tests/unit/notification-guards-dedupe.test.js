@@ -173,12 +173,34 @@ describe('全域每日發送池（處理端）', () => {
     expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(1);
   });
 
-  test('已持有認領的文件重試時遇到上限：回 daily_cap 但保留原認領', async () => {
+  test('同一文件重試（own）不重複扣全域發送額度', async () => {
+    const { guards, db } = createGuardsEnv();
+    await expect(push(guards, 'q1')).resolves.toEqual(OK);
+    await expect(push(guards, 'q1')).resolves.toEqual(OK);
+    await expect(push(guards, 'q1')).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(1);
+  });
+
+  test('同一文件重試（own）時池子剛好在上限：不再遞增所以放行，新文件則被擋', async () => {
     const { guards, db } = createGuardsEnv();
     await expect(push(guards, 'q1')).resolves.toEqual(OK);
     await seedCounter(db, `${DAY}_global_send_user_s0`, L.globalPerDay.user);
+    await expect(push(guards, 'q1')).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(L.globalPerDay.user);
+    await expect(push(guards, 'q2', { uid: OTHER, requestedByUid: OTHER })).resolves.toEqual(CAP);
+  });
+
+  test('已持有認領的文件重試時池子已超限：回 daily_cap 但保留原認領（維持現狀）', async () => {
+    const { guards, db, logger } = createGuardsEnv();
+    await expect(push(guards, 'q1')).resolves.toEqual(OK);
+    await seedCounter(db, `${DAY}_global_send_user_s0`, L.globalPerDay.user + 1);
     await expect(push(guards, 'q1')).resolves.toEqual(CAP);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(L.globalPerDay.user + 1);
     expect(dedupeDocs(db)).toHaveLength(1);
+    expect(logger.errors).toEqual([[
+      '[notificationGuards] global daily cap reached',
+      { gate: 'global_pool_user', kind: 'send', day: DAY, limit: L.globalPerDay.user },
+    ]]);
     await expect(push(guards, 'q2')).resolves.toEqual(DUP);
   });
 

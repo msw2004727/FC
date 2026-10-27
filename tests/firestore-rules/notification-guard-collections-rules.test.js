@@ -58,23 +58,31 @@ function superAdmin() {
   return testEnv.authenticatedContext('uidSuper', { role: 'super_admin', admin: true }).firestore();
 }
 
+// 四種身分 × 兩個集合 × get／set／update／delete，全部拒絕
+const IDENTITIES = [
+  ['訪客', () => guest()],
+  ['一般登入者', () => member('uidA')],
+  ['admin', () => admin()],
+  ['super_admin', () => superAdmin()],
+];
+
 describe.each(INTERNAL_COLLECTIONS)('%s 內部集合', (collection, id) => {
-  test('訪客不能讀寫', async () => {
-    await assertFails(getDoc(doc(guest(), collection, id)));
-    await assertFails(setDoc(doc(guest(), collection, 'new'), { count: 1 }));
-  });
+  describe.each(IDENTITIES)('%s', (_label, getDb) => {
+    test('不能讀取（get）', async () => {
+      await assertFails(getDoc(doc(getDb(), collection, id)));
+    });
 
-  test('一般登入者不能讀、建立、更新或刪除', async () => {
-    await assertFails(getDoc(doc(member('uidA'), collection, id)));
-    await assertFails(setDoc(doc(member('uidA'), collection, 'new'), { count: 1 }));
-    await assertFails(updateDoc(doc(member('uidA'), collection, id), { count: 99 }));
-    await assertFails(deleteDoc(doc(member('uidA'), collection, id)));
-  });
+    test('不能建立或覆寫（set）', async () => {
+      await assertFails(setDoc(doc(getDb(), collection, 'new'), { count: 1 }));
+      await assertFails(setDoc(doc(getDb(), collection, id), { count: 99 }));
+    });
 
-  test('管理員與超級管理員也不能由客戶端讀寫', async () => {
-    await assertFails(getDoc(doc(admin(), collection, id)));
-    await assertFails(setDoc(doc(admin(), collection, 'new'), { count: 1 }));
-    await assertFails(updateDoc(doc(superAdmin(), collection, id), { count: 99 }));
-    await assertFails(deleteDoc(doc(superAdmin(), collection, id)));
+    test('不能更新（update）', async () => {
+      await assertFails(updateDoc(doc(getDb(), collection, id), { count: 99 }));
+    });
+
+    test('不能刪除（delete）', async () => {
+      await assertFails(deleteDoc(doc(getDb(), collection, id)));
+    });
   });
 });
