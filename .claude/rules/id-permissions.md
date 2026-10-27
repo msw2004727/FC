@@ -21,7 +21,7 @@ paths:
 
 - **R-ID-001 [A/HARD]**：新建／重構遵守一實體一 canonical ID；正常 legacy 不做無關大遷移。
 - **R-ID-002 [A/HARD]**：用戶唯一身份是 Firebase Auth UID（= LINE userId）。新增操作者／所屬用戶資料必含 UID；禁 displayName／name 作身份查詢。
-- **R-ID-003 [A/HARD]**：欄位：`users` → `uid/lineUserId`；`registrations` → `userId`；`attendanceRecords`、`activityRecords`、`expLogs`、`operationLogs` → `uid`；`events` → `creatorUid`。
+- **R-ID-003 [A/HARD]**：欄位：`users` → `uid/lineUserId`；`registrations` → `userId`；`attendanceRecords`、`activityRecords`、`expLogs` → `uid`；`operationLogs` → `actorUid`（操作者；2026-10-27 取代原 `uid`：A `_writeOpLog`、Rules `isOpLogOwnerRequest`、`tests/unit/operation-log.test.js` 皆為 `actorUid`，原文為 drift）；`events` → `creatorUid`。
 - **R-ID-004 [A/HARD]**：俱樂部 ID 由 `generateId('tm_')` 產生（`tm_<timestamp>_<random>`），用 `db.collection('teams').doc(teamId).set(data)`；`users.teamIds`、`events.creatorTeamIds`、`tournaments.hostTeamId` 存該 ID。幹部用 `captainUid`／`leaderUids`／`coachUids`；`captainName`／`leaderNames`／`coachNames` 只顯示 cache。
 - **R-ID-005 [A/HARD]**：賽事 ID 由 `generateId('ct_')` 產生（`ct_<timestamp>_<random>`），用 `.doc(tournamentId).set(data)`；委託用 `delegateUids`，`delegateNames` 只顯示。
 - **R-ID-006 [A/HARD]**：除本規則明列的決定性複合鍵外，隨機／時間型新 ID 統一用 `generateId(prefix)`，禁止以字串拼接自行模擬；`tm_`俱樂部、`ct_`賽事、`ce_`活動、`reg_`報名、`cm_` match。`ta_` 賽事申請是決定性例外：`tournaments/{tournamentId}/applications/{applicationId}` 的 `applicationId` 必須精確為 `ta_${teamId}`，同一賽事／俱樂部重用同一文件鍵，禁止改成 `generateId('ta_')`。`fp_`貼文、`fc_`留言是目前停用的動態牆保留契約；若功能恢復，分別用 `generateId('fp_')`、`generateId('fc_')`。
