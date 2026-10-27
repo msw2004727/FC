@@ -358,7 +358,9 @@ describe("deleteTeam Phase 1：成員集合與分批清除", () => {
     const docs = withoutStaffMembership(seedDocs());
     const { call, fake } = setup({ docs });
     await expect(call()).resolves.toMatchObject({ cleanedMembers: 2 });
-    expect(fake.writesTo("users/U-lead").map((item) => Object.keys(item.data).join())).toEqual(["role,updatedAt"]);
+    // 只有 Phase 2 的角色更新寫到 users/U-lead 文件本身（站內信在子集合 users/U-lead/inbox，不算），沒有隊伍欄位的清除寫入
+    expect(fake.state.writes.filter((item) => item.path === "users/U-lead").map((item) => Object.keys(item.data).join()))
+      .toEqual(["role,updatedAt"]);
   });
 
   test("1000 名成員（含只有舊 teamId 者）：分頁讀完、每批 ≤450、每人只寫一次", async () => {
