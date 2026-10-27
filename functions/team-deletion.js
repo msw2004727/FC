@@ -3,15 +3,19 @@
 /**
  * deleteTeam — 刪除俱樂部（取代舊站 A removeTeam 的前端 4 段接力，T-027 7b(A)）。
  *
- * 權限＝A 前端刪隊准入（captainUid／creatorUid／ownerUid 或 team.manage_all）∧ 呼叫者 coach 以上。
+ * 權限＝A 前端刪隊准入（captainUid／creatorUid／ownerUid 或 team.manage_all）∧ 呼叫者 coach 以上；
+ * 權限碼（team.manage_all／team.create）一律用 team-permission.js 的 Rules 對齊判斷：rolePermissions/{role} 文件不存在
+ * 視為沒有該權限，不回退 getCallerAccessContext 的預設權限。成員歸屬以 team 文件 id 為準，不用文件內可被 owner 改寫的 id 欄位。
  * 可重入、冪等，最後才刪 team 文件（任何階段失敗使用者可直接重試）：
- *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450，見 team-deletion-members.js）
+ *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450，見 team-deletion-members.js）；
+ *           有成員重試耗盡仍清不掉 → 回 partial、不進 Phase 2～4（team 文件仍在，呼叫者重跑即可）
  *   Phase 2/3 幹部角色重算（排除本隊）＋站內信（見 team-deletion-roles.js）；呼叫者本人的降級留給 Phase 4
  *   Phase 4 同一個 batch：呼叫者本人的角色變更（若有）＋ operationLog ＋ 刪 team 文件（帶 exists 前置條件）
  * 刻意不處理（A 現況也沒有）：子集合、events.creatorTeamIds、tournaments.hostTeamId、teamExpLogs、入隊申請訊息、進行中活動／賽事檢查。
  */
 
 const { isCoachPlusAccess } = require("./team-member-removal");
+const { createRulesAlignedAccess } = require("./team-permission");
 const { cleanMemberships, listTeamMemberDocs } = require("./team-deletion-members");
 const { canDemoteOtherStaff, createStaffRoleRecalculator } = require("./team-deletion-roles");
 const {
@@ -69,10 +73,14 @@ function createDeleteTeamHandler({
         return { ok: true, alreadyDeleted: true };
       }
       const teamData = teamSnap.data() || {};
-      const logicalTeamId = String(teamData.id || teamSnap.id);
+      const teamDocId = teamSnap.id;
 
       phase = "authorize";
-      const access = await getCallerAccessContext(request);
+      const access = await createRulesAlignedAccess({
+        db,
+        access: await getCallerAccessContext(request),
+        uid: callerUid,
+      });
       if (!isFrontendTeamDeleter(teamData, callerUid, access)) {
         throw new HttpsError("permission-denied", "TEAM_DELETE_DENIED");
       }
@@ -84,8 +92,25 @@ function createDeleteTeamHandler({
       const actor = { uid: callerUid, ...(await readActorNames(db, callerUid, access.role)) };
 
       phase = "clean-members";
-      const memberDocs = await listTeamMemberDocs({ db, FieldPath, logicalTeamId, teamData });
-      progress.cleanedMembers = await cleanMemberships({ db, FieldValue, memberDocs, logicalTeamId, logger, ctx });
+      const memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData });
+      const cleanup = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx });
+      progress.cleanedMembers = cleanup.cleaned;
+      if (cleanup.failed.length > 0) {
+        // 有成員在重試上限內仍清不掉（持續與併發寫入衝突）：不進角色重算、不刪 team，讓呼叫者重跑。
+        logger.error?.("[deleteTeam] partial: members left uncleaned, team kept", {
+          ...ctx,
+          ...progress,
+          remainingMembers: cleanup.failed.length,
+        });
+        return {
+          ok: true,
+          alreadyDeleted: false,
+          cleanedMembers: progress.cleanedMembers,
+          roleChanges: 0,
+          roleSkipped: 0,
+          partial: { remainingMembers: cleanup.failed.length, memberIds: cleanup.failed, rerun: true },
+        };
+      }
 
       phase = "recalculate-roles";
       const recalculator = createStaffRoleRecalculator({
@@ -99,7 +124,7 @@ function createDeleteTeamHandler({
         buildOperationLogPayload,
         defaultTemplates: defaultNotificationTemplates,
         logger,
-        teamDocId: teamSnap.id,
+        teamDocId,
         actor,
         issuedAt,
       });

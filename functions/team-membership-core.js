@@ -25,23 +25,31 @@ function maskId(value) {
   return id.length <= 8 ? `${id.slice(0, 2)}***` : `${id.slice(0, 4)}...${id.slice(-3)}`;
 }
 
-// team-member-count.js 的 resolveTeamDoc 沒有 export，行為照抄：docId 優先，再 where('id','==',…)。
-// 加固（審查 P3-1）：team 文件的 id 欄位 owner 可自行改寫，若放任「文件 id ≠ 邏輯 id」就能把別隊的邏輯 id 當成自己的，
-// 讓 deleteTeam／removeTeamMember 去動別隊成員。所以以文件 id 命中時，id 欄位必須不存在或等於文件 id；
-// 以 id 欄位命中（舊資料橋接）時，必須剛好一份文件，否則拒絕。
+// 以「文件 id」解析 team（審查 P3-1，FC 顧問裁示）：成員歸屬、隊名讀取、「目前在該隊」判斷一律以 team 文件的 ref／文件 id 為準，
+// 不使用 team 文件的 id 欄位——owner 可以改寫自己隊伍文件的 id 欄位（firestore.rules teams update 不限欄位），
+// 若用它比對就能把別隊的邏輯 id 當成自己的，讓 deleteTeam／removeTeamMember 去動別隊成員。
+//  - 以文件 id 命中、但 id 欄位存在且不等於文件 id → TEAM_ID_MISMATCH（不處理）。
+//  - 文件 id 查無、但另有文件的 id 欄位等於輸入（舊資料：文件 id ≠ id 欄位）→ 同樣 TEAM_ID_MISMATCH：
+//    users.teamIds 存的是邏輯 id，以文件 id 為準就清不到那些成員，與其誤報「查無」，不如明確拒絕（這類舊資料不在本 Callable 支援範圍）。
+// team-member-count.js 的 resolveTeamDoc（會退回 where('id','==',…)）沒有 export，這裡不照抄那個退回。
+function assertTeamDocIdConsistent(teamSnap, HttpsError) {
+  const fieldId = teamSnap.data()?.id;
+  if (fieldId !== undefined && fieldId !== null && fieldId !== "" && String(fieldId) !== teamSnap.id) {
+    throw new HttpsError("failed-precondition", "TEAM_ID_MISMATCH");
+  }
+}
+
 async function resolveTeamSnapshot(db, teamId, HttpsError) {
   const direct = await db.collection("teams").doc(teamId).get();
   if (direct && direct.exists) {
-    const logicalId = direct.data()?.id;
-    if (logicalId !== undefined && logicalId !== null && logicalId !== "" && String(logicalId) !== direct.id) {
-      throw new HttpsError("failed-precondition", "TEAM_ID_MISMATCH");
-    }
+    assertTeamDocIdConsistent(direct, HttpsError);
     return direct;
   }
-  const query = await db.collection("teams").where("id", "==", teamId).limit(2).get();
-  const docs = Array.isArray(query?.docs) ? query.docs : [];
-  if (docs.length > 1) throw new HttpsError("failed-precondition", "TEAM_ID_AMBIGUOUS");
-  return docs.length === 1 ? docs[0] : null;
+  const legacy = await db.collection("teams").where("id", "==", teamId).limit(1).get();
+  if (Array.isArray(legacy?.docs) && legacy.docs.length > 0) {
+    throw new HttpsError("failed-precondition", "TEAM_ID_MISMATCH");
+  }
+  return null;
 }
 
 // Firestore 衝突類錯誤（gRPC 數字碼、字串碼或訊息皆可能出現）。
@@ -134,13 +142,13 @@ async function readAllDocs(query, FieldPath) {
 async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
   const teamSnap = await teamRef.get();
   if (!teamSnap.exists) return null;
-  const raw = teamSnap.data() || {};
-  const teamData = { ...raw, id: raw.id || teamRef.id };
-  const logicalTeamId = String(teamData.id);
+  // 成員歸屬以文件 id 為準（見 resolveTeamSnapshot）；覆寫 id 欄位，countTeamMembers 才不會用被竄改的值比對。
+  const teamData = { ...(teamSnap.data() || {}), id: teamRef.id };
+  const teamDocId = teamRef.id;
 
   const [byTeamIds, byTeamId, studentsSnap] = await Promise.all([
-    db.collection("users").where("teamIds", "array-contains", logicalTeamId).get(),
-    db.collection("users").where("teamId", "==", logicalTeamId).get(),
+    db.collection("users").where("teamIds", "array-contains", teamDocId).get(),
+    db.collection("users").where("teamId", "==", teamDocId).get(),
     teamRef.collection("students").get(),
   ]);
   const userByDocId = new Map();
@@ -174,6 +182,7 @@ async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
 
 module.exports = {
   ROLE_LABELS,
+  assertTeamDocIdConsistent,
   buildNextMembership,
   collectStaffUids,
   formatTaipeiDateTime,
