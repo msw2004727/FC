@@ -472,6 +472,176 @@ describe("deleteTeam Phase 1：成員集合與分批清除", () => {
   });
 });
 
+// 模擬「Phase 1 之後才加入本隊的成員」：每次 batch commit 成功後，由 db 外部多加一位成員，最多 times 位。
+function addJoinersAfterBatchCommits(fake, times) {
+  let joined = 0;
+  const realBatch = fake.db.batch;
+  fake.db.batch = () => {
+    const batch = realBatch();
+    const realCommit = batch.commit;
+    batch.commit = async () => {
+      await realCommit();
+      if (joined < times) {
+        joined += 1;
+        const uid = `U-joiner-${joined}`;
+        fake.touch(`users/${uid}`, { uid, role: "user", ...inTeam() });
+      }
+    };
+    return batch;
+  };
+  return { joined: () => joined, restore: () => { fake.db.batch = realBatch; } };
+}
+
+const teamMemberUids = (fake) => fake.list("users").filter((id) => {
+  const data = fake.get(`users/${id}`);
+  return data.teamId === TEAM || (Array.isArray(data.teamIds) && data.teamIds.includes(TEAM));
+});
+
+describe("deleteTeam 收斂迴圈：最後一批前再查人（F-6，FC 顧問裁示 (b)）", () => {
+  test("(a) 成員在 Phase 1 之後、最後一批之前被加入 → 補清一輪後完成、team 刪除、沒有指向已刪隊的髒參照", async () => {
+    const { call, fake } = setup();
+    const joiners = addJoinersAfterBatchCommits(fake, 1);
+    const result = await call();
+    expect(joiners.joined()).toBe(1);
+    expect(result.partial).toBeUndefined();
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 6 }); // 原 5 位＋後加入的 1 位
+    expect(fake.has(TEAM_PATH)).toBe(false);
+    expect(teamMemberUids(fake)).toEqual([]); // 沒有任何使用者還引用已刪的隊
+    expect(fake.get("users/U-joiner-1")).toMatchObject({ teamId: null, teamIds: [], teamNames: [] });
+  });
+
+  test("(b) 持續有人被加入（每次 recheck 都 >0）→ 共 3 次 recheck 後 TEAM_MEMBERS_CHURNING：team 仍在、角色與站內信未動、無 team_delete；可重試", async () => {
+    const logger = createLogger();
+    const { call, fake } = setup({ logger });
+    const joiners = addJoinersAfterBatchCommits(fake, 10);
+    expect(await rejection(call())).toMatchObject({ code: "failed-precondition", message: "TEAM_MEMBERS_CHURNING" });
+    expect(joiners.joined()).toBe(3); // Phase 1 一輪＋最多 2 輪補清，每輪後各加入 1 位，共 3 次 recheck
+    expect(fake.state.commits).toHaveLength(3);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.get("users/U-lead").role).toBe("coach");
+    STAFF.forEach((uid) => expect(fake.list(`users/${uid}/inbox`)).toEqual([]));
+    expect(fake.writesTo("operationLogs/")).toHaveLength(0);
+    expect(logger.error).toHaveBeenCalledWith(
+      "[deleteTeam] members keep joining, giving up after rechecks",
+      expect.objectContaining({ rechecks: 3, remaining: 1 }),
+    );
+    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "clean-members", code: "failed-precondition" }));
+
+    // 不再有人加入 → 重試即可完成
+    joiners.restore();
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false, roleChanges: 3 });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+    expect(teamMemberUids(fake)).toEqual([]);
+  });
+
+  test("(c) 補清輪次裡有成員衝突耗盡 → 同樣回 partial、帶 remaining（數字）與 rerun:true；team 與角色未動", async () => {
+    const { call, fake } = setup();
+    addJoinersAfterBatchCommits(fake, 1);
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-joiner-1")) fake.touch("users/U-joiner-1", { updatedAt: `t${Math.random()}` });
+    };
+    const result = await call();
+    expect(result).toMatchObject({
+      ok: true, alreadyDeleted: false, roleChanges: 0, roleSkipped: 0, roleChangedUids: [],
+      partial: { remaining: 1, rerun: true },
+    });
+    expect(result.partial.memberIds).toHaveLength(1);
+    expect(typeof result.partial.remaining).toBe("number");
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.writesTo("operationLogs/")).toHaveLength(0);
+  });
+
+  test("(c) Phase 1 衝突耗盡的 partial 也帶 remaining（數字）與 rerun:true", async () => {
+    const docs = seedDocs({
+      "users/U-race": { uid: "U-race-uid-0001", role: "user", ...inTeam({ teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] }) },
+    });
+    const { call, fake } = setup({ docs });
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-race")) fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+    const result = await call();
+    expect(result.partial).toEqual({ remaining: 1, memberIds: [expect.any(String)], rerun: true });
+  });
+
+  test("(d) 補清輪次後仍完成時，呼叫者自降仍只在最後一批（P1-1 不退化）", async () => {
+    const { call, fake } = setup();
+    addJoinersAfterBatchCommits(fake, 1);
+    await call();
+    const lastCommit = fake.state.commits.length;
+    const finalPaths = fake.state.writes
+      .filter((item) => item.commit === lastCommit)
+      .map((item) => item.path.replace(/(operationLogs\/op_).*/, "$1*"));
+    expect(finalPaths).toEqual(["users/U-cap", `users/U-cap/inbox/${INBOX_ID}`, "operationLogs/op_*", "operationLogs/op_*", TEAM_PATH]);
+    const earlierCallerWrites = fake.state.writes.filter((item) => item.path === "users/U-cap" && item.commit !== lastCommit);
+    expect(earlierCallerWrites.length).toBeGreaterThan(0); // Phase 1 清隊伍欄位
+    earlierCallerWrites.forEach((item) => expect(Object.keys(item.data)).not.toContain("role"));
+  });
+});
+
+describe("deleteTeam roleChangedUids（資訊性回傳欄位：本次呼叫內角色真的被改變者的邏輯 uid）", () => {
+  test("(a) 一般 owner 刪隊只降自己 → 只含呼叫者", async () => {
+    const { call } = setup({ docs: withoutStaffMembership(seedDocs()), access: createAccess({ role: "captain" }) });
+    const result = await call();
+    expect(result).toMatchObject({ roleChanges: 1, roleSkipped: 2 });
+    expect(result.roleChangedUids).toEqual(["U-cap"]);
+  });
+
+  test("(b) 有 team.manage_all 者刪隊降到別的幹部 → 含呼叫者與被降者（呼叫者最後，因其降級在最後一批）", async () => {
+    const { call } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    const result = await call();
+    expect(result.roleChanges).toBe(3);
+    expect(result.roleChangedUids).toEqual(["U-lead", "U-coach", "U-cap"]);
+  });
+
+  test("(c) no_change 重跑 → 不含：最後一批失敗後重跑，只有尚未降級的呼叫者出現", async () => {
+    const { call, fake } = setup({ accessFromDocs: true, accessPermissions: ["team.create"] });
+    fake.state.failCommit = ({ ops }) => (ops.some((item) => item.op === "delete") ? new FakeFirestoreError(14, "UNAVAILABLE") : null);
+    expect(await rejection(call())).toMatchObject({ code: "internal" });
+    fake.state.failCommit = null;
+    const result = await call();
+    expect(result.roleChangedUids).toEqual(["U-cap"]); // U-lead、U-coach 第一次已降級，重跑時是 no_change
+  });
+
+  test("(c) 全部已是目標角色（no_change）→ 空陣列", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    STAFF.forEach((uid) => { docs[`users/${uid}`] = { ...docs[`users/${uid}`], role: "user" }; });
+    const { call } = setup({ docs });
+    const result = await call();
+    expect(result).toMatchObject({ ok: true, roleChanges: 0 });
+    expect(result.roleChangedUids).toEqual([]);
+  });
+
+  test("(d) 契約形狀：陣列、元素為字串、是邏輯 uid（非文件 id）、不含其他個資", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    delete docs["users/U-cap"];
+    docs["users/doc-cap"] = { uid: "U-cap", displayName: "隊長", role: "captain" }; // 呼叫者是非 canonical 文件
+    const { call } = setup({ docs });
+    const result = await call();
+    expect(Array.isArray(result.roleChangedUids)).toBe(true);
+    result.roleChangedUids.forEach((uid) => expect(typeof uid).toBe("string"));
+    expect(result.roleChangedUids).toEqual(["U-lead", "U-coach", "U-cap"]);
+    expect(result.roleChangedUids).not.toContain("doc-cap");
+    expect(Object.keys(result).sort()).toEqual(["alreadyDeleted", "cleanedMembers", "ok", "roleChangedUids", "roleChanges", "roleSkipped"]);
+    const text = JSON.stringify(result);
+    ["隊長", "領隊", "教練", "doc-cap", "待刪俱樂部"].forEach((needle) => expect(text).not.toContain(needle));
+  });
+
+  test("partial 時 roleChangedUids 為空陣列（churning／失敗為拋錯，不回傳此欄位）", async () => {
+    const docs = seedDocs({
+      "users/U-race": { uid: "U-race", role: "user", ...inTeam({ teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"] }) },
+    });
+    const { call, fake } = setup({ docs });
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-race")) fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+    const result = await call();
+    expect(result.partial).toBeDefined();
+    expect(result.roleChangedUids).toEqual([]);
+  });
+});
+
 describe("deleteTeam Phase 1：已清人數逐筆回寫 progress（MiMo 核對 P3-3）", () => {
   test("整批階段：第二批 commit 拋非衝突錯誤 → 失敗 log 的 cleanedMembers 是已成功清掉的 450，不是 0", async () => {
     const logger = createLogger();
@@ -562,7 +732,7 @@ describe("deleteTeam Phase 1：讀與寫之間的併發變更不會被蓋掉（�
     const result = await call();
     armed = false;
     expect(result).toMatchObject({ ok: true, alreadyDeleted: false, cleanedMembers: 5 });
-    expect(result.partial).toMatchObject({ remainingMembers: 1, rerun: true });
+    expect(result.partial).toMatchObject({ remaining: 1, rerun: true });
     ["U-cap", "U-lead", "U-coach", "U-m1", "U-m2"].forEach((uid) => {
       expect(fake.get(`users/${uid}`)).toMatchObject({ teamId: null, teamIds: [], teamNames: [] });
     });
@@ -607,7 +777,7 @@ describe("deleteTeam Phase 1 重試耗盡 → partial：不刪 team、不進角�
       cleanedMembers: 5,
       roleChanges: 0,
       roleSkipped: 0,
-      partial: { remainingMembers: 1, memberIds: [expect.any(String)], rerun: true },
+      partial: { remaining: 1, memberIds: [expect.any(String)], rerun: true },
     });
     expect(result.partial.memberIds[0]).not.toBe("U-race-uid-0001");
     expect(fake.has(TEAM_PATH)).toBe(true);
@@ -621,7 +791,7 @@ describe("deleteTeam Phase 1 重試耗盡 → partial：不刪 team、不進角�
     );
     expect(logger.error).toHaveBeenCalledWith(
       "[deleteTeam] partial: members left uncleaned, team kept",
-      expect.objectContaining({ remainingMembers: 1 }),
+      expect.objectContaining({ remaining: 1 }),
     );
     // log 內的成員識別一律遮罩
     logger.error.mock.calls.forEach(([, context]) => {
@@ -1020,7 +1190,8 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
     fake.state.beforeCommit = ({ ops }) => {
       if (ops.some((item) => item.op === "delete")) fake.remove(TEAM_PATH);
     };
-    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+    // 他人的降級（Phase 2 已提交）如實回報；呼叫者自己的降級在失敗的最後一批裡，沒有提交，所以不在清單內
+    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true, roleChangedUids: ["U-lead", "U-coach"] });
     const logs = fake.writesTo("operationLogs/").map((item) => item.data.type);
     expect(logs).not.toContain("team_delete");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("concurrent"), expect.any(Object));
