@@ -29,16 +29,15 @@ const {
 
 const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
 
-// A team-list-helpers.js#_canEditTeamByRoleOrCaptain：owner 欄位（trim 比對）或 team.manage_all。
+// A team-list-helpers.js#_canEditTeamByRoleOrCaptain 的 owner 欄位 ∨ team.manage_all；
+// owner 欄位比對對齊 Rules isResourceOwnerByField（firestore.rules:485-490）：欄位必須是字串且與 uid 完全相等，
+// 不 trim、不字串化（A 前端的 _isTeamOwnerUser 會 trim，這裡刻意更嚴，不比 Rules 放寬）。
 function isFrontendTeamDeleter(team, uid, access) {
   if (!team) return false;
   if (access?.isSuperAdmin) return true;
   if (typeof access?.hasPermission === "function" && access.hasPermission("team.manage_all") === true) return true;
   if (typeof uid !== "string" || !uid) return false;
-  return OWNER_FIELDS.some((field) => {
-    const ownerId = String(team[field] || "").trim();
-    return ownerId !== "" && ownerId === uid;
-  });
+  return OWNER_FIELDS.some((field) => typeof team[field] === "string" && team[field] === uid);
 }
 
 function createDeleteTeamHandler({
