@@ -126,7 +126,8 @@ function createStaffRoleRecalculator({
   }
 
   // 逐位處理幹部：他人的降級立即提交（並累加 progress.roleChanges）；呼叫者本人的降級回傳給呼叫端併入 Phase 4。
-  async function run({ staffUids, canDemoteOthers, progress }) {
+  // changedUids：每位他人的降級 commit 成功後把其邏輯 uid 推進去（回傳給呼叫端的 roleChangedUids，資訊性欄位）。
+  async function run({ staffUids, canDemoteOthers, progress, changedUids }) {
     let roleSkipped = 0;
     let callerChange = null;
     const skip = (message, extra) => {
@@ -176,6 +177,7 @@ function createStaffRoleRecalculator({
       await stage(batch, change);
       await batch.commit();
       progress.roleChanges += 1;
+      changedUids.push(target.uid);
     }
     return { roleSkipped, callerChange };
   }

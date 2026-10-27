@@ -8,7 +8,8 @@
  * 視為沒有該權限，不回退 getCallerAccessContext 的預設權限。成員歸屬以 team 文件 id 為準，不用文件內可被 owner 改寫的 id 欄位。
  * 可重入、冪等，最後才刪 team 文件（任何階段失敗使用者可直接重試）：
  *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450，見 team-deletion-members.js）；
- *           有成員重試耗盡仍清不掉 → 回 partial、不進 Phase 2～4（team 文件仍在，呼叫者重跑即可）
+ *           清完後再查一次「仍含本隊」的人（recheck），有新加入者就再清，最多共 3 次 recheck；仍 >0 → TEAM_MEMBERS_CHURNING；
+ *           有成員重試耗盡仍清不掉 → 回 partial、不進 Phase 2～4（team 文件與所有角色都沒動，呼叫者重跑即可）
  *   Phase 2/3 幹部角色重算（排除本隊）＋站內信（見 team-deletion-roles.js）；呼叫者本人的降級留給 Phase 4
  *   Phase 4 同一個 batch：呼叫者本人的角色變更（若有）＋ operationLog ＋ 刪 team 文件（帶 exists 前置條件）
  * 刻意不處理（A 現況也沒有）：子集合、events.creatorTeamIds、tournaments.hostTeamId、teamExpLogs、入隊申請訊息、進行中活動／賽事檢查。
@@ -16,7 +17,7 @@
 
 const { isCoachPlusAccess } = require("./team-member-removal");
 const { createRulesAlignedAccess } = require("./team-permission");
-const { cleanMemberships, listTeamMemberDocs } = require("./team-deletion-members");
+const { settleTeamMembers } = require("./team-deletion-members");
 const { canDemoteOtherStaff, createStaffRoleRecalculator } = require("./team-deletion-roles");
 const {
   collectStaffUids,
@@ -63,6 +64,8 @@ function createDeleteTeamHandler({
     const ctx = { callerUid, teamId: maskId(teamIdInput) };
     let phase = "resolve";
     const progress = { cleanedMembers: 0, roleChanges: 0 };
+    // 本次呼叫內「角色真的被改變」者的邏輯 uid（資訊性回傳欄位；不放進 progress，以免 uid 被 spread 進 log）
+    const roleChangedUids = [];
 
     try {
       const teamSnap = await resolveTeamSnapshot(db, teamIdInput, HttpsError);
@@ -91,14 +94,15 @@ function createDeleteTeamHandler({
       const actor = { uid: callerUid, ...(await readActorNames(db, callerUid, access.role)) };
 
       phase = "clean-members";
-      const memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData });
-      const cleanup = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress });
+      const cleanup = await settleTeamMembers({
+        db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, logger, ctx, progress,
+      });
       if (cleanup.failed.length > 0) {
         // 有成員在重試上限內仍清不掉（持續與併發寫入衝突）：不進角色重算、不刪 team，讓呼叫者重跑。
         logger.error?.("[deleteTeam] partial: members left uncleaned, team kept", {
           ...ctx,
           ...progress,
-          remainingMembers: cleanup.failed.length,
+          remaining: cleanup.failed.length,
         });
         return {
           ok: true,
@@ -106,7 +110,8 @@ function createDeleteTeamHandler({
           cleanedMembers: progress.cleanedMembers,
           roleChanges: 0,
           roleSkipped: 0,
-          partial: { remainingMembers: cleanup.failed.length, memberIds: cleanup.failed, rerun: true },
+          roleChangedUids: [],
+          partial: { remaining: cleanup.failed.length, memberIds: cleanup.failed, rerun: true },
         };
       }
 
@@ -130,6 +135,7 @@ function createDeleteTeamHandler({
         staffUids: [...collectStaffUids(teamData)],
         canDemoteOthers: canDemoteOtherStaff(access),
         progress,
+        changedUids: roleChangedUids,
       });
 
       phase = "delete-team";
@@ -157,11 +163,15 @@ function createDeleteTeamHandler({
         // 兩個呼叫同時進行時，後到的 delete 前置條件會失敗（整批不寫）；確認 team 已不在就視為已刪。
         if (isFirestoreError(error, "not-found") && !(await teamSnap.ref.get()).exists) {
           logger.warn?.("[deleteTeam] team was deleted by a concurrent call", ctx);
-          return { ok: true, alreadyDeleted: true };
+          // 本次呼叫已提交的他人降級仍如實回報（呼叫者自己的降級在失敗的最後一批裡，沒有提交）
+          return { ok: true, alreadyDeleted: true, roleChangedUids };
         }
         throw error;
       }
-      if (callerChange) progress.roleChanges += 1;
+      if (callerChange) {
+        progress.roleChanges += 1;
+        roleChangedUids.push(callerChange.target.uid);
+      }
 
       logger.info?.("[deleteTeam] completed", { ...ctx, ...progress, roleSkipped });
       return {
@@ -170,6 +180,7 @@ function createDeleteTeamHandler({
         cleanedMembers: progress.cleanedMembers,
         roleChanges: progress.roleChanges,
         roleSkipped,
+        roleChangedUids,
       };
     } catch (error) {
       logger.error?.("[deleteTeam] failed", {

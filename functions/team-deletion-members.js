@@ -23,6 +23,7 @@ const {
 
 const BATCH_LIMIT = 450;
 const MAX_ATTEMPTS = 3;
+const MAX_RECHECKS = 3;
 
 const isConflict = (error) => isFirestoreError(error, "failed-precondition") || isFirestoreError(error, "not-found");
 
@@ -131,4 +132,34 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
   return { failed };
 }
 
-module.exports = { cleanMemberships, listTeamMemberDocs };
+// Phase 1＋「最後一批前再查人」的收斂迴圈（審查 F-6，FC 顧問裁示 (b)）：
+// 清完一輪後以同一組查詢（兩組查詢＋幹部補齊、以文件 id 為準）再查一次「仍含本隊」的人（recheck）；
+// 有人（Phase 1 之後才加入本隊的成員）就再清一輪，最多共 3 次 recheck（Phase 1 一輪＋最多 2 輪補清）；
+// 某次 recheck＝0 才算收斂。3 次 recheck 仍 >0（有人持續加入）→ 記 log（帶 remaining）並拋 TEAM_MEMBERS_CHURNING，
+// 此時 team 與所有角色都還沒動，呼叫者可重試。任何一輪清理有成員衝突耗盡 → 回傳 { failed }（呼叫端回 partial）。
+// 註：Callable 無狀態，「連續 3 次」以同一次呼叫內的輪數計，不跨呼叫計數（見報告 §12）。
+async function settleTeamMembers({ db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, logger, ctx, progress }) {
+  let memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData });
+  for (let round = 1; ; round += 1) {
+    const { failed } = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress });
+    if (failed.length > 0) return { failed };
+    memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData }); // recheck
+    if (memberDocs.length === 0) return { failed: [] };
+    if (round >= MAX_RECHECKS) {
+      logger.error?.("[deleteTeam] members keep joining, giving up after rechecks", {
+        ...ctx,
+        ...progress,
+        rechecks: round,
+        remaining: memberDocs.length,
+      });
+      throw new HttpsError("failed-precondition", "TEAM_MEMBERS_CHURNING");
+    }
+    logger.warn?.("[deleteTeam] members joined during deletion, cleaning again", {
+      ...ctx,
+      round,
+      remaining: memberDocs.length,
+    });
+  }
+}
+
+module.exports = { cleanMemberships, listTeamMemberDocs, settleTeamMembers };
