@@ -18,6 +18,7 @@ const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
+const { createNotificationGuards } = require("./notification-guards");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -52,6 +53,8 @@ initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
 const storageAdmin = getStorage();
+// 通知發送授權強化：節流／上限／去重（見 notification-guards.js）
+const notificationGuards = createNotificationGuards({ db, FieldValue, HttpsError });
 
 exports.listUserDirectory = createListUserDirectoryCallable({
   onCall,
@@ -3878,10 +3881,12 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
 
     const callerRole = await getCallerRoleWithFallback(request);
+    // 防護：每呼叫者節流
+    await notificationGuards.enforceCallerLimit("enqueue", request.auth.uid, callerRole);
 
     const uid = normalizeLineNotificationText(request.data?.uid, 128);
-    const title = normalizeLineNotificationText(request.data?.title, 200);
-    const body = normalizeLineNotificationText(request.data?.body, 2000);
+    const title = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.title), 200);
+    const body = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.body), 2000);
     const category = normalizeLineNotificationCategory(request.data?.category);
     const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
     const dedupeKey = normalizeLineNotificationText(request.data?.dedupeKey, 160);
@@ -3889,6 +3894,11 @@ exports.enqueuePrivilegedLineNotification = onCall(
     if (!uid || !title || !body || !category) {
       throw new HttpsError("invalid-argument", "uid/title/body/category are required");
     }
+    // 防護：source 格式驗證；未知 source 只記錄不擋
+    if (!notificationGuards.isValidSourceFormat(source)) {
+      throw new HttpsError("invalid-argument", "invalid source");
+    }
+    notificationGuards.logUnknownSource({ callerUid: request.auth.uid, source, category });
 
     const found = await findUserDocByUidOrLineUserId(uid);
     if (!found) {
@@ -3934,6 +3944,8 @@ exports.enqueuePrivilegedLineNotification = onCall(
     };
     if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
 
+    // 防護：每目標每日與全域每日上限（僅計實際入列）
+    await notificationGuards.enforceDailyLimits(targetUid);
     const ref = await db.collection("linePushQueue").add(queuePayload);
     console.log("[enqueuePrivilegedLineNotification] queued", {
       queueId: ref.id,
@@ -8542,6 +8554,7 @@ exports.processLinePushQueue = onDocumentCreated(
       requestedByUid = "",
       requestedByRole = "",
       targetDocId = "",
+      dedupeKey = "",
     } = data;
 
     // 冪等性：僅處理 pending 狀態
@@ -8555,6 +8568,18 @@ exports.processLinePushQueue = onDocumentCreated(
       await docRef.update({
         status: "failed",
         error: "缺少必要欄位 (uid/title/body)",
+        processedAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    // 防護：dedupeKey 24 小時去重與全域每日發送上限
+    const guardVerdict = await notificationGuards.checkBeforePush({ queueId: snap.id, uid, dedupeKey });
+    if (guardVerdict.skip) {
+      console.log(`[LinePush] 跳過: ${snap.id}, reason=${guardVerdict.reason}`);
+      await docRef.update({
+        status: "skipped",
+        reason: guardVerdict.reason,
         processedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -8589,6 +8614,8 @@ exports.processLinePushQueue = onDocumentCreated(
         error: err.message || String(err),
         processedAt: FieldValue.serverTimestamp(),
       });
+      // 防護：發送失敗釋放去重標記，後續重送不被視為重複
+      await notificationGuards.releaseDedupe({ queueId: snap.id, uid, dedupeKey });
       const unbindDecision = await shouldAutoUnbindLineRecipient(client, uid, err);
       if (!unbindDecision.shouldUnbind) {
         console.log("[LinePush] keep binding after failed push", {
@@ -15908,18 +15935,27 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("invalid-argument", "message with id and body is required");
     }
 
+    // 防護：每呼叫者節流（點對點與廣播皆適用）
+    let callerDoc;
+    try {
+      callerDoc = await db.collection("users").doc(callerUid).get();
+    } catch (err) {
+      console.error("[deliverToInbox] caller lookup failed", { code: err?.code ?? null });
+      throw new HttpsError("internal", "Failed to deliver to inbox");
+    }
+    const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
+    await notificationGuards.enforceCallerLimit("inbox", callerUid, callerData.role);
+
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
 
     // 廣播權限檢查：只有 admin/super_admin 可用廣播功能（三方審核修正）
     const isBroadcast = !targetUid && (targetTeamId || (Array.isArray(targetRoles) && targetRoles.length > 0) || targetType === "all");
     if (isBroadcast) {
-      const callerDoc = await db.collection("users").doc(callerUid).get();
       const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
       if (!["admin", "super_admin"].includes(callerRole)) {
         // 非 admin 允許發送到自己所屬的俱樂部（團隊幹部通知用）
         if (targetTeamId) {
-          const callerData = callerDoc.data() || {};
           const myTeams = [callerData.teamId, ...(callerData.teamIds || [])].filter(Boolean);
           if (!myTeams.includes(targetTeamId)) {
             throw new HttpsError("permission-denied", "You can only broadcast to your own team");
@@ -15951,6 +15987,11 @@ exports.deliverToInbox = onCall(
       console.error("[deliverToInbox] authorization lookup failed", { code: err?.code ?? null, broadcast: !targetUid });
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
+
+    // 防護：點對點且未分類訊息的顯示欄位由伺服器決定（有 actionType 者維持逐類檢查，不動）
+    const serverDisplay = (targetUid && !sanitized.actionType)
+      ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
+      : null;
 
     try {
       const recipientUids = new Set();
@@ -16003,10 +16044,10 @@ exports.deliverToInbox = onCall(
             title: String(safeMessage.title || "").slice(0, 200),
             body: String(safeMessage.body || "").slice(0, 2000),
             preview: String(safeMessage.preview || "").slice(0, 43),
-            type: safeMessage.type || "system",
-            typeName: safeMessage.typeName || "系統",
-            time: safeMessage.time || "",
-            senderName: safeMessage.senderName || "",
+            type: serverDisplay ? serverDisplay.type : (safeMessage.type || "system"),
+            typeName: serverDisplay ? serverDisplay.typeName : (safeMessage.typeName || "系統"),
+            time: serverDisplay ? serverDisplay.time : (safeMessage.time || ""),
+            senderName: serverDisplay ? serverDisplay.senderName : (safeMessage.senderName || ""),
             fromUid: safeMessage.fromUid,
             read: false,
             readAt: null,
