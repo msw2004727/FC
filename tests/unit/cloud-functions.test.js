@@ -4845,6 +4845,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
         db: createNullCounterDb(),
         FieldValue: guardFieldValue,
         HttpsError: TestHttpsError,
+        roleLevels: ROLE_LEVELS,
         logger: consoleImpl,
       }),
     };
