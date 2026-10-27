@@ -2,7 +2,7 @@
 
 /**
  * 通知發送授權強化（第 1 批）：純函式（無 I/O）。
- * 防護：文字清理、source 格式與已知清單、站內信顯示欄位由伺服器決定。
+ * 內容：文字清理、source 格式與已知清單、站內信顯示欄位由伺服器決定。
  */
 
 // source 只允許的字元（現行前端產生的 source 皆符合）
@@ -39,12 +39,12 @@ const KNOWN_SOURCE_EXACT = new Set([
   "event_cancel_signup:legacy",
 ]);
 
-// 以現行 A／B 前端實際送出的 source 家族為準；不在清單內者只記 log、不擋（第 2 批白名單依據）
+// 以現行 A／B 前端實際送出的 source 家族為準；不在清單內者只記錄、不擋
 const KNOWN_SOURCE_PATTERNS = Object.freeze([
   new RegExp(`^template:(${KNOWN_TEMPLATE_KEYS.join("|")})(:admins)?$`),
   /^team_join_review:(approve|reject)$/,
   /^team_join_review:broadcast:(approve|reject)$/,
-  /^team_role_assignment:[a-z_]+$/,
+  /^team_role_assignment:(captain|leader|coach|member)$/,
   /^tournament_review:(approve|reject)$/,
   /^tournament_review:broadcast:(approve|reject)$/,
   /^edu_student_review:(approve|reject)$/,
@@ -59,7 +59,7 @@ const INBOX_TYPE_NAMES = Object.freeze({
   private: "私訊",
 });
 const INBOX_FALLBACK_TYPE = "private";
-// 客戶端可沿用的 senderName（現行範本／提醒訊息皆以此標示系統發送）；清空此清單即一律由伺服器決定
+// 沿用客戶端傳入值的 senderName 清單（現行範本與提醒訊息皆以「系統」標示）；清空即一律由伺服器決定
 const INBOX_CLIENT_SENDER_ALLOWLIST = Object.freeze(["系統"]);
 const INBOX_FALLBACK_SENDER_NAME = "用戶";
 const INBOX_SENDER_NAME_MAX = 80;
@@ -71,6 +71,11 @@ function stripControlChars(value) {
 
 function isValidSourceFormat(source) {
   return typeof source === "string" && SOURCE_FORMAT_RE.test(source);
+}
+
+// 供 log 使用：格式合格才原樣輸出，否則 null（不把未驗證字串寫進 log）
+function logSafeSource(source) {
+  return isValidSourceFormat(source) && source.length <= 120 ? source : null;
 }
 
 function isKnownSource(source) {
@@ -135,6 +140,7 @@ module.exports = {
   INBOX_CLIENT_SENDER_ALLOWLIST,
   stripControlChars,
   isValidSourceFormat,
+  logSafeSource,
   isKnownSource,
   maskUid,
   formatTaipeiDateTime,

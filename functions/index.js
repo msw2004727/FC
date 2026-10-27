@@ -53,8 +53,6 @@ initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
 const storageAdmin = getStorage();
-// 通知發送授權強化：節流／上限／去重（見 notification-guards.js）
-const notificationGuards = createNotificationGuards({ db, FieldValue, HttpsError });
 
 exports.listUserDirectory = createListUserDirectoryCallable({
   onCall,
@@ -127,6 +125,8 @@ const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
 const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
+// 通知發送授權強化：節流／上限／去重（見 notification-guards.js；教練以上判斷沿用 ROLE_LEVELS）
+const notificationGuards = createNotificationGuards({ db, FieldValue, HttpsError, roleLevels: ROLE_LEVELS });
 // ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 // Staff role defaults are removable; only super_admin keeps non-removable safeguards here.
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
@@ -3881,14 +3881,14 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
 
     const callerRole = await getCallerRoleWithFallback(request);
+    const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
     // 防護：每呼叫者節流
-    await notificationGuards.enforceCallerLimit("enqueue", request.auth.uid, callerRole);
+    await notificationGuards.enforceCallerLimit({ kind: "enqueue", callerUid: request.auth.uid, callerRole, source });
 
     const uid = normalizeLineNotificationText(request.data?.uid, 128);
     const title = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.title), 200);
     const body = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.body), 2000);
     const category = normalizeLineNotificationCategory(request.data?.category);
-    const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
     const dedupeKey = normalizeLineNotificationText(request.data?.dedupeKey, 160);
 
     if (!uid || !title || !body || !category) {
@@ -3896,6 +3896,7 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
     // 防護：source 格式驗證；未知 source 只記錄不擋
     if (!notificationGuards.isValidSourceFormat(source)) {
+      notificationGuards.logSourceFormatRejected({ callerUid: request.auth.uid });
       throw new HttpsError("invalid-argument", "invalid source");
     }
     notificationGuards.logUnknownSource({ callerUid: request.auth.uid, source, category });
@@ -3944,8 +3945,8 @@ exports.enqueuePrivilegedLineNotification = onCall(
     };
     if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
 
-    // 防護：每目標每日與全域每日上限（僅計實際入列）
-    await notificationGuards.enforceDailyLimits(targetUid);
+    // 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）
+    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source });
     const ref = await db.collection("linePushQueue").add(queuePayload);
     console.log("[enqueuePrivilegedLineNotification] queued", {
       queueId: ref.id,
@@ -8573,8 +8574,15 @@ exports.processLinePushQueue = onDocumentCreated(
       return;
     }
 
-    // 防護：dedupeKey 24 小時去重與全域每日發送上限
-    const guardVerdict = await notificationGuards.checkBeforePush({ queueId: snap.id, uid, dedupeKey });
+    // 防護：dedupeKey 去重與全域每日發送上限
+    const guardVerdict = await notificationGuards.checkBeforePush({
+      queueId: snap.id,
+      uid,
+      dedupeKey,
+      requestedByUid,
+      requestedByRole,
+      source,
+    });
     if (guardVerdict.skip) {
       console.log(`[LinePush] 跳過: ${snap.id}, reason=${guardVerdict.reason}`);
       await docRef.update({
@@ -15944,7 +15952,7 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
     const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
-    await notificationGuards.enforceCallerLimit("inbox", callerUid, callerData.role);
+    await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role });
 
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
@@ -15988,8 +15996,10 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
 
-    // 防護：點對點且未分類訊息的顯示欄位由伺服器決定（有 actionType 者維持逐類檢查，不動）
-    const serverDisplay = (targetUid && !sanitized.actionType)
+    // 防護：未分類訊息的顯示欄位由伺服器決定——點對點，以及非 admin／super_admin 呼叫者的廣播
+    // （有 actionType 者維持逐類檢查，admin／super_admin 的廣播不動）
+    const isAdminCaller = ["admin", "super_admin"].includes(callerData.role);
+    const serverDisplay = (!sanitized.actionType && (targetUid || !isAdminCaller))
       ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
       : null;
 

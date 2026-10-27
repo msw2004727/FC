@@ -2,44 +2,54 @@
 
 /**
  * 通知發送授權強化（第 1 批）：節流、上限與去重（有 I/O，依賴注入 db／FieldValue／HttpsError）。
- * 計數以 Admin SDK 寫入專用集合（Rules catch-all 預設拒絕客戶端存取）；純函式見 notification-fields.js。
+ * 計數以 Admin SDK 寫入專用集合（Rules 明確拒絕客戶端存取）；純函式見 notification-fields.js，閾值見 notification-guard-limits.js。
  */
 
 const crypto = require("crypto");
 const fields = require("./notification-fields");
+const {
+  NOTIFICATION_GUARD_LIMITS: LIMITS,
+  COUNTER_COLLECTION,
+  DEDUPE_COLLECTION,
+} = require("./notification-guard-limits");
 
-// ── 暫定值，等用量盤點後調整 ──
-const ENQUEUE_PER_CALLER_PER_MINUTE = 20; // 一般使用者：LINE 推播入列，每呼叫者每分鐘
-const ENQUEUE_STAFF_PER_CALLER_PER_MINUTE = 2000; // 教練以上：合法的批次通知（活動異動／取消、全體廣播）
-const ENQUEUE_PER_TARGET_PER_DAY = 30; // 每目標每日
-const LINE_GLOBAL_PER_DAY = 2000; // 全域每日（入列與實際發送各自計數）
-const INBOX_PER_CALLER_PER_MINUTE = 60; // 一般使用者：站內信投遞，每呼叫者每分鐘
-const INBOX_STAFF_PER_CALLER_PER_MINUTE = 2000;
-const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000; // dedupeKey 去重視窗
-
-const COUNTER_COLLECTION = "notificationGuardCounters";
-const DEDUPE_COLLECTION = "linePushDedupe";
-const STAFF_CALLER_SHARDS = 8; // 批次通知時分散同一呼叫者的寫入
-const GLOBAL_SHARDS = 10;
-const COUNTER_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-const CALLER_LIMITS = Object.freeze({
-  enqueue: { user: ENQUEUE_PER_CALLER_PER_MINUTE, staff: ENQUEUE_STAFF_PER_CALLER_PER_MINUTE },
-  inbox: { user: INBOX_PER_CALLER_PER_MINUTE, staff: INBOX_STAFF_PER_CALLER_PER_MINUTE },
-});
-
+const LOG = "[notificationGuards]";
 const hashId = (value) => crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
-// 教練以上＝任何非 user 的角色（含後台自訂角色；角色欄位客戶端不可自行修改）
-const isStaffRole = (role) => typeof role === "string" && role.trim() !== "" && role.trim() !== "user";
 
 function createNotificationGuards({
   db,
   FieldValue,
   HttpsError,
+  roleLevels,
   now = () => Date.now(),
   random = Math.random,
   logger = console,
 }) {
   const rateLimited = () => new HttpsError("resource-exhausted", "RATE_LIMITED");
+  const loggedKeys = new Set();
+
+  // 教練以上＝角色等級 ≥ coach（沿用 functions/index.js 的 ROLE_LEVELS；自訂與未知角色視為一般層，與 Rules isCoachPlus 一致）
+  function isStaffRole(role) {
+    const key = typeof role === "string" ? role.trim() : "";
+    const level = Object.prototype.hasOwnProperty.call(roleLevels, key) ? roleLevels[key] : 0;
+    return level >= roleLevels.coach;
+  }
+
+  // 閘門觸發記錄：每（閘, 種類, 分鐘, 呼叫者）最多一筆；count／limit 供事後彙總，不含 title／body／完整 UID
+  function logGate(gate, { kind, callerUid, source, count, limit }) {
+    const key = `${gate}|${kind}|${Math.floor(now() / 60000)}|${callerUid ? hashId(callerUid) : ""}`;
+    if (loggedKeys.has(key)) return;
+    if (loggedKeys.size >= 2000) loggedKeys.clear();
+    loggedKeys.add(key);
+    logger.warn(`${LOG} gate triggered`, {
+      gate,
+      kind,
+      caller: fields.maskUid(callerUid),
+      source: fields.logSafeSource(source),
+      count: count ?? null,
+      limit: limit ?? null,
+    });
+  }
 
   // 先遞增再讀回總和（分片時加總）；回傳含本次的計數
   async function bump({ windowKey, scope, subject, shards = 1, expireAtMs }) {
@@ -60,83 +70,103 @@ function createNotificationGuards({
     return snaps.reduce((sum, snap) => sum + (snap.exists ? Number(snap.data()?.count) || 0 : 0), 0);
   }
 
-  // 計數基礎設施失敗：結構化記錄並回 sanitized 錯誤（不放行、不洩漏細節）
-  function counterFailure(guard, err) {
-    logger.error("[notificationGuards] counter failure", { guard, code: err?.code ?? null });
-    return new HttpsError("internal", "Failed to verify request limits");
+  // 計數基礎設施失敗：結構化記錄；一般層 fail-closed（sanitized internal），教練以上與處理端 fail-open
+  function onCounterFailure(gate, ctx, err) {
+    const failOpen = !!(ctx.staff || ctx.failOpen);
+    logger.error(`${LOG} counter failure`, { gate, kind: ctx.kind, staff: !!ctx.staff, failOpen, code: err?.code ?? null });
+    if (!failOpen) throw new HttpsError("internal", "Failed to verify request limits");
   }
 
-  async function logCapOnce(kind, day) {
-    try {
-      await db.collection(COUNTER_COLLECTION).doc(`${day}_cap_${kind}`).create({
-        kind,
-        day,
-        limit: LINE_GLOBAL_PER_DAY,
-        at: FieldValue.serverTimestamp(),
-        expireAt: new Date(now() + COUNTER_TTL_MS),
-      });
-      logger.error("[notificationGuards] global daily cap reached", { kind, day, limit: LINE_GLOBAL_PER_DAY });
-    } catch (err) {
-      if (err?.code === 6 || /ALREADY_EXISTS/.test(String(err?.message))) return;
-      logger.warn("[notificationGuards] cap log marker failed", { kind, code: err?.code ?? null });
-    }
-  }
-
-  // 每呼叫者每分鐘節流；kind: "enqueue" | "inbox"；教練以上使用較高上限
-  async function enforceCallerLimit(kind, callerUid, callerRole) {
-    const staff = isStaffRole(callerRole);
-    const limit = CALLER_LIMITS[kind][staff ? "staff" : "user"];
-    const minute = Math.floor(now() / 60000);
+  // 遞增後與上限比較；超限記錄並回 true；計數故障依 onCounterFailure 處理（放行時回 false）
+  async function exceeded(gate, params, limit, ctx) {
     let total;
     try {
-      total = await bump({
-        windowKey: `m${minute}`,
-        scope: `caller_${kind}`,
-        subject: callerUid,
-        shards: staff ? STAFF_CALLER_SHARDS : 1,
-        expireAtMs: (minute + 2) * 60000,
-      });
+      total = await bump(params);
     } catch (err) {
-      throw counterFailure(`caller_${kind}`, err);
+      onCounterFailure(gate, ctx, err);
+      return false;
     }
-    if (total > limit) {
-      if (total === limit + 1) {
-        logger.warn("[notificationGuards] caller rate limited", {
-          kind,
-          callerUid: fields.maskUid(callerUid),
-          staff,
-          limit,
-        });
-      }
-      throw rateLimited();
+    if (total <= limit) return false;
+    logGate(gate, { ...ctx, count: total, limit });
+    return true;
+  }
+
+  // 全域池當日第一次超限：以 create() 只成功一次，記一筆 error（跨實例只記一次）
+  async function logCapOnce(kind, pool, day) {
+    const gate = `global_pool_${pool}`;
+    try {
+      await db.collection(COUNTER_COLLECTION).doc(`${day}_cap_${kind}_${pool}`).create({
+        kind,
+        pool,
+        day,
+        at: FieldValue.serverTimestamp(),
+        expireAt: new Date(now() + LIMITS.counterTtlMs),
+      });
+      logger.error(`${LOG} global daily cap reached`, { gate, kind, day, limit: LIMITS.globalPerDay[pool] });
+    } catch (err) {
+      if (err?.code === 6 || /ALREADY_EXISTS/.test(String(err?.message))) return;
+      logger.warn(`${LOG} cap marker failed`, { gate, kind, code: err?.code ?? null });
     }
   }
 
-  // 實際入列前：每目標每日與全域每日上限
-  async function enforceDailyLimits(targetUid) {
-    const nowMs = now();
-    const day = fields.taipeiDayKey(nowMs);
-    const expireAtMs = nowMs + COUNTER_TTL_MS;
-    let targetTotal;
-    let globalTotal;
-    try {
-      targetTotal = await bump({ windowKey: day, scope: "target", subject: targetUid, expireAtMs });
-      if (targetTotal <= ENQUEUE_PER_TARGET_PER_DAY) {
-        globalTotal = await bump({ windowKey: day, scope: "global_enqueue", shards: GLOBAL_SHARDS, expireAtMs });
-      }
-    } catch (err) {
-      throw counterFailure("daily_enqueue", err);
+  // 每呼叫者每分鐘節流（kind: "enqueue" | "inbox"）；站內信另有一般層每日上限
+  async function enforceCallerLimit({ kind, callerUid, callerRole, source = null }) {
+    const staff = isStaffRole(callerRole);
+    const cfg = LIMITS[kind];
+    const ctx = { kind, callerUid, source, staff };
+    const minute = Math.floor(now() / 60000);
+    const minuteParams = {
+      windowKey: `m${minute}`,
+      scope: `caller_${kind}`,
+      subject: callerUid,
+      shards: staff ? LIMITS.staffCallerShards : 1,
+      expireAtMs: (minute + 2) * 60000,
+    };
+    if (await exceeded("caller_minute", minuteParams, staff ? cfg.staffPerMinute : cfg.userPerMinute, ctx)) {
+      throw rateLimited();
     }
-    if (targetTotal > ENQUEUE_PER_TARGET_PER_DAY) throw rateLimited();
-    if (globalTotal > LINE_GLOBAL_PER_DAY) {
-      await logCapOnce("enqueue", day);
+    if (kind !== "inbox" || staff) return;
+    const dayParams = {
+      windowKey: fields.taipeiDayKey(now()),
+      scope: "caller_day_inbox",
+      subject: callerUid,
+      expireAtMs: now() + LIMITS.counterTtlMs,
+    };
+    if (await exceeded("caller_day", dayParams, cfg.userPerDay, ctx)) throw rateLimited();
+  }
+
+  // 實際入列前的每日上限：一般層依序檢查 呼叫者／（呼叫者,目標）／目標，再扣全域池；教練以上只扣 staff 池
+  async function enforceDailyLimits({ callerUid, callerRole, targetUid, source = null }) {
+    const staff = isStaffRole(callerRole);
+    const ctx = { kind: "enqueue", callerUid, source, staff };
+    const day = fields.taipeiDayKey(now());
+    const daily = (scope, subject, extra = {}) => ({
+      windowKey: day,
+      scope,
+      subject,
+      expireAtMs: now() + LIMITS.counterTtlMs,
+      ...extra,
+    });
+    if (!staff) {
+      if (await exceeded("caller_day", daily("caller_day_enqueue", callerUid), LIMITS.enqueue.userPerDay, ctx)) {
+        throw rateLimited();
+      }
+      if (await exceeded("caller_target_day", daily("caller_target_day", `${callerUid}\n${targetUid}`), LIMITS.callerTargetPerDay, ctx)) {
+        throw rateLimited();
+      }
+      if (await exceeded("target_day", daily("target", targetUid), LIMITS.targetPerDay, ctx)) throw rateLimited();
+    }
+    const pool = staff ? "staff" : "user";
+    const poolParams = daily(`global_enqueue_${pool}`, null, { shards: LIMITS.globalShards });
+    if (await exceeded(`global_pool_${pool}`, poolParams, LIMITS.globalPerDay[pool], ctx)) {
+      await logCapOnce("enqueue", pool, day);
       throw rateLimited();
     }
   }
 
   const dedupeRef = (uid, dedupeKey) => db.collection(DEDUPE_COLLECTION).doc(hashId(`${uid}\n${dedupeKey}`));
 
-  // 以（收件者, dedupeKey）為鍵，24 小時內只發一次；同一文件重試視為同一次
+  // 以（收件者, dedupeKey）為鍵，視窗內只發一次；同一文件重試視為同一次
   async function claimDedupe({ queueId, uid, dedupeKey }) {
     const nowMs = now();
     const ref = dedupeRef(uid, dedupeKey);
@@ -144,15 +174,16 @@ function createNotificationGuards({
       const snap = await tx.get(ref);
       if (snap.exists) {
         const previous = snap.data() || {};
-        if (previous.queueId === queueId) return "own";
-        if (nowMs - Number(previous.claimedAtMs) < DEDUPE_WINDOW_MS) return "duplicate";
+        if (previous.queueId === queueId) return { outcome: "own", ageMs: 0 };
+        const ageMs = nowMs - Number(previous.claimedAtMs);
+        if (ageMs < LIMITS.dedupeWindowMs) return { outcome: "duplicate", ageMs };
       }
-      tx.set(ref, { queueId, claimedAtMs: nowMs, expireAt: new Date(nowMs + DEDUPE_WINDOW_MS) });
-      return "claimed";
+      tx.set(ref, { queueId, claimedAtMs: nowMs, expireAt: new Date(nowMs + LIMITS.dedupeWindowMs) });
+      return { outcome: "claimed", ageMs: 0 };
     });
   }
 
-  // 發送失敗或被上限擋下時釋放，讓後續重送不被誤判為重複
+  // 發送失敗或被上限擋下時釋放，讓後續重送不被視為重複
   async function releaseDedupe({ queueId, uid, dedupeKey }) {
     if (!dedupeKey) return;
     try {
@@ -162,38 +193,44 @@ function createNotificationGuards({
         if (snap.exists && snap.data()?.queueId === queueId) tx.delete(ref);
       });
     } catch (err) {
-      logger.warn("[notificationGuards] dedupe release failed", { queueId, code: err?.code ?? null });
+      logger.warn(`${LOG} dedupe release failed`, { queueId, code: err?.code ?? null });
     }
   }
 
   /**
    * processLinePushQueue 發送前檢查：回傳 { skip, reason }。
-   * 次要防線（入列端已把關），基礎設施失敗時放行並結構化記錄，不因計數故障漏發通知。
+   * 入列端已先把關，這裡計數或去重的基礎設施失敗時一律放行並結構化記錄，不因故障漏發通知。
+   * 全域池依 queue 文件的 requestedByUid／requestedByRole 判斷層級（教練以上與系統用 staff 池，無法判斷歸一般層）。
    */
-  async function checkBeforePush({ queueId, uid, dedupeKey }) {
+  async function checkBeforePush({ queueId, uid, dedupeKey, requestedByUid, requestedByRole, source }) {
     const key = typeof dedupeKey === "string" ? dedupeKey : "";
+    const staff = requestedByUid === "system" || isStaffRole(requestedByRole);
+    const ctx = { kind: "send", callerUid: requestedByUid, source, staff, failOpen: true };
     let claimed = false;
     try {
       if (key) {
-        const outcome = await claimDedupe({ queueId, uid, dedupeKey: key });
-        if (outcome === "duplicate") return { skip: true, reason: "duplicate" };
+        const { outcome, ageMs } = await claimDedupe({ queueId, uid, dedupeKey: key });
+        if (outcome === "duplicate") {
+          logGate("dedupe", { ...ctx, count: ageMs, limit: LIMITS.dedupeWindowMs });
+          return { skip: true, reason: "duplicate" };
+        }
         claimed = outcome === "claimed";
       }
-      const nowMs = now();
-      const day = fields.taipeiDayKey(nowMs);
-      const total = await bump({
+      const pool = staff ? "staff" : "user";
+      const day = fields.taipeiDayKey(now());
+      const poolParams = {
         windowKey: day,
-        scope: "global_send",
-        shards: GLOBAL_SHARDS,
-        expireAtMs: nowMs + COUNTER_TTL_MS,
-      });
-      if (total > LINE_GLOBAL_PER_DAY) {
+        scope: `global_send_${pool}`,
+        shards: LIMITS.globalShards,
+        expireAtMs: now() + LIMITS.counterTtlMs,
+      };
+      if (await exceeded(`global_pool_${pool}`, poolParams, LIMITS.globalPerDay[pool], ctx)) {
         if (claimed) await releaseDedupe({ queueId, uid, dedupeKey: key });
-        await logCapOnce("send", day);
+        await logCapOnce("send", pool, day);
         return { skip: true, reason: "daily_cap" };
       }
     } catch (err) {
-      logger.error("[notificationGuards] pre-push check failed, allow", { queueId, code: err?.code ?? null });
+      logger.error(`${LOG} pre-push check failed, allow`, { queueId, code: err?.code ?? null });
     }
     return { skip: false, reason: "" };
   }
@@ -208,27 +245,26 @@ function createNotificationGuards({
     return true;
   }
 
+  function logSourceFormatRejected({ callerUid }) {
+    logGate("source_format", { kind: "enqueue", callerUid, source: null });
+  }
+
   return {
     ...fields,
     now,
+    isStaffRole,
     enforceCallerLimit,
     enforceDailyLimits,
     checkBeforePush,
     releaseDedupe,
     logUnknownSource,
+    logSourceFormatRejected,
   };
 }
 
 module.exports = {
   createNotificationGuards,
-  isStaffRole,
-  ENQUEUE_PER_CALLER_PER_MINUTE,
-  ENQUEUE_STAFF_PER_CALLER_PER_MINUTE,
-  ENQUEUE_PER_TARGET_PER_DAY,
-  LINE_GLOBAL_PER_DAY,
-  INBOX_PER_CALLER_PER_MINUTE,
-  INBOX_STAFF_PER_CALLER_PER_MINUTE,
-  DEDUPE_WINDOW_MS,
+  NOTIFICATION_GUARD_LIMITS: LIMITS,
   COUNTER_COLLECTION,
   DEDUPE_COLLECTION,
 };
