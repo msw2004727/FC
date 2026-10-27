@@ -656,7 +656,7 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     const docs = withoutStaffMembership(seedDocs());
     docs["teams/tm_other"] = { id: "tm_other", name: "別隊", captainUid: "U-cap" };
     const { call, fake } = setup({ docs });
-    await expect(call()).resolves.toMatchObject({ roleChanges: 2 });
+    await expect(call()).resolves.toMatchObject({ roleChanges: 2, roleSkipped: 0 });
     expect(fake.get("users/U-cap").role).toBe("captain");
     expect(fake.list("users/U-cap/inbox")).toEqual([]);
   });
@@ -691,7 +691,7 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     docs["users/U-cap"] = { ...docs["users/U-cap"], ...patch };
     const before = docs["users/U-cap"].role;
     const { call, fake } = setup({ docs });
-    await expect(call()).resolves.toMatchObject({ roleChanges: 2 });
+    await expect(call()).resolves.toMatchObject({ roleChanges: 2, roleSkipped: 0 });
     expect(fake.get("users/U-cap").role).toBe(before);
     expect(fake.list("users/U-cap/inbox")).toEqual([]);
   });
@@ -700,7 +700,7 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
     const docs = withoutStaffMembership(seedDocs());
     docs["users/U-cap"] = { ...docs["users/U-cap"], role: "user" };
     const { call, fake, ensureAuthUser } = setup({ docs });
-    await expect(call()).resolves.toMatchObject({ roleChanges: 2 });
+    await expect(call()).resolves.toMatchObject({ roleChanges: 2, roleSkipped: 0 });
     expect(fake.writesTo("users/U-cap")).toHaveLength(0);
     expect(ensureAuthUser).not.toHaveBeenCalledWith("U-cap");
   });
