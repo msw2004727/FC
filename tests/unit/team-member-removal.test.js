@@ -13,6 +13,8 @@ const {
   createAccess,
   createFakeFirestore,
   createLogger,
+  mockCallerAccess,
+  permissionDocsFor,
 } = require("./team-callable-fake-db");
 
 const TEAM = "tm_main";
@@ -38,9 +40,16 @@ function seedDocs(extra = {}) {
   };
 }
 
-function setup({ docs = seedDocs(), access = createAccess({ role: "captain" }), logger = createLogger() } = {}) {
-  const fake = createFakeFirestore(docs);
-  const getCallerAccessContext = jest.fn(async () => access);
+// access 只決定 role；權限碼由 permissionDocsFor 轉成 Rules 看得到的文件（rolePermissions／userPermissionGrants）。
+// getCallerAccessContext 的 mock 讓 hasPermission 對任何權限碼回 true，驗證 Callable 沒有依賴它（P3-7）。
+function setup({
+  docs = seedDocs(),
+  access = createAccess({ role: "captain" }),
+  callerUid = "U-cap",
+  logger = createLogger(),
+} = {}) {
+  const fake = createFakeFirestore({ ...permissionDocsFor(access, callerUid), ...docs });
+  const getCallerAccessContext = jest.fn(async () => mockCallerAccess(access));
   const handler = createRemoveTeamMemberHandler({
     db: fake.db,
     HttpsError: FakeHttpsError,
@@ -51,7 +60,7 @@ function setup({ docs = seedDocs(), access = createAccess({ role: "captain" }), 
     logger,
     now: () => new Date("2026-10-27T08:00:00Z"),
   });
-  const call = (data, uid = "U-cap") => handler({ auth: uid ? { uid } : undefined, data });
+  const call = (data, uid = callerUid) => handler({ auth: uid ? { uid } : undefined, data });
   return { fake, handler, call, logger, getCallerAccessContext };
 }
 
@@ -125,14 +134,15 @@ describe("removeTeamMember 輸入與權限（失敗一律不寫任何東西）",
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test("以邏輯 id 解析（docId 與 team.id 不同）", async () => {
+  test("舊資料（文件 id≠id 欄位）以邏輯 id 呼叫 → TEAM_ID_MISMATCH，不誤報查無（成員歸屬以文件 id 為準）", async () => {
     const docs = seedDocs({
       "teams/doc_x": { id: "tm_logic", name: "邏輯隊", captainUid: "U-cap" },
       "users/U-x": { uid: "U-x", ...membership(["tm_logic"], ["邏輯隊"]) },
     });
     const { call, fake } = setup({ docs });
-    await expect(call({ teamId: "tm_logic", memberUid: "U-x" })).resolves.toMatchObject({ ok: true, alreadyRemoved: false });
-    expect(fake.get("users/U-x")).toMatchObject({ teamId: null, teamIds: [] });
+    expect(await rejection(call({ teamId: "tm_logic", memberUid: "U-x" })))
+      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
+    expect(fake.state.writes).toHaveLength(0);
   });
 
   test("呼叫者不是該隊幹部（即使 role=admin）→ TEAM_MANAGE_DENIED", async () => {
@@ -434,15 +444,59 @@ describe("removeTeamMember 審查退修（P3 與測試強化）", () => {
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test("兩份文件宣稱同一個邏輯 id（且沒有該 id 的文件）→ TEAM_ID_AMBIGUOUS", async () => {
-    const docs = seedDocs({
-      "teams/a1": { id: "tm_dup", name: "A", captainUid: "U-cap" },
-      "teams/a2": { id: "tm_dup", name: "B", captainUid: "U-cap" },
-    });
+  test("成員歸屬以文件 id 為準：id 欄位被竄改成別的值時，即使 users.teamIds 含該值也不會被當成本隊成員處理", async () => {
+    // 文件 id=tm_main、id 欄位被改成 tm_other：解析階段直接 TEAM_ID_MISMATCH，連 transaction 都不會進
+    const docs = seedDocs();
+    docs[`teams/${TEAM}`] = { ...docs[`teams/${TEAM}`], id: "tm_other" };
+    docs["users/U-o"] = { uid: "U-o", ...membership(["tm_other"], ["B 隊"]) };
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_dup", memberUid: "U-m1" })))
-      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
+    expect(await rejection(call({ teamId: TEAM, memberUid: "U-o" }))).toMatchObject({ message: "TEAM_ID_MISMATCH" });
     expect(fake.state.writes).toHaveLength(0);
+    expect(fake.state.transactionAttempts).toBe(0);
+  });
+});
+
+describe("removeTeamMember 權限碼與 Rules 一致（審查 P3-7：rolePermissions 文件不存在 ≠ 有預設權限）", () => {
+  // getCallerAccessContext 的 mock 對任何權限碼都回 true（模擬真實環境「文件不存在 → 回退預設權限」）。
+  const repair = "admin.repair.team_join_repair";
+
+  test("users.role=user 且沒有任何授權文件 → 拒絕（不看 mock 的 hasPermission）", async () => {
+    const { call, fake } = setup({ access: createAccess({ role: "user" }) });
+    expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("自訂角色沒有 rolePermissions 文件 → 拒絕；文件存在但不含入隊修復權限 → 拒絕；文件含該權限 → 通過", async () => {
+    const noDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: null }) });
+    expect(await rejection(noDoc.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+    const emptyDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: [] }) });
+    expect(await rejection(emptyDoc.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+    const withDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: [repair] }) });
+    await expect(withDoc.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
+  });
+
+  test("文件的 permissions 不是 list → 視為沒有權限", async () => {
+    const docs = seedDocs({ "rolePermissions/my_custom_role": { permissions: repair } });
+    const { call } = setup({ docs, access: createAccess({ role: "my_custom_role", permissions: null }) });
+    expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+  });
+
+  test("users.role=user 靠個別授權：enabled 缺欄位或 true → 通過；enabled:false 或 permissions 不含 → 拒絕", async () => {
+    const grant = (data) => seedDocs({ "userPermissionGrants/U-cap": data });
+    const noEnabledField = setup({ docs: grant({ permissions: [repair] }), access: createAccess({ role: "user" }) });
+    await expect(noEnabledField.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
+    const enabled = setup({ docs: grant({ permissions: [repair], enabled: true }), access: createAccess({ role: "user" }) });
+    await expect(enabled.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
+    const disabled = setup({ docs: grant({ permissions: [repair], enabled: false }), access: createAccess({ role: "user" }) });
+    expect(await rejection(disabled.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+    const other = setup({ docs: grant({ permissions: ["team.review_join"], enabled: true }), access: createAccess({ role: "user" }) });
+    expect(await rejection(other.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+  });
+
+  test("users.role=user 時 rolePermissions/user 文件一律不算（Rules hasPerm：role != 'user'）", async () => {
+    const docs = seedDocs({ "rolePermissions/user": { permissions: [repair] } });
+    const { call } = setup({ docs, access: createAccess({ role: "user", permissions: null }) });
+    expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 });
 

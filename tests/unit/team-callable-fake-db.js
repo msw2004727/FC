@@ -8,7 +8,8 @@
  *
  * 限制（不要假裝它有）：
  *  - 不模擬 transaction 隔離：交易內讀到的永遠是「目前值」，不會因為別人並發寫入而自動 ABORT；
- *    並發行為要用 state.beforeCommit 在 commit 前手動插入外部寫入（fake.touch／fake.remove）來模擬前置條件衝突。
+ *    並發行為要用 state.beforeCommit 在 commit 前手動插入外部寫入（fake.touch／fake.remove）來模擬前置條件衝突；
+ *    batch／transaction 的 commit 會以 commitNumber（1 起算）呼叫它，ref.update／ref.set 的直接寫入則以 commitNumber:null 呼叫。
  *  - 查詢沒有索引概念，orderBy 一律視為依文件 id 升冪；不支援其他運算子。
  *  - 寫入全部記在 state.writes（含 via＝direct／batch／tx 與 commit 序號），供測試斷言「碰了哪些路徑、是否同一次提交」。
  */
@@ -106,10 +107,19 @@ function createFakeFirestore(seed = {}) {
   }
 
   function docRef(path) {
-    const direct = (op) => async (data, options) => {
+    // ref.update(data, precondition) 的第二個參數是前置條件；ref.set(data, options) 的第二個參數是 { merge }。
+    const direct = (op) => async (data, extra) => {
       const failure = state.failWrite ? state.failWrite({ op, path }) : null;
       if (failure) throw failure;
-      applyOps([{ op, path, data, merge: !!options?.merge }], { via: "direct", commit: null });
+      const item = {
+        op,
+        path,
+        data,
+        merge: op === "set" && !!extra?.merge,
+        precondition: op === "update" ? extra : undefined,
+      };
+      if (state.beforeCommit) state.beforeCommit({ ops: [item], commitNumber: null });
+      applyOps([item], { via: "direct", commit: null });
     };
     return {
       id: path.split("/").pop(),
@@ -231,12 +241,33 @@ function createFakeFirestore(seed = {}) {
   };
 }
 
+// permissions：null 代表「這個角色在 Firestore 沒有 rolePermissions 文件」（用來測 Callable 不靠預設權限放行）。
 function createAccess({ role = "captain", permissions = [] } = {}) {
   return {
     role,
     isSuperAdmin: role === "super_admin",
-    hasPermission: (code) => role === "super_admin" || permissions.includes(code),
+    permissions,
+    hasPermission: (code) => role === "super_admin" || (permissions || []).includes(code),
   };
+}
+
+// 真實的 getCallerAccessContext 會在 rolePermissions 文件不存在時回退預設權限，所以 handler 測試的 mock 一律讓
+// hasPermission 對任何權限碼回 true——Callable 若還依賴它，Rules 對齊的測試（文件不存在 → 不放行）就會變紅。
+function mockCallerAccess(access) {
+  return { ...access, hasPermission: () => true };
+}
+
+// 把 createAccess 的 permissions 轉成 Rules 看得到的文件：user 角色只能靠個別授權（userPermissionGrants/{uid}），
+// 其他角色看 rolePermissions/{role}。permissions 為 null 或 super_admin 時不建文件。
+function permissionDocsFor(access, callerUid) {
+  const docs = {};
+  if (!access || access.isSuperAdmin || access.permissions === null || access.permissions === undefined) return docs;
+  if (access.role === "user") {
+    if (access.permissions.length > 0) docs[`userPermissionGrants/${callerUid}`] = { permissions: access.permissions, enabled: true };
+  } else {
+    docs[`rolePermissions/${access.role}`] = { permissions: access.permissions };
+  }
+  return docs;
 }
 
 function buildOperationLogPayload({ operator, type, typeName, content }) {
@@ -264,5 +295,7 @@ module.exports = {
   createAccess,
   createFakeFirestore,
   createLogger,
+  mockCallerAccess,
   normalizeRole,
+  permissionDocsFor,
 };
