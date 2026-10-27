@@ -18,6 +18,8 @@ const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
+const { createRemoveTeamMemberCallable } = require("./team-member-removal");
+const { createDeleteTeamCallable } = require("./team-deletion");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -3783,6 +3785,33 @@ exports.recountTeamMembers = createRecountTeamMembersCallable({
   db,
   FieldValue,
   getCallerAccessContext,
+});
+
+// 剔除俱樂部一般隊員：取代舊站前端直寫被剔者 users 文件（權限＝前端准入 ∧ coach 以上，見 team-member-removal.js）。
+exports.removeTeamMember = createRemoveTeamMemberCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  roleLevels: ROLE_LEVELS,
+  getCallerAccessContext,
+  buildOperationLogPayload,
+});
+
+// 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
+exports.deleteTeam = createDeleteTeamCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  FieldPath,
+  roleLevels: ROLE_LEVELS,
+  normalizeRole,
+  getCallerAccessContext,
+  ensureAuthUser,
+  setRoleClaimMerged,
+  buildOperationLogPayload,
+  defaultNotificationTemplates: DEFAULT_NOTIFICATION_TEMPLATES,
 });
 
 
