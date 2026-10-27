@@ -26,11 +26,41 @@ function maskId(value) {
 }
 
 // team-member-count.js 的 resolveTeamDoc 沒有 export，行為照抄：docId 優先，再 where('id','==',…)。
-async function resolveTeamSnapshot(db, teamId) {
+// 加固（審查 P3-1）：team 文件的 id 欄位 owner 可自行改寫，若放任「文件 id ≠ 邏輯 id」就能把別隊的邏輯 id 當成自己的，
+// 讓 deleteTeam／removeTeamMember 去動別隊成員。所以以文件 id 命中時，id 欄位必須不存在或等於文件 id；
+// 以 id 欄位命中（舊資料橋接）時，必須剛好一份文件，否則拒絕。
+async function resolveTeamSnapshot(db, teamId, HttpsError) {
   const direct = await db.collection("teams").doc(teamId).get();
-  if (direct && direct.exists) return direct;
-  const query = await db.collection("teams").where("id", "==", teamId).limit(1).get();
-  return query && Array.isArray(query.docs) && query.docs.length > 0 ? query.docs[0] : null;
+  if (direct && direct.exists) {
+    const logicalId = direct.data()?.id;
+    if (logicalId !== undefined && logicalId !== null && logicalId !== "" && String(logicalId) !== direct.id) {
+      throw new HttpsError("failed-precondition", "TEAM_ID_MISMATCH");
+    }
+    return direct;
+  }
+  const query = await db.collection("teams").where("id", "==", teamId).limit(2).get();
+  const docs = Array.isArray(query?.docs) ? query.docs : [];
+  if (docs.length > 1) throw new HttpsError("failed-precondition", "TEAM_ID_AMBIGUOUS");
+  return docs.length === 1 ? docs[0] : null;
+}
+
+// Firestore 衝突類錯誤（gRPC 數字碼、字串碼或訊息皆可能出現）。
+function isFirestoreError(error, name) {
+  const numeric = name === "not-found" ? 5 : 9;
+  const text = name === "not-found" ? "NOT_FOUND" : "FAILED_PRECONDITION";
+  return error?.code === numeric || error?.code === name || String(error?.message || "").includes(text);
+}
+
+// 對應 A js/config.js _BASE_ROLES 的 label。
+const ROLE_LABELS = Object.freeze({
+  user: "一般用戶", coach: "教練", captain: "領隊", venue_owner: "場主", admin: "管理員", super_admin: "總管",
+});
+
+// 站內信 time 欄位：A 用 YYYY/MM/DD HH:mm；台灣固定 UTC+8、無日光節約，不依賴 Intl。
+function formatTaipeiDateTime(date) {
+  const tw = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${tw.getUTCFullYear()}/${pad(tw.getUTCMonth() + 1)}/${pad(tw.getUTCDate())} ${pad(tw.getUTCHours())}:${pad(tw.getUTCMinutes())}`;
 }
 
 // 隊長／領隊（含舊欄位 leaderUid）／教練；比對時一律取聯集（保護面寧寬勿窄）。
@@ -47,14 +77,21 @@ function collectStaffUids(team) {
   return uids;
 }
 
-async function readActorName(db, callerUid) {
+// 操作者名稱對齊 A：operationLogs.operator ＝ displayName || 角色標籤 || '系統'（api-service.js _writeOpLog）；
+// 記錄內文用的名稱 ＝ displayName || name || '職員'（team-detail.js actorName）。查不到使用者文件時只用預設值。
+async function readActorNames(db, callerUid, role) {
+  let data = {};
   try {
     const snap = await db.collection("users").doc(callerUid).get();
-    const data = snap?.exists ? snap.data() || {} : {};
-    return String(data.displayName || data.name || "").trim() || "職員";
+    data = snap?.exists ? snap.data() || {} : {};
   } catch (_) {
-    return "職員";
+    data = {};
   }
+  const displayName = String(data.displayName || "").trim();
+  return {
+    operator: displayName || ROLE_LABELS[role] || "系統",
+    contentName: displayName || String(data.name || "").trim() || "職員",
+  };
 }
 
 // 逐隊讀 name（A 的 team-detail.js 也是逐一取 name，查不到就用 id）。
@@ -136,11 +173,14 @@ async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
 }
 
 module.exports = {
+  ROLE_LABELS,
   buildNextMembership,
   collectStaffUids,
+  formatTaipeiDateTime,
+  isFirestoreError,
   maskId,
   normalizeId,
-  readActorName,
+  readActorNames,
   readAllDocs,
   readTeamNames,
   recountAndWriteTeamMembers,

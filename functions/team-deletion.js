@@ -5,27 +5,24 @@
  *
  * 權限＝A 前端刪隊准入（captainUid／creatorUid／ownerUid 或 team.manage_all）∧ 呼叫者 coach 以上。
  * 可重入、冪等，最後才刪 team 文件（任何階段失敗使用者可直接重試）：
- *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450）
- *   Phase 2/3 幹部角色重算（排除本隊）＋站內信（見 team-deletion-roles.js）
- *   Phase 4 同一個 batch：operationLog ＋ 刪 team 文件
+ *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450，見 team-deletion-members.js）
+ *   Phase 2/3 幹部角色重算（排除本隊）＋站內信（見 team-deletion-roles.js）；呼叫者本人的降級留給 Phase 4
+ *   Phase 4 同一個 batch：呼叫者本人的角色變更（若有）＋ operationLog ＋ 刪 team 文件（帶 exists 前置條件）
  * 刻意不處理（A 現況也沒有）：子集合、events.creatorTeamIds、tournaments.hostTeamId、teamExpLogs、入隊申請訊息、進行中活動／賽事檢查。
  */
 
-const { isUserInTeam, getUserTeamIds } = require("./team-member-count");
 const { isCoachPlusAccess } = require("./team-member-removal");
-const { applyStaffRoleRecalculation } = require("./team-deletion-roles");
+const { cleanMemberships, listTeamMemberDocs } = require("./team-deletion-members");
+const { canDemoteOtherStaff, createStaffRoleRecalculator } = require("./team-deletion-roles");
 const {
-  buildNextMembership,
   collectStaffUids,
+  isFirestoreError,
   maskId,
   normalizeId,
-  readActorName,
-  readAllDocs,
-  readTeamNames,
+  readActorNames,
   resolveTeamSnapshot,
 } = require("./team-membership-core");
 
-const BATCH_LIMIT = 450;
 const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
 
 // A team-list-helpers.js#_canEditTeamByRoleOrCaptain：owner 欄位（trim 比對）或 team.manage_all。
@@ -38,40 +35,6 @@ function isFrontendTeamDeleter(team, uid, access) {
     const ownerId = String(team[field] || "").trim();
     return ownerId !== "" && ownerId === uid;
   });
-}
-
-// 兩組查詢（teamIds array-contains、舊 teamId ==）分頁讀完並依 docId 去重。
-async function listTeamMemberDocs({ db, FieldPath, logicalTeamId }) {
-  const users = db.collection("users");
-  const [byTeamIds, byTeamId] = await Promise.all([
-    readAllDocs(users.where("teamIds", "array-contains", logicalTeamId), FieldPath),
-    readAllDocs(users.where("teamId", "==", logicalTeamId), FieldPath),
-  ]);
-  const byDocId = new Map();
-  [...byTeamIds, ...byTeamId].forEach((doc) => byDocId.set(doc.id, doc));
-  return [...byDocId.values()].filter((doc) => isUserInTeam(doc.data() || {}, logicalTeamId));
-}
-
-// Phase 1：依每位成員目前的文件重算（重跑時已清過的人查不到，不會多清或重複扣）。
-async function cleanMemberships({ db, FieldValue, memberDocs, logicalTeamId }) {
-  const remainingIds = new Set();
-  memberDocs.forEach((doc) => {
-    getUserTeamIds(doc.data() || {}).forEach((id) => {
-      if (id !== logicalTeamId) remainingIds.add(id);
-    });
-  });
-  const teamNames = await readTeamNames([...remainingIds], (id) => db.collection("teams").doc(id).get());
-  for (let i = 0; i < memberDocs.length; i += BATCH_LIMIT) {
-    const batch = db.batch();
-    memberDocs.slice(i, i + BATCH_LIMIT).forEach((doc) => {
-      batch.update(doc.ref, {
-        ...buildNextMembership(doc.data() || {}, logicalTeamId, teamNames),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
-    await batch.commit();
-  }
-  return memberDocs.length;
 }
 
 function createDeleteTeamHandler({
@@ -99,7 +62,7 @@ function createDeleteTeamHandler({
     const progress = { cleanedMembers: 0, roleChanges: 0 };
 
     try {
-      const teamSnap = await resolveTeamSnapshot(db, teamIdInput);
+      const teamSnap = await resolveTeamSnapshot(db, teamIdInput, HttpsError);
       if (!teamSnap) {
         // 與 deleteTournament 一致：查無即視為已刪（此時無資料可驗權限）；記下呼叫者，方便看出探測。
         logger.warn?.("[deleteTeam] team not found, treated as already deleted", ctx);
@@ -118,14 +81,14 @@ function createDeleteTeamHandler({
       }
 
       const issuedAt = now();
-      const actor = { uid: callerUid, name: await readActorName(db, callerUid) };
+      const actor = { uid: callerUid, ...(await readActorNames(db, callerUid, access.role)) };
 
       phase = "clean-members";
-      const memberDocs = await listTeamMemberDocs({ db, FieldPath, logicalTeamId });
-      progress.cleanedMembers = await cleanMemberships({ db, FieldValue, memberDocs, logicalTeamId });
+      const memberDocs = await listTeamMemberDocs({ db, FieldPath, logicalTeamId, teamData });
+      progress.cleanedMembers = await cleanMemberships({ db, FieldValue, memberDocs, logicalTeamId, logger, ctx });
 
       phase = "recalculate-roles";
-      const { roleChanges, roleSkipped } = await applyStaffRoleRecalculation({
+      const recalculator = createStaffRoleRecalculator({
         db,
         HttpsError,
         FieldValue,
@@ -137,20 +100,24 @@ function createDeleteTeamHandler({
         defaultTemplates: defaultNotificationTemplates,
         logger,
         teamDocId: teamSnap.id,
-        staffUids: [...collectStaffUids(teamData)],
         actor,
         issuedAt,
       });
-      progress.roleChanges = roleChanges;
+      const { roleSkipped, callerChange } = await recalculator.run({
+        staffUids: [...collectStaffUids(teamData)],
+        canDemoteOthers: canDemoteOtherStaff(access),
+        progress,
+      });
 
       phase = "delete-team";
       const teamName = typeof teamData.name === "string" && teamData.name ? teamData.name : "俱樂部";
       const finalBatch = db.batch();
+      if (callerChange) await recalculator.stage(finalBatch, callerChange);
       finalBatch.set(
         db.collection("operationLogs").doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`),
         {
           ...buildOperationLogPayload({
-            operator: actor.name,
+            operator: actor.operator,
             type: "team_delete",
             typeName: "刪除俱樂部",
             content: `刪除「${teamName}」`,
@@ -160,11 +127,27 @@ function createDeleteTeamHandler({
           source: "callable",
         },
       );
-      finalBatch.delete(teamSnap.ref);
-      await finalBatch.commit();
+      finalBatch.delete(teamSnap.ref, { exists: true });
+      try {
+        await finalBatch.commit();
+      } catch (error) {
+        // 兩個呼叫同時進行時，後到的 delete 前置條件會失敗（整批不寫）；確認 team 已不在就視為已刪。
+        if (isFirestoreError(error, "not-found") && !(await teamSnap.ref.get()).exists) {
+          logger.warn?.("[deleteTeam] team was deleted by a concurrent call", ctx);
+          return { ok: true, alreadyDeleted: true };
+        }
+        throw error;
+      }
+      if (callerChange) progress.roleChanges += 1;
 
       logger.info?.("[deleteTeam] completed", { ...ctx, ...progress, roleSkipped });
-      return { ok: true, alreadyDeleted: false, cleanedMembers: progress.cleanedMembers, roleChanges, roleSkipped };
+      return {
+        ok: true,
+        alreadyDeleted: false,
+        cleanedMembers: progress.cleanedMembers,
+        roleChanges: progress.roleChanges,
+        roleSkipped,
+      };
     } catch (error) {
       logger.error?.("[deleteTeam] failed", {
         ...ctx,

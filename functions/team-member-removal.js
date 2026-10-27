@@ -6,7 +6,8 @@
  * 權限＝A 前端准入 ∧ 呼叫者 coach 以上（對應 Rules users 的 1711／1712／1713）：
  *  - 前端准入刻意不用 index.js 的 isTeamStaffForData（它多認 creatorUid／ownerUid／舊 leaderUid 並 trim，
  *    比 A 的 _canManageTeamMembers 寬）；這裡逐字照 A：captainUid 嚴格 ===、leaderUids／coachUids 嚴格 includes。
- *  - coach 以上用 ROLE_LEVELS（固定表）；自訂角色等級查不到＝0，一律視為不足（已知限制）。
+ *  - coach 以上用 ROLE_LEVELS（固定表）；自訂角色等級查不到＝0，視為不足而被拒（已知限制）；
+ *    唯一例外：持有 admin.repair.team_join_repair 的自訂角色會通過（與 Rules 1712 一致）。
  * transaction 內只寫被剔者 users 四欄＋operationLog；teams.members 在提交後用 countTeamMembers 冪等重算，
  * 重算失敗只記 log，Callable 仍回 ok（memberCount: null）。
  */
@@ -18,7 +19,7 @@ const {
   collectStaffUids,
   maskId,
   normalizeId,
-  readActorName,
+  readActorNames,
   readTeamNames,
   recountAndWriteTeamMembers,
   resolveTeamSnapshot,
@@ -79,7 +80,7 @@ function createRemoveTeamMemberHandler({
     const ctx = { callerUid, teamId: maskId(teamIdInput) };
 
     try {
-      const teamSnap = await resolveTeamSnapshot(db, teamIdInput);
+      const teamSnap = await resolveTeamSnapshot(db, teamIdInput, HttpsError);
       if (!teamSnap) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
       const teamRef = teamSnap.ref;
       const teamData = teamSnap.data() || {};
@@ -100,7 +101,7 @@ function createRemoveTeamMemberHandler({
       const issuedAt = now();
       const opRef = db.collection("operationLogs")
         .doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`);
-      const actorName = await readActorName(db, callerUid);
+      const actor = await readActorNames(db, callerUid, access.role);
 
       const outcome = await db.runTransaction(async (tx) => {
         // 先全部讀、再寫；以 transaction 內的現值重驗，避免兩次呼叫之間幹部名單或被剔者隊伍已變。
@@ -123,7 +124,8 @@ function createRemoveTeamMemberHandler({
 
         const remainingIds = getUserTeamIds(userData).filter((id) => id !== logicalTeamId);
         const teamNames = await readTeamNames(remainingIds, (id) => tx.get(db.collection("teams").doc(id)));
-        const memberName = String(userData.displayName || userData.name || "").trim() || "隊員";
+        // 對齊 A（team-detail.js）：被剔者顯示名稱 name || displayName，沒有就「隊員」，不用任何 UID 格式化。
+        const memberName = String(userData.name || userData.displayName || "").trim() || "隊員";
         const teamName = typeof freshTeam.name === "string" && freshTeam.name ? freshTeam.name : "俱樂部";
 
         tx.update(userRef, {
@@ -132,10 +134,10 @@ function createRemoveTeamMemberHandler({
         });
         tx.set(opRef, {
           ...buildOperationLogPayload({
-            operator: actorName,
+            operator: actor.operator,
             type: "team_member_remove",
             typeName: "移除隊員",
-            content: `${actorName} 將「${memberName}」移出「${teamName}」`,
+            content: `${actor.contentName} 將「${memberName}」移出「${teamName}」`,
             now: issuedAt,
           }),
           actorUid: callerUid,
