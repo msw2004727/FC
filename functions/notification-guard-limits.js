@@ -2,7 +2,7 @@
 
 /**
  * 通知發送授權強化：所有閾值集中於此（暫定值，待 T-061 linepush 30 日用量調整）。
- * 調整數值只改這個物件；測試與 docs/tunables.md 一律對照這裡的值。
+ * 執行時閾值以這個物件為唯一來源；調整數值時須同步更新「閾值對照」測試與 docs/tunables.md，只改物件會讓對照測試失敗、文件過期。
  */
 const NOTIFICATION_GUARD_LIMITS = Object.freeze({
   // LINE 推播入列（enqueuePrivilegedLineNotification）
