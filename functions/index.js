@@ -10,11 +10,14 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const logger = require("firebase-functions/logger");
 const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
 const { createIssueQaTestTokenCallable } = require("./qa-test-mode");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
+const { createRoleGraphLoader } = require("./role-hierarchy");
+const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
@@ -3377,13 +3380,63 @@ exports.adminManageUser = onCall(
       Object.assign(nextUpdates, sanitizedProfileUpdates);
     }
 
+    let roleGraph;
+    if (restrictionUpdate != null || roleChange) {
+      try {
+        const loadRoleGraph = createRoleGraphLoader({ db });
+        roleGraph = await loadRoleGraph();
+      } catch (err) {
+        logger.error("adminManageUser role graph unavailable", {
+          function: "adminManageUser",
+          reasonCode: "role_graph_unavailable",
+          callerRole: normalizeRole(access.role),
+          targetRole,
+          error: String(err && err.message),
+        });
+        throw new HttpsError("unavailable", "Role configuration temporarily unavailable");
+      }
+    }
+
+    const decision = decideAdminManageUser({
+      access,
+      callerUid,
+      resolvedTargetUid,
+      targetRole,
+      roleGraph,
+      restrictionUpdate,
+      roleChange,
+      builtinLevels: ROLE_LEVELS,
+      permissionCodes: {
+        restrict: ADMIN_USER_RESTRICT_PERMISSION,
+        changeRole: ADMIN_USER_CHANGE_ROLE_PERMISSION,
+      },
+    });
+    if (!decision.ok) {
+      logger.warn("adminManageUser authorization rejected", {
+        function: "adminManageUser",
+        reasonCode: decision.reasonCode,
+        callerRole: normalizeRole(access.role),
+        targetRole,
+      });
+      const message = decision.reasonCode === "self_restrict"
+        ? "Cannot restrict yourself"
+        : decision.code === "permission-denied"
+          ? "無法執行此管理操作"
+          : decision.code === "invalid-argument"
+            ? "Invalid role change request"
+            : "Role configuration is invalid or contains an unknown role";
+      throw new HttpsError(decision.code, message);
+    }
+    if (decision.observe) {
+      logger.warn("adminManageUser target role dangling", {
+        function: "adminManageUser",
+        reasonCode: decision.observe,
+        callerRole: normalizeRole(access.role),
+        targetRole,
+      });
+    }
+
     if (restrictionUpdate != null) {
-      if (!access.hasPermission(ADMIN_USER_RESTRICT_PERMISSION)) {
-        throw new HttpsError("permission-denied", "Missing restriction permission");
-      }
-      if (resolvedTargetUid === callerUid) {
-        throw new HttpsError("failed-precondition", "Cannot restrict yourself");
-      }
       const callerUser = await findUserDocByUidOrLineUserId(callerUid);
       let authDisplayName = "";
       try {
@@ -3407,29 +3460,8 @@ exports.adminManageUser = onCall(
       nextUpdates.restrictedByName = nextRestricted ? actorName : null;
     }
 
-    if (roleChange && typeof roleChange === "object") {
-      if (!access.hasPermission(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
-        throw new HttpsError("permission-denied", "Missing role-change permission");
-      }
-      const callerLevel = ROLE_LEVELS[access.role] ?? 0;
-      if (callerLevel < ROLE_LEVELS.admin) {
-        throw new HttpsError("permission-denied", "Only admin or above can change roles");
-      }
-      const nextRole = normalizeRole(roleChange.role);
-      if (!(await roleExists(nextRole))) {
-        throw new HttpsError("invalid-argument", "Target role does not exist");
-      }
-      if (!access.isSuperAdmin && (ROLE_LEVELS[nextRole] ?? 0) >= ROLE_LEVELS.admin) {
-        throw new HttpsError("permission-denied", "Only super_admin can assign admin-level roles");
-      }
-      const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
-      if (!access.isSuperAdmin && targetLevel >= callerLevel) {
-        throw new HttpsError("permission-denied", "Cannot modify user with equal or higher role");
-      }
-      const nextManualRole = normalizeRole(roleChange.manualRole || nextRole);
-      if (!(await roleExists(nextManualRole))) {
-        throw new HttpsError("invalid-argument", "manualRole does not exist");
-      }
+    if (typeof decision.nextRole === "string") {
+      const { nextRole, nextManualRole } = decision;
       nextUpdates.role = nextRole;
       nextUpdates.manualRole = nextManualRole;
       nextUpdates.isAdmin = ["admin", "super_admin"].includes(normalizeBuiltInRole(nextRole));
