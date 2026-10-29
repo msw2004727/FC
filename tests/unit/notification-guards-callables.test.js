@@ -4,6 +4,7 @@
  * 搭配記憶體版 Firestore 與真實的 notification-guards（可控時鐘）。閾值一律對照 NOTIFICATION_GUARD_LIMITS。
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -13,6 +14,7 @@ const { createFakeDb, FieldValue, FakeError } = require('./notification-guards-f
 const {
   TestHttpsError, ROLE_LEVELS, T0, DAY, MINUTE_MS, CALLER, TARGET, OTHER, RATE_LIMITED,
   NOTIFICATION_GUARD_LIMITS: L, COUNTER_COLLECTION, DEDUPE_COLLECTION, repeat, seedCounter,
+  createRelationSandbox,
 } = require('./notification-guards-test-helpers');
 
 function readSourceBetween(startNeedle, endNeedle) {
@@ -54,6 +56,11 @@ function createEnv({ seed = {}, faults, clock = { t: T0 } } = {}) {
 const counterPaths = (db) => db.paths(`${COUNTER_COLLECTION}/`);
 const gateWarns = (consoleImpl, gate) => consoleImpl.out.warns
   .filter(([msg, data]) => msg === '[notificationGuards] gate triggered' && data.gate === gate);
+const relationWarns = (consoleImpl) => consoleImpl.out.warns
+  .filter(([msg, data]) => msg === '[notificationGuards] gate triggered' && String(data.gate).startsWith('relation_'));
+// 與 notification-guards.js 的計數器文件 id 規則相同（用來把某個計數器預先設到上限）
+const hashId = (value) => crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32);
+const minuteCounterId = (clockMs, scope, subject) => `m${Math.floor(clockMs / 60000)}_${scope}_${hashId(subject)}_s0`;
 
 // ───────────────────────── enqueuePrivilegedLineNotification ─────────────────────────
 describe('enqueuePrivilegedLineNotification 防護', () => {
@@ -69,8 +76,8 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     return { uid: TARGET, lineUserId: TARGET, lineNotify: { bound: true, settings: { activity: true, system: true } }, ...extra };
   }
 
-  function load({ users = { [TARGET]: boundUser() }, roles = {}, flags = null, clock, faults } = {}) {
-    const seed = {};
+  function load({ users = { [TARGET]: boundUser() }, roles = {}, flags = null, clock, faults, extraSeed = {} } = {}) {
+    const seed = { ...extraSeed };
     Object.entries(users).forEach(([uid, data]) => { seed[`users/${uid}`] = data; });
     if (flags) seed['siteConfig/featureFlags'] = flags;
     const env = createEnv({ seed, faults, clock });
@@ -82,10 +89,13 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       exports: {},
       console: env.consoleImpl,
       notificationGuards: env.guards,
+      ...createRelationSandbox({ db: env.db, guards: env.guards }),
       getCallerRoleWithFallback: async (request) => roles[request.auth.uid] || 'user',
       findUserDocByUidOrLineUserId: async (uid) => {
         const snap = await env.db.collection('users').doc(uid).get();
-        return snap.exists ? { docId: snap.id, data: snap.data() } : null;
+        if (snap.exists) return { docId: snap.id, data: snap.data() };
+        const byLine = await env.db.collection('users').where('lineUserId', '==', uid).get();
+        return byLine.docs.length > 0 ? { docId: byLine.docs[0].id, data: byLine.docs[0].data() } : null;
       },
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'enqueue-guards.vm.js' });
@@ -126,6 +136,7 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       requestedByUid: CALLER,
       requestedByRole: 'user',
       dedupeKey: 'event_changed:e1:u1:h',
+      pool: 'user', // 測試同步更新（第 2 批）：入列文件新增伺服器寫的 pool，其餘欄位不變
     });
   });
 
@@ -239,11 +250,13 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     expect(serialized).not.toContain('內文');
   });
 
+  // 測試同步更新（第 2 批）：這兩個 source 缺關聯鍵，會多一筆 relation_missing_key log；斷言改成「沒有 unknown source 那一筆」
   test('已知 source 不記未知 source log', async () => {
     const env = load();
     await env.call(payload({ source: 'template:event_changed' }));
     await env.call(payload({ source: 'team_join_request', uid: `${TARGET}b` }));
-    expect(env.consoleImpl.out.warns).toHaveLength(0);
+    expect(env.consoleImpl.out.warns.filter(([msg]) => msg === '[enqueuePrivilegedLineNotification] unknown source')).toHaveLength(0);
+    expect(relationWarns(env.consoleImpl).every(([, data]) => data.gate === 'relation_missing_key')).toBe(true);
   });
 
   test('title／body 移除 NUL 與其他 C0 控制字元，保留換行與定位', async () => {
@@ -280,6 +293,170 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       expect(data).toMatchObject({ staff: true, failOpen: true, code: 14 });
     });
   });
+  describe('關係檢查', () => {
+    const eventSeed = (eventExtra = {}, regExtra = {}) => ({
+      'events/e1': { id: 'e1', creatorUid: CALLER, ...eventExtra },
+      'events/e1/registrations/r1': { userId: TARGET, status: 'confirmed', ...regExtra },
+    });
+    const dayCounters = (db) => counterPaths(db).filter((p) => p.includes(DAY));
+    const minuteCounters = (db) => counterPaths(db).filter((p) => p.includes('_caller_enqueue_'));
+
+    test('R0 本人通過：入列並寫 pool user', async () => {
+      const env = load();
+      await expect(env.call(payload({ source: 'template:welcome', dedupeKey: '' }), TARGET)).resolves.toMatchObject({ queued: true });
+      expect(env.db.read('linePushQueue/auto_1')).toMatchObject({ requestedByUid: TARGET, pool: 'user' });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('R0 佇列 uid 是 lineUserId 時，只要 user 文件屬於本人仍通過', async () => {
+      const lineId = `U${'l'.repeat(32)}`;
+      const env = load({ users: { [TARGET]: boundUser({ lineUserId: lineId }) } });
+      await expect(env.call(payload({ source: 'template:welcome', uid: lineId }), TARGET)).resolves.toMatchObject({ queued: true });
+      expect(env.db.read('linePushQueue/auto_1')).toMatchObject({ uid: lineId, targetDocId: TARGET });
+    });
+
+    test('R0 他人拒絕：permission-denied／NOT_ALLOWED，不入列；caller_day 與任何 global 計數不變，分鐘計數可增加', async () => {
+      const env = load();
+      await expect(env.call(payload({ source: 'template:welcome' }))).rejects.toMatchObject({
+        code: 'permission-denied',
+        message: 'NOT_ALLOWED',
+      });
+      expect(queued(env.db)).toHaveLength(0);
+      expect(dayCounters(env.db)).toHaveLength(0); // caller_day／caller_target_day／target／global_* 全為每日計數
+      expect(minuteCounters(env.db)).toHaveLength(1);
+      const logs = relationWarns(env.consoleImpl);
+      expect(logs).toHaveLength(1);
+      expect(logs[0][1]).toMatchObject({
+        gate: 'relation_denied',
+        kind: 'enqueue',
+        caller: fields.maskUid(CALLER),
+        source: 'template:welcome',
+        relation: 'R0',
+      });
+    });
+
+    test('略過判斷仍在關係檢查之前：未綁定的他人目標回 not_bound，不是 permission-denied', async () => {
+      const env = load({ users: { [OTHER]: boundUser({ uid: OTHER, lineUserId: OTHER, lineNotify: { bound: false } }) } });
+      await expect(env.call(payload({ source: 'template:welcome', uid: OTHER }))).resolves.toEqual({
+        queued: false,
+        skipped: true,
+        reason: 'not_bound',
+      });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('R7 收件者 role 不是 admin／super_admin：拒絕；是 admin 則入列', async () => {
+      const source = 'template:role_application:admins';
+      const denied = load({ users: { [TARGET]: boundUser({ role: 'user' }) } });
+      await expect(denied.call(payload({ source }))).rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      expect(queued(denied.db)).toHaveLength(0);
+      expect(relationWarns(denied.consoleImpl)[0][1]).toMatchObject({ gate: 'relation_denied', relation: 'R7' });
+      const allowed = load({ users: { [TARGET]: boundUser({ role: 'admin' }) } });
+      await expect(allowed.call(payload({ source }))).resolves.toMatchObject({ queued: true });
+    });
+
+    test('R1 缺 eventId：仍入列並記 relation_missing_key，且仍計入 caller_day', async () => {
+      const env = load();
+      await expect(env.call(payload())).resolves.toMatchObject({ queued: true });
+      const logs = relationWarns(env.consoleImpl);
+      expect(logs).toHaveLength(1);
+      expect(logs[0][1]).toMatchObject({
+        gate: 'relation_missing_key',
+        kind: 'enqueue',
+        source: 'template:event_changed',
+        relation: 'R1',
+        hasEventId: false,
+      });
+      expect(env.db.read(`${COUNTER_COLLECTION}/${DAY}_caller_day_enqueue_${hashId(CALLER)}_s0`).count).toBe(1);
+    });
+
+    test('R1 鍵齊：活動管理者＋有效報名者通過；取消報名或非管理者拒絕', async () => {
+      const ok = load({ extraSeed: eventSeed() });
+      await expect(ok.call(payload({ eventId: 'e1' }))).resolves.toMatchObject({ queued: true });
+      expect(ok.db.read('linePushQueue/auto_1').pool).toBe('user');
+      const cancelled = load({ extraSeed: eventSeed({}, { status: 'cancelled' }) });
+      await expect(cancelled.call(payload({ eventId: 'e1' }))).rejects.toMatchObject({ code: 'permission-denied' });
+      const notManager = load({ extraSeed: eventSeed({ creatorUid: OTHER }) });
+      await expect(notManager.call(payload({ eventId: 'e1' }))).rejects.toMatchObject({ code: 'permission-denied' });
+      expect(queued(notManager.db)).toHaveLength(0);
+      expect(dayCounters(notManager.db)).toHaveLength(0);
+    });
+
+    test('client:unknown 且收件者不是本人：只記錄（clientUnknown）並放行，仍計入每日', async () => {
+      const env = load();
+      await expect(env.call(payload({ source: '' }))).resolves.toMatchObject({ queued: true });
+      expect(relationWarns(env.consoleImpl)[0][1]).toMatchObject({
+        gate: 'relation_missing_key',
+        relation: 'client_unknown',
+        clientUnknown: true,
+      });
+      expect(env.db.read(`${COUNTER_COLLECTION}/${DAY}_caller_day_enqueue_${hashId(CALLER)}_s0`).count).toBe(1);
+    });
+
+    test('payload 的 mode／enforcement／relationMode 無效：R0 仍拒絕、R1 缺 eventId 仍只記錄', async () => {
+      const env = load();
+      await expect(env.call(payload({ source: 'template:welcome', mode: 'log', enforcement: 'log', relationMode: 'log' })))
+        .rejects.toMatchObject({ code: 'permission-denied' });
+      await expect(env.call(payload({ mode: 'enforce', enforcement: 'enforce', relationMode: 'enforce' })))
+        .resolves.toMatchObject({ queued: true });
+    });
+
+    test('payload 的 pool 無效：一般層送 pool staff／event，文件上仍是 user', async () => {
+      const env = load();
+      await env.call(payload({ pool: 'staff' }));
+      await env.call(payload({ pool: 'event', dedupeKey: 'k2' }));
+      expect(env.db.read('linePushQueue/auto_1').pool).toBe('user');
+      expect(env.db.read('linePushQueue/auto_2').pool).toBe('user');
+      expect(env.db.read(`${COUNTER_COLLECTION}/${DAY}_global_enqueue_user_s0`).count).toBe(2);
+      expect(env.db.has(`${COUNTER_COLLECTION}/${DAY}_global_enqueue_staff_s0`)).toBe(false);
+      expect(counterPaths(env.db).some((p) => p.includes('global_enqueue_event'))).toBe(false);
+    });
+
+    test('教練以上入列寫 pool staff（客戶端送 pool user 也一樣）', async () => {
+      const env = load({ roles: { [CALLER]: 'admin' } });
+      await env.call(payload({ pool: 'user' }));
+      expect(env.db.read('linePushQueue/auto_1').pool).toBe('staff');
+    });
+
+    test('每分鐘閘擋下時：不出現 relation log、不讀 events、不扣每日', async () => {
+      const reads = [];
+      const faults = { read: ({ path: docPath }) => { reads.push(docPath); return null; } };
+      const env = load({ faults, extraSeed: eventSeed() });
+      await seedCounter(env.db, minuteCounterId(T0, 'caller_enqueue', CALLER), L.enqueue.userPerMinute);
+      await expect(env.call(payload({ eventId: 'e1' }))).rejects.toMatchObject(RATE_LIMITED);
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(reads.filter((p) => p.startsWith('events/'))).toHaveLength(0);
+      expect(dayCounters(env.db)).toHaveLength(0);
+    });
+
+    test('關係 log 不含 title／body／完整 uid／關聯鍵的值', async () => {
+      const env = load();
+      await env.call(payload({ source: 'template:welcome' })).catch(() => {});
+      await env.call(payload({ eventId: 'eventSecretValue' })).catch(() => {});
+      await env.call(payload({ source: 'team_join_request', teamId: 'teamSecretValue' })).catch(() => {});
+      expect(relationWarns(env.consoleImpl).length).toBeGreaterThanOrEqual(3);
+      const serialized = JSON.stringify(env.consoleImpl.out.warns);
+      [CALLER, TARGET, '標題', '內文', 'eventSecretValue', 'teamSecretValue'].forEach((text) => {
+        expect(serialized).not.toContain(text);
+      });
+    });
+
+    test('未知 source 不額外加 relation log（只有第 1 批的 unknown source）', async () => {
+      const env = load();
+      await env.call(payload({ source: 'brand_new_source' }));
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('同一呼叫者同一分鐘同一類別的 relation log 只寫一筆；換分鐘再寫', async () => {
+      const env = load();
+      await env.call(payload({ dedupeKey: '' }));
+      await env.call(payload({ dedupeKey: '' }));
+      expect(relationWarns(env.consoleImpl)).toHaveLength(1);
+      env.clock.t += MINUTE_MS;
+      await env.call(payload({ dedupeKey: '' }));
+      expect(relationWarns(env.consoleImpl)).toHaveLength(2);
+    });
+  });
 });
 
 // ───────────────────────── processLinePushQueue ─────────────────────────
@@ -308,6 +485,7 @@ describe('processLinePushQueue 防護', () => {
       exports: {},
       console: env.consoleImpl,
       notificationGuards: env.guards,
+      maskUid: fields.maskUid,
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'process-guards.vm.js' });
     const handler = sandbox.exports.processLinePushQueue.handler;
@@ -398,8 +576,10 @@ describe('processLinePushQueue 防護', () => {
       '[notificationGuards] global daily cap reached',
       { gate: 'global_pool_user', kind: 'send', day: DAY, limit: L.globalPerDay.user },
     ]]);
+    // 測試同步更新（第 2 批）：沒有 pool 一律歸一般層（不看 requestedByRole），system 仍 staff；pool:'staff' 才扣 staff 池
     expect((await env.run('q3', { requestedByUid: 'system', requestedByRole: 'system' })).status).toBe('sent');
-    expect((await env.run('q4', { requestedByRole: 'admin' })).status).toBe('sent');
+    expect(await env.run('q4', { requestedByRole: 'admin' })).toMatchObject({ status: 'skipped', reason: 'daily_cap' });
+    expect((await env.run('q5', { requestedByRole: 'admin', pool: 'staff' })).status).toBe('sent');
     expect(env.pushed).toHaveLength(2);
   });
 
@@ -445,6 +625,7 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       exports: {},
       console: env.consoleImpl,
       notificationGuards: env.guards,
+      ...createRelationSandbox({ db: env.db, guards: env.guards }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-guards.vm.js' });
     const callable = sandbox.exports.deliverToInbox;
@@ -700,5 +881,155 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       '[notificationGuards] counter failure',
       { gate: 'caller_minute', kind: 'inbox', staff: true, failOpen: true, code: 14 },
     ]);
+  });
+
+  describe('關係檢查', () => {
+    const dayInboxPaths = (db) => counterPaths(db).filter((p) => p.includes('caller_day_inbox'));
+    const dayInboxCount = (db) => dayInboxPaths(db).reduce((sum, p) => sum + db.read(p).count, 0);
+    const minuteInboxPaths = (db) => counterPaths(db).filter((p) => p.includes('_caller_inbox_'));
+
+    test('站內信 R0 他人拒絕：permission-denied／NOT_ALLOWED，一筆 inbox 都不寫，不增加 caller_day_inbox（分鐘計數可增加）', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg({ source: 'template:welcome' }), targetUid: TARGET })).rejects.toMatchObject({
+        code: 'permission-denied',
+        message: 'NOT_ALLOWED',
+      });
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(0);
+      expect(dayInboxPaths(env.db)).toHaveLength(0);
+      expect(minuteInboxPaths(env.db)).toHaveLength(1);
+      const logs = relationWarns(env.consoleImpl);
+      expect(logs).toHaveLength(1);
+      expect(logs[0][1]).toMatchObject({
+        gate: 'relation_denied',
+        kind: 'inbox',
+        caller: fields.maskUid(CALLER),
+        source: 'template:welcome',
+        relation: 'R0',
+      });
+    });
+
+    test('站內信 R0 本人通過：投遞並計入 caller_day_inbox', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg({ source: 'template:welcome' }), targetUid: CALLER })).resolves.toEqual({
+        success: true,
+        delivered: 1,
+      });
+      expect(dayInboxCount(env.db)).toBe(1);
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('沒有 source 的訊息（現行前端）：不歸類、不記 relation log、不拒絕，仍計入 caller_day_inbox', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg(), targetUid: TARGET })).resolves.toEqual({ success: true, delivered: 1 });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(dayInboxCount(env.db)).toBe(1);
+    });
+
+    test('source 格式不合格（logSafeSource 為 null）視同沒有 source', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg({ source: 'bad source!' }), targetUid: TARGET })).resolves.toEqual({
+        success: true,
+        delivered: 1,
+      });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('有 actionType 的審核類訊息不套關係檢查（即使帶了會被 R0 拒絕的 source）', async () => {
+      const CAPTAIN = `U${'k'.repeat(32)}`;
+      const env = load({
+        users: {
+          [CALLER]: { role: 'user', displayName: '王小明' },
+          [CAPTAIN]: { role: 'captain' },
+        },
+        extraSeed: { 'teams/tJoin': { id: 'tJoin', name: '北區俱樂部', captainUid: CAPTAIN, coachUids: [] } },
+      });
+      await expect(env.call({
+        message: msg({
+          id: 'msg_join',
+          source: 'template:welcome',
+          actionType: 'team_join_request',
+          actionStatus: 'pending',
+          meta: { teamId: 'tJoin', teamName: '北區俱樂部', applicantUid: CALLER, applicantName: '王小明', groupId: 'tjr_1729650000000_ab3d' },
+        }),
+        targetUid: CAPTAIN,
+      })).resolves.toEqual({ success: true, delivered: 1 });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+    });
+
+    test('R7 廣播：一般使用者→管理員投遞；targetRoles 含其他角色的整筆拒絕（admin 呼叫者）', async () => {
+      const source = 'template:role_application:admins';
+      const user = load({
+        users: { [CALLER]: { role: 'user', displayName: '王小明' }, [OTHER]: { role: 'admin' } },
+      });
+      await expect(user.call({ message: msg({ source }), ...adminRoles })).resolves.toEqual({ success: true, delivered: 1 });
+      const admin = load({
+        users: { [CALLER]: { role: 'admin', displayName: '管理員' }, [TARGET]: { role: 'coach' } },
+      });
+      await expect(admin.call({ message: msg({ source }), targetRoles: ['admin', 'coach'], targetType: 'role' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      expect(admin.db.has(`users/${TARGET}/inbox/msg_1`)).toBe(false);
+    });
+
+    // 顧問裁定（R7 合成收件者的三個前提）：(a) targetRoles 空／未帶不得通過 (b) 只有 R7 能靠這段通過 (c) 不逐人補發
+    test('R7 廣播前提：沒有 targetRoles（全體廣播）整筆拒絕；非 R7 的 source 不能靠廣播的合成收件者通過', async () => {
+      const source = 'template:role_application:admins';
+      const admin = load({
+        users: { [CALLER]: { role: 'admin', displayName: '管理員' }, [TARGET]: { role: 'admin' } },
+      });
+      await expect(admin.call({ message: msg({ source }), targetType: 'all' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      await expect(admin.call({ message: msg({ source }), targetRoles: [], targetType: 'role' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      // R0 的 source 對 admin 角色廣播：合成的 role 不會讓「收件者是本人」成立
+      await expect(admin.call({ message: msg({ source: 'template:welcome' }), ...adminRoles }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      expect(admin.db.has(`users/${TARGET}/inbox/msg_1`)).toBe(false);
+    });
+
+    test('R7 廣播前提：同時帶 targetTeamId（實際送達隊員）即使 targetRoles 全是 admin 也整筆拒絕', async () => {
+      const source = 'template:role_application:admins';
+      const admin = load({
+        users: { [CALLER]: { role: 'admin', displayName: '管理員' }, [TARGET]: { role: 'admin', teamId: 'tm_x', teamIds: ['tm_x'] } },
+      });
+      await expect(admin.call({ message: msg({ source }), targetRoles: ['admin'], targetType: 'team', targetTeamId: 'tm_x' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      await expect(admin.call({ message: msg({ source }), targetRoles: ['admin'], targetType: 'role', targetTeamId: 'tm_x' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'NOT_ALLOWED' });
+      expect(admin.db.has(`users/${TARGET}/inbox/msg_1`)).toBe(false);
+    });
+
+    test('既有廣播權限檢查先返回：文案不變、不進關係表、不增加 caller_day_inbox', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({
+        message: msg({ source: 'template:welcome' }),
+        targetRoles: ['coach'],
+        targetType: 'role',
+      })).rejects.toMatchObject({ code: 'permission-denied', message: 'Only admins can broadcast to roles or all users' });
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(dayInboxPaths(env.db)).toHaveLength(0);
+    });
+
+    test('每分鐘閘擋下時：不出現 relation log、不扣每日', async () => {
+      const env = load({ users: baseUsers() });
+      await seedCounter(env.db, minuteCounterId(T0, 'caller_inbox', CALLER), L.inbox.userPerMinute);
+      await expect(env.call({ message: msg({ source: 'template:welcome' }), targetUid: TARGET })).rejects.toMatchObject(RATE_LIMITED);
+      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(dayInboxPaths(env.db)).toHaveLength(0);
+    });
+
+    test('每日閘在關係檢查之後：每日用滿時，他人 R0 先被關係檢查拒絕（permission-denied），本人則被每日閘拒絕', async () => {
+      const env = load({ users: baseUsers() });
+      await seedCounter(env.db, `${DAY}_caller_day_inbox_${hashId(CALLER)}_s0`, L.inbox.userPerDay);
+      await expect(env.call({ message: msg({ source: 'template:welcome' }), targetUid: TARGET })).rejects.toMatchObject({ code: 'permission-denied' });
+      await expect(env.call({ message: msg({ source: 'template:welcome' }), targetUid: CALLER })).rejects.toMatchObject(RATE_LIMITED);
+    });
+
+    test('關係 log 不含 title／body／完整 uid', async () => {
+      const env = load({ users: baseUsers() });
+      await env.call({ message: msg({ source: 'template:welcome' }), targetUid: TARGET }).catch(() => {});
+      expect(relationWarns(env.consoleImpl)).toHaveLength(1);
+      const serialized = JSON.stringify(env.consoleImpl.out.warns);
+      [CALLER, TARGET, '標題', '內文'].forEach((text) => expect(serialized).not.toContain(text));
+    });
   });
 });

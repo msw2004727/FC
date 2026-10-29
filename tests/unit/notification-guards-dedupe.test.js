@@ -26,6 +26,7 @@ const push = (guards, queueId, extra = {}) => guards.checkBeforePush({
   ...extra,
 });
 const dedupeDocs = (db) => db.paths(`${DEDUPE_COLLECTION}/`);
+const counterPathsOf = (db) => db.paths(`${COUNTER_COLLECTION}/`);
 
 describe('dedupeKey 去重視窗', () => {
   test('視窗為 10 分鐘', () => {
@@ -137,19 +138,57 @@ describe('全域每日發送池（處理端）', () => {
       { gate: 'global_pool_user', kind: 'send', day: DAY, limit: L.globalPerDay.user },
     ]]);
     await expect(push(guards, 'q3', { requestedByUid: 'system', requestedByRole: 'system' })).resolves.toEqual(OK);
-    await expect(push(guards, 'q4', { uid: OTHER, requestedByRole: 'admin' })).resolves.toEqual(OK);
+    // 測試同步更新（第 2 批）：沒有 pool 一律歸一般層（admin 也一樣）；文件自帶 pool:'staff' 才走 staff 池
+    await expect(push(guards, 'q4', { uid: OTHER, requestedByRole: 'admin' })).resolves.toEqual(CAP);
+    await expect(push(guards, 'q5', { uid: OTHER, requestedByRole: 'admin', pool: 'staff' })).resolves.toEqual(OK);
   });
 
   test('教練以上＋系統池：用滿後被擋；一般層不受影響', async () => {
     const { guards, db, logger } = createGuardsEnv();
     await seedCounter(db, `${DAY}_global_send_staff_s0`, L.globalPerDay.staff);
     await expect(push(guards, 'q1', { requestedByUid: 'system', requestedByRole: 'system' })).resolves.toEqual(CAP);
-    await expect(push(guards, 'q2', { uid: OTHER, requestedByRole: 'coach' })).resolves.toEqual(CAP);
+    // 測試同步更新（第 2 批）：無 pool 的 coach 扣的是一般層池（沒滿所以放行）；pool:'staff' 的 coach 才被 staff 池擋
+    await expect(push(guards, 'q2', { uid: OTHER, requestedByRole: 'coach' })).resolves.toEqual(OK);
+    await expect(push(guards, 'q2s', { uid: `${OTHER}s`, requestedByRole: 'coach', pool: 'staff' })).resolves.toEqual(CAP);
     expect(logger.errors).toEqual([[
       '[notificationGuards] global daily cap reached',
       { gate: 'global_pool_staff', kind: 'send', day: DAY, limit: L.globalPerDay.staff },
     ]]);
     await expect(push(guards, 'q3', { uid: `${OTHER}u` })).resolves.toEqual(OK);
+  });
+
+  test('舊文件沒有 pool、角色為 coach：仍扣 user 發送池，不動 staff 池', async () => {
+    const { guards, db } = createGuardsEnv();
+    await expect(push(guards, 'q1', { requestedByRole: 'coach', dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(1);
+    expect(sumCounters(db, `${DAY}_global_send_staff_s`)).toBe(0);
+  });
+
+  test('system 沒有 pool 仍扣 staff 池（不動 user 池）', async () => {
+    const { guards, db } = createGuardsEnv();
+    await expect(push(guards, 'q1', { requestedByUid: 'system', requestedByRole: undefined, dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_staff_s`)).toBe(1);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(0);
+  });
+
+  test('文件 pool 為 staff：不因角色（user）改扣 user 池；pool 為 user：不因角色（admin）改扣 staff 池', async () => {
+    const { guards, db } = createGuardsEnv();
+    await expect(push(guards, 'q1', { requestedByRole: 'user', pool: 'staff', dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_staff_s`)).toBe(1);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(0);
+    await expect(push(guards, 'q2', { requestedByRole: 'admin', pool: 'user', dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(1);
+    expect(sumCounters(db, `${DAY}_global_send_staff_s`)).toBe(1);
+  });
+
+  test('文件 pool 為 event 但 event 限額為 null、或 pool 值不合法：退回 user（system 例外為 staff）', async () => {
+    const { guards, db } = createGuardsEnv();
+    await expect(push(guards, 'q1', { pool: 'event', dedupeKey: '' })).resolves.toEqual(OK);
+    await expect(push(guards, 'q2', { pool: 'bogus', requestedByRole: 'admin', dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_user_s`)).toBe(2);
+    expect(counterPathsOf(db).some((p) => p.includes('global_send_event'))).toBe(false);
+    await expect(push(guards, 'q3', { pool: 'bogus', requestedByUid: 'system', dedupeKey: '' })).resolves.toEqual(OK);
+    expect(sumCounters(db, `${DAY}_global_send_staff_s`)).toBe(1);
   });
 
   test('層級無法判斷（缺 requestedBy、自訂角色、髒資料）歸一般層', async () => {

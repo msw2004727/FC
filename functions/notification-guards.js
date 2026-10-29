@@ -12,6 +12,8 @@ const {
   COUNTER_COLLECTION,
   DEDUPE_COLLECTION,
 } = require("./notification-guard-limits");
+const { selectEnqueuePool, resolveSendPool } = require("./notification-pool");
+const { createRelationLogger } = require("./notification-relation-log");
 
 const LOG = "[notificationGuards]";
 const hashId = (value) => crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
@@ -27,6 +29,7 @@ function createNotificationGuards({
 }) {
   const rateLimited = () => new HttpsError("resource-exhausted", "RATE_LIMITED");
   const loggedKeys = new Set();
+  const logRelationOutcome = createRelationLogger({ logger, now });
 
   // 教練以上＝角色等級 ≥ coach（沿用 functions/index.js 的 ROLE_LEVELS；自訂與未知角色視為一般層，與 Rules isCoachPlus 一致）
   function isStaffRole(role) {
@@ -111,34 +114,39 @@ function createNotificationGuards({
     }
   }
 
-  // 每呼叫者每分鐘節流（kind: "enqueue" | "inbox"）；站內信另有一般層每日上限
-  async function enforceCallerLimit({ kind, callerUid, callerRole, source = null }) {
+  // 每呼叫者每分鐘節流（kind: "enqueue" | "inbox"）；站內信另有一般層每日上限。
+  // parts："all"（預設，分鐘＋每日）｜"minute"｜"day"；站內信先 minute、關係檢查後再 day。未知值當 "all"（不略過任何閘）
+  async function enforceCallerLimit({ kind, callerUid, callerRole, source = null, parts = "all" }) {
     const staff = isStaffRole(callerRole);
     const cfg = LIMITS[kind];
     const ctx = { kind, callerUid, source, staff };
-    const minute = Math.floor(now() / 60000);
-    const minuteParams = {
-      windowKey: `m${minute}`,
-      scope: `caller_${kind}`,
-      subject: callerUid,
-      shards: staff ? LIMITS.staffCallerShards : 1,
-      expireAtMs: (minute + 2) * 60000,
-    };
-    if (await exceeded("caller_minute", minuteParams, staff ? cfg.staffPerMinute : cfg.userPerMinute, ctx)) {
-      throw rateLimited();
+    if (parts !== "day") {
+      const minute = Math.floor(now() / 60000);
+      const minuteParams = {
+        windowKey: `m${minute}`,
+        scope: `caller_${kind}`,
+        subject: callerUid,
+        shards: staff ? LIMITS.staffCallerShards : LIMITS.userCallerShards,
+        expireAtMs: (minute + 2) * 60000,
+      };
+      if (await exceeded("caller_minute", minuteParams, staff ? cfg.staffPerMinute : cfg.userPerMinute, ctx)) {
+        throw rateLimited();
+      }
     }
-    if (kind !== "inbox" || staff) return;
+    if (parts === "minute" || kind !== "inbox" || staff) return;
     const dayParams = {
       windowKey: fields.taipeiDayKey(now()),
       scope: "caller_day_inbox",
       subject: callerUid,
+      shards: LIMITS.userCallerShards,
       expireAtMs: now() + LIMITS.counterTtlMs,
     };
     if (await exceeded("caller_day", dayParams, cfg.userPerDay, ctx)) throw rateLimited();
   }
 
-  // 實際入列前的每日上限：一般層依序檢查 呼叫者／（呼叫者,目標）／目標，再扣全域池；教練以上只扣 staff 池
-  async function enforceDailyLimits({ callerUid, callerRole, targetUid, source = null }) {
+  // 實際入列前的每日上限：一般層依序檢查 呼叫者／（呼叫者,目標）／目標，再扣全域池；教練以上不計前三項。
+  // 池別由呼叫端傳入（user｜staff｜event）；缺省或不合法時依角色算（staff／user），event 只在限額為數字時有效
+  async function enforceDailyLimits({ callerUid, callerRole, targetUid, source = null, pool: requestedPool }) {
     const staff = isStaffRole(callerRole);
     const ctx = { kind: "enqueue", callerUid, source, staff };
     const day = fields.taipeiDayKey(now());
@@ -150,7 +158,8 @@ function createNotificationGuards({
       ...extra,
     });
     if (!staff) {
-      if (await exceeded("caller_day", daily("caller_day_enqueue", callerUid), LIMITS.enqueue.userPerDay, ctx)) {
+      const callerDay = daily("caller_day_enqueue", callerUid, { shards: LIMITS.userCallerShards });
+      if (await exceeded("caller_day", callerDay, LIMITS.enqueue.userPerDay, ctx)) {
         throw rateLimited();
       }
       if (await exceeded("caller_target_day", daily("caller_target_day", `${callerUid}\n${targetUid}`), LIMITS.callerTargetPerDay, ctx)) {
@@ -158,7 +167,9 @@ function createNotificationGuards({
       }
       if (await exceeded("target_day", daily("target", targetUid), LIMITS.targetPerDay, ctx)) throw rateLimited();
     }
-    const pool = staff ? "staff" : "user";
+    const pool = ["user", "staff", "event"].includes(requestedPool) && Number.isFinite(LIMITS.globalPerDay[requestedPool])
+      ? requestedPool
+      : selectEnqueuePool({ staff, relationId: null, limits: LIMITS, mode: "log" });
     const poolParams = daily(`global_enqueue_${pool}`, null, { shards: LIMITS.globalShards });
     if (await exceeded(`global_pool_${pool}`, poolParams, LIMITS.globalPerDay[pool], ctx)) {
       await logCapOnce("enqueue", pool, day);
@@ -202,12 +213,12 @@ function createNotificationGuards({
   /**
    * processLinePushQueue 發送前檢查：回傳 { skip, reason }。
    * 入列端已先把關，這裡計數或去重的基礎設施失敗時一律放行並結構化記錄，不因故障漏發通知。
-   * 全域池依 queue 文件的 requestedByUid／requestedByRole 判斷層級（教練以上與系統用 staff 池，無法判斷歸一般層）。
+   * 全域池依 queue 文件的 pool 欄位（resolveSendPool）：沒有 pool 時 system 用 staff 池，其餘一般層；不看 requestedByRole。
    */
-  async function checkBeforePush({ queueId, uid, dedupeKey, requestedByUid, requestedByRole, source }) {
+  async function checkBeforePush({ queueId, uid, dedupeKey, requestedByUid, pool: queuePool, source }) {
     const key = typeof dedupeKey === "string" ? dedupeKey : "";
-    const staff = requestedByUid === "system" || isStaffRole(requestedByRole);
-    const ctx = { kind: "send", callerUid: requestedByUid, source, staff, failOpen: true };
+    const pool = resolveSendPool({ pool: queuePool, requestedByUid, limits: LIMITS });
+    const ctx = { kind: "send", callerUid: requestedByUid, source, staff: pool === "staff", failOpen: true };
     let claimed = false;
     let countThisSend = true; // 同一文件重試（own）第一次嘗試已計入全域池，不重複遞增，只檢查池是否已超限
     try {
@@ -220,7 +231,6 @@ function createNotificationGuards({
         claimed = outcome === "claimed";
         countThisSend = outcome !== "own";
       }
-      const pool = staff ? "staff" : "user";
       const day = fields.taipeiDayKey(now());
       const poolParams = {
         windowKey: day,
@@ -263,6 +273,7 @@ function createNotificationGuards({
     releaseDedupe,
     logUnknownSource,
     logSourceFormatRejected,
+    logRelationOutcome,
   };
 }
 

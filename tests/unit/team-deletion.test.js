@@ -1,6 +1,9 @@
 "use strict";
 
 const { createDeleteTeamHandler, isFrontendTeamDeleter } = require("../../functions/team-deletion");
+const { TEAM_DELETE_NOTIFY_LIMIT } = require("../../functions/team-deletion-roles");
+const { maskUid } = require("../../functions/notification-fields");
+const { CALLER } = require("./notification-guards-test-helpers");
 const {
   FakeFirestoreError,
   FakeHttpsError,
@@ -179,18 +182,20 @@ describe("deleteTeam 輸入與查無 team", () => {
   test("查無 team → alreadyDeleted:true，不寫，並記下呼叫者與遮罩後的 teamId", async () => {
     const logger = createLogger();
     const { call, fake } = setup({ logger });
-    await expect(call({ teamId: "tm_missing_team" })).resolves.toEqual({ ok: true, alreadyDeleted: true });
+    // 測試同步更新：成功回傳恆帶 skippedNotifies；log 的 callerUid 改為遮罩值（通知發送授權強化 2b-5）
+    await expect(call({ teamId: "tm_missing_team" })).resolves.toEqual({ ok: true, alreadyDeleted: true, skippedNotifies: 0 });
     expect(fake.state.writes).toHaveLength(0);
     const [message, context] = logger.warn.mock.calls[0];
     expect(message).toContain("already deleted");
-    expect(context).toEqual({ callerUid: "U-cap", teamId: expect.any(String) });
+    expect(context).toEqual({ callerUid: maskUid("U-cap"), teamId: expect.any(String) });
+    expect(context.callerUid).not.toBe("U-cap");
     expect(context.teamId).not.toBe("tm_missing_team");
   });
 
   test("刪完後再呼叫一次 → alreadyDeleted:true", async () => {
     const { call } = setup();
     await call();
-    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true, skippedNotifies: 0 });
   });
 });
 
@@ -623,7 +628,7 @@ describe("deleteTeam roleChangedUids（資訊性回傳欄位：本次呼叫內�
     result.roleChangedUids.forEach((uid) => expect(typeof uid).toBe("string"));
     expect(result.roleChangedUids).toEqual(["U-lead", "U-coach", "U-cap"]);
     expect(result.roleChangedUids).not.toContain("doc-cap");
-    expect(Object.keys(result).sort()).toEqual(["alreadyDeleted", "cleanedMembers", "ok", "roleChangedUids", "roleChanges", "roleSkipped"]);
+    expect(Object.keys(result).sort()).toEqual(["alreadyDeleted", "cleanedMembers", "ok", "roleChangedUids", "roleChanges", "roleSkipped", "skippedNotifies"]);
     const text = JSON.stringify(result);
     ["隊長", "領隊", "教練", "doc-cap", "待刪俱樂部"].forEach((needle) => expect(text).not.toContain(needle));
   });
@@ -1037,6 +1042,193 @@ describe("deleteTeam Phase 2／3：幹部角色重算（排除本隊）與站內
   });
 });
 
+describe("deleteTeam 站內信 origin、截斷與 log 遮罩（T-062-2b）", () => {
+  function serializedLoggerCalls(logger) {
+    return JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls, logger.error.mock.calls]);
+  }
+
+  test("origin 為 team_delete_role_change", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    await expect(call()).resolves.toMatchObject({ ok: true, skippedNotifies: 0, roleChanges: 3 });
+    const message = fake.get(`users/U-lead/inbox/${INBOX_ID}`);
+    expect(message).toMatchObject({
+      id: INBOX_ID,
+      origin: "team_delete_role_change",
+      fromUid: "system",
+      senderName: "系統",
+      type: "private",
+      typeName: "私訊",
+    });
+    expect(message.ref).toBe(`messages/${INBOX_ID}`);
+    expect(fake.get(`users/U-cap/inbox/${INBOX_ID}`).origin).toBe("team_delete_role_change");
+  });
+
+  test("呼叫者的信與 delete(team) 在同一 batch", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    await call();
+    const inbox = fake.state.writes.find((item) => item.path === `users/U-cap/inbox/${INBOX_ID}`);
+    const deletion = fake.state.writes.find((item) => item.op === "delete" && item.path === TEAM_PATH);
+    expect(inbox.via).toBe("batch");
+    expect(deletion.via).toBe("batch");
+    expect(inbox.commit).toBe(deletion.commit);
+  });
+
+  test("一般成員被清出隊伍時 inbox 寫入次數為 0", async () => {
+    const { call, fake } = setup();
+    await call();
+    ["U-m1", "U-m2"].forEach((uid) => {
+      expect(fake.get(`users/${uid}`).teamIds).toEqual([]);
+      expect(fake.writesTo(`users/${uid}/inbox`)).toHaveLength(0);
+      expect(fake.list(`users/${uid}/inbox`)).toEqual([]);
+    });
+  });
+
+  test("不寫 notificationGuardCounters", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    await call();
+    expect(fake.writesTo("notificationGuardCounters")).toHaveLength(0);
+    expect(fake.list("notificationGuardCounters")).toEqual([]);
+    expect(fake.list("users/U-lead/inbox")).toEqual([INBOX_ID]);
+  });
+
+  test("超過 TEAM_DELETE_NOTIFY_LIMIT 只略過信", async () => {
+    const extraCount = TEAM_DELETE_NOTIFY_LIMIT + 1;
+    const coachUids = [];
+    const docs = {
+      [TEAM_PATH]: {
+        id: TEAM,
+        name: "待刪俱樂部",
+        captainUid: "U-cap",
+        leaderUids: [],
+        coachUids,
+        creatorUid: "U-cap",
+        ownerUid: "U-cap",
+      },
+      "users/U-cap": { uid: "U-cap", displayName: "隊長", role: "captain" },
+    };
+    for (let i = 0; i < extraCount; i += 1) {
+      const uid = `U-n${String(i).padStart(4, "0")}`;
+      coachUids.push(uid);
+      docs[`users/${uid}`] = { uid, displayName: `教練${i}`, role: "coach" };
+    }
+    const { call, fake } = setup({ docs });
+    const result = await call();
+    const insideUid = coachUids[0];
+    const outsideUid = coachUids[coachUids.length - 1];
+    const inboxWrites = fake.state.writes.filter((item) => item.path.includes("/inbox/"));
+    // 名額先被迴圈裡的教練用完；多出的一位與 Phase 4 的呼叫者都不寫信。
+    const expectedSkips = (extraCount - TEAM_DELETE_NOTIFY_LIMIT) + 1;
+
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: false, skippedNotifies: expectedSkips });
+    expect(result.roleChangedUids).toContain(insideUid);
+    expect(result.roleChangedUids).toContain(outsideUid);
+    expect(result.roleChangedUids).toContain("U-cap");
+    expect(inboxWrites).toHaveLength(TEAM_DELETE_NOTIFY_LIMIT);
+    expect(fake.get(`users/${insideUid}/inbox/${INBOX_ID}`)).toMatchObject({
+      id: INBOX_ID,
+      origin: "team_delete_role_change",
+      fromUid: "system",
+      senderName: "系統",
+    });
+    expect(fake.list(`users/${outsideUid}/inbox`)).toEqual([]);
+    expect(fake.get(`users/${outsideUid}`).role).toBe("user");
+    expect(fake.list("users/U-cap/inbox")).toEqual([]);
+    expect(fake.get("users/U-cap").role).toBe("user");
+    expect(fake.has(TEAM_PATH)).toBe(false);
+    expect(fake.writesTo("operationLogs/").some((item) => item.data.type === "role" && item.data.content.startsWith(`教練${extraCount - 1} `))).toBe(true);
+    expect(fake.writesTo("notificationGuardCounters")).toHaveLength(0);
+  }, 30000);
+
+  test("範本缺失：沒有 inbox 寫入，role 仍更新", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()), templates: [] });
+    await expect(call()).resolves.toMatchObject({ ok: true, roleChanges: 3, skippedNotifies: 0 });
+    STAFF.forEach((uid) => {
+      expect(fake.get(`users/${uid}`).role).toBe("user");
+      expect(fake.list(`users/${uid}/inbox`)).toEqual([]);
+    });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("最後一批 commit 失敗：呼叫者的信不在、隊伍還在", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    fake.state.failCommit = ({ ops }) => (ops.some((item) => item.op === "delete") ? new FakeFirestoreError(14, "UNAVAILABLE") : null);
+    expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
+    expect(fake.list("users/U-cap/inbox")).toEqual([]);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(fake.list("users/U-lead/inbox")).toEqual([INBOX_ID]);
+  });
+
+  test("查無 team、刪完再呼叫、partial 的 skippedNotifies 為 0", async () => {
+    const missing = setup();
+    await expect(missing.call({ teamId: "tm_missing_team" })).resolves.toMatchObject({
+      ok: true, alreadyDeleted: true, skippedNotifies: 0,
+    });
+
+    const done = setup();
+    await done.call();
+    await expect(done.call()).resolves.toMatchObject({ ok: true, alreadyDeleted: true, skippedNotifies: 0 });
+
+    const docs = seedDocs({
+      "users/U-race": {
+        uid: "U-race-uid-0001", role: "user", teamId: TEAM, teamName: "x", teamIds: [TEAM, "tm_other"], teamNames: ["x", "別隊"],
+      },
+    });
+    const partial = setup({ docs });
+    partial.fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.path === "users/U-race")) partial.fake.touch("users/U-race", { updatedAt: `t${Math.random()}` });
+    };
+    const result = await partial.call();
+    expect(result.partial).toMatchObject({ rerun: true });
+    expect(result.skippedNotifies).toBe(0);
+    expect(result.roleChangedUids).toEqual([]);
+  });
+
+  test("併發刪除的成功回傳帶 skippedNotifies", async () => {
+    const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
+    fake.state.beforeCommit = ({ ops }) => {
+      if (ops.some((item) => item.op === "delete")) fake.remove(TEAM_PATH);
+    };
+    const result = await call();
+    expect(result).toMatchObject({ ok: true, alreadyDeleted: true, skippedNotifies: 0 });
+    expect(result.roleChangedUids).toEqual(["U-lead", "U-coach"]);
+  });
+
+  test("log 序列化後不含完整 uid、title、body", async () => {
+    const docs = withoutStaffMembership(seedDocs());
+    docs[TEAM_PATH] = { ...docs[TEAM_PATH], captainUid: CALLER };
+    delete docs["users/U-cap"];
+    docs[`users/${CALLER}`] = { uid: CALLER, displayName: "隊長", role: "captain" };
+    docs["users/U-lead"] = { ...docs["users/U-lead"], role: "user" };
+    docs["teams/tm_other"] = { id: "tm_other", name: "別隊", captainUid: "U-lead" };
+    const logger = createLogger();
+    const { call, fake } = setup({
+      docs,
+      callerUid: CALLER,
+      logger,
+      templates: [{ key: "role_upgrade", title: "XQ_TITLE_MARKER", body: "XQ_BODY_MARKER {userName} {roleName}" }],
+    });
+    await call();
+    const serialized = serializedLoggerCalls(logger);
+    const middle = CALLER.slice(2, -2);
+    expect(middle.length).toBeGreaterThan(4);
+    expect(serialized).not.toContain(CALLER);
+    expect(serialized).not.toContain(middle);
+    expect(serialized).not.toContain("XQ_TITLE_MARKER");
+    expect(serialized).not.toContain("XQ_BODY_MARKER");
+    expect(logger.info).toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalled();
+    logger.info.mock.calls.concat(logger.warn.mock.calls, logger.error.mock.calls).forEach(([, context]) => {
+      if (context && Object.prototype.hasOwnProperty.call(context, "callerUid")) {
+        expect(context.callerUid).not.toBe(CALLER);
+        expect(String(context.callerUid)).not.toContain(middle);
+      }
+    });
+    expect(fake.get(`users/${CALLER}/inbox/${INBOX_ID}`).title).toBe("XQ_TITLE_MARKER");
+    expect(fake.get(`users/${CALLER}/inbox/${INBOX_ID}`).body).toContain("XQ_BODY_MARKER");
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain(CALLER);
+  });
+});
+
 describe("deleteTeam 降級他人的範圍（審查 P2-3：比照 autoPromoteTeamRole 的 canCallerRecalculateRole）", () => {
   test("一般 owner（無 team.manage_all／team.create）刪隊：只降級自己，其他幹部角色不動並計入 roleSkipped", async () => {
     const logger = createLogger();
@@ -1191,7 +1383,7 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
       if (ops.some((item) => item.op === "delete")) fake.remove(TEAM_PATH);
     };
     // 他人的降級（Phase 2 已提交）如實回報；呼叫者自己的降級在失敗的最後一批裡，沒有提交，所以不在清單內
-    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true, roleChangedUids: ["U-lead", "U-coach"] });
+    await expect(call()).resolves.toEqual({ ok: true, alreadyDeleted: true, roleChangedUids: ["U-lead", "U-coach"], skippedNotifies: 0 });
     const logs = fake.writesTo("operationLogs/").map((item) => item.data.type);
     expect(logs).not.toContain("team_delete");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("concurrent"), expect.any(Object));
@@ -1222,7 +1414,8 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
     fake.state.failCommit = () => new Error("boom");
     expect(await rejection(call())).toMatchObject({ code: "internal", message: "TEAM_DELETE_FAILED" });
     const [, context] = logger.error.mock.calls[0];
-    expect(context).toMatchObject({ phase: "clean-members", callerUid: "U-cap" });
+    expect(context).toMatchObject({ phase: "clean-members", callerUid: maskUid("U-cap") });
+    expect(context.callerUid).not.toBe("U-cap");
     expect(context.teamId).not.toBe(TEAM);
   });
 });

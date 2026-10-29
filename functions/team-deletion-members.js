@@ -162,4 +162,4 @@ async function settleTeamMembers({ db, FieldValue, FieldPath, HttpsError, teamDo
   }
 }
 
-module.exports = { cleanMemberships, listTeamMemberDocs, settleTeamMembers };
+module.exports = { cleanMemberships, listTeamMemberDocs, settleTeamMembers, BATCH_LIMIT };

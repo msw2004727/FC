@@ -3,12 +3,13 @@
  * 閾值一律對照 functions/notification-guard-limits.js 的 NOTIFICATION_GUARD_LIMITS。
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const fields = require('../../functions/notification-fields');
 const { FakeError } = require('./notification-guards-fake-db');
 const {
-  ROLE_LEVELS, T0, DAY, MINUTE_MS, CALLER, TARGET, OTHER, RATE_LIMITED,
+  TestHttpsError, ROLE_LEVELS, T0, DAY, MINUTE_MS, CALLER, TARGET, OTHER, RATE_LIMITED,
   NOTIFICATION_GUARD_LIMITS: L, COUNTER_COLLECTION,
   createGuardsEnv, seedCounter, sumCounters, repeat,
 } = require('./notification-guards-test-helpers');
@@ -22,6 +23,7 @@ const inbox = (guards, extra = {}) => guards.enforceCallerLimit({
 const daily = (guards, extra = {}) => guards.enforceDailyLimits({
   callerUid: CALLER, callerRole: 'user', targetUid: TARGET, ...extra,
 });
+const hashId = (value) => crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32);
 const gateLogs = (logger, gate) => logger.warns.filter(([msg, data]) => msg === '[notificationGuards] gate triggered' && data.gate === gate);
 
 describe('閾值與角色層級', () => {
@@ -35,6 +37,12 @@ describe('閾值與角色層級', () => {
       dedupeWindowMs: 600000,
     });
     [L, L.enqueue, L.inbox, L.globalPerDay].forEach((group) => expect(Object.isFrozen(group)).toBe(true));
+  });
+
+  test('userCallerShards 與 staffCallerShards 相等，event 池預留為 null', () => {
+    expect(L.userCallerShards).toBe(L.staffCallerShards);
+    expect(L.globalPerDay.event).toBeNull();
+    expect(Object.isFrozen(L.globalPerDay)).toBe(true);
   });
 
   test('測試用的 ROLE_LEVELS 與 functions/index.js 一致', () => {
@@ -306,5 +314,165 @@ describe('全域每日池（入列端）', () => {
       '[notificationGuards] counter failure',
       { gate: 'global_pool_staff', kind: 'enqueue', staff: true, failOpen: true, code: 14 },
     ]]);
+  });
+});
+
+describe('呼叫者分片（userCallerShards）與 parts', () => {
+  const SHARDS = L.userCallerShards;
+  // 讓分片輪流被選到（floor(random * 片數) 依序為 0,1,2,…）
+  const cyclicRandom = () => {
+    let i = 0;
+    return () => ((i++ % SHARDS) + 0.5) / SHARDS;
+  };
+  // 記錄每次 db.getAll 讀回的文件數（一次 getAll 讀回所有分片）
+  const spyGetAll = (db) => {
+    const sizes = [];
+    const original = db.getAll;
+    db.getAll = async (...refs) => {
+      sizes.push(refs.length);
+      return original(...refs);
+    };
+    return sizes;
+  };
+  const shardPaths = (db, fragment) => db.paths(`${COUNTER_COLLECTION}/`).filter((p) => p.includes(fragment));
+
+  test('分片數取自常數：一般層分鐘讀回 userCallerShards 片、教練以上讀回 staffCallerShards 片', async () => {
+    const { guards, db } = createGuardsEnv();
+    const sizes = spyGetAll(db);
+    await enq(guards);
+    await enq(guards, { callerRole: 'admin' });
+    expect(sizes).toEqual([L.userCallerShards, L.staffCallerShards]);
+  });
+
+  test('一般層每分鐘：片數分散時跨片相加，第 N 次通過、第 N+1 次拒絕（N 取自常數）', async () => {
+    const { guards, db } = createGuardsEnv({ random: cyclicRandom() });
+    await repeat(L.enqueue.userPerMinute, () => enq(guards));
+    expect(shardPaths(db, '_caller_enqueue_').length).toBeGreaterThan(1);
+    expect(sumCounters(db, '_caller_enqueue_')).toBe(L.enqueue.userPerMinute);
+    await expect(enq(guards)).rejects.toMatchObject(RATE_LIMITED);
+  });
+
+  test('一般層每日（入列 caller_day_enqueue）：跨片相加，第 N 次通過、第 N+1 次拒絕；讀回片數等於 userCallerShards', async () => {
+    const { guards, db } = createGuardsEnv({ random: cyclicRandom() });
+    await repeat(L.enqueue.userPerDay, (i) => daily(guards, { targetUid: `${TARGET}${i}` }));
+    expect(shardPaths(db, 'caller_day_enqueue').length).toBeGreaterThan(1);
+    await expect(daily(guards, { targetUid: `${TARGET}over` })).rejects.toMatchObject(RATE_LIMITED);
+    const { guards: g2, db: db2 } = createGuardsEnv();
+    const sizes = spyGetAll(db2);
+    await daily(g2);
+    // 順序：呼叫者每日（分片）→（呼叫者, 目標）→ 目標 → 全域池
+    expect(sizes).toEqual([L.userCallerShards, 1, 1, L.globalShards]);
+  });
+
+  test('每目標與（呼叫者, 目標）仍是單片：文件 id 沒有分片尾碼', async () => {
+    const { guards, db } = createGuardsEnv({ random: cyclicRandom() });
+    await repeat(3, () => daily(guards));
+    const single = [...shardPaths(db, 'caller_target_day'), ...shardPaths(db, `${DAY}_target_`)];
+    expect(single).toHaveLength(2);
+    single.forEach((p) => expect(p).not.toMatch(/_s\d+$/));
+  });
+
+  test('站內信每日（caller_day_inbox）：跨片相加，第 N 次通過、第 N+1 次拒絕', async () => {
+    const { guards, db } = createGuardsEnv({ random: cyclicRandom() });
+    await repeat(L.inbox.userPerDay, () => inbox(guards, { parts: 'day' }));
+    expect(shardPaths(db, 'caller_day_inbox').length).toBeGreaterThan(1);
+    await expect(inbox(guards, { parts: 'day' })).rejects.toMatchObject(RATE_LIMITED);
+  }, 30000);
+
+  test('parts：預設（all）與 minute／day 的計數範圍', async () => {
+    const all = createGuardsEnv();
+    await inbox(all.guards);
+    expect(sumCounters(all.db, '_caller_inbox_')).toBe(1);
+    expect(sumCounters(all.db, 'caller_day_inbox')).toBe(1);
+    const minute = createGuardsEnv();
+    await inbox(minute.guards, { parts: 'minute' });
+    expect(sumCounters(minute.db, '_caller_inbox_')).toBe(1);
+    expect(minute.db.paths(`${COUNTER_COLLECTION}/`).some((p) => p.includes('caller_day_inbox'))).toBe(false);
+    const day = createGuardsEnv();
+    await inbox(day.guards, { parts: 'day' });
+    expect(day.db.paths(`${COUNTER_COLLECTION}/`).some((p) => p.includes('_caller_inbox_'))).toBe(false);
+    expect(sumCounters(day.db, 'caller_day_inbox')).toBe(1);
+  });
+
+  test('parts 未知值當 all（不略過任何閘）；入列的 day 沒有每日項目，不寫任何計數', async () => {
+    const bogus = createGuardsEnv();
+    await inbox(bogus.guards, { parts: 'bogus' });
+    expect(sumCounters(bogus.db, '_caller_inbox_')).toBe(1);
+    expect(sumCounters(bogus.db, 'caller_day_inbox')).toBe(1);
+    const enqueueDay = createGuardsEnv();
+    await enq(enqueueDay.guards, { parts: 'day' });
+    expect(enqueueDay.db.paths(`${COUNTER_COLLECTION}/`)).toHaveLength(0);
+  });
+
+  test('parts minute 超過每分鐘上限仍拒絕；day 超過每日上限拒絕且不碰分鐘計數', async () => {
+    const minute = createGuardsEnv();
+    await repeat(L.inbox.userPerMinute, () => inbox(minute.guards, { parts: 'minute' }));
+    await expect(inbox(minute.guards, { parts: 'minute' })).rejects.toMatchObject(RATE_LIMITED);
+    const day = createGuardsEnv();
+    await seedCounter(day.db, `${DAY}_caller_day_inbox_${hashId(CALLER)}_s0`, L.inbox.userPerDay);
+    await expect(inbox(day.guards, { parts: 'day' })).rejects.toMatchObject(RATE_LIMITED);
+    expect(day.db.paths(`${COUNTER_COLLECTION}/`).some((p) => p.includes('_caller_inbox_'))).toBe(false);
+  });
+
+  test('parts day 計數故障：一般層仍回 sanitized internal，教練以上不計每日（不碰計數）', async () => {
+    const { guards } = createGuardsEnv({ faults: { getAll: () => new FakeError(14, 'UNAVAILABLE') } });
+    await expect(inbox(guards, { parts: 'day' })).rejects.toMatchObject({ code: 'internal', message: 'Failed to verify request limits' });
+    await expect(inbox(guards, { parts: 'day', callerRole: 'admin' })).resolves.toBeUndefined();
+  });
+});
+
+describe('全域每日池別（enforceDailyLimits 的 pool 參數）', () => {
+  test('呼叫端傳入 pool 時用該池的計數與限額；不傳時依角色算（既有行為）', async () => {
+    const { guards, db } = createGuardsEnv();
+    await daily(guards);
+    await daily(guards, { callerRole: 'admin', targetUid: OTHER });
+    expect(sumCounters(db, `${DAY}_global_enqueue_user_s`)).toBe(1);
+    expect(sumCounters(db, `${DAY}_global_enqueue_staff_s`)).toBe(1);
+    await daily(guards, { pool: 'staff', callerUid: OTHER, targetUid: `${TARGET}2` });
+    expect(sumCounters(db, `${DAY}_global_enqueue_staff_s`)).toBe(2);
+    await daily(guards, { pool: 'user', callerRole: 'admin', callerUid: `${OTHER}2` });
+    expect(sumCounters(db, `${DAY}_global_enqueue_user_s`)).toBe(2);
+  });
+
+  test('池別以傳入的 pool 為準：指定 staff 池時一般層仍計呼叫者每日，但全域用 staff 池與 staff 限額', async () => {
+    const { guards, db } = createGuardsEnv();
+    await seedCounter(db, `${DAY}_global_enqueue_staff_s0`, L.globalPerDay.staff);
+    await expect(daily(guards, { pool: 'staff' })).rejects.toMatchObject(RATE_LIMITED);
+    expect(sumCounters(db, 'caller_day_enqueue')).toBe(1);
+  });
+
+  test('event 池限額為 null、或 pool 值不合法：退回依角色算的池，不寫 global_enqueue_event', async () => {
+    const { guards, db } = createGuardsEnv();
+    await daily(guards, { pool: 'event' });
+    await daily(guards, { pool: 'bogus', callerRole: 'admin', targetUid: OTHER });
+    await daily(guards, { pool: undefined, callerUid: OTHER, targetUid: OTHER });
+    expect(db.paths(`${COUNTER_COLLECTION}/`).some((p) => p.includes('global_enqueue_event'))).toBe(false);
+    expect(sumCounters(db, `${DAY}_global_enqueue_user_s`)).toBe(2);
+    expect(sumCounters(db, `${DAY}_global_enqueue_staff_s`)).toBe(1);
+  });
+
+  test('event 限額為數字時（隔離載入注入限額）：扣 global_enqueue_event，以 event 限額為界', async () => {
+    let isolated;
+    jest.isolateModules(() => {
+      const real = jest.requireActual('../../functions/notification-guard-limits');
+      jest.doMock('../../functions/notification-guard-limits', () => ({
+        ...real,
+        NOTIFICATION_GUARD_LIMITS: Object.freeze({
+          ...real.NOTIFICATION_GUARD_LIMITS,
+          globalPerDay: Object.freeze({ ...real.NOTIFICATION_GUARD_LIMITS.globalPerDay, event: 3 }),
+        }),
+      }));
+      isolated = require('../../functions/notification-guards');
+    });
+    jest.dontMock('../../functions/notification-guard-limits');
+    const { createFakeDb, FieldValue } = require('./notification-guards-fake-db');
+    const db = createFakeDb();
+    const guards = isolated.createNotificationGuards({
+      db, FieldValue, HttpsError: TestHttpsError, roleLevels: ROLE_LEVELS, now: () => T0, random: () => 0, logger: { warn() {}, error() {}, log() {}, info() {} },
+    });
+    await repeat(3, (i) => daily(guards, { pool: 'event', callerRole: 'admin', callerUid: `${CALLER}${i}` }));
+    expect(sumCounters(db, `${DAY}_global_enqueue_event_s`)).toBe(3);
+    await expect(daily(guards, { pool: 'event', callerRole: 'admin' })).rejects.toMatchObject(RATE_LIMITED);
+    expect(sumCounters(db, `${DAY}_global_enqueue_user_s`)).toBe(0);
   });
 });

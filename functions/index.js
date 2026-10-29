@@ -23,7 +23,13 @@ const { createConfirmEventAttendanceCallable } = require("./event-attendance-con
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
 const { createDeleteTeamCallable } = require("./team-deletion");
-const { createNotificationGuards } = require("./notification-guards");
+const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
+const { decideRelation } = require("./notification-relation-decide");
+const { createRelationQueries } = require("./notification-relation-queries");
+const { createRelationChecker } = require("./notification-relation-log");
+const { selectEnqueuePool } = require("./notification-pool");
+const { relationMode } = require("./notification-relation-enforcement");
+const { maskUid } = require("./notification-fields");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -132,6 +138,23 @@ const ROLE_LEVELS = Object.freeze({
 });
 // 通知發送授權強化：節流／上限／去重（見 notification-guards.js；教練以上判斷沿用 ROLE_LEVELS）
 const notificationGuards = createNotificationGuards({ db, FieldValue, HttpsError, roleLevels: ROLE_LEVELS });
+// 通知發送授權強化：關係檢查（決策、查詢與強制常數都在伺服器；既有 helper 以參數注入，不改其簽章）
+const notificationRelation = createRelationChecker({
+  decide: decideRelation,
+  log: notificationGuards.logRelationOutcome,
+  queries: createRelationQueries({
+    db,
+    helpers: {
+      isTeamStaffForData,
+      isTournamentTeamOfficerForData,
+      isEventDelegateForUid,
+      isActiveRegistration,
+      getEventDocByPublicId,
+      canOperatePrivateEventForAccess,
+      legacyHasPermission: async (role, code) => (await getRolePermissionsFromFirestore(role)).includes(code),
+    },
+  }),
+});
 // ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 // Staff role defaults are removable; only super_admin keeps non-removable safeguards here.
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
@@ -3992,6 +4015,24 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
 
     const targetUid = getLineRecipientUidFromUserDoc(found, uid);
+    // 防護：呼叫者與收件者的關係檢查（deny 不入列、不扣每日額度與全域池；強制與否只由伺服器常數決定）
+    const relation = await notificationRelation.check({
+      kind: "enqueue",
+      callerUid: request.auth.uid,
+      callerRole,
+      source,
+      data: request.data,
+      recipientUid: uid,
+      recipientFound: found,
+    });
+    if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
+    // 池別只由伺服器決定，不讀 request.data.pool
+    const pool = selectEnqueuePool({
+      staff: notificationGuards.isStaffRole(callerRole),
+      relationId: relation.relationId,
+      limits: NOTIFICATION_GUARD_LIMITS,
+      mode: relationMode("R1"),
+    });
     const queuePayload = {
       uid: targetUid,
       targetDocId: found.docId,
@@ -4003,18 +4044,19 @@ exports.enqueuePrivilegedLineNotification = onCall(
       source,
       requestedByUid: request.auth.uid,
       requestedByRole: callerRole,
+      pool,
     };
     if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
 
     // 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）
-    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source });
+    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source, pool });
     const ref = await db.collection("linePushQueue").add(queuePayload);
     console.log("[enqueuePrivilegedLineNotification] queued", {
       queueId: ref.id,
       source,
-      requestedByUid: request.auth.uid,
+      requestedByUid: maskUid(request.auth.uid),
       requestedByRole: callerRole,
-      targetUid,
+      targetUid: maskUid(targetUid),
       category,
     });
 
@@ -8626,7 +8668,7 @@ exports.processLinePushQueue = onDocumentCreated(
     }
 
     if (!uid || !title || !body) {
-      console.error(`[LinePush] 缺少必要欄位: ${snap.id}`, { uid, title, body });
+      console.error(`[LinePush] 缺少必要欄位: ${snap.id}`, { queueId: snap.id });
       await docRef.update({
         status: "failed",
         error: "缺少必要欄位 (uid/title/body)",
@@ -8642,6 +8684,7 @@ exports.processLinePushQueue = onDocumentCreated(
       dedupeKey,
       requestedByUid,
       requestedByRole,
+      pool: data.pool,
       source,
     });
     if (guardVerdict.skip) {
@@ -8674,9 +8717,9 @@ exports.processLinePushQueue = onDocumentCreated(
         processedAt: FieldValue.serverTimestamp(),
       });
 
-      console.log(`[LinePush] 發送成功: ${snap.id} → ${uid}`);
+      console.log(`[LinePush] 發送成功: ${snap.id}`, { queueId: snap.id, uid: maskUid(uid) });
     } catch (err) {
-      console.error(`[LinePush] 發送失敗: ${snap.id}`, err);
+      console.error(`[LinePush] 發送失敗: ${snap.id}`, { queueId: snap.id, code: err?.code ?? null });
 
       await docRef.update({
         status: "failed",
@@ -8688,11 +8731,11 @@ exports.processLinePushQueue = onDocumentCreated(
       const unbindDecision = await shouldAutoUnbindLineRecipient(client, uid, err);
       if (!unbindDecision.shouldUnbind) {
         console.log("[LinePush] keep binding after failed push", {
-          uid,
+          uid: maskUid(uid),
           queueId: snap.id,
           reason: unbindDecision.reason,
           source,
-          requestedByUid,
+          requestedByUid: maskUid(requestedByUid),
           requestedByRole,
         });
         return;
@@ -8715,10 +8758,10 @@ exports.processLinePushQueue = onDocumentCreated(
         }
         if (userSnap.exists) {
           await userDoc.update({ "lineNotify.bound": false });
-          console.log(`[LinePush] 已自動解綁用戶推播: ${uid}`);
+          console.log("[LinePush] 已自動解綁用戶推播", { queueId: snap.id, uid: maskUid(uid) });
         }
       } catch (unbindErr) {
-        console.error(`[LinePush] 自動解綁失敗: ${uid}`, unbindErr);
+        console.error("[LinePush] 自動解綁失敗", { queueId: snap.id, uid: maskUid(uid), code: unbindErr?.code ?? null });
       }
     }
   }
@@ -16013,7 +16056,7 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
     const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
-    await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role });
+    await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "minute" });
 
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
@@ -16063,6 +16106,22 @@ exports.deliverToInbox = onCall(
     const serverDisplay = (!sanitized.actionType && (targetUid || !isAdminCaller))
       ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
       : null;
+
+    // 防護：帶 source 且無 actionType 的訊息才做關係檢查（deny 不寫任何 inbox、不扣每日額度）；每日上限排在檢查之後
+    const relationSource = notificationGuards.logSafeSource(message.source);
+    if (relationSource && !sanitized.actionType) {
+      const relation = await notificationRelation.check({
+        kind: "inbox",
+        callerUid,
+        callerRole: callerData.role,
+        source: relationSource,
+        data: request.data,
+        recipientUid: targetUid,
+        extra: { targetType, targetTeamId, targetRoles },
+      });
+      if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
+    }
+    await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "day" });
 
     try {
       const recipientUids = new Set();

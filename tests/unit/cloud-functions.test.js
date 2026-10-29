@@ -16,6 +16,7 @@ const {
   __test: sportsApiProTest,
 } = require('../../functions/scoreboard-sportsapipro');
 const { createNotificationGuards } = require('../../functions/notification-guards');
+const { createRelationSandbox } = require('./notification-guards-test-helpers');
 
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
@@ -4663,6 +4664,15 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
 
   function loadDeliverToInbox(db, consoleImpl) {
     const guardFieldValue = { increment: (n) => n, serverTimestamp: () => '__ts__' };
+    const notificationGuards = createNotificationGuards({
+      db: createNullCounterDb(),
+      FieldValue: guardFieldValue,
+      HttpsError: TestHttpsError,
+      roleLevels: ROLE_LEVELS,
+      logger: consoleImpl,
+    });
+    // 測試同步更新（通知發送授權強化第 2 批）：deliverToInbox 新增關係檢查依賴；這些案例的訊息都沒有 source，
+    // 不會進關係檢查，這裡只補上識別字（真實的決策與查詢模組，資料庫為此測試的 fake db）。
     const sandbox = {
       db,
       HttpsError: TestHttpsError,
@@ -4670,13 +4680,8 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
       FieldValue: { serverTimestamp: () => '__ts__' },
       exports: {},
       console: consoleImpl,
-      notificationGuards: createNotificationGuards({
-        db: createNullCounterDb(),
-        FieldValue: guardFieldValue,
-        HttpsError: TestHttpsError,
-        roleLevels: ROLE_LEVELS,
-        logger: consoleImpl,
-      }),
+      notificationGuards,
+      ...createRelationSandbox({ db, guards: notificationGuards }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-to-inbox-t022.vm.js' });
     return sandbox.exports.deliverToInbox;

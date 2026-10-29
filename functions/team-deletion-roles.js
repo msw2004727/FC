@@ -15,12 +15,20 @@
  *    重跑時「現況角色是否已是目標」是唯一冪等依據：若文件先改、後面才失敗，重跑會看到 no_change 而漏發通知；
  *    先改 claim 則失敗後文件仍是舊角色，重跑會完整補做（Rules authRole() 與 getCallerAccessContext 以文件為準，claim 暫時領先無害）。
  *  - 只寫站內信，不發 LINE 推播（A 會發；已列為已知差異，見 7b-A-REPORT）。
+ *  - 本來會寫站內信的降級才佔 TEAM_DELETE_NOTIFY_LIMIT（範本缺失不算）。超過只略過 inbox set，
+ *    users.role 與 operationLog 仍寫，刪隊照做。名額由 run 與 Phase 4 呼叫者那次 stage 共用。
  */
 
 const { getRoleDecision, getSavedTeamRoleExcludingTeam, resolveStrictUserIdentity } = require("./team-role-promotion");
 const { ROLE_LABELS, formatTaipeiDateTime } = require("./team-membership-core");
+const { BATCH_LIMIT } = require("./team-deletion-members");
+const { buildInboxMessageDoc } = require("./inbox-message-doc");
+const { maskUid } = require("./notification-fields");
 
 const ROLE_UPGRADE_TEMPLATE_KEY = "role_upgrade";
+const TEAM_DELETE_NOTIFY_LIMIT = BATCH_LIMIT;
+// 字面值只留這一處；stage 用常數寫進文件。
+const TEAM_DELETE_ROLE_CHANGE_ORIGIN = "team_delete_role_change";
 
 function roleLabel(role) {
   return ROLE_LABELS[role] || role;
@@ -75,6 +83,8 @@ function createStaffRoleRecalculator({
     if (!templatePromise) templatePromise = loadRoleChangeTemplate({ db, defaultTemplates, logger });
     return templatePromise;
   };
+  // 同一支 recalculator 的 run（他人）與稍後的 stage（呼叫者）共用。讀 skipped 要在呼叫者 stage 之後。
+  const notifyCount = { written: 0, skipped: 0 };
 
   // 先 claim、再把「users.role＋站內信＋角色 opLog」寫進呼叫端提供的 batch（由呼叫端 commit）。
   async function stage(batch, { target, decision, userName }) {
@@ -92,25 +102,22 @@ function createStaffRoleRecalculator({
       const body = renderTemplate(template.body, { userName, roleName: newLabel });
       // 收件匣只監聽 users/{auth.uid}/inbox，所以用邏輯 uid；id 每隊每人固定，重複寫入只會覆蓋、不會變兩封。
       const messageId = `msg_teamdel_${teamDocId}`;
-      batch.set(db.collection("users").doc(target.uid).collection("inbox").doc(messageId), {
-        id: messageId,
-        title: title.slice(0, 200),
-        body: body.slice(0, 2000),
-        preview: body.slice(0, 43),
-        type: "private",
-        typeName: "私訊",
-        time: formatTaipeiDateTime(issuedAt),
-        senderName: "系統",
-        fromUid: "system",
-        read: false,
-        readAt: null,
-        actionType: null,
-        actionStatus: null,
-        reviewerName: null,
-        meta: null,
-        ref: `messages/${messageId}`,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+      if (notifyCount.written < TEAM_DELETE_NOTIFY_LIMIT) {
+        notifyCount.written += 1;
+        batch.set(db.collection("users").doc(target.uid).collection("inbox").doc(messageId), buildInboxMessageDoc({
+          id: messageId,
+          title,
+          body,
+          type: "private",
+          typeName: "私訊",
+          time: formatTaipeiDateTime(issuedAt),
+          senderName: "系統",
+          fromUid: "system",
+          origin: TEAM_DELETE_ROLE_CHANGE_ORIGIN,
+        }, { createdAt: FieldValue.serverTimestamp() }));
+      } else {
+        notifyCount.skipped += 1;
+      }
     }
     batch.set(db.collection("operationLogs").doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
       ...buildOperationLogPayload({
@@ -132,7 +139,7 @@ function createStaffRoleRecalculator({
     let callerChange = null;
     const skip = (message, extra) => {
       roleSkipped += 1;
-      logger.warn?.(message, { callerUid: actor.uid, ...extra });
+      logger.warn?.(message, { callerUid: maskUid(actor.uid), ...extra });
     };
 
     for (const staffUid of staffUids) {
@@ -179,10 +186,15 @@ function createStaffRoleRecalculator({
       progress.roleChanges += 1;
       changedUids.push(target.uid);
     }
-    return { roleSkipped, callerChange };
+    return {
+      roleSkipped,
+      callerChange,
+      // getter：Phase 4 的 stage 會再改 notifyCount，deleteTeam 要在那之後才讀。
+      get skippedNotifies() { return notifyCount.skipped; },
+    };
   }
 
   return { run, stage };
 }
 
-module.exports = { canDemoteOtherStaff, createStaffRoleRecalculator };
+module.exports = { canDemoteOtherStaff, createStaffRoleRecalculator, TEAM_DELETE_NOTIFY_LIMIT };

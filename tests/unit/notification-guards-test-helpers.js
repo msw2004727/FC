@@ -11,6 +11,13 @@ const {
   DEDUPE_COLLECTION,
 } = require('../../functions/notification-guards');
 const { createFakeDb, FieldValue } = require('./notification-guards-fake-db');
+const { decideRelation } = require('../../functions/notification-relation-decide');
+const { createRelationQueries } = require('../../functions/notification-relation-queries');
+const { createRelationChecker } = require('../../functions/notification-relation-log');
+const { selectEnqueuePool } = require('../../functions/notification-pool');
+const { relationMode } = require('../../functions/notification-relation-enforcement');
+const { maskUid } = require('../../functions/notification-fields');
+const { createHelpers } = require('./notification-relation-test-kit');
 
 class TestHttpsError extends Error {
   constructor(code, message) {
@@ -42,7 +49,7 @@ function makeLogger() {
   return logger;
 }
 
-function createGuardsEnv({ seed = {}, faults, clock = { t: T0 } } = {}) {
+function createGuardsEnv({ seed = {}, faults, clock = { t: T0 }, random = () => 0 } = {}) {
   const db = createFakeDb({ seed, faults });
   const logger = makeLogger();
   const guards = createNotificationGuards({
@@ -51,10 +58,27 @@ function createGuardsEnv({ seed = {}, faults, clock = { t: T0 } } = {}) {
     HttpsError: TestHttpsError,
     roleLevels: ROLE_LEVELS,
     now: () => clock.t,
-    random: () => 0,
+    random,
     logger,
   });
   return { db, clock, logger, guards };
+}
+
+// 關係檢查相關識別字（vm 沙盒注入用）：真實的決策、查詢與 log，查詢用同一個記憶體資料庫，helper 複製 index.js 的純邏輯。
+// 注意：fake db 沒有 where().limit()，活動請在 events/{id} 文件放 id 欄位（直取成功）。
+function createRelationSandbox({ db, guards }) {
+  const checker = createRelationChecker({
+    decide: decideRelation,
+    log: guards.logRelationOutcome,
+    queries: createRelationQueries({ db, helpers: createHelpers({ db }) }),
+  });
+  return {
+    notificationRelation: checker,
+    selectEnqueuePool,
+    relationMode,
+    NOTIFICATION_GUARD_LIMITS,
+    maskUid,
+  };
 }
 
 // 把某個計數器預先設到指定值（用於測試上限邊界，不必真的跑滿）
@@ -89,6 +113,7 @@ module.exports = {
   DEDUPE_COLLECTION,
   makeLogger,
   createGuardsEnv,
+  createRelationSandbox,
   seedCounter,
   sumCounters,
   repeat,

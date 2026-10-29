@@ -27,6 +27,7 @@ const {
   readActorNames,
   resolveTeamSnapshot,
 } = require("./team-membership-core");
+const { maskUid } = require("./notification-fields");
 
 const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
 
@@ -61,7 +62,8 @@ function createDeleteTeamHandler({
     if (!callerUid) throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
     const teamIdInput = normalizeId(request?.data?.teamId);
     if (!teamIdInput) throw new HttpsError("invalid-argument", "TEAM_ID_REQUIRED");
-    const ctx = { callerUid, teamId: maskId(teamIdInput) };
+    // ctx 只給 log。授權、查詢、寫入仍用上面的 callerUid；teamId 維持 maskId。
+    const ctx = { callerUid: maskUid(callerUid), teamId: maskId(teamIdInput) };
     let phase = "resolve";
     const progress = { cleanedMembers: 0, roleChanges: 0 };
     // 本次呼叫內「角色真的被改變」者的邏輯 uid（資訊性回傳欄位；不放進 progress，以免 uid 被 spread 進 log）
@@ -72,7 +74,7 @@ function createDeleteTeamHandler({
       if (!teamSnap) {
         // 與 deleteTournament 一致：查無即視為已刪（此時無資料可驗權限）；記下呼叫者，方便看出探測。
         logger.warn?.("[deleteTeam] team not found, treated as already deleted", ctx);
-        return { ok: true, alreadyDeleted: true };
+        return { ok: true, alreadyDeleted: true, skippedNotifies: 0 };
       }
       const teamData = teamSnap.data() || {};
       const teamDocId = teamSnap.id;
@@ -112,6 +114,7 @@ function createDeleteTeamHandler({
           roleSkipped: 0,
           roleChangedUids: [],
           partial: { remaining: cleanup.failed.length, memberIds: cleanup.failed, rerun: true },
+          skippedNotifies: 0,
         };
       }
 
@@ -131,17 +134,20 @@ function createDeleteTeamHandler({
         actor,
         issuedAt,
       });
-      const { roleSkipped, callerChange } = await recalculator.run({
+      const roleOutcome = await recalculator.run({
         staffUids: [...collectStaffUids(teamData)],
         canDemoteOthers: canDemoteOtherStaff(access),
         progress,
         changedUids: roleChangedUids,
       });
+      const { roleSkipped, callerChange } = roleOutcome;
 
       phase = "delete-team";
       const teamName = typeof teamData.name === "string" && teamData.name ? teamData.name : "俱樂部";
       const finalBatch = db.batch();
       if (callerChange) await recalculator.stage(finalBatch, callerChange);
+      // skippedNotifies 是 getter，呼叫者那次 stage 可能剛把它加一，所以要在 stage 之後讀。
+      const skippedNotifies = roleOutcome.skippedNotifies;
       finalBatch.set(
         db.collection("operationLogs").doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`),
         {
@@ -164,7 +170,7 @@ function createDeleteTeamHandler({
         if (isFirestoreError(error, "not-found") && !(await teamSnap.ref.get()).exists) {
           logger.warn?.("[deleteTeam] team was deleted by a concurrent call", ctx);
           // 本次呼叫已提交的他人降級仍如實回報（呼叫者自己的降級在失敗的最後一批裡，沒有提交）
-          return { ok: true, alreadyDeleted: true, roleChangedUids };
+          return { ok: true, alreadyDeleted: true, roleChangedUids, skippedNotifies };
         }
         throw error;
       }
@@ -181,6 +187,7 @@ function createDeleteTeamHandler({
         roleChanges: progress.roleChanges,
         roleSkipped,
         roleChangedUids,
+        skippedNotifies,
       };
     } catch (error) {
       logger.error?.("[deleteTeam] failed", {
