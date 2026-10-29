@@ -10,16 +10,20 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const logger = require("firebase-functions/logger");
 const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
 const { createIssueQaTestTokenCallable } = require("./qa-test-mode");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
+const { createRoleGraphLoader } = require("./role-hierarchy");
+const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
 const { createDeleteTeamCallable } = require("./team-deletion");
+const { createNotificationGuards } = require("./notification-guards");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -126,6 +130,8 @@ const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
 const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
+// 通知發送授權強化：節流／上限／去重（見 notification-guards.js；教練以上判斷沿用 ROLE_LEVELS）
+const notificationGuards = createNotificationGuards({ db, FieldValue, HttpsError, roleLevels: ROLE_LEVELS });
 // ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 // Staff role defaults are removable; only super_admin keeps non-removable safeguards here.
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
@@ -3376,13 +3382,63 @@ exports.adminManageUser = onCall(
       Object.assign(nextUpdates, sanitizedProfileUpdates);
     }
 
+    let roleGraph;
+    if (restrictionUpdate != null || roleChange) {
+      try {
+        const loadRoleGraph = createRoleGraphLoader({ db });
+        roleGraph = await loadRoleGraph();
+      } catch (err) {
+        logger.error("adminManageUser role graph unavailable", {
+          function: "adminManageUser",
+          reasonCode: "role_graph_unavailable",
+          callerRole: normalizeRole(access.role),
+          targetRole,
+          error: String(err && err.message),
+        });
+        throw new HttpsError("unavailable", "Role configuration temporarily unavailable");
+      }
+    }
+
+    const decision = decideAdminManageUser({
+      access,
+      callerUid,
+      resolvedTargetUid,
+      targetRole,
+      roleGraph,
+      restrictionUpdate,
+      roleChange,
+      builtinLevels: ROLE_LEVELS,
+      permissionCodes: {
+        restrict: ADMIN_USER_RESTRICT_PERMISSION,
+        changeRole: ADMIN_USER_CHANGE_ROLE_PERMISSION,
+      },
+    });
+    if (!decision.ok) {
+      logger.warn("adminManageUser authorization rejected", {
+        function: "adminManageUser",
+        reasonCode: decision.reasonCode,
+        callerRole: normalizeRole(access.role),
+        targetRole,
+      });
+      const message = decision.reasonCode === "self_restrict"
+        ? "Cannot restrict yourself"
+        : decision.code === "permission-denied"
+          ? "無法執行此管理操作"
+          : decision.code === "invalid-argument"
+            ? "Invalid role change request"
+            : "Role configuration is invalid or contains an unknown role";
+      throw new HttpsError(decision.code, message);
+    }
+    if (decision.observe) {
+      logger.warn("adminManageUser target role dangling", {
+        function: "adminManageUser",
+        reasonCode: decision.observe,
+        callerRole: normalizeRole(access.role),
+        targetRole,
+      });
+    }
+
     if (restrictionUpdate != null) {
-      if (!access.hasPermission(ADMIN_USER_RESTRICT_PERMISSION)) {
-        throw new HttpsError("permission-denied", "Missing restriction permission");
-      }
-      if (resolvedTargetUid === callerUid) {
-        throw new HttpsError("failed-precondition", "Cannot restrict yourself");
-      }
       const callerUser = await findUserDocByUidOrLineUserId(callerUid);
       let authDisplayName = "";
       try {
@@ -3406,29 +3462,8 @@ exports.adminManageUser = onCall(
       nextUpdates.restrictedByName = nextRestricted ? actorName : null;
     }
 
-    if (roleChange && typeof roleChange === "object") {
-      if (!access.hasPermission(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
-        throw new HttpsError("permission-denied", "Missing role-change permission");
-      }
-      const callerLevel = ROLE_LEVELS[access.role] ?? 0;
-      if (callerLevel < ROLE_LEVELS.admin) {
-        throw new HttpsError("permission-denied", "Only admin or above can change roles");
-      }
-      const nextRole = normalizeRole(roleChange.role);
-      if (!(await roleExists(nextRole))) {
-        throw new HttpsError("invalid-argument", "Target role does not exist");
-      }
-      if (!access.isSuperAdmin && (ROLE_LEVELS[nextRole] ?? 0) >= ROLE_LEVELS.admin) {
-        throw new HttpsError("permission-denied", "Only super_admin can assign admin-level roles");
-      }
-      const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
-      if (!access.isSuperAdmin && targetLevel >= callerLevel) {
-        throw new HttpsError("permission-denied", "Cannot modify user with equal or higher role");
-      }
-      const nextManualRole = normalizeRole(roleChange.manualRole || nextRole);
-      if (!(await roleExists(nextManualRole))) {
-        throw new HttpsError("invalid-argument", "manualRole does not exist");
-      }
+    if (typeof decision.nextRole === "string") {
+      const { nextRole, nextManualRole } = decision;
       nextUpdates.role = nextRole;
       nextUpdates.manualRole = nextManualRole;
       nextUpdates.isAdmin = ["admin", "super_admin"].includes(normalizeBuiltInRole(nextRole));
@@ -3907,17 +3942,25 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
 
     const callerRole = await getCallerRoleWithFallback(request);
+    const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
+    // 防護：每呼叫者節流
+    await notificationGuards.enforceCallerLimit({ kind: "enqueue", callerUid: request.auth.uid, callerRole, source });
 
     const uid = normalizeLineNotificationText(request.data?.uid, 128);
-    const title = normalizeLineNotificationText(request.data?.title, 200);
-    const body = normalizeLineNotificationText(request.data?.body, 2000);
+    const title = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.title), 200);
+    const body = normalizeLineNotificationText(notificationGuards.stripControlChars(request.data?.body), 2000);
     const category = normalizeLineNotificationCategory(request.data?.category);
-    const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
     const dedupeKey = normalizeLineNotificationText(request.data?.dedupeKey, 160);
 
     if (!uid || !title || !body || !category) {
       throw new HttpsError("invalid-argument", "uid/title/body/category are required");
     }
+    // 防護：source 格式驗證；未知 source 只記錄不擋
+    if (!notificationGuards.isValidSourceFormat(source)) {
+      notificationGuards.logSourceFormatRejected({ callerUid: request.auth.uid });
+      throw new HttpsError("invalid-argument", "invalid source");
+    }
+    notificationGuards.logUnknownSource({ callerUid: request.auth.uid, source, category });
 
     const found = await findUserDocByUidOrLineUserId(uid);
     if (!found) {
@@ -3963,6 +4006,8 @@ exports.enqueuePrivilegedLineNotification = onCall(
     };
     if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
 
+    // 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）
+    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source });
     const ref = await db.collection("linePushQueue").add(queuePayload);
     console.log("[enqueuePrivilegedLineNotification] queued", {
       queueId: ref.id,
@@ -8571,6 +8616,7 @@ exports.processLinePushQueue = onDocumentCreated(
       requestedByUid = "",
       requestedByRole = "",
       targetDocId = "",
+      dedupeKey = "",
     } = data;
 
     // 冪等性：僅處理 pending 狀態
@@ -8584,6 +8630,25 @@ exports.processLinePushQueue = onDocumentCreated(
       await docRef.update({
         status: "failed",
         error: "缺少必要欄位 (uid/title/body)",
+        processedAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    // 防護：dedupeKey 去重與全域每日發送上限
+    const guardVerdict = await notificationGuards.checkBeforePush({
+      queueId: snap.id,
+      uid,
+      dedupeKey,
+      requestedByUid,
+      requestedByRole,
+      source,
+    });
+    if (guardVerdict.skip) {
+      console.log(`[LinePush] 跳過: ${snap.id}, reason=${guardVerdict.reason}`);
+      await docRef.update({
+        status: "skipped",
+        reason: guardVerdict.reason,
         processedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -8618,6 +8683,8 @@ exports.processLinePushQueue = onDocumentCreated(
         error: err.message || String(err),
         processedAt: FieldValue.serverTimestamp(),
       });
+      // 防護：發送失敗釋放去重標記，後續重送不被視為重複
+      await notificationGuards.releaseDedupe({ queueId: snap.id, uid, dedupeKey });
       const unbindDecision = await shouldAutoUnbindLineRecipient(client, uid, err);
       if (!unbindDecision.shouldUnbind) {
         console.log("[LinePush] keep binding after failed push", {
@@ -15937,18 +16004,27 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("invalid-argument", "message with id and body is required");
     }
 
+    // 防護：每呼叫者節流（點對點與廣播皆適用）
+    let callerDoc;
+    try {
+      callerDoc = await db.collection("users").doc(callerUid).get();
+    } catch (err) {
+      console.error("[deliverToInbox] caller lookup failed", { code: err?.code ?? null });
+      throw new HttpsError("internal", "Failed to deliver to inbox");
+    }
+    const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
+    await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role });
+
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
 
     // 廣播權限檢查：只有 admin/super_admin 可用廣播功能（三方審核修正）
     const isBroadcast = !targetUid && (targetTeamId || (Array.isArray(targetRoles) && targetRoles.length > 0) || targetType === "all");
     if (isBroadcast) {
-      const callerDoc = await db.collection("users").doc(callerUid).get();
       const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
       if (!["admin", "super_admin"].includes(callerRole)) {
         // 非 admin 允許發送到自己所屬的俱樂部（團隊幹部通知用）
         if (targetTeamId) {
-          const callerData = callerDoc.data() || {};
           const myTeams = [callerData.teamId, ...(callerData.teamIds || [])].filter(Boolean);
           if (!myTeams.includes(targetTeamId)) {
             throw new HttpsError("permission-denied", "You can only broadcast to your own team");
@@ -15980,6 +16056,13 @@ exports.deliverToInbox = onCall(
       console.error("[deliverToInbox] authorization lookup failed", { code: err?.code ?? null, broadcast: !targetUid });
       throw new HttpsError("internal", "Failed to deliver to inbox");
     }
+
+    // 防護：未分類訊息的顯示欄位由伺服器決定——點對點，以及非 admin／super_admin 呼叫者的廣播
+    // （有 actionType 者維持逐類檢查，admin／super_admin 的廣播不動）
+    const isAdminCaller = ["admin", "super_admin"].includes(callerData.role);
+    const serverDisplay = (!sanitized.actionType && (targetUid || !isAdminCaller))
+      ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
+      : null;
 
     try {
       const recipientUids = new Set();
@@ -16032,10 +16115,10 @@ exports.deliverToInbox = onCall(
             title: String(safeMessage.title || "").slice(0, 200),
             body: String(safeMessage.body || "").slice(0, 2000),
             preview: String(safeMessage.preview || "").slice(0, 43),
-            type: safeMessage.type || "system",
-            typeName: safeMessage.typeName || "系統",
-            time: safeMessage.time || "",
-            senderName: safeMessage.senderName || "",
+            type: serverDisplay ? serverDisplay.type : (safeMessage.type || "system"),
+            typeName: serverDisplay ? serverDisplay.typeName : (safeMessage.typeName || "系統"),
+            time: serverDisplay ? serverDisplay.time : (safeMessage.time || ""),
+            senderName: serverDisplay ? serverDisplay.senderName : (safeMessage.senderName || ""),
             fromUid: safeMessage.fromUid,
             read: false,
             readAt: null,

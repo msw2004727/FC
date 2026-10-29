@@ -3513,6 +3513,13 @@ service cloud.firestore {
     match /userAttendanceStatsQueue/{uid} {
       allow read, write: if false;
     }
+    // 通知發送授權強化：計數與去重標記只由 Admin SDK 讀寫
+    match /notificationGuardCounters/{docId} {
+      allow read, write: if false;
+    }
+    match /linePushDedupe/{docId} {
+      allow read, write: if false;
+    }
     // collectionGroup wildcard rules（僅 read，供 Phase 3 collectionGroup 查詢使用）
     match /{path=**}/registrations/{regId} {
       allow read: if request.auth != null;
