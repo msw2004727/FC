@@ -3537,7 +3537,7 @@ describe("/linePushQueue/{docId}", () => {
     );
   });
 
-  test("[SECURITY_GAP_FIXED] create: only admin/superAdmin can enqueue push", async () => {
+  test("create: denied for every client role (only the Admin SDK enqueues push)", async () => {
     await assertByRole(
       ({ db, role }) =>
         setDoc(doc(db, "linePushQueue", `queue_create_${role}`), {
@@ -3546,7 +3546,7 @@ describe("/linePushQueue/{docId}", () => {
           body: "payload",
           status: "pending",
         }),
-      allowAdminAndSuper
+      denyAll
     );
   });
 
@@ -4122,8 +4122,8 @@ describe("Role usability smoke tests", () => {
     );
   });
 
-  test("admin/superAdmin can create line push queue job", async () => {
-    await assertSucceeds(
+  test("admin/superAdmin cannot create line push queue job from the client", async () => {
+    await assertFails(
       setDoc(doc(admin(), "linePushQueue", "queue_admin_smoke"), {
         uid: "uidUser",
         title: "admin push",
@@ -4131,7 +4131,7 @@ describe("Role usability smoke tests", () => {
         status: "pending",
       })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(superAdmin(), "linePushQueue", "queue_sa_smoke"), {
         uid: "uidUser",
         title: "super admin push",

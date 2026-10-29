@@ -2669,7 +2669,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Admin Messages（管理員廣播）
-    //  登入可讀；admin 或持有 admin.messages.entry 可寫
+    //  admin 或持有 admin.messages.entry／compose／delete 可讀；admin 或持有 admin.messages.entry 可寫
     // ═══════════════════════════════════════════
     match /adminMessages/{msgId} {
       function isAdminMessageDeleteStatusOnlyUpdate() {
@@ -2679,7 +2679,14 @@ service cloud.firestore {
           && request.resource.data.status == 'deleted';
       }
 
-      allow read: if isAuth();
+      function canReadAdminMessages() {
+        return isAdmin()
+          || hasEffectivePerm('admin.messages.entry')
+          || hasEffectivePerm('admin.messages.compose')
+          || hasEffectivePerm('admin.messages.delete');
+      }
+
+      allow read: if canReadAdminMessages();
       allow create: if isAdmin()
         || hasEffectivePerm('admin.messages.entry')
         || hasEffectivePerm('admin.messages.compose');
@@ -2714,11 +2721,11 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  LINE Push Queue（推播佇列）
-    //  登入用戶可新增；後端 Admin SDK 消費（讀取/更新/刪除）
+    //  只由後端 Admin SDK 寫入與消費；客戶端一律拒絕
     // ═══════════════════════════════════════════
     match /linePushQueue/{docId} {
       allow read: if false;
-      allow create: if isAdmin();
+      allow create: if false;
       allow update, delete: if false;
     }
 

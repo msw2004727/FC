@@ -2249,12 +2249,84 @@ describe("/notifTemplates/{templateId}", () => {
 //  adminMessages
 // ═══════════════════════════════════════════════════════════════
 describe("/adminMessages/{msgId}", () => {
-  test("read: authenticated only", async () => {
+  test("read: admin and super_admin only (guest and ordinary members denied)", async () => {
     await seedDoc("adminMessages", "am1", { title: "Broadcast" });
     await assertByRole(
       ({ db }) => getDoc(doc(db, "adminMessages", "am1")),
-      allowAuth
+      allowAdminAndSuper
     );
+  });
+
+  test("list query: admin and super_admin only", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await seedDoc("adminMessages", "am_list", { title: "Scheduled", status: "scheduled" });
+    await assertByRole(
+      ({ db }) => getDocs(collection(db, "adminMessages")),
+      allowAdminAndSuper
+    );
+  });
+
+  test("read: admin and super_admin keep access without any rolePermissions document", async () => {
+    await seedDoc("adminMessages", "am_no_perm_docs", { title: "Scheduled", status: "scheduled" });
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await deleteDoc(doc(db, "rolePermissions", "admin"));
+      await deleteDoc(doc(db, "rolePermissions", "super_admin"));
+    });
+    await assertSucceeds(getDoc(doc(admin(), "adminMessages", "am_no_perm_docs")));
+    await assertSucceeds(getDoc(doc(superAdmin(), "adminMessages", "am_no_perm_docs")));
+  });
+
+  test.each([
+    "admin.messages.entry",
+    "admin.messages.compose",
+    "admin.messages.delete",
+  ])("read: rolePermissions(%s) can read and list", async (code) => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await seedDoc("adminMessages", "am_role_read", { title: "Scheduled", status: "scheduled" });
+    await seedRolePermissions("content_manager", [code]);
+    await assertSucceeds(getDoc(doc(contentManager(), "adminMessages", "am_role_read")));
+    await assertSucceeds(getDocs(collection(contentManager(), "adminMessages")));
+  });
+
+  test.each([
+    "admin.messages.entry",
+    "admin.messages.compose",
+    "admin.messages.delete",
+  ])("read: userPermissionGrants(%s) can read and list", async (code) => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await seedDoc("adminMessages", "am_grant_read", { title: "Scheduled", status: "scheduled" });
+    await seedUserPermissionGrant("uidUser", [code]);
+    await assertSucceeds(getDoc(doc(user(), "adminMessages", "am_grant_read")));
+    await assertSucceeds(getDocs(collection(user(), "adminMessages")));
+  });
+
+  test("read: disabled grant, unrelated permission or rolePermissions/user cannot read", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await seedDoc("adminMessages", "am_denied", { title: "Scheduled", status: "scheduled" });
+    await seedUserPermissionGrant("uidUser", ["admin.messages.entry"], { enabled: false });
+    await seedUserPermissionGrant("uidOther", ["admin.users.view"]);
+    await seedRolePermissions("content_manager", ["admin.users.view"]);
+    await seedRolePermissions("user", [
+      "admin.messages.entry",
+      "admin.messages.compose",
+      "admin.messages.delete",
+    ]);
+    await assertFails(getDoc(doc(user(), "adminMessages", "am_denied")));
+    await assertFails(getDocs(collection(user(), "adminMessages")));
+    await assertFails(getDoc(doc(user("uidOther"), "adminMessages", "am_denied")));
+    await assertFails(getDoc(doc(contentManager(), "adminMessages", "am_denied")));
+    await assertFails(getDoc(doc(user("uidNoGrant"), "adminMessages", "am_denied")));
+  });
+
+  test("read: worst path (non-admin, role doc present without the codes, last code only in grant) stays within get() limit", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await seedUserDoc("uidCM", { role: "content_manager" });
+    await seedRolePermissions("content_manager", ["admin.users.view"]);
+    await seedUserPermissionGrant("uidCM", ["admin.messages.delete"]);
+    await seedDoc("adminMessages", "am_worst", { title: "Scheduled", status: "scheduled" });
+    await assertSucceeds(getDoc(doc(contentManager(), "adminMessages", "am_worst")));
+    await assertSucceeds(getDocs(collection(contentManager(), "adminMessages")));
   });
 
   test("write: admin can write", async () => {
