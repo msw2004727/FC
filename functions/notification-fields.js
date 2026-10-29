@@ -59,7 +59,7 @@ const INBOX_TYPE_NAMES = Object.freeze({
   private: "私訊",
 });
 const INBOX_FALLBACK_TYPE = "private";
-// 沿用客戶端傳入值的 senderName 清單（現行範本與提醒訊息皆以「系統」標示）；清空即一律由伺服器決定
+// 允許沿用的 senderName 清單；不在清單內一律由伺服器決定
 const INBOX_CLIENT_SENDER_ALLOWLIST = Object.freeze(["系統"]);
 const INBOX_FALLBACK_SENDER_NAME = "用戶";
 const INBOX_SENDER_NAME_MAX = 80;
