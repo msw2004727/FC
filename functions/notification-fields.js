@@ -8,7 +8,7 @@
 // source 只允許的字元（現行前端產生的 source 皆符合）
 const SOURCE_FORMAT_RE = /^[A-Za-z0-9:_\-./]+$/;
 // C0 控制字元（保留 \t=0x09、\n=0x0A）
-const CONTROL_CHARS_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g;
+const CONTROL_CHARS_RE = /[\x00-\x08\x0B-\x1F]/g;
 
 const KNOWN_TEMPLATE_KEYS = Object.freeze([
   "welcome",
