@@ -3029,9 +3029,6 @@ describe('adjustTeamReservation CF member stamping', () => {
   });
 });
 
-const ADMIN_USER_EDIT_PROFILE_PERMISSION = 'admin.users.edit_profile';
-const ADMIN_USER_CHANGE_ROLE_PERMISSION = 'admin.users.change_role';
-const ADMIN_USER_RESTRICT_PERMISSION = 'admin.users.restrict';
 const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['region', 'gender', 'birthday', 'sports', 'phone', 'email'];
 const SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH = 2000;
 const IDENTITY_SETTINGS_TOP_LEVEL_FIELDS = new Set(['profileActiveIdentityId', 'identities']);
@@ -3078,67 +3075,6 @@ function sanitizeAdminManagedProfileUpdates(rawUpdates) {
     next[field] = trimmed;
   });
   return next;
-}
-
-/**
- * Mirror of adminManageUser auth + permission flow (index.js:1106-1204).
- * Returns null on success, or { error, msg } on rejection.
- */
-function validateAdminManageUser({ auth, data, access, callerUid, targetUserExists, targetRole }) {
-  if (!auth) return { error: 'unauthenticated', msg: 'Authentication required' };
-  const targetUid = data?.targetUid;
-  if (!targetUid || typeof targetUid !== 'string') {
-    return { error: 'invalid-argument', msg: 'targetUid is required' };
-  }
-  if (!targetUserExists) return { error: 'not-found', msg: 'Target user not found' };
-
-  const isTargetSuperAdmin = targetRole === 'super_admin';
-  if (!access.isSuperAdmin && isTargetSuperAdmin) {
-    return { error: 'permission-denied', msg: 'Cannot manage super admin' };
-  }
-
-  const sanitized = sanitizeAdminManagedProfileUpdates(data?.profileUpdates);
-  const hasProfile = Object.keys(sanitized).length > 0;
-  if (hasProfile && !access.permissions.includes(ADMIN_USER_EDIT_PROFILE_PERMISSION)) {
-    return { error: 'permission-denied', msg: 'Missing profile edit permission' };
-  }
-
-  if (data?.restrictionUpdate != null) {
-    if (!access.permissions.includes(ADMIN_USER_RESTRICT_PERMISSION)) {
-      return { error: 'permission-denied', msg: 'Missing restriction permission' };
-    }
-    if (targetUid === callerUid) {
-      return { error: 'failed-precondition', msg: 'Cannot restrict yourself' };
-    }
-  }
-
-  if (data?.roleChange && typeof data.roleChange === 'object') {
-    if (!access.permissions.includes(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
-      return { error: 'permission-denied', msg: 'Missing role-change permission' };
-    }
-    const callerLevel = ROLE_LEVELS[access.role] ?? 0;
-    if (callerLevel < ROLE_LEVELS.admin) {
-      return { error: 'permission-denied', msg: 'Only admin or above can change roles' };
-    }
-    const nextRole = data.roleChange.role;
-    if (!VALID_ROLES.has(nextRole)) {
-      return { error: 'invalid-argument', msg: 'Target role does not exist' };
-    }
-    if (!access.isSuperAdmin && (ROLE_LEVELS[nextRole] ?? 0) >= ROLE_LEVELS.admin) {
-      return { error: 'permission-denied', msg: 'Only super_admin can assign admin-level roles' };
-    }
-    const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
-    if (!access.isSuperAdmin && targetLevel >= callerLevel) {
-      return { error: 'permission-denied', msg: 'Cannot modify user with equal or higher role' };
-    }
-  }
-
-  const hasRestriction = data?.restrictionUpdate != null;
-  const hasRoleChange = !!(data?.roleChange && typeof data.roleChange === 'object');
-  if (!hasProfile && !hasRestriction && !hasRoleChange) {
-    return { error: 'invalid-argument', msg: 'No supported updates requested' };
-  }
-  return null;
 }
 
 /** Mirror of restriction value normalization (index.js:1160-1162) */
@@ -3265,6 +3201,52 @@ function validateSecondaryIdentityAvatarCommit(data, uid, projectId = 'demo-proj
   }
   return null;
 }
+
+describe('adminManageUser source contract', () => {
+  test('uses production authorization and graph modules before every write', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const wholeSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'functions', 'index.js'),
+      'utf8'
+    );
+    const start = wholeSource.indexOf('exports.adminManageUser = onCall(');
+    const end = wholeSource.indexOf('exports.commitIdentitySettings = onCall', start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const source = wholeSource.slice(start, end);
+
+    expect(wholeSource).toContain(
+      'const { decideAdminManageUser } = require("./admin-user-authz");'
+    );
+    expect(wholeSource).toContain(
+      'const { createRoleGraphLoader } = require("./role-hierarchy");'
+    );
+    expect(source).toContain('createRoleGraphLoader({ db })');
+    expect(source).toContain('roleGraph = await loadRoleGraph()');
+    expect(source).toContain('const decision = decideAdminManageUser({');
+    expect(source).toContain('if (!decision.ok)');
+    expect(source).toContain('builtinLevels: ROLE_LEVELS');
+    expect(source).toContain('restrict: ADMIN_USER_RESTRICT_PERMISSION');
+    expect(source).toContain('changeRole: ADMIN_USER_CHANGE_ROLE_PERMISSION');
+
+    const decisionIndex = source.indexOf('decideAdminManageUser(');
+    expect(decisionIndex).toBeGreaterThanOrEqual(0);
+    [
+      'await db.collection("users").doc(targetUser.docId).update(nextUpdates)',
+      'await ensureAuthUser(resolvedTargetUid)',
+      'await setRoleClaimMerged(resolvedTargetUid, nextUpdates.role)',
+    ].forEach(write => {
+      const writeIndex = source.indexOf(write);
+      expect(writeIndex).toBeGreaterThan(decisionIndex);
+    });
+
+    expect(source).not.toContain('roleExists(');
+    expect(source).not.toContain('ROLE_LEVELS[access.role] ?? 0');
+    expect(source).not.toContain('ROLE_LEVELS[targetRole] ?? 0');
+    expect(source).not.toContain('ROLE_LEVELS[nextRole] ?? 0');
+  });
+});
 
 describe('commitIdentitySettings validation', () => {
   test('second identity callable access follows effective permission including user grants', () => {
@@ -3455,159 +3437,6 @@ describe('sanitizeAdminManagedProfileUpdates', () => {
   test('empty email string clears email and invalid email is dropped', () => {
     expect(sanitizeAdminManagedProfileUpdates({ email: '   ' }).email).toBeNull();
     expect(sanitizeAdminManagedProfileUpdates({ email: 'not-an-email' })).toEqual({});
-  });
-});
-
-describe('adminManageUser auth + permission flow', () => {
-  const baseAccess = {
-    role: 'admin',
-    isSuperAdmin: false,
-    permissions: [
-      ADMIN_USER_EDIT_PROFILE_PERMISSION,
-      ADMIN_USER_RESTRICT_PERMISSION,
-      ADMIN_USER_CHANGE_ROLE_PERMISSION,
-    ],
-  };
-
-  test('rejects unauthenticated request', () => {
-    const result = validateAdminManageUser({
-      auth: null, data: { targetUid: 'u1', profileUpdates: { region: 'X' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('unauthenticated');
-  });
-
-  test('rejects missing targetUid', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { profileUpdates: { region: 'X' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('invalid-argument');
-  });
-
-  test('rejects when target user not found', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'ghost', profileUpdates: { region: 'X' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: false, targetRole: null,
-    });
-    expect(result.error).toBe('not-found');
-  });
-
-  test('non-super_admin cannot manage super_admin target', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'sa1', profileUpdates: { region: 'X' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'super_admin',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/super admin/i);
-  });
-
-  test('super_admin can manage super_admin target', () => {
-    const access = { ...baseAccess, role: 'super_admin', isSuperAdmin: true };
-    const result = validateAdminManageUser({
-      auth: { uid: 'sa-caller' }, data: { targetUid: 'sa1', profileUpdates: { region: 'X' } },
-      access, callerUid: 'sa-caller', targetUserExists: true, targetRole: 'super_admin',
-    });
-    expect(result).toBeNull();
-  });
-
-  test('profile update without permission rejected', () => {
-    const access = { ...baseAccess, permissions: [] };
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', profileUpdates: { region: 'X' } },
-      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/profile/i);
-  });
-
-  test('restriction update without permission rejected', () => {
-    const access = { ...baseAccess, permissions: [] };
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', restrictionUpdate: true },
-      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/restriction/i);
-  });
-
-  test('cannot restrict yourself', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'caller', restrictionUpdate: true },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('failed-precondition');
-  });
-
-  test('role change without permission rejected', () => {
-    const access = { ...baseAccess, permissions: [] };
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'coach' } },
-      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('permission-denied');
-  });
-
-  test('coach cannot change roles (callerLevel < admin)', () => {
-    const access = { ...baseAccess, role: 'coach', permissions: [ADMIN_USER_CHANGE_ROLE_PERMISSION] };
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'user' } },
-      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/admin or above/i);
-  });
-
-  test('admin cannot assign admin-level role (only super_admin can)', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'admin' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/super_admin/i);
-  });
-
-  test('admin cannot modify user with equal level (another admin)', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'coach' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'admin',
-    });
-    expect(result.error).toBe('permission-denied');
-    expect(result.msg).toMatch(/equal or higher/i);
-  });
-
-  test('super_admin can assign admin role', () => {
-    const access = { ...baseAccess, role: 'super_admin', isSuperAdmin: true };
-    const result = validateAdminManageUser({
-      auth: { uid: 'sa' }, data: { targetUid: 'u1', roleChange: { role: 'admin' } },
-      access, callerUid: 'sa', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result).toBeNull();
-  });
-
-  test('admin can assign captain to user (lower level)', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'captain' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result).toBeNull();
-  });
-
-  test('rejects empty updates (no profile, no restriction, no role)', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1' },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result.error).toBe('invalid-argument');
-    expect(result.msg).toMatch(/no supported updates/i);
-  });
-
-  test('accepts profile update only', () => {
-    const result = validateAdminManageUser({
-      auth: { uid: 'caller' }, data: { targetUid: 'u1', profileUpdates: { region: '台北' } },
-      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
-    });
-    expect(result).toBeNull();
   });
 });
 
