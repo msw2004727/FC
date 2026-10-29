@@ -32,8 +32,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await testEnv.clearFirestore();
   await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
     for (const [collection, id] of INTERNAL_COLLECTIONS) {
-      await setDoc(doc(context.firestore(), collection, id), { count: 1 });
+      await setDoc(doc(db, collection, id), { count: 1 });
     }
   });
 });
