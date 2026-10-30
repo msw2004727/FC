@@ -43,7 +43,7 @@ describe('startup performance guardrails', () => {
     // Reviewed safe-directory, atomic event writes, reliable-message, delegated-profile,
     // and create-modal navigation guards, plus the PageLoader robots-meta strip,
     // and the home next-activity registration query (status-in filter, limit warning,
-    // stale-cache calibration, legacy-root filter; T-034); 事件繫結強化僅加入實測增量：raw 334 bytes、gzip 88 bytes（第 1 包實測，整批完成後再回調）。
+    // stale-cache calibration, legacy-root filter; T-034); 2026-10-30 事件繫結強化借支：上限由 raw 1,547,900／gz 390,000 調為 1,548,234／390,088（相對 HEAD 實測 +377／+94），A 下線後不追回
     expect(rawBytes).toBeLessThanOrEqual(1_548_234);
     expect(gzipBytes).toBeLessThanOrEqual(390_088);
   });

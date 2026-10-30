@@ -1072,7 +1072,6 @@ Object.assign(App, {
   },
 
   _renderTeamTournamentCard(tournament) {
-    const id = escapeHTML(tournament.id || tournament._docId || '');
     const name = escapeHTML(tournament.name || I18N.t('tournament.detail'));
     const date = this._getTeamTournamentDateText(tournament);
     const registered = Array.isArray(tournament.registeredTeams) ? tournament.registeredTeams.length : 0;
@@ -1087,7 +1086,7 @@ Object.assign(App, {
     const thumbHtml = imageUrl
       ? '<div class="td-team-tournament-thumb"><img src="' + escapeHTML(imageUrl) + '" loading="lazy" alt="' + name + '"></div>'
       : '<div class="td-team-tournament-thumb td-team-tournament-thumb-placeholder" aria-hidden="true">' + (sportIcon || '<span>T</span>') + '</div>';
-    return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + escapeJsAttr(id) + '\')">' +
+    return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + escapeJsAttr(tournament.id || tournament._docId || '') + '\')">' +
       '<span class="td-team-tournament-main">' +
       '<span class="td-team-tournament-title-row"><strong>' + name + '</strong><span class="td-team-tournament-status">' + status + '</span></span>' +
       '<span class="td-team-tournament-meta">' +

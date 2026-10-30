@@ -1549,7 +1549,7 @@ Object.assign(App, {
     }
     if (opts.isGuestView) {
       return '<div class="event-early-bird-cta">'
-        + '<button class="event-early-bird-btn" onclick="App.requestProtectedEventAction(\'eventSignup\',\'' + escapeJsAttr(eventId) + '\')">早鳥報名 · ' + cost + ' 積分</button>'
+        + '<button class="event-early-bird-btn" onclick="App.requestProtectedEventAction(\'eventSignup\',\'' + escapeJsAttr(eventRecord.id || eventRecord._docId || '') + '\')">早鳥報名 · ' + cost + ' 積分</button>'
         + '<div class="event-early-bird-subtext">登入後確認積分並完成報名</div>'
         + '</div>';
     }
@@ -1562,7 +1562,7 @@ Object.assign(App, {
     }
     return '<div class="signup-glow-wrap event-early-bird-cta" style="--glow-c:#d97706;--glow-c-light:#fbbf24">'
       + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
-      + '<div class="signup-flipper"><button class="event-early-bird-btn" onclick="App.handleSignup(\'' + escapeJsAttr(eventId) + '\',{earlyBird:true})">早鳥報名 · ' + cost + ' 積分</button></div>'
+      + '<div class="signup-flipper"><button class="event-early-bird-btn" onclick="App.handleSignup(\'' + escapeJsAttr(eventRecord.id || eventRecord._docId || '') + '\',{earlyBird:true})">早鳥報名 · ' + cost + ' 積分</button></div>'
       + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">早鳥報名中</span></div>'
       + '</div>';
   },

@@ -629,9 +629,10 @@ Object.assign(App, {
     ];
   },
 
+  // 事件繫結強化：數值 0／1 為固定開關哨兵，資料 key 維持字串。
   _buildTeamDetailSettingsSwitch(checked, action, label) {
     return '<label class="td-settings-switch" aria-label="' + escapeHTML(label || '') + '">' +
-      '<input type="checkbox"' + (checked ? ' checked' : '') + ' ' + (action === 'invite' ? 'onchange="App.toggleTeamMemberInviteSetting(this.checked, this)"' : action === 'overlay' ? 'onchange="App.toggleTeamThemeOverlay(this.checked, this)"' : `onchange="App.toggleTeamDetailVisibility('${escapeJsAttr(action)}', this.checked, this)"`) + '>' +
+      '<input type="checkbox"' + (checked ? ' checked' : '') + ' ' + (action === 0 ? 'onchange="App.toggleTeamMemberInviteSetting(this.checked, this)"' : action === 1 ? 'onchange="App.toggleTeamThemeOverlay(this.checked, this)"' : `onchange="App.toggleTeamDetailVisibility('${escapeJsAttr(action)}', this.checked, this)"`) + '>' +
       '<span class="td-settings-switch-track"><span class="td-settings-switch-thumb"></span></span>' +
       '</label>';
   },
@@ -706,7 +707,7 @@ Object.assign(App, {
       '</div>' +
       '<div class="td-settings-row">' +
       '<div><strong>' + I18N.t('teamDetail.memberCanInvite') + '</strong><span>\u958b\u555f\u5f8c\uff0c\u73fe\u6709\u968a\u54e1\u53ef\u4ee5\u7522\u751f\u9080\u8acb QR Code\u3002</span></div>' +
-      this._buildTeamDetailSettingsSwitch(memberInviteChecked, 'invite', I18N.t('teamDetail.memberCanInvite')) +
+      this._buildTeamDetailSettingsSwitch(memberInviteChecked, 0, I18N.t('teamDetail.memberCanInvite')) +
       '</div>' +
       '<div class="td-settings-row td-theme-settings-row">' +
       '<div><strong>\u4ff1\u6a02\u90e8\u4e3b\u984c\u8272</strong><span>\u9078\u64c7\u5f8c\u6703\u5957\u7528\u5728\u4ff1\u6a02\u90e8\u5361\u7247\u8207\u8a73\u60c5\u91cd\u9ede\u5bb9\u5668\uff1b\u7559\u7a7a\u5247\u4f7f\u7528\u7cfb\u7d71\u9810\u8a2d\u914d\u8272\u3002</span></div>' +
@@ -718,7 +719,7 @@ Object.assign(App, {
       '</div>' +
       '<div class="td-settings-row td-theme-overlay-row">' +
       '<div><strong>\u534a\u900f\u660e\u906e\u7f69</strong><span>\u958b\u555f\u5f8c\u6703\u5728\u4e3b\u984c\u8272\u8207\u6587\u5b57\u4e4b\u9593\u52a0\u4e0a\u6dfa\u8272\u6216\u6df1\u8272\u906e\u7f69\uff0c\u8b93\u6587\u5b57\u66f4\u6e05\u695a\uff1b\u95dc\u9589\u5f8c\u984f\u8272\u6703\u66f4\u63a5\u8fd1\u5be6\u969b\u9078\u8272\uff0c\u4f46\u6587\u5b57\u5c0d\u6bd4\u53ef\u80fd\u964d\u4f4e\u3002</span></div>' +
-      this._buildTeamDetailSettingsSwitch(themeOverlayChecked, 'overlay', '\u534a\u900f\u660e\u906e\u7f69') +
+      this._buildTeamDetailSettingsSwitch(themeOverlayChecked, 1, '\u534a\u900f\u660e\u906e\u7f69') +
       '</div>' +
       '</div>' +
       '<div class="td-settings-group"><div class="td-settings-title">\u6b04\u4f4d\u5bb9\u5668\u986f\u793a</div>' + rows + '</div>' +

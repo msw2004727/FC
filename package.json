@@ -19,6 +19,7 @@
     "test": "jest tests/unit/"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.0",
     "@firebase/rules-unit-testing": "^3.0.3",
     "@playwright/test": "^1.58.2",
     "cross-env": "^7.0.3",

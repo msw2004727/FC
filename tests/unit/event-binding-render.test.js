@@ -345,10 +345,10 @@ describe('事件繫結強化：分支邊界', () => {
     mount(app._buildUserCardActionPanel(uid));
     activate(app, '.uc-action-btn-pm', 'openPmDialog', () => [uid]);
   });
-  test.each(['invite', 'overlay'])('team-detail：固定開關 %s', action => {
+  test.each([0, 1])('team-detail：固定開關 %s', action => {
     const app = load('team/team-detail.js');
     mount(app._buildTeamDetailSettingsSwitch(false, action, '測試'));
-    activate(app, 'input', action === 'invite' ? 'toggleTeamMemberInviteSetting' : 'toggleTeamThemeOverlay', element => [false, element], 'change');
+    activate(app, 'input', action === 0 ? 'toggleTeamMemberInviteSetting' : 'toggleTeamThemeOverlay', element => [false, element], 'change');
   });
   test('favorites：未知類型', () => {
     const app = load('favorites.js');
@@ -470,4 +470,37 @@ test('事件繫結強化：額滿分隊保持提示', () => {
     expect(element.classList.contains('shake')).toBe(false);
     expect(app._tsSelectTeam).not.toHaveBeenCalled();
   } finally { jest.useRealTimers(); }
+});
+
+describe.each(VALUES)('事件繫結強化：第三輪原值 %p', value => {
+  test.each([true, false])('早鳥報名原值往返：訪客 %p', isGuestView => {
+    const app = load('event/event-detail-signup.js', { getCurrentUser: () => ({ exp: 100 }) });
+    for (const identity of [{ id: value, _docId: 'unused' }, { _docId: value }]) {
+      const record = { ...identity, earlyBirdEnabled: true, earlyBirdCost: 10, regOpenTime: new Date(Date.now() + 86400000).toISOString() };
+      mount(app._buildEventEarlyBirdSignupHtml(record, { isGuestView }));
+      activate(app, '.event-early-bird-btn', isGuestView ? 'requestProtectedEventAction' : 'handleSignup',
+        () => isGuestView ? ['eventSignup', value] : [value, { earlyBird: true }]);
+    }
+  });
+
+  test('俱樂部賽事卡原值往返', () => {
+    const app = load('team/team-detail-render.js');
+    for (const identity of [{ id: value, _docId: 'unused' }, { _docId: value }]) {
+      mount(app._renderTeamTournamentCard({ ...identity, name: value }));
+      expect(document.querySelector('.td-team-tournament-title-row strong').textContent).toBe(value);
+      activate(app, '.td-team-tournament-card', 'openTeamDetailTournament', () => [value]);
+    }
+  });
+});
+
+test('事件繫結強化：資料 key 與保留字同名仍操作欄位', () => {
+  const app = load('team/team-detail.js');
+  for (const key of ['invite', 'overlay', '0', '1']) {
+    mount(app._buildTeamDetailSettingsSwitch(true, key, '測試'));
+    app.toggleTeamMemberInviteSetting = jest.fn();
+    app.toggleTeamThemeOverlay = jest.fn();
+    activate(app, 'input', 'toggleTeamDetailVisibility', element => [key, true, element], 'change');
+    expect(app.toggleTeamMemberInviteSetting).not.toHaveBeenCalled();
+    expect(app.toggleTeamThemeOverlay).not.toHaveBeenCalled();
+  }
 });

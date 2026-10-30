@@ -880,7 +880,6 @@ Object.assign(App, {
 
   _renderEventCommentReplies(eventRecord, comment, ctx) {
     if (!comment.replies?.length) return '';
-    const eventId = escapeHTML(eventRecord.id || '');
     const commentId = escapeHTML(comment.id);
     return `<div class="event-comment-replies">${comment.replies.map(r => {
       const safeReplyId = escapeHTML(r.id);
