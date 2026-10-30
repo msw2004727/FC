@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-detail-render.js'),
@@ -45,6 +46,7 @@ function renderWithTeam(team) {
       getElementById: jest.fn((id) => id === 'team-detail-body' ? bodyEl : null),
     },
     escapeHTML,
+    escapeJsAttr,
     Promise,
   };
 
@@ -97,6 +99,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -160,6 +163,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -204,6 +208,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       console,
     };
@@ -243,6 +248,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       console,
     };
@@ -289,6 +295,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -323,6 +330,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -356,6 +364,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -386,6 +395,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -427,6 +437,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       console,
     };
@@ -477,6 +488,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       console,
     };
@@ -526,6 +538,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -563,6 +576,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -610,6 +624,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -645,6 +660,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
     };
 
@@ -687,6 +703,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       Date,
     };
@@ -745,6 +762,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       Date,
     };
@@ -823,6 +841,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       Date,
       Map,
@@ -871,6 +890,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       Date,
       Map,
@@ -904,6 +924,7 @@ describe('renderEduClubDetail info card', () => {
         querySelectorAll: jest.fn(() => []),
       },
       escapeHTML,
+      escapeJsAttr,
       Promise,
       Date,
       Number,

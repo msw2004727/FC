@@ -786,7 +786,7 @@ Object.assign(App, {
           }
 
           html += `
-            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" data-event-id="${escapeHTML(e.id)}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" data-event-id="${escapeHTML(e.id)}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${escapeJsAttr(e.id)}', this)">
               ${genderRibbon}
               ${eventImage ? `<div class="tl-event-thumb"><img src="${escapeHTML(eventImage)}" alt="${escapeHTML(e.title || '')}" width="48" height="48" loading="lazy" decoding="async"></div>` : ''}
               <div class="tl-event-info">

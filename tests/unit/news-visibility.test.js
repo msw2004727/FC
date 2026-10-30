@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const apiServiceSource = fs.readFileSync(
   path.join(__dirname, '../../js/api-service.js'),
@@ -61,6 +62,7 @@ function loadNewsApp({ visible = false, articles = [] } = {}) {
     EVENT_SPORT_OPTIONS: [],
     EVENT_SPORT_MAP: {},
     escapeHTML: value => String(value ?? ''),
+    escapeJsAttr,
     location: { href: '' },
   };
   vm.runInNewContext(newsSource, sandbox, {

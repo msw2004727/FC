@@ -109,7 +109,7 @@ Object.assign(App, {
       <div class="error-log-group-head">
         <span class="log-type ${group.severity.className}">${escapeHTML(group.severity.label)}</span>
         <strong>${escapeHTML(group.codeLabel)} · ${escapeHTML(String(group.logs.length))} 筆</strong>
-        <button type="button" class="outline-btn error-log-copy-btn" onclick="App.copyErrorLogDiagnosticGroup(${idx})">複製診斷包</button>
+        <button type="button" class="outline-btn error-log-copy-btn" onclick="App.copyErrorLogDiagnosticGroup(${Number(idx)})">複製診斷包</button>
       </div>
       <div class="error-log-message">${escapeHTML(group.message)}</div>
       <div class="error-log-meta">${meta.map(item => `<span>${escapeHTML(item)}</span>`).join('')}</div>

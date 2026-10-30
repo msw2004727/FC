@@ -95,10 +95,10 @@ Object.assign(App, {
       return '<div class="perm-item">'
         + '<span class="perm-item-label">'
         + escapeHTML(item.name)
-        + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showUserActivityCapabilityInfo(\'' + item.code + '\')" title="說明">?</button>'
+        + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showUserActivityCapabilityInfo(\'' + escapeJsAttr(item.code) + '\')" title="說明">?</button>'
         + '</span>'
         + '<label class="toggle-switch ' + (checked ? 'active' : '') + '">'
-        + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="App.toggleUserActivityCapability(\'' + item.code + '\')">'
+        + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="App.toggleUserActivityCapability(\'' + escapeJsAttr(item.code) + '\')">'
         + '<span class="toggle-slider"></span>'
         + '</label>'
         + '</div>';
@@ -227,12 +227,12 @@ Object.assign(App, {
       const isSelected = this._permSelectedRole === key;
       const permCount = (ApiService.getRolePermissions(key) || []).length;
       const userCount = roleUserCount[key] || 0;
-      return `<div class="role-level-row ${isSelected ? 'role-level-selected' : ''}" onclick="App.selectRoleForPerms('${key}')" style="cursor:pointer">
+      return `<div class="role-level-row ${isSelected ? 'role-level-selected' : ''}" onclick="App.selectRoleForPerms('${escapeJsAttr(key)}')" style="cursor:pointer">
         <span class="role-level-num">Lv.${i}</span>
         <span class="role-level-badge" style="background:${r.color}">${escapeHTML(r.label)}</span>
         <span class="role-perm-count">${permCount}</span>
         <span class="role-level-key">${escapeHTML(key)} <span class="role-user-count">${userCount}</span>${isCustom ? ' <span style="font-size:.6rem;color:var(--accent)">(自訂)</span>' : ''}</span>
-        ${isCustom ? `<button class="role-delete-btn" onclick="event.stopPropagation();App.confirmDeleteCustomRole('${key}')" title="刪除此層級">✕</button>` : ''}
+        ${isCustom ? `<button class="role-delete-btn" onclick="event.stopPropagation();App.confirmDeleteCustomRole('${escapeJsAttr(key)}')" title="刪除此層級">✕</button>` : ''}
       </div>`;
     }).join('');
   },
@@ -422,7 +422,7 @@ Object.assign(App, {
         var entryInherent = inherentPerms.has(cat.entryItem.code);
         var entryDisabled = lockedRole || entryInherent;
         entryToggleHtml = '<label class="toggle-switch ' + (entryChecked ? 'active' : '') + '" onclick="event.stopPropagation()"' + (entryInherent ? ' title="此角色固有權限，無法關閉"' : '') + '>'
-          + '<input type="checkbox" ' + (entryChecked ? 'checked' : '') + ' ' + (entryDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + cat.entryItem.code + '\')">'
+          + '<input type="checkbox" ' + (entryChecked ? 'checked' : '') + ' ' + (entryDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + escapeJsAttr(cat.entryItem.code) + '\')">'
           + '<span class="toggle-slider"></span>'
           + (entryInherent ? '<span style="font-size:.6rem;color:var(--text-muted);margin-left:.3rem">固有</span>' : '')
           + '</label>';
@@ -434,9 +434,9 @@ Object.assign(App, {
         var isInherent = inherentPerms.has(p.code);
         var isDisabled = lockedRole || isInherent;
         return '<div class="perm-item ' + (lockedRole ? 'perm-item-locked' : '') + '">'
-          + '<span class="perm-item-label">' + escapeHTML(p.name) + (isInherent ? ' <span style="font-size:.6rem;color:var(--text-muted)">(固有)</span>' : '') + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + p.code + '\')" title="說明">?</button></span>'
+          + '<span class="perm-item-label">' + escapeHTML(p.name) + (isInherent ? ' <span style="font-size:.6rem;color:var(--text-muted)">(固有)</span>' : '') + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + escapeJsAttr(p.code) + '\')" title="說明">?</button></span>'
           + '<label class="toggle-switch ' + (checked ? 'active' : '') + '"' + (isInherent ? ' title="此角色固有權限，無法關閉"' : '') + '>'
-          + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (isDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + p.code + '\')">'
+          + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (isDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + escapeJsAttr(p.code) + '\')">'
           + '<span class="toggle-slider"></span>'
           + '</label>'
           + '</div>';
@@ -444,11 +444,11 @@ Object.assign(App, {
 
       // 入口權限說明按鈕（放在分類名稱內，緊鄰文字）
       var entryInfoHtml = cat.entryItem
-        ? '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + cat.entryItem.code + '\')" title="說明">?</button>'
+        ? '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + escapeJsAttr(cat.entryItem.code) + '\')" title="說明">?</button>'
         : '';
 
       return '<div class="perm-category ' + (hasSubItems ? '' : 'no-sub') + '">'
-        + '<div class="perm-category-title" onclick="' + (hasSubItems ? "this.parentElement.classList.toggle(\'collapsed\')" : '') + '">'
+        + '<div class="perm-category-title" onclick="if (' + Boolean(hasSubItems) + ') this.parentElement.classList.toggle(\'collapsed\')">'
         + '<span class="perm-cat-name">' + escapeHTML(cat.cat) + entryInfoHtml + '</span>'
         + entryToggleHtml
         + '</div>'

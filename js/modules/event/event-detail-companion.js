@@ -50,7 +50,7 @@ Object.assign(App, {
     const selfLabel = isSelfRegistered ? '（已報名）' : selfGenderHint;
     listEl.innerHTML = `
       <label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" name="cs-participant" value="self" data-name="${escapeHTML(userName)}" ${selfDisabled} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${eventId}')">
+        <input type="checkbox" name="cs-participant" value="self" data-name="${escapeHTML(userName)}" ${selfDisabled} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${escapeJsAttr(eventId)}')">
         <span style="font-size:.85rem;font-weight:600">&#x1f464; ${escapeHTML(userName)}（本人）${selfLabel}</span>
       </label>
       ${companions.map(c => {
@@ -62,7 +62,7 @@ Object.assign(App, {
         const dis = alreadyReg ? 'disabled checked' : (!genderAllowed ? 'disabled' : '');
         const lbl = alreadyReg ? '（已報名）' : genderHint;
         return `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
-          <input type="checkbox" name="cs-participant" value="companion" data-companion-id="${escapeHTML(c.id)}" data-name="${escapeHTML(c.name)}" ${dis} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${eventId}')">
+          <input type="checkbox" name="cs-participant" value="companion" data-companion-id="${escapeHTML(c.id)}" data-name="${escapeHTML(c.name)}" ${dis} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${escapeJsAttr(eventId)}')">
           <span style="font-size:.85rem">${escapeHTML(c.name)}${c.gender ? `（${escapeHTML(c.gender)}）` : ''}${c.notes ? ` — <span style="color:var(--text-muted)">${escapeHTML(c.notes)}</span>` : ''}${lbl}</span>
         </label>`;
       }).join('')}
@@ -880,7 +880,7 @@ Object.assign(App, {
           data-reg-id="${escapeHTML(reg?.id || reg?._docId || '')}"
           ${isRegistered ? 'checked' : ''}
           ${disabled ? 'disabled' : ''}
-          onchange="App._updateCompanionSelectSummary('${escapeHTML(eventId)}')">
+          onchange="App._updateCompanionSelectSummary('${escapeJsAttr(eventId)}')">
         <span class="companion-toggle-main">
           <span class="companion-toggle-name">${escapeHTML(companionName || '\u540c\u884c\u8005')}${genderBadge}</span>
           ${noteParts.length ? `<span class="companion-toggle-note">${escapeHTML(noteParts.join(' / '))}</span>` : ''}

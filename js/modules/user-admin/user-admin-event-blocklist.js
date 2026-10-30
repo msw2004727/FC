@@ -251,7 +251,7 @@ Object.assign(App, {
             <div style="font-size:.82rem;font-weight:500">${escapeHTML(label)}</div>
             <div style="font-size:.7rem;color:var(--text-muted);margin-top:.1rem">由 ${escapeHTML(byLabel)} 於 ${atLabel} 加入${reasonLabel}</div>
           </div>
-          <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger);border-color:var(--danger);flex-shrink:0" onclick="App.removeEventBlocklistEntry('${escapeHTML(e.id)}','${escapeHTML(uid)}')">移除</button>
+          <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger);border-color:var(--danger);flex-shrink:0" onclick="App.removeEventBlocklistEntry('${escapeJsAttr(e.id)}','${escapeJsAttr(uid)}')">移除</button>
         </div>`;
       }).join('');
       return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:.5rem;overflow:hidden">

@@ -745,8 +745,7 @@ Object.assign(App, {
     }
     box.innerHTML = suggestions.map(option => {
       const safeLabel = escapeHTML(option.label);
-      const jsLabel = escapeHTML(JSON.stringify(option.label));
-      return `<button type="button" class="tmr-sub-suggestion" onclick="App._appendTournamentSubstitutionPlayer('${safeSide}', ${jsLabel})">${safeLabel}</button>`;
+      return `<button type="button" class="tmr-sub-suggestion" onclick="App._appendTournamentSubstitutionPlayer('${escapeJsAttr(safeSide)}', ${escapeHTML(JSON.stringify(option.label))})">${safeLabel}</button>`;
     }).join('');
   },
 
@@ -884,7 +883,7 @@ Object.assign(App, {
           <strong>${escapeHTML(meta.title)}</strong>
           <small>${escapeHTML(meta.body)}</small>
         </span>
-        <button type="button" class="tc-event-remove" aria-label="移除事件" onclick="event.stopPropagation();App._removeTournamentMatchRecordEvent(${index})">&times;</button>
+        <button type="button" class="tc-event-remove" aria-label="移除事件" onclick="event.stopPropagation();App._removeTournamentMatchRecordEvent(${Number(index)})">&times;</button>
       </article>`;
     }).join('');
   },

@@ -60,13 +60,15 @@ Object.assign(App, {
     if (!pane) return;
 
     const findRunCard = (op) => {
-      const btn = pane.querySelector(`button[onclick="App.runDataSyncOp('${op}')"]`)
-        || document.querySelector(`button[onclick="App.runDataSyncOp('${op}')"]`);
+      const matches = btn => btn.getAttribute('onclick') === `App.runDataSyncOp('${op}')`;
+      const btn = Array.from(pane.querySelectorAll('button[onclick]')).find(matches)
+        || Array.from(document.querySelectorAll('button[onclick]')).find(matches);
       return btn?.closest('.form-card') || null;
     };
     const findDirectCard = (handler) => {
-      const btn = pane.querySelector(`button[onclick="App.${handler}()"]`)
-        || document.querySelector(`button[onclick="App.${handler}()"]`);
+      const matches = btn => btn.getAttribute('onclick') === `App.${handler}()`;
+      const btn = Array.from(pane.querySelectorAll('button[onclick]')).find(matches)
+        || Array.from(document.querySelectorAll('button[onclick]')).find(matches);
       return btn?.closest('.form-card') || null;
     };
     const noShowCard = findRunCard('noShowCount');

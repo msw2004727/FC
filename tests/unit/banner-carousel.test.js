@@ -3,6 +3,7 @@
  */
 
 const path = require('path');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 describe('home banner carousel image loading', () => {
   let createdImages;
@@ -45,6 +46,7 @@ describe('home banner carousel image loading', () => {
       cb();
       return 1;
     };
+    global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
     global.escapeHTML = (value) => String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -78,6 +80,7 @@ describe('home banner carousel image loading', () => {
     delete global.App;
     delete global.ApiService;
     delete global.escapeHTML;
+    delete global.escapeJsAttr;
     delete global.Image;
     delete window.requestIdleCallback;
   });

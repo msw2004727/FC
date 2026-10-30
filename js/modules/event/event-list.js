@@ -415,7 +415,7 @@ Object.assign(App, {
           ? 'loading="eager" fetchpriority="high" decoding="async"'
           : 'loading="lazy" decoding="async"';
         return `
-        <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
+        <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${escapeJsAttr(e.id)}', this)">
           ${_image
             ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${_image}" alt="${escapeHTML(e.title)}" width="1200" height="450" ${_imagePriorityAttrs}></div>`
             : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}

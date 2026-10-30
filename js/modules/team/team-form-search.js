@@ -186,7 +186,7 @@ Object.assign(App, {
     }).join('');
     const unresolved = this._ensureTeamFormUnresolvedStaffNames().leaders;
     const unresolvedHtml = unresolved.map((name, index) => (
-      `<span class="team-tag" data-no-translate title="舊資料尚未連結用戶">${escapeHTML(name)}<span class="team-tag-x" onclick="App._removeUnresolvedTeamStaffName('leaders', ${index})">×</span></span>`
+      `<span class="team-tag" data-no-translate title="舊資料尚未連結用戶">${escapeHTML(name)}<span class="team-tag-x" onclick="App._removeUnresolvedTeamStaffName('leaders', ${Number(index)})">×</span></span>`
     )).join('');
     const container = document.getElementById('ct-leaders-tags');
     container.innerHTML = resolvedHtml + unresolvedHtml;
@@ -290,7 +290,7 @@ Object.assign(App, {
     }).join('');
     const unresolved = this._ensureTeamFormUnresolvedStaffNames().coaches;
     const unresolvedHtml = unresolved.map((name, index) => (
-      `<span class="team-tag" data-no-translate title="舊資料尚未連結用戶">${escapeHTML(name)}<span class="team-tag-x" onclick="App._removeUnresolvedTeamStaffName('coaches', ${index})">×</span></span>`
+      `<span class="team-tag" data-no-translate title="舊資料尚未連結用戶">${escapeHTML(name)}<span class="team-tag-x" onclick="App._removeUnresolvedTeamStaffName('coaches', ${Number(index)})">×</span></span>`
     )).join('');
     const container = document.getElementById('ct-coach-tags');
     container.innerHTML = resolvedHtml + unresolvedHtml;

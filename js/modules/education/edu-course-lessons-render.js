@@ -3,10 +3,6 @@
    ================================================ */
 
 Object.assign(App, {
-  _eduCourseLessonsJsArg(value) {
-    return escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
-  },
-
   _renderCourseLessonsLoading(text) {
     return '<div class="edu-loading edu-course-lessons-loading" role="status" aria-live="polite" aria-busy="true">'
       + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
@@ -142,14 +138,11 @@ Object.assign(App, {
   _renderCourseLessonList(plan, sessions, context = {}) {
     const teamId = context.teamId || '';
     const planId = plan?.id || context.planId || '';
-    const jsTeamId = this._eduCourseLessonsJsArg(teamId);
-    const jsPlanId = this._eduCourseLessonsJsArg(planId);
     const lessonRows = (sessions || []).map((session, index) => {
       const status = this._getCourseLessonStatusMeta(session);
       const location = String(session.location || plan?.location || '').trim() || '地點未設定';
       const capacity = session.capacity ? '/' + session.capacity : '';
       const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
-      const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
       const lessonTitle = session.title || session.topic || session.focus || '未命名課堂';
       const statusKey = String(session.status || status.cls || '').trim().toLowerCase();
       const isRescheduled = this._isCourseLessonRescheduledSession(session);
@@ -170,16 +163,16 @@ Object.assign(App, {
         : '';
       const convertEventLabel = linkState.missingLinkedEvent ? '\u4fee\u5fa9\u6d3b\u52d5' : (convertedToEvent ? '\u5df2\u8f49\u5316' : '\u8f49\u5316\u6210\u6d3b\u52d5');
       const convertEventBtn = canConvertToEvent
-        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn' + (convertedToEvent ? ' is-converted' : '') + '"' + convertedAttrs + ' onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">' + convertEventLabel + '</button>'
+        ? '<button type="button" class="outline-btn small edu-course-lesson-convert-event-btn' + (convertedToEvent ? ' is-converted' : '') + '"' + convertedAttrs + ' onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.convertCourseLessonToEvent(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || session._docId || '') + '\',this)">' + convertEventLabel + '</button>'
         : '';
       const quickAdjustBtn = context.isStaff && !isRescheduled
-        ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">'
+        ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || session._docId || '') + '\',this)">'
           + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>'
         + '</button>'
         : '';
       const shareBtn = isRescheduled
         ? ''
-        : '<button type="button" class="edu-course-lesson-share-btn" aria-label="分享' + escapeHTML(lessonTitle) + '" title="分享課堂名單" onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.shareEduCourseLesson(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')">'
+        : '<button type="button" class="edu-course-lesson-share-btn" aria-label="分享' + escapeHTML(lessonTitle) + '" title="分享課堂名單" onkeydown="event.stopPropagation()" onclick="event.stopPropagation();return App.shareEduCourseLesson(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || session._docId || '') + '\')">'
           + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M16 6l-4-4-4 4"></path><path d="M12 2v14"></path></svg>'
         + '</button>';
       const makeupTag = this._isCourseLessonMakeupSession(session)
@@ -187,7 +180,7 @@ Object.assign(App, {
         : '';
       const cardAttrs = isRescheduled
         ? ' aria-disabled="true"'
-        : ' role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')}"';
+        : ' role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || session._docId || '') + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || session._docId || '') + '\')}"';
       return '<article class="edu-course-lesson-card edu-course-lesson-card-' + escapeHTML(status.cls) + '"' + cardAttrs + '>'
         + '<div class="edu-course-lesson-index"><strong>' + lessonNo + '</strong></div>'
         + '<div class="edu-course-lesson-main">'
@@ -211,7 +204,7 @@ Object.assign(App, {
     const emptyHtml = '<div class="edu-course-lessons-empty">'
       + '<strong>尚未建立課堂</strong>'
       + '<span>建立課堂後，這裡會顯示每一堂的日期、地點與本堂名單。</span>'
-      + (context.isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">＋ 新增課堂</button>' : '')
+      + (context.isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">＋ 新增課堂</button>' : '')
       + '</div>';
     const lessonList = Array.isArray(sessions) ? sessions : [];
     const rescheduledCount = lessonList.filter(session => this._isCourseLessonRescheduledSession(session)).length;
@@ -240,8 +233,6 @@ Object.assign(App, {
     const session = payload?.session || {};
     const students = Array.isArray(payload?.students) ? payload.students : [];
     const notesByStudentId = context.notesByStudentId || {};
-    const jsTeamId = this._eduCourseLessonsJsArg(context.teamId);
-    const jsPlanId = this._eduCourseLessonsJsArg(context.planId);
     const status = this._getCourseLessonStatusMeta(session);
     const manageMode = context.isStaff === true && context.manageMode === true;
     const paidByStudentId = context.paidByStudentId && typeof context.paidByStudentId === 'object'
@@ -283,7 +274,6 @@ Object.assign(App, {
       const draftKind = context.planType === 'weekly' && !rawDraftKind ? 'leave' : rawDraftKind;
       const attendance = this._getCourseLessonAttendanceMeta(draftKind);
       const note = notesByStudentId[studentId] || '';
-      const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
@@ -292,7 +282,7 @@ Object.assign(App, {
           + statusHtml
           + (draftKind === 'signin'
             ? ''
-            : '<button type="button" class="outline-btn small edu-roster-self-register-btn" onclick="return App.showCourseLessonSelfRegisterDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'registered' ? 'leave' : 'registered') + '\',this)">'
+            : '<button type="button" class="outline-btn small edu-roster-self-register-btn" onclick="return App.showCourseLessonSelfRegisterDialog(\'' + escapeJsAttr(studentId) + '\',\'' + (escapeJsAttr(draftKind === 'registered' ? 'leave' : 'registered')) + '\',this)">'
               + (draftKind === 'registered' ? '\u53d6\u6d88\u5831\u540d' : '\u6211\u8981\u5831\u540d')
               + '</button>')
         + '</div>'
@@ -300,7 +290,7 @@ Object.assign(App, {
       const selfLeaveActionHtml = (!isRosterPreview && !staleCached && !sessionRescheduled && !context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
-          + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
+          + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + escapeJsAttr(studentId) + '\',\'' + (escapeJsAttr(draftKind === 'leave' ? '' : 'leave')) + '\',this)">'
           + (draftKind === 'leave' ? '取消請假' : '我要請假')
           + '</button>'
         + '</div>'
@@ -308,11 +298,11 @@ Object.assign(App, {
       const manageHtml = manageMode
         ? '<div class="edu-course-roster-manage" role="group" aria-label="出席狀態">'
           + '<span class="edu-roster-choice">'
-            + '<input class="edu-roster-cb edu-roster-cb-signin" type="checkbox" id="' + signinId + '" ' + (draftKind === 'signin' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + safeStudentId + '\',this.checked?\'signin\':null)">'
+            + '<input class="edu-roster-cb edu-roster-cb-signin" type="checkbox" id="' + signinId + '" ' + (draftKind === 'signin' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + escapeJsAttr(studentId) + '\',this.checked?\'signin\':null)">'
             + '<label class="edu-roster-choice-label" for="' + signinId + '"><span class="edu-roster-choice-box"></span><span>出席</span></label>'
           + '</span>'
           + '<span class="edu-roster-choice">'
-            + '<input class="edu-roster-cb edu-roster-cb-leave" type="checkbox" id="' + leaveId + '" ' + (draftKind === 'leave' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + safeStudentId + '\',this.checked?\'leave\':null)">'
+            + '<input class="edu-roster-cb edu-roster-cb-leave" type="checkbox" id="' + leaveId + '" ' + (draftKind === 'leave' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + escapeJsAttr(studentId) + '\',this.checked?\'leave\':null)">'
             + '<label class="edu-roster-choice-label" for="' + leaveId + '"><span class="edu-roster-choice-box"></span><span>請假</span></label>'
           + '</span>'
         + '</div>'
@@ -327,10 +317,10 @@ Object.assign(App, {
             uid: student.uid,
             lineUserId: student.lineUserId,
           }, name, { link: true })
-        : '<span class="td-member-name-pill uc-user edu-course-member-pill" onclick="event.stopPropagation();App.showUserProfile(\'' + this._eduCourseLessonsJsArg(name) + '\')">' + escapeHTML(name) + '</span>';
+        : '<span class="td-member-name-pill uc-user edu-course-member-pill" onclick="event.stopPropagation();App.showUserProfile(\'' + escapeJsAttr(name) + '\')">' + escapeHTML(name) + '</span>';
       const noteHtml = context.isStaff
         ? '<div class="edu-course-roster-note"><span>' + escapeHTML(note || '尚未填寫備註') + '</span>'
-          + (staleCached ? '' : '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[studentId] || '') + '\')"></button>')
+          + (staleCached ? '' : '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeJsAttr(context.teamId) + '\',\'' + escapeJsAttr(context.planId) + '\',\'' + escapeJsAttr(studentId) + '\',\'' + escapeJsAttr(context.enrollIdsByStudentId?.[studentId] || '') + '\')"></button>')
           + '</div>'
         : '';
       const paymentBadgeHtml = unpaid
@@ -371,7 +361,7 @@ Object.assign(App, {
       ? '<div class="edu-course-roster-refresh-status" role="status" aria-live="polite"><span class="edu-inline-spinner" aria-hidden="true"></span><span>&#27491;&#22312;&#26356;&#26032;&#31805;&#21040;&#33287;&#20633;&#35387;...</span></div>'
       : '';
     const refreshErrorHtml = context.refreshError === true
-      ? '<div class="edu-course-roster-refresh-alert"><span>&#36039;&#26009;&#26283;&#26178;&#28961;&#27861;&#26356;&#26032;&#65292;&#24050;&#20445;&#30041;&#19978;&#27425;&#21517;&#21934;</span><button type="button" class="outline-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(context.sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>'
+      ? '<div class="edu-course-roster-refresh-alert"><span>&#36039;&#26009;&#26283;&#26178;&#28961;&#27861;&#26356;&#26032;&#65292;&#24050;&#20445;&#30041;&#19978;&#27425;&#21517;&#21934;</span><button type="button" class="outline-btn small" onclick="App.showCourseLessonRoster(\'' + escapeJsAttr(context.teamId) + '\',\'' + escapeJsAttr(context.planId) + '\',\'' + escapeJsAttr(context.sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>'
       : '';
     const staffActions = context.isStaff && !staleCached && !sessionRescheduled
       ? (manageMode
@@ -393,7 +383,7 @@ Object.assign(App, {
       + '<section class="edu-course-roster-head">'
         + (backDisabled
           ? '<button type="button" class="outline-btn small" disabled>返回課堂</button>'
-          : '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>')
+          : '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + escapeJsAttr(context.teamId) + '\',\'' + escapeJsAttr(context.planId) + '\')">返回課堂</button>')
         + '<div class="edu-course-roster-title-block">'
           + '<div class="edu-course-roster-title-line">'
             + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'

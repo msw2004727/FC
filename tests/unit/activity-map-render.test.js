@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 function readModule(relPath) {
   return fs.readFileSync(path.join(__dirname, '../..', relPath), 'utf8');
@@ -12,6 +13,7 @@ function readModule(relPath) {
 function loadActivityMapModule() {
   window.App = {};
   window.escapeHTML = value => String(value ?? '');
+  window.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
   window.EVENT_SPORT_OPTIONS = [
     { key: 'football', label: '足球' },
     { key: 'basketball', label: '籃球' },
@@ -25,6 +27,7 @@ function loadActivityMapModule() {
   window.getSportIconSvg = (key, className = '') => `<span class="sport-emoji ${className}" aria-hidden="true">${key}</span>`;
   window.eval('var App = window.App;');
   window.eval('var escapeHTML = window.escapeHTML;');
+  window.eval('var escapeJsAttr = window.escapeJsAttr;');
   window.eval('var EVENT_SPORT_OPTIONS = window.EVENT_SPORT_OPTIONS;');
   window.eval('var getSportKeySafe = window.getSportKeySafe;');
   window.eval('var getSportLabelByKey = window.getSportLabelByKey;');

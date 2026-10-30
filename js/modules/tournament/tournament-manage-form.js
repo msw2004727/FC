@@ -36,7 +36,7 @@ Object.assign(App, {
       const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
       return `<span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--surface-alt);border:1px solid var(--border)">
         <a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(v)} 📍</a>
-        <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${p}',${i})">✕</span>
+        <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${escapeJsAttr(p)}',${Number(i)})">✕</span>
       </span>`;
     }).join('');
   },
@@ -73,7 +73,7 @@ Object.assign(App, {
     wrap.innerHTML = this._tournamentFormState.matchDates.map(d => {
       const parts = d.split('-');
       const label = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-      return `<span style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${label}<span style="cursor:pointer;margin-left:.1rem" onclick="App.removeMatchDate('${d}')">✕</span></span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${label}<span style="cursor:pointer;margin-left:.1rem" onclick="App.removeMatchDate('${escapeJsAttr(d)}')">✕</span></span>`;
     }).join('');
   },
 

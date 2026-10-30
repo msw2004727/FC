@@ -161,8 +161,8 @@ Object.assign(App, {
           </div>
           <div class="banner-manage-meta">${sp.linkUrl ? escapeHTML(sp.linkUrl) : '未設定連結'}${hasImage ? ' · 點擊 ' + (sp.clicks || 0) + ' 次' : ''}</div>
         </div>
-        <button class="sp-row-save" onclick="App.editSponsorItem('${sp.id}')">編輯</button>
-        ${hasImage ? `<button class="sp-row-del" onclick="App.clearSponsorRow('${sp.id}')" title="清除">✕</button>` : ''}
+        <button class="sp-row-save" onclick="App.editSponsorItem('${escapeJsAttr(sp.id)}')">編輯</button>
+        ${hasImage ? `<button class="sp-row-del" onclick="App.clearSponsorRow('${escapeJsAttr(sp.id)}')" title="清除">✕</button>` : ''}
       </div>`;
     }).join('');
   },

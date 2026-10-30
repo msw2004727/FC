@@ -597,7 +597,7 @@ Object.assign(App, {
       const cIdx = this._tsTeamColorIdx[i] ?? i;
       const c = this._tsDefaultColors[cIdx] || this._tsDefaultColors[0];
       const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 26, inline: true }) || `<span style="font-size:.8rem;font-weight:700">${key}</span>`;
-      return `<div onclick="App._tsCycleColor(${i})" style="cursor:pointer;padding:.1rem" title="點擊換色：${c.name}">${svg}</div>`;
+      return `<div onclick="App._tsCycleColor(${Number(i)})" style="cursor:pointer;padding:.1rem" title="點擊換色：${c.name}">${svg}</div>`;
     }).join('');
   },
 
@@ -838,7 +838,7 @@ Object.assign(App, {
         <div class="ce-social-link-row" data-index="${index}">
           <input type="url" class="ce-social-link-input" value="${escapeHTML(value)}" placeholder="貼上社群網址，例如 https://line.me/...">
           <span class="ce-social-link-preview">${preview}</span>
-          <button type="button" class="ce-social-link-remove" ${removeDisabled} onclick="App._removeEventSocialLinkInput(${index})">移除</button>
+          <button type="button" class="ce-social-link-remove" ${removeDisabled} onclick="App._removeEventSocialLinkInput(${Number(index)})">移除</button>
         </div>`;
     }).join('');
     nodes.list.querySelectorAll('.ce-social-link-input').forEach((input, index) => {

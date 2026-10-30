@@ -3,30 +3,166 @@ const fs = require('fs');
 const path = require('path');
 const { parse } = require('@babel/parser');
 
-// T-084c 結束時移除此範圍限定，改掃全部檔案。
+// 事件繫結強化：已核對檔案保留作交接索引，守門掃描全部 js/。
 const COMPLETED_FILES = [
+  "js/api-service.js",
   "js/config.js",
+  "js/core/navigation.js",
+  "js/core/theme.js",
+  "js/modules/achievement/achievement.js",
+  "js/modules/achievement/admin.js",
+  "js/modules/achievement/badges.js",
+  "js/modules/achievement/stats.js",
+  "js/modules/achievement/titles.js",
+  "js/modules/achievement/view.js",
+  "js/modules/ad-manage/ad-manage-banner.js",
+  "js/modules/ad-manage/ad-manage-core.js",
+  "js/modules/ad-manage/ad-manage-float.js",
+  "js/modules/ad-manage/ad-manage-popup-sponsor.js",
+  "js/modules/ad-manage/banner.js",
+  "js/modules/ad-manage/popup-ad.js",
+  "js/modules/admin-log-tabs.js",
+  "js/modules/admin-seo/seo-dashboard.js",
+  "js/modules/announcement.js",
+  "js/modules/audit-log.js",
+  "js/modules/auto-exp/index.js",
+  "js/modules/color-cat/color-cat-naming.js",
+  "js/modules/dashboard/dashboard-ci-usage.js",
+  "js/modules/dashboard/dashboard-drilldown-attend.js",
+  "js/modules/dashboard/dashboard-drilldown-core.js",
+  "js/modules/dashboard/dashboard-drilldown-ended.js",
+  "js/modules/dashboard/dashboard-drilldown-events.js",
+  "js/modules/dashboard/dashboard-drilldown-open.js",
+  "js/modules/dashboard/dashboard-drilldown-records.js",
+  "js/modules/dashboard/dashboard-drilldown-teams.js",
+  "js/modules/dashboard/dashboard-drilldown-tourns.js",
+  "js/modules/dashboard/dashboard-drilldown-users.js",
+  "js/modules/dashboard/dashboard-info-modal.js",
+  "js/modules/dashboard/dashboard-participant-share.js",
+  "js/modules/dashboard/dashboard-usage.js",
+  "js/modules/dashboard/dashboard.js",
+  "js/modules/dashboard/personal-dashboard.js",
+  "js/modules/data-sync.js",
+  "js/modules/education/edu-calendar-core.js",
+  "js/modules/education/edu-calendar-monthly.js",
+  "js/modules/education/edu-calendar-stamp.js",
+  "js/modules/education/edu-checkin-scan.js",
+  "js/modules/education/edu-checkin.js",
+  "js/modules/education/edu-course-enrollment-render.js",
+  "js/modules/education/edu-course-enrollment.js",
+  "js/modules/education/edu-course-lesson-share.js",
+  "js/modules/education/edu-course-lessons-render.js",
+  "js/modules/education/edu-course-lessons.js",
+  "js/modules/education/edu-course-plan-attendance.js",
+  "js/modules/education/edu-course-plan-form-v2.js",
+  "js/modules/education/edu-course-plan-render.js",
+  "js/modules/education/edu-course-plan.js",
+  "js/modules/education/edu-course-session-form.js",
+  "js/modules/education/edu-course-session.js",
+  "js/modules/education/edu-detail-render.js",
+  "js/modules/education/edu-group-list.js",
+  "js/modules/education/edu-parent-binding.js",
+  "js/modules/education/edu-student-form.js",
+  "js/modules/education/edu-student-list.js",
+  "js/modules/error-log-insights.js",
+  "js/modules/error-log.js",
   "js/modules/event/event-comments.js",
+  "js/modules/event/event-create-delegates.js",
+  "js/modules/event/event-create-external.js",
+  "js/modules/event/event-create-input-history.js",
+  "js/modules/event/event-create-multidate.js",
+  "js/modules/event/event-create-options.js",
+  "js/modules/event/event-create-sport-picker.js",
+  "js/modules/event/event-create-team-picker.js",
+  "js/modules/event/event-create-template.js",
+  "js/modules/event/event-create.js",
+  "js/modules/event/event-detail-companion.js",
   "js/modules/event/event-detail-signup.js",
   "js/modules/event/event-detail.js",
   "js/modules/event/event-host-list.js",
+  "js/modules/event/event-list-calendar-build.js",
+  "js/modules/event/event-list-calendar.js",
+  "js/modules/event/event-list-timeline.js",
+  "js/modules/event/event-list.js",
   "js/modules/event/event-manage-attendance.js",
+  "js/modules/event/event-manage-waitlist.js",
   "js/modules/event/event-manage.js",
+  "js/modules/event/event-map.js",
+  "js/modules/event/event-share-builders.js",
   "js/modules/event/event-team-split.js",
   "js/modules/favorites.js",
+  "js/modules/game-log-viewer.js",
+  "js/modules/game-manage.js",
+  "js/modules/home-dashboard.js",
+  "js/modules/home-next-activity.js",
+  "js/modules/image-cropper.js",
   "js/modules/leaderboard.js",
+  "js/modules/message/message-admin-compose.js",
   "js/modules/message/message-admin-list.js",
+  "js/modules/message/message-notify.js",
   "js/modules/message/message-render.js",
+  "js/modules/message/notif-settings.js",
+  "js/modules/message/pm-audit.js",
+  "js/modules/message/pm-dialog.js",
+  "js/modules/message/pm-listener.js",
+  "js/modules/news.js",
   "js/modules/profile/profile-card.js",
   "js/modules/profile/profile-core.js",
   "js/modules/profile/profile-data-history.js",
   "js/modules/profile/profile-data-render.js",
+  "js/modules/profile/profile-data-stats.js",
+  "js/modules/profile/profile-share.js",
   "js/modules/role.js",
+  "js/modules/scan/scan-family.js",
+  "js/modules/scan/scan-ui.js",
+  "js/modules/shop.js",
+  "js/modules/shot-game/shot-lab-controls.js",
+  "js/modules/site-theme.js",
+  "js/modules/team/team-contact-links.js",
+  "js/modules/team/team-detail-invite.js",
   "js/modules/team/team-detail-render.js",
   "js/modules/team/team-detail-v2-actions.js",
+  "js/modules/team/team-detail-v2-lists.js",
   "js/modules/team/team-detail-v2-panels.js",
+  "js/modules/team/team-detail-v2-render.js",
   "js/modules/team/team-detail.js",
-  "js/modules/team/team-list-render.js"
+  "js/modules/team/team-form-init.js",
+  "js/modules/team/team-form-search.js",
+  "js/modules/team/team-list-render.js",
+  "js/modules/team/team-list.js",
+  "js/modules/team/team-share-builders.js",
+  "js/modules/tournament/tournament-competition.js",
+  "js/modules/tournament/tournament-core.js",
+  "js/modules/tournament/tournament-detail-competition.js",
+  "js/modules/tournament/tournament-detail.js",
+  "js/modules/tournament/tournament-friendly-apply-state.js",
+  "js/modules/tournament/tournament-friendly-detail-view.js",
+  "js/modules/tournament/tournament-friendly-detail.js",
+  "js/modules/tournament/tournament-friendly-notify.js",
+  "js/modules/tournament/tournament-friendly-roster.js",
+  "js/modules/tournament/tournament-friendly-state.js",
+  "js/modules/tournament/tournament-friendly-withdraw.js",
+  "js/modules/tournament/tournament-helpers.js",
+  "js/modules/tournament/tournament-manage-edit.js",
+  "js/modules/tournament/tournament-manage-form.js",
+  "js/modules/tournament/tournament-manage-host-selection.js",
+  "js/modules/tournament/tournament-manage-host.js",
+  "js/modules/tournament/tournament-manage-people.js",
+  "js/modules/tournament/tournament-manage.js",
+  "js/modules/tournament/tournament-match-data.js",
+  "js/modules/tournament/tournament-match-record.js",
+  "js/modules/tournament/tournament-render.js",
+  "js/modules/tournament/tournament-schedule-manage.js",
+  "js/modules/tournament/tournament-share-builders.js",
+  "js/modules/tournament/tournament-share.js",
+  "js/modules/user-admin/permission-audit/permission-audit-render.js",
+  "js/modules/user-admin/user-admin-corrections.js",
+  "js/modules/user-admin/user-admin-event-blocklist.js",
+  "js/modules/user-admin/user-admin-exp.js",
+  "js/modules/user-admin/user-admin-list.js",
+  "js/modules/user-admin/user-admin-roles.js",
+  "js/modules/user-admin/user-admin-uid-health.js",
+  "js/modules/user-admin/user-admin-user-grants.js"
 ];
 const ALLOWLIST = [];
 const ROOT = path.join(__dirname, '../..');
@@ -90,25 +226,26 @@ function collectExpressions(source) {
     if (joined(node) && node.extra?.parenthesized) return [node];
     if (joined(node)) return [...pieces(node.left), ...pieces(node.right)];
     if (node.type === 'StringLiteral') return [node.value];
+    if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+      && node.callee.property.name === 'join' && node.arguments.length === 1
+      && node.arguments[0].type === 'StringLiteral' && node.arguments[0].value === ''
+      && node.callee.object.type === 'ArrayExpression') {
+      return node.callee.object.elements.flatMap(item => item ? pieces(item) : []);
+    }
     if (node.type === 'TemplateLiteral') return node.quasis.flatMap((part, i) => [
       part.value.cooked ?? part.value.raw, ...(node.expressions[i] ? [node.expressions[i]] : []),
     ]);
     return [node];
   }
-  function inspect(node) {
+  function inspectParts(parts, directEvent = false) {
     const values = [];
-    const html = pieces(node).map(part => {
+    const html = parts.map(part => {
       if (typeof part === 'string') return part;
       values.push(part);
       return '\0' + (values.length - 1) + '\0';
     }).join('');
-    const attributes = /\bon\w+\s*=\s*(["'])/gi;
-    let match;
-    while ((match = attributes.exec(html))) {
-      const start = attributes.lastIndex;
-      const end = html.indexOf(match[1], start);
-      const value = html.slice(start, end < 0 ? html.length : end);
-      const positions = expressionPositions(value);
+    function record(value, unquoted = false) {
+      const positions = directEvent || unquoted ? new Map() : expressionPositions(value);
       for (const token of value.matchAll(/\0(\d+)\0/g)) {
         const expression = values[Number(token[1])];
         found.set(expression.start, {
@@ -118,17 +255,56 @@ function collectExpressions(source) {
           line: expression.loc.start.line,
         });
       }
-      attributes.lastIndex = end < 0 ? html.length : end + 1;
     }
+    if (directEvent) { record(html); return; }
+    const attributes = /\bon\w+\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+    for (const match of html.matchAll(attributes)) record(match[1] ?? match[2] ?? match[3], match[3] !== undefined);
+  }
+  function inspect(node) { inspectParts(pieces(node)); }
+  function inspectStatements(statements) {
+    const chunks = new Map();
+    const arrays = new Set();
+    for (const statement of statements) {
+      if (statement.type === 'VariableDeclaration') {
+        for (const entry of statement.declarations) {
+          if (entry.id.type !== 'Identifier' || !entry.init) continue;
+          if (entry.init.type === 'ArrayExpression') {
+            arrays.add(entry.id.name);
+            chunks.set(entry.id.name, entry.init.elements.flatMap(item => item ? pieces(item) : []));
+          } else chunks.set(entry.id.name, pieces(entry.init));
+        }
+      }
+      const node = statement.type === 'ExpressionStatement' ? statement.expression : null;
+      if (node?.type === 'AssignmentExpression') {
+        const key = source.slice(node.left.start, node.left.end);
+        if (node.operator === '=') chunks.set(key, pieces(node.right));
+        else if (node.operator === '+=') chunks.set(key, [...(chunks.get(key) || []), ...pieces(node.right)]);
+      }
+      if (node?.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+        && node.callee.object.type === 'Identifier' && node.callee.property.name === 'push'
+        && arrays.has(node.callee.object.name)) {
+        const key = node.callee.object.name;
+        chunks.set(key, [...chunks.get(key), ...node.arguments.flatMap(pieces)]);
+      }
+    }
+    for (const parts of chunks.values()) inspectParts(parts);
   }
   function walk(node, parent) {
     if (!node || typeof node !== 'object') return;
+    if ((node.type === 'CallExpression' || node.type === 'OptionalCallExpression')
+      && (node.callee.type === 'MemberExpression' || node.callee.type === 'OptionalMemberExpression')
+      && (node.callee.property.name === 'setAttribute' || node.callee.property.value === 'setAttribute')
+      && node.arguments[0]?.type === 'StringLiteral' && /^on\w+$/i.test(node.arguments[0].value)
+      && node.arguments[1]) inspectParts(pieces(node.arguments[1]), true);
+    if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+      && node.callee.property.name === 'join' && node.callee.object.type === 'ArrayExpression') inspect(node);
     if ((joined(node) || node.type === 'TemplateLiteral' || node.type === 'StringLiteral') && !joined(parent || {})) inspect(node);
     for (const [key, value] of Object.entries(node)) {
       if (key === 'loc' || key === 'extra' || key === 'comments' || key.endsWith('Comments')) continue;
       if (Array.isArray(value)) value.forEach(child => walk(child, node));
       else if (value && typeof value.type === 'string') walk(value, node);
     }
+    if (node.type === 'Program' || node.type === 'BlockStatement') inspectStatements(node.body);
   }
   walk(tree);
   return [...found.values()];
@@ -136,12 +312,11 @@ function collectExpressions(source) {
 
 
 describe('事件繫結強化：靜態守門', () => {
-  test('本包檔案使用統一的資料形式', () => {
+  test('全 js 檔案使用統一的資料形式', () => {
     expect(ALLOWLIST).toEqual([]);
     const files = listScripts(path.join(ROOT, 'js'))
-      .map(file => path.relative(ROOT, file).split(path.sep).join('/'))
-      .filter(file => COMPLETED_FILES.includes(file));
-    expect(files.sort()).toEqual([...COMPLETED_FILES].sort());
+      .map(file => path.relative(ROOT, file).split(path.sep).join('/'));
+    expect(files).toEqual(expect.arrayContaining(COMPLETED_FILES));
     const findings = files.flatMap(file => collectExpressions(fs.readFileSync(path.join(ROOT, file), 'utf8'))
       .filter(item => !accepted(item))
       .map(({ line, expression }) => ({ file, line, expression })));
@@ -213,6 +388,25 @@ describe('事件繫結強化：靜態守門', () => {
     expect(collectExpressions(source).filter(item => !accepted(item)).map(item => item.expression)).toEqual([
       'escapeJsAttr(x) + y', 'Number(a).foo', 'Boolean(a) || b',
     ]);
+  });
+
+  test.each([
+    String.raw`let html = '<button onclick="f(\''; html += raw; html += '\')">';`,
+    String.raw`const html = ['<button onclick="f(\'', raw, '\')">'].join('');`,
+    String.raw`const parts = ['<button onclick="f(\'']; parts.push(raw); parts.push('\')">'); const html = parts.join('');`,
+    String.raw`button.setAttribute('onclick', "f('" + raw + "')");`,
+    String.raw`button.setAttribute?.('onclick', "f('" + escapeJsAttr(raw) + "')");`,
+    String.raw`const html = '<button onclick=f(' + Number(raw) + ')>';`,
+  ])('事件繫結強化：組裝形式須可確認 %s', source => {
+    expect(collectExpressions(source).filter(item => !accepted(item))).toHaveLength(1);
+  });
+  test('事件繫結強化：完整組裝與固定設定', () => {
+    const source = String.raw`let html = '<button onclick="f(\''; html += escapeJsAttr(raw); html += '\')">';
+      const joined = ['<button onclick="g(\'', escapeJsAttr(id), '\')">'].join('');
+      button.setAttribute('onclick', 'App.goBack()');`;
+    const expressions = collectExpressions(source);
+    expect(expressions).toHaveLength(2);
+    expect(expressions.filter(item => !accepted(item))).toEqual([]);
   });
 
 });

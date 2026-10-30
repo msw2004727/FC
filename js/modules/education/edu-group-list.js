@@ -49,7 +49,7 @@ Object.assign(App, {
       if (!isStaff || isDetailPanel) return '';
       const unmatched = this.getUnmatchedPendingStudents(teamId);
       if (!unmatched.length) return '';
-      return '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+      return '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + escapeJsAttr(teamId) + '\',\'__unmatched__\')">'
         + '<div class="edu-group-header">'
         + '<span class="edu-group-name">\u5f85\u5be9\u6838\u5b78\u54e1</span>'
         + '<span class="edu-group-pending">' + unmatched.length + ' \u4eba\u5f85\u5206\u914d</span>'
@@ -60,7 +60,7 @@ Object.assign(App, {
 
     if (!Array.isArray(groups) || !groups.length) {
       container.innerHTML = refreshHtml + '<div class="edu-empty-state">\u76ee\u524d\u6c92\u6709\u5206\u7d44'
-        + (isStaff && !readOnly ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + teamId + '\')">\u65b0\u589e\u5206\u7d44</button>' : '')
+        + (isStaff && !readOnly ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + escapeJsAttr(teamId) + '\')">\u65b0\u589e\u5206\u7d44</button>' : '')
         + '</div>' + unmatchedCard();
       return;
     }
@@ -104,8 +104,8 @@ Object.assign(App, {
           : '<span class="edu-grp-staff-right">'
           + '<span class="edu-group-count">' + g.memberCount + ' \u4eba</span>'
           + pendingTag
-          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">\u7de8\u8f2f</button>'
-          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">\u522a\u9664</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">\u7de8\u8f2f</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">\u522a\u9664</button>'
           + '</span>';
       } else {
         rightHtml = '<span class="edu-grp-staff-right"><span class="edu-group-count">' + g.memberCount + ' \u4eba</span></span>';
@@ -113,7 +113,7 @@ Object.assign(App, {
       const altBg = idx % 2 === 0
         ? 'background:rgba(59,130,246,.06)'
         : 'background:rgba(16,185,129,.06)';
-      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">'
+      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">'
         + '<div class="edu-group-header">'
         + '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>'
         + ageRange + genderLabel
@@ -152,13 +152,13 @@ Object.assign(App, {
 
     if (!groups.length) {
       let emptyHtml = '<div class="edu-empty-state">尚未建立分組' +
-        (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + teamId + '\')">建立第一個分組</button>' : '') +
+        (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + escapeJsAttr(teamId) + '\')">建立第一個分組</button>' : '') +
         '</div>';
       // 即使沒有分組，也要顯示虛擬待審核名單（有未匹配 pending 學員時）
       if (isStaff && !isDetailPanel) {
         const unmatched = this.getUnmatchedPendingStudents(teamId);
         if (unmatched.length > 0) {
-          emptyHtml += '<div class="edu-group-card edu-group-card-virtual" style="margin-top:.5rem" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+          emptyHtml += '<div class="edu-group-card edu-group-card-virtual" style="margin-top:.5rem" onclick="App.showEduStudentList(\'' + escapeJsAttr(teamId) + '\',\'__unmatched__\')">'
             + '<div class="edu-group-header">'
             + '<span class="edu-group-name">待審核名單</span>'
             + '<span class="edu-group-pending">' + unmatched.length + ' 人待分配</span>'
@@ -206,8 +206,8 @@ Object.assign(App, {
         rightHtml = '<span class="edu-grp-staff-right">'
           + '<span class="edu-group-count">' + g.memberCount + ' 人</span>'
           + pendingTag
-          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">編輯</button>'
-          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">刪除</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">編輯</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">刪除</button>'
           + '</span>';
       } else {
         rightHtml = '<span class="edu-grp-staff-right"><span class="edu-group-count">' + g.memberCount + ' 人</span></span>';
@@ -217,7 +217,7 @@ Object.assign(App, {
         ? 'background:rgba(59,130,246,.06)'
         : 'background:rgba(16,185,129,.06)';
 
-      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
+      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(g.id) + '\')">' +
         '<div class="edu-group-header">' +
           '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>' +
           ageRange + genderLabel +
@@ -232,7 +232,7 @@ Object.assign(App, {
     if (isStaff && !isDetailPanel) {
       const unmatched = this.getUnmatchedPendingStudents(teamId);
       if (unmatched.length > 0) {
-        container.innerHTML += '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+        container.innerHTML += '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + escapeJsAttr(teamId) + '\',\'__unmatched__\')">'
           + '<div class="edu-group-header">'
           + '<span class="edu-group-name">待審核名單</span>'
           + '<span class="edu-group-pending">' + unmatched.length + ' 人待分配</span>'

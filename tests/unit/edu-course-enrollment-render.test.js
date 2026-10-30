@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-enrollment-render.js'),
@@ -31,6 +32,7 @@ function loadModule(app, elements, globals = {}) {
     window: {},
     localStorage: { getItem: jest.fn(() => null) },
     escapeHTML,
+    escapeJsAttr,
     console,
     Object,
     String,

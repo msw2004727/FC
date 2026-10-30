@@ -382,7 +382,7 @@
     const rows = sportRows(summary);
     const more = `<button class="home-sport-chip home-sport-chip-more" type="button" onclick="App.selectHomeSport('all')" aria-label="查看更多活動分類"><span class="home-sport-chip-more-text">查看更多</span></button>`;
     host.innerHTML = rows.map(item => `
-      <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
+      <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeJsAttr(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
         <span class="home-sport-chip-mark home-sport-chip-mark-${escapeHTML(item.key)}" aria-hidden="true">${sportIcon(item.key)}</span>
         <span class="home-sport-chip-text">
           <span class="home-sport-chip-label">${escapeHTML(item.label)}</span>
@@ -395,7 +395,7 @@
   function statCard({ key, label, count, page }) {
     const countText = numberText(count);
     return `
-      <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')" aria-label="${escapeHTML(label)} ${escapeHTML(countText)}">
+      <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeJsAttr(page)}')" aria-label="${escapeHTML(label)} ${escapeHTML(countText)}">
         <span class="home-stat-label-row">
           <span class="home-stat-label">${escapeHTML(label)}：</span>
         </span>

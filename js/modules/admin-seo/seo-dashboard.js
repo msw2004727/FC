@@ -41,7 +41,7 @@ Object.assign(App, {
   _seoDashboardHTML(s, history) {
     const genAt = s.generatedAt?.toDate ? s.generatedAt.toDate() : (s.generatedAt ? new Date(s.generatedAt) : null);
     const genStr = genAt ? `${genAt.toLocaleString('zh-TW', { hour12: false })}` : '';
-    const info = (type) => `<button class="seo-info-btn" type="button" onclick="App._showSeoInfoPopup?.('${type}')" title="說明" aria-label="說明">?</button>`;
+    const info = (type) => `<button class="seo-info-btn" type="button" onclick="App._showSeoInfoPopup?.('${escapeJsAttr(type)}')" title="說明" aria-label="說明">?</button>`;
 
     return `
       <div class="seo-meta-bar">

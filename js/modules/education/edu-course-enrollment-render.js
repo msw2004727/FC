@@ -146,10 +146,9 @@ Object.assign(App, {
     const sectionBaseId = 'edu-ce-section-' + String(teamId || '').replace(/[^A-Za-z0-9_-]/g, '_')
       + '-' + String(planId || '').replace(/[^A-Za-z0-9_-]/g, '_');
     const sectionId = key => sectionBaseId + '-' + key;
-    const jsArg = value => String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const renderJumpButton = (key, label, count) => {
       const targetId = sectionId(key);
-      return '<button type="button" class="edu-ce-jump-btn edu-ce-jump-btn-' + key + '" data-ce-jump-target="' + escapeHTML(targetId) + '" onclick="event.stopPropagation();App._scrollCourseEnrollmentSection(\'' + jsArg(targetId) + '\')">'
+      return '<button type="button" class="edu-ce-jump-btn edu-ce-jump-btn-' + key + '" data-ce-jump-target="' + escapeHTML(targetId) + '" onclick="event.stopPropagation();App._scrollCourseEnrollmentSection(\'' + escapeJsAttr(targetId) + '\')">'
         + '<span>' + escapeHTML(label) + '</span>'
         + '<strong>' + count + '</strong>'
         + '</button>';
@@ -185,8 +184,8 @@ Object.assign(App, {
           + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '</span>'
           + '</div>'
           + '<div class="edu-ce-card-actions">'
-          + '<button class="edu-approve-btn" onclick="App._approveCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">同意</button>'
-          + '<button class="edu-reject-btn" onclick="App._rejectCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">拒絕</button>'
+          + '<button class="edu-approve-btn" onclick="App._approveCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\',this)">同意</button>'
+          + '<button class="edu-reject-btn" onclick="App._rejectCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\',this)">拒絕</button>'
           + '</div></div>';
       }).join('');
       html += renderSection('pending', '待審核', pending.length, pendingRows, '目前沒有待審核學員');
@@ -267,11 +266,11 @@ Object.assign(App, {
     } else if (e.paidAt) {
       paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
         + '<span class="edu-ce-paid-yes">已繳費 ' + escapeHTML(e.paidAt) + '</span>'
-        + (isStaff ? ' <button type="button" class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">設定</button>' : '')
+        + (isStaff ? ' <button type="button" class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\')">設定</button>' : '')
         + '</span>';
     } else if (isStaff) {
       paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
-        + '<input type="checkbox" onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">'
+        + '<input type="checkbox" onchange="App._toggleEnrollPaid(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\')">'
         + '<span class="edu-ce-paid-no">※繳費打勾</span>'
         + '</label>';
     } else {
@@ -289,14 +288,14 @@ Object.assign(App, {
       + '<path d="M7.25 3.9v16.2M10 8h5.5M10 11.5h5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'
       + '</svg>';
     const removeHtml = isStaff
-      ? '<button type="button" class="edu-ce-remove-approved-btn" title="刪除學員" aria-label="刪除學員" onclick="event.stopPropagation();App._removeApprovedCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">×</button>'
+      ? '<button type="button" class="edu-ce-remove-approved-btn" title="刪除學員" aria-label="刪除學員" onclick="event.stopPropagation();App._removeApprovedCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\',this)">×</button>'
       : '';
     const stats = options.attendanceStatsByStudentId?.[String(e.studentId || '').trim()] || null;
     const statsHtml = stats
       ? '<span class="edu-ce-attendance-stat">簽到 ' + escapeHTML(stats.signed || 0) + '/' + escapeHTML(stats.total || 0) + ' · 出席率 ' + escapeHTML(stats.rate == null ? '--' : stats.rate + '%') + '</span>'
       : '';
     const noteActionsHtml = isStaff ? '<div class="edu-ce-note-actions" onclick="event.stopPropagation()">'
-      + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" title="' + noteActionLabel + '" aria-label="' + noteActionLabel + '" aria-expanded="false" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
+      + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" title="' + noteActionLabel + '" aria-label="' + noteActionLabel + '" aria-expanded="false" onclick="App._toggleEnrollNoteEditor(\'' + escapeJsAttr(notePanelId) + '\',\'' + escapeJsAttr(noteTriggerId) + '\')">'
       + noteIconSvg
       + '</button>'
       + removeHtml
@@ -304,8 +303,8 @@ Object.assign(App, {
     const noteEditorHtml = isStaff ? '<div class="edu-ce-note-editor" id="' + notePanelId + '" style="display:none" onclick="event.stopPropagation()">'
       + '<input class="edu-ce-note-input" id="' + notesId + '" maxlength="30" value="' + escapeHTML(notesValue) + '" data-original="' + escapeHTML(notesValue) + '" placeholder="備註30字內">'
       + '<div class="edu-ce-note-editor-actions">'
-      + '<button type="button" class="primary-btn small" onclick="App._saveEnrollNotes(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',\'' + notesId + '\')">儲存</button>'
-      + '<button type="button" class="outline-btn small" onclick="App._cancelEnrollNotes(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">取消</button>'
+      + '<button type="button" class="primary-btn small" onclick="App._saveEnrollNotes(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(e.id) + '\',\'' + escapeJsAttr(notesId) + '\')">儲存</button>'
+      + '<button type="button" class="outline-btn small" onclick="App._cancelEnrollNotes(\'' + escapeJsAttr(notePanelId) + '\',\'' + escapeJsAttr(noteTriggerId) + '\')">取消</button>'
       + '</div>'
       + '</div>' : '';
     const noteRowHtml = notesValue

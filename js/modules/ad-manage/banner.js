@@ -255,7 +255,7 @@ Object.assign(App, {
       track.innerHTML = banners.map((b, idx) => {
         const safeUrl = App._adUrl(b.linkUrl);
         const clickHandler = safeUrl
-          ? `onclick="App.trackAdClick('banner','${App._adId(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
+          ? `onclick="App.trackAdClick('banner','${escapeJsAttr(App._adId(b.id))}');window.open('${escapeJsAttr(b.linkUrl)}','sporthub_ad')" style="cursor:pointer"`
           : '';
         if (b.image) {
           // 先不設 background-image，等預載+解碼完成後再淡入
@@ -436,7 +436,7 @@ Object.assign(App, {
     }
 
     const html = items.map(a =>
-      `<span class="announce-marquee-item" onclick="App.showAnnDetail('${a.id}')">${escapeHTML(a.title)}：${escapeHTML(a.content)}</span>`
+      `<span class="announce-marquee-item" onclick="App.showAnnDetail('${escapeJsAttr(a.id)}')">${escapeHTML(a.title)}：${escapeHTML(a.content)}</span>`
     ).join('');
     track.innerHTML = `<div class="announce-marquee-inner">${html}${html}</div>`;
     wrap.style.display = '';
@@ -453,7 +453,7 @@ Object.assign(App, {
     container.innerHTML = ads.map(ad => {
       const safeUrl = App._adUrl(ad.linkUrl);
       const clickHandler = safeUrl
-        ? `onclick="App.trackAdClick('float','${App._adId(ad.id)}');window.open('${safeUrl}','sporthub_ad')"`
+        ? `onclick="App.trackAdClick('float','${escapeJsAttr(App._adId(ad.id))}');window.open('${escapeJsAttr(ad.linkUrl)}','sporthub_ad')"`
         : '';
       return `
       <div class="float-ad" title="${escapeHTML(ad.title || '贊助廣告')}" ${clickHandler}>
@@ -490,7 +490,7 @@ Object.assign(App, {
       const safeUrl = App._adUrl(sp.linkUrl);
       const hasLink = !!safeUrl;
       const clickHandler = hasLink
-        ? `onclick="App.trackAdClick('sponsor','${App._adId(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
+        ? `onclick="App.trackAdClick('sponsor','${escapeJsAttr(App._adId(sp.id))}');window.open('${escapeJsAttr(sp.linkUrl)}','sporthub_ad')"`
         : '';
       return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
         <img src="${escapeHTML(sp.image)}" alt="${escapeHTML(sp.title || '')}" width="100" height="100" loading="lazy" decoding="async">

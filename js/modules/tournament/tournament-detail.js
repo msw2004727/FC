@@ -103,12 +103,11 @@ Object.assign(App, {
     }
 
     // Safety: tournament.id is escaped
-    const safeId = escapeHTML(tournament.id);
     const canManageSchedule = ['friendly', 'single', 'cup', 'league'].includes(this._getTournamentMode?.(tournament) || 'friendly');
     toolbar.innerHTML = `
-      ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯</button>` : ''}
-      ${canManage && canManageSchedule ? `<button class="td-schedule-btn" onclick="App.openTournamentScheduleManager('${safeId}')">賽程管理</button>` : ''}
-      ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${safeId}', this)">刪除</button>` : ''}
+      ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${escapeJsAttr(tournament.id)}')">編輯</button>` : ''}
+      ${canManage && canManageSchedule ? `<button class="td-schedule-btn" onclick="App.openTournamentScheduleManager('${escapeJsAttr(tournament.id)}')">賽程管理</button>` : ''}
+      ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${escapeJsAttr(tournament.id)}', this)">刪除</button>` : ''}
     `;
     toolbar.style.display = 'flex';
   },
@@ -202,7 +201,7 @@ Object.assign(App, {
 
     let btnHTML = '';
     if (alreadyRegistered) {
-      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.contactTournamentOrganizer('${t.id}')">${I18N.t('tournament.contactHost')}</button>`;
+      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.contactTournamentOrganizer('${escapeJsAttr(t.id)}')">${I18N.t('tournament.contactHost')}</button>`;
     } else if (hasPendingRequest) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>${I18N.t('tournament.waitingReview')}</button>`;
     } else if ((status === TOURNAMENT_STATUS.REG_CLOSED_ALT || status === TOURNAMENT_STATUS.REG_CLOSED) && isFull) {
@@ -213,7 +212,7 @@ Object.assign(App, {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>${I18N.t('tournament.regFull')}</button>`;
     } else if (status === TOURNAMENT_STATUS.REG_OPEN) {
       if (canRegister) {
-        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.registerTournament('${t.id}')">${I18N.t('tournament.register')}</button>`;
+        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.registerTournament('${escapeJsAttr(t.id)}')">${I18N.t('tournament.register')}</button>`;
       } else {
         btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫俱樂部管理人員進行報名')">${I18N.t('tournament.register')}</button>`;
       }

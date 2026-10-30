@@ -42,15 +42,15 @@ Object.assign(App, {
       // ── Action buttons ──
       let actions = '';
       if (!hasImage) {
-        actions = `<button class="primary-btn" style="font-size:.72rem;padding:.3rem .8rem" onclick="App.showThemeForm('${t.id}')">上傳圖片</button>`;
+        actions = `<button class="primary-btn" style="font-size:.72rem;padding:.3rem .8rem" onclick="App.showThemeForm('${escapeJsAttr(t.id)}')">上傳圖片</button>`;
       } else {
         const toggleBtn = isActive
-          ? `<button class="text-btn" style="font-size:.72rem;color:#f59e0b;border:1px solid #f59e0b;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${t.id}')">下架</button>`
-          : `<button class="text-btn" style="font-size:.72rem;color:#10b981;border:1px solid #10b981;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${t.id}')">上架</button>`;
+          ? `<button class="text-btn" style="font-size:.72rem;color:#f59e0b;border:1px solid #f59e0b;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${escapeJsAttr(t.id)}')">下架</button>`
+          : `<button class="text-btn" style="font-size:.72rem;color:#10b981;border:1px solid #10b981;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${escapeJsAttr(t.id)}')">上架</button>`;
         actions = `
-          <button class="text-btn" style="font-size:.72rem;border:1px solid var(--border);padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.showThemeForm('${t.id}')">更換圖片</button>
+          <button class="text-btn" style="font-size:.72rem;border:1px solid var(--border);padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.showThemeForm('${escapeJsAttr(t.id)}')">更換圖片</button>
           ${toggleBtn}
-          <button class="text-btn" style="font-size:.72rem;color:#ef4444;padding:.25rem .4rem" onclick="App.clearThemeSlot('${t.id}')">清除</button>`;
+          <button class="text-btn" style="font-size:.72rem;color:#ef4444;padding:.25rem .4rem" onclick="App.clearThemeSlot('${escapeJsAttr(t.id)}')">清除</button>`;
       }
 
       return `
@@ -60,7 +60,7 @@ Object.assign(App, {
             <span class="banner-manage-title" style="flex:1">${escapeHTML(t.label)}</span>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
-          <div style="width:100%;height:72px;border-radius:var(--radius-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-main);border:${hasImage ? 'none' : '2px dashed var(--border)'};cursor:${hasImage ? 'default' : 'pointer'}" ${!hasImage ? `onclick="App.showThemeForm('${t.id}')"` : ''}>
+          <div style="width:100%;height:72px;border-radius:var(--radius-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-main);border:${hasImage ? 'none' : '2px dashed var(--border)'};cursor:${hasImage ? 'default' : 'pointer'}" ${!hasImage ? `onclick="App.showThemeForm('${escapeJsAttr(t.id)}')"` : ''}>
             ${preview}
           </div>
           <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">

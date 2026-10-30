@@ -136,7 +136,7 @@ Object.assign(App, {
           <input id="tc-schedule-repeat-count" type="number" min="1" max="20" step="1" inputmode="numeric" value="${escapeHTML(String(repeatDefault))}">
           <small>預設 1 場，可設定 3、4 場後再產生賽程。</small>
         </label>
-        <button type="button" class="primary-btn small tc-schedule-generate-btn" onclick="return App.generateTournamentSchedule('${escapeHTML(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
+        <button type="button" class="primary-btn small tc-schedule-generate-btn" onclick="return App.generateTournamentSchedule('${escapeJsAttr(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
       </div>
       ${this.getTournamentStatus?.(tournament) === TOURNAMENT_STATUS.REG_OPEN ? '<span class="tc-schedule-warn">報名仍開放中，隊伍若有變動需重新產生</span>' : ''}
     `;
@@ -171,7 +171,7 @@ Object.assign(App, {
           <strong>儲存全部</strong>
           <span>${escapeHTML(String(editableCount))} 場設定</span>
         </div>
-        <button type="button" class="primary-btn tc-save-all-btn" onclick="return App.saveAllTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}', this)">儲存</button>
+        <button type="button" class="primary-btn tc-save-all-btn" onclick="return App.saveAllTournamentMatchMeta('${escapeJsAttr(managerState.tournamentId)}', this)">儲存</button>
       </div>` : '';
     list.innerHTML = orderedMatches.map(match => {
       const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
@@ -228,7 +228,7 @@ Object.assign(App, {
             </label>
           </div>
           ${refereeOptions.length ? `<div class="tc-manage-ref-panel"><div class="tc-manage-section-title">裁判指派</div><div class="tc-manage-refs">${refereeChecks}</div></div>` : '<div class="tc-manage-ref-panel"><div class="tc-manage-refs-empty">尚未設定裁判名單</div></div>'}
-          ${['friendly', 'league'].includes(match.stage) && !locked ? `<div class="tc-manage-actions"><button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button></div>` : ''}
+          ${['friendly', 'league'].includes(match.stage) && !locked ? `<div class="tc-manage-actions"><button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeJsAttr(managerState.tournamentId)}','${escapeJsAttr(match.id)}', this)">刪除</button></div>` : ''}
         </div>`;
     }).join('');
   },

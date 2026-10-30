@@ -310,9 +310,9 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = templates.map(t => `
-      <span style="display:inline-flex;align-items:center;gap:.2rem;padding:.2rem .5rem;border-radius:var(--radius-full);background:var(--accent-bg);border:1px solid var(--accent);font-size:.72rem;cursor:pointer;color:var(--accent);font-weight:600" onclick="App._loadEventTemplate('${t.id}')">
+      <span style="display:inline-flex;align-items:center;gap:.2rem;padding:.2rem .5rem;border-radius:var(--radius-full);background:var(--accent-bg);border:1px solid var(--accent);font-size:.72rem;cursor:pointer;color:var(--accent);font-weight:600" onclick="App._loadEventTemplate('${escapeJsAttr(t.id)}')">
         ${escapeHTML(t.name)}
-        <span onclick="event.stopPropagation();App._deleteEventTemplate('${t.id}')" style="cursor:pointer;color:var(--text-muted);font-weight:400;margin-left:.1rem" title="刪除範本">✕</span>
+        <span onclick="event.stopPropagation();App._deleteEventTemplate('${escapeJsAttr(t.id)}')" style="cursor:pointer;color:var(--text-muted);font-weight:400;margin-left:.1rem" title="刪除範本">✕</span>
       </span>
     `).join('');
   },

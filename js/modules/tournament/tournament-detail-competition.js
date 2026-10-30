@@ -383,7 +383,7 @@ Object.assign(App, {
       </div>`;
     const canRecord = options.canRecord === true && !bye;
     const recordBtn = canRecord
-      ? `<button type="button" class="tc-record-btn" onclick="event.stopPropagation();App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">更新賽況</button>`
+      ? `<button type="button" class="tc-record-btn" onclick="event.stopPropagation();App.openTournamentMatchRecordModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')">更新賽況</button>`
       : '';
     const staffPanel = canRecord
       ? `<div class="tc-match-staff-panel">
@@ -393,7 +393,7 @@ Object.assign(App, {
         </div>`
       : '';
     return `
-      <article class="tc-match-row tc-match-card tc-match-${statusClass}${bye ? ' tc-match-bye' : ''}" data-match-id="${escapeHTML(match.id)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}');}">
+      <article class="tc-match-row tc-match-card tc-match-${statusClass}${bye ? ' tc-match-bye' : ''}" data-match-id="${escapeHTML(match.id)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}');}">
         <div class="tc-match-state">
           <span class="tc-match-status tc-match-status-${statusClass}">${statusLabel}</span>
           <span class="tc-match-number">${escapeHTML(matchLabel)}</span>
@@ -495,7 +495,7 @@ Object.assign(App, {
           <strong>職員工作區</strong>
           <span>一般用戶不會看到此區</span>
         </div>
-        <button type="button" class="primary-btn" onclick="App.closeTournamentMatchDetailModal();App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">更新賽況</button>
+        <button type="button" class="primary-btn" onclick="App.closeTournamentMatchDetailModal();App.openTournamentMatchRecordModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')">更新賽況</button>
       </section>` : '';
     return `
       <div class="tc-match-detail-shell">
@@ -592,7 +592,7 @@ Object.assign(App, {
           <b>${escapeHTML(scoreOf(info, side))}</b>
         </div>`;
       };
-      return `<button type="button" class="tc-summary-match tc-summary-match-${statusClass}" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">
+      return `<button type="button" class="tc-summary-match tc-summary-match-${statusClass}" onclick="App.openTournamentMatchDetailModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')">
         <div class="tc-summary-match-head">
           <span>${escapeHTML(roundLabel)}</span>
           <time datetime="${escapeHTML(dateParts.iso || '')}">${escapeHTML(timeLabel)}</time>

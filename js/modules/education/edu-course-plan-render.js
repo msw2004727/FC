@@ -1120,7 +1120,6 @@ Object.assign(App, {
     const currentPlans = listPlans.filter(p => !isPlanEnded(p));
     const endedPlans = listPlans.filter(isPlanEnded);
     const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
-    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '\u672a\u8a2d\u5b9a') + '</strong></span>';
     const getPlanKey = (plan) => String(plan?.id || plan?._docId || '').trim();
     const applyCachedCounts = (plan) => {
@@ -1173,13 +1172,13 @@ Object.assign(App, {
         } else if (planEnded) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>\u8ab2\u7a0b\u5df2\u7d50\u675f</button>';
         } else if (viewerEnrollmentState.pendingCount > 0) {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\',this)">' + viewerEnrollmentState.pendingCount + '\u4f4d\u5b78\u54e1\u5be9\u6838\u4e2d</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',this)">' + viewerEnrollmentState.pendingCount + '\u4f4d\u5b78\u54e1\u5be9\u6838\u4e2d</button>';
         } else if (viewerEnrollmentState.allEnrolled) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>\u5b78\u54e1\u5df2\u5831\u540d</button>';
         } else if (viewerEnrollmentState.isFull) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>\u5df2\u6eff\u54e1</button>';
         } else {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\',this)">\u5831\u540d</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',this)">\u5831\u540d</button>';
         }
       }
       const pendingReviewCount = isStaff ? Number(p._enrollmentSummary?.pendingReviewCount || 0) : 0;
@@ -1194,17 +1193,17 @@ Object.assign(App, {
           + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" disabled>\u522a\u9664</button>'
           + '</div>'
           : '<div class="edu-cp-manage-left">'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u540d\u55ae' + pendingReviewBadge + '</button>'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u7de8\u8f2f</button>'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u522a\u9664</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">\u540d\u55ae' + pendingReviewBadge + '</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">\u7de8\u8f2f</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">\u522a\u9664</button>'
           + '</div>')
         : '';
       const detailBtn = readOnly
         ? '<button class="outline-btn edu-cp-detail-btn" disabled>\u8a73\u7d30\u8cc7\u6599</button>'
-        : '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u8a73\u7d30\u8cc7\u6599</button>';
+        : '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">\u8a73\u7d30\u8cc7\u6599</button>';
       const lessonsBtn = readOnly
         ? '<button class="outline-btn edu-cp-lessons-btn" disabled>\u8ab2\u5802\u5217\u8868</button>'
-        : '<button class="outline-btn edu-cp-lessons-btn" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(planId) + '\')">\u8ab2\u5802\u5217\u8868</button>';
+        : '<button class="outline-btn edu-cp-lessons-btn" onclick="event.stopPropagation();App.showCourseLessons(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">\u8ab2\u5802\u5217\u8868</button>';
       return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + '" data-course-plan-id="' + escapeHTML(planId) + '">'
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'
@@ -1227,8 +1226,8 @@ Object.assign(App, {
       { type: 'session', title: '\u55ae\u6b21\u8ab2\u7a0b', hint: '\u6309\u5834\u6b21\u5b89\u6392', plans: displayPlans.filter(p => p.planType !== 'weekly') },
     ].filter(group => group.plans.length);
     const tabHtml = '<div class="edu-cp-view-tabs">'
-      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
-      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + escapeJsAttr(teamId) + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + escapeJsAttr(teamId) + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
       + '</div>';
     const emptyText = selectedTab === 'ended' ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u8ab2\u7a0b' : '\u76ee\u524d\u6c92\u6709\u9032\u884c\u4e2d\u8ab2\u7a0b';
     const listHtml = groupedPlans.length
@@ -1411,7 +1410,6 @@ Object.assign(App, {
       return this._formatCoursePlanPriceLabel?.(value, { prefix: 'NT$ ', emptyText: '' }) || '';
     };
     const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></span>';
-    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const getPendingReviewCount = (p) => {
       const summaryCount = Number(p?._enrollmentSummary?.pendingReviewCount);
       if (Number.isFinite(summaryCount) && summaryCount >= 0) return Math.trunc(summaryCount);
@@ -1446,7 +1444,7 @@ Object.assign(App, {
       const lessonRegisterBtn = canRegisterNextLesson
         ? (nextLessonRegistered
           ? '<button type="button" class="edu-cp-next-lesson-register-btn is-registered" disabled aria-disabled="true">已報名</button>'
-          : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(planKey) + '\',\'' + jsArg(nextLessonSessionId) + '\',this)"><span>點擊報名</span></button>')
+          : '<button type="button" class="edu-cp-next-lesson-register-btn" onclick="event.stopPropagation();return App.showCoursePlanNextLessonRegisterDialog(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planKey) + '\',\'' + escapeJsAttr(nextLessonSessionId) + '\',this)"><span>點擊報名</span></button>')
         : '';
       const nextLessonActionHtml = nextLessonBadge || lessonRegisterBtn
         ? '<div class="edu-cp-next-lesson-action' + (lessonRegisterBtn ? ' edu-cp-next-lesson-action-with-button' : '') + '">' + nextLessonBadge + lessonRegisterBtn + '</div>'
@@ -1485,13 +1483,13 @@ Object.assign(App, {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
         } else {
         if (viewerEnrollmentState.pendingCount > 0) {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
         } else if (viewerEnrollmentState.allEnrolled) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>學員皆已報名</button>';
         } else if (viewerEnrollmentState.isFull) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
         } else {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">我要報名</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',this)">我要報名</button>';
         }
         } // end else (not ended)
       }
@@ -1506,25 +1504,25 @@ Object.assign(App, {
       const manageListLabel = pendingReviewCount > 0 ? '名單，' + pendingReviewCount + ' 筆待審核' : '名單';
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" aria-label="' + escapeHTML(manageListLabel) + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單' + pendingReviewBadge + '</button>'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">編輯</button>'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">刪除</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" aria-label="' + escapeHTML(manageListLabel) + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\')">名單' + pendingReviewBadge + '</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\')">編輯</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\')">刪除</button>'
           + '<span class="edu-cp-manage-sort">'
-          + (idx > 0 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',-1)" title="向上">▲</button>' : '')
-          + (idx < displayPlans.length - 1 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',1)" title="向下">▼</button>' : '')
-          + '<button type="button" class="edu-cp-manage-icon-btn edu-cp-pin-btn' + (p.pinned ? ' edu-cp-pin-active' : '') + '" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
+          + (idx > 0 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',-1)" title="向上">▲</button>' : '')
+          + (idx < displayPlans.length - 1 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',1)" title="向下">▼</button>' : '')
+          + '<button type="button" class="edu-cp-manage-icon-btn edu-cp-pin-btn' + (p.pinned ? ' edu-cp-pin-active' : '') + '" onclick="event.stopPropagation();App._moveCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
           + '</span>'
           + '</div>'
         : '';
 
       const shareHtml = !isHidden
-        ? '<button type="button" class="edu-cp-share-btn" aria-label="分享課程 ' + escapeHTML(p.name || '') + '" title="分享課程" onclick="event.stopPropagation();App.shareEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',{courseTab:\'' + selectedTab + '\'})">' + this._buildEduCoursePlanShareSvg() + '</button>'
+        ? '<button type="button" class="edu-cp-share-btn" aria-label="分享課程 ' + escapeHTML(p.name || '') + '" title="分享課程" onclick="event.stopPropagation();App.shareEduCoursePlan(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\',{courseTab:\'' + escapeJsAttr(selectedTab) + '\'})">' + this._buildEduCoursePlanShareSvg() + '</button>'
         : '';
-      const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
+      const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\')">詳細資訊</button>';
       const lessonsBtnClass = 'outline-btn edu-cp-lessons-btn' + (hasApprovedEnrollment ? ' edu-cp-lessons-btn-enrolled' : '');
       const lessonsBtnLabel = hasApprovedEnrollment ? '課堂列表（已報名）' : '課堂列表';
       const lessonsBtnCheck = hasApprovedEnrollment ? '<span class="edu-cp-lessons-check" aria-hidden="true">✓</span>' : '';
-      const lessonsBtn = '<button class="' + lessonsBtnClass + '" aria-label="' + lessonsBtnLabel + '" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">課堂列表' + lessonsBtnCheck + '</button>';
+      const lessonsBtn = '<button class="' + lessonsBtnClass + '" aria-label="' + lessonsBtnLabel + '" onclick="event.stopPropagation();App.showCourseLessons(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(p.id) + '\')">課堂列表' + lessonsBtnCheck + '</button>';
 
       return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + (hasApprovedEnrollment ? ' edu-cp-card-enrolled' : '') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
         + coverHtml
@@ -1561,8 +1559,8 @@ Object.assign(App, {
       ].filter(group => group.plans.length);
 
     const tabHtml = '<div class="edu-cp-view-tabs">'
-      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
-      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + escapeJsAttr(teamId) + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + escapeJsAttr(teamId) + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
       + '</div>';
     const emptyText = selectedTab === 'ended' ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u8ab2\u7a0b' : '\u76ee\u524d\u6c92\u6709\u9032\u884c\u4e2d\u8ab2\u7a0b';
     const listHtml = groupedPlans.length
@@ -1743,7 +1741,6 @@ Object.assign(App, {
       }
       if (this._eduCoursePlanDetailRequestKey !== requestKey) return;
     }
-    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const detailToday = this._todayStr?.() || (() => {
       const d = new Date();
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -1994,13 +1991,13 @@ Object.assign(App, {
       if (this._isCoursePlanEnded?.(plan)) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
       } else if (viewerEnrollmentState.pendingCount > 0) {
-        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(plan.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
       } else if (viewerEnrollmentState.allEnrolled) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>學員皆已報名</button>';
       } else if (viewerEnrollmentState.isFull) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
       } else {
-        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">我要報名</button>';
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(plan.id) + '\',this)">我要報名</button>';
       }
     }
     const footerActionsBlock = signupActionHtml

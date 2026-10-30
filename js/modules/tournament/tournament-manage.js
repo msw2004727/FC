@@ -174,14 +174,14 @@ Object.assign(App, {
           </div>
           <div style="width:100%;display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem">
             ${isEnded ? `
-              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開啟</button>` : ''}
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}', this)">刪除賽事</button>` : ''}
+              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${escapeJsAttr(t.id)}')">查看詳情</button>
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${escapeJsAttr(t.id)}')">重新開啟</button>` : ''}
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${escapeJsAttr(t.id)}', this)">刪除賽事</button>` : ''}
             ` : `
-              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
-              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
-              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}', this)">刪除賽事</button>` : ''}
+              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeJsAttr(t.id)}')">編輯賽事</button>` : ''}
+              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${escapeJsAttr(t.id)}')">查看詳情</button>
+              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleEndTournament('${escapeJsAttr(t.id)}')">結束賽事</button>` : ''}
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${escapeJsAttr(t.id)}', this)">刪除賽事</button>` : ''}
             `}
           </div>
         </div>`;
@@ -296,7 +296,7 @@ Object.assign(App, {
       return;
     }
     sug.innerHTML = matches.map(r =>
-      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTournamentRegion('${escapeHTML(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
+      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTournamentRegion('${escapeJsAttr(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
     ).join('');
     sug.classList.add('show');
   },

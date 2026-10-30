@@ -469,7 +469,7 @@ Object.assign(App, {
     }
     container.innerHTML = results.map(item => {
       const role = item.roleLabel ? '<span class="tus-uid">' + escapeHTML(item.roleLabel) + '</span>' : '';
-      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCourseSessionStaff(\'' + kind + '\',\'' + encodeURIComponent(item.key) + '\')">'
+      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCourseSessionStaff(\'' + escapeJsAttr(kind) + '\',\'' + escapeJsAttr(encodeURIComponent(item.key)) + '\')">'
         + '<span class="tus-name">' + escapeHTML(item.name) + '</span>'
         + role
         + '</div>';
@@ -601,7 +601,7 @@ Object.assign(App, {
     container.innerHTML = list.map(item => '<span class="team-tag edu-session-assistant-tag" data-no-translate>'
       + escapeHTML(item.name)
       + '<small>' + escapeHTML(item.roleLabel || '助理教練') + '</small>'
-      + '<span class="team-tag-x" onclick="App.removeCourseSessionAssistantCoach(\'' + encodeURIComponent(item.key) + '\')">×</span>'
+      + '<span class="team-tag-x" onclick="App.removeCourseSessionAssistantCoach(\'' + escapeJsAttr(encodeURIComponent(item.key)) + '\')">×</span>'
       + '</span>').join('');
   },
 
@@ -673,11 +673,11 @@ Object.assign(App, {
     const meta = this._getCourseSessionStudentProfileMeta(student, name);
     const displayName = meta.displayName || '未命名學員';
     const className = this._getCourseSessionMemberPillClass(student, displayName, options);
-    const profileNameArg = escapeHTML(JSON.stringify(displayName));
-    const profileUidArg = meta.uid ? ',{uid:' + escapeHTML(JSON.stringify(meta.uid)) + '}' : '';
     const clickAttr = options.link === false
       ? ''
-      : " onclick='event.stopPropagation();App.showUserProfile(" + profileNameArg + profileUidArg + ")'";
+      : meta.uid
+        ? ` onclick='event.stopPropagation();App.showUserProfile(${escapeHTML(JSON.stringify(displayName))},{uid:${escapeHTML(JSON.stringify(meta.uid))}})'`
+        : ` onclick='event.stopPropagation();App.showUserProfile(${escapeHTML(JSON.stringify(displayName))})'`;
     return '<span class="' + escapeHTML(className) + '" data-no-translate' + clickAttr + ' title="' + escapeHTML(displayName) + '">' + escapeHTML(displayName) + '</span>';
   },
 
@@ -940,7 +940,7 @@ Object.assign(App, {
     const enrollId = String(enrollment?.id || '').trim();
     const text = note || '—';
     const editBtn = options.isStaff
-      ? '<button type="button" class="edu-session-note-edit" aria-label="編輯備註" title="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeHTML(options.teamId || '') + '\',\'' + escapeHTML(options.planId || '') + '\',\'' + escapeHTML(studentId) + '\',\'' + escapeHTML(enrollId) + '\')"></button>'
+      ? '<button type="button" class="edu-session-note-edit" aria-label="編輯備註" title="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeJsAttr(options.teamId || '') + '\',\'' + escapeJsAttr(options.planId || '') + '\',\'' + escapeJsAttr(studentId) + '\',\'' + escapeJsAttr(enrollId) + '\')"></button>'
       : '';
     if (options.inline) {
       if (!note && !editBtn) return '';
@@ -1160,7 +1160,7 @@ Object.assign(App, {
           + '<h3>' + escapeHTML(plan?.name || '課程方案') + '</h3>'
           + '<p>' + escapeHTML((plan?.startDate || '未設定期間') + (plan?.endDate ? ' - ' + plan.endDate : '')) + '</p>'
           + '<div class="edu-session-hero-actions">'
-            + (isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + teamId + '\',\'' + planId + '\')">＋ 新增課堂</button>' : '')
+            + (isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\')">＋ 新增課堂</button>' : '')
             + '<button class="outline-btn small" onclick="App.showEduCheckin(App._ceTeamId, App._cePlanId)">簽到</button>'
             + '<button class="outline-btn small" onclick="App._showCourseAttendanceInfo(App._ceTeamId, App._cePlanId)">出席統計</button>'
           + '</div>'
@@ -1229,7 +1229,7 @@ Object.assign(App, {
           + '<p>' + escapeHTML(plan?.name || '課程方案') + '</p>'
         + '</div>'
         + '<div class="edu-session-detail-actions">'
-          + (isStaff ? '<button type="button" class="edu-session-icon-btn edu-session-detail-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();var overlay=this.closest(\'.edu-info-overlay\');if(overlay)overlay.remove();App.openCourseSessionForm(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(planId) + '\',\'' + escapeHTML(session.id || '') + '\')"></button>' : '')
+          + (isStaff ? '<button type="button" class="edu-session-icon-btn edu-session-detail-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();var overlay=this.closest(\'.edu-info-overlay\');if(overlay)overlay.remove();App.openCourseSessionForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(session.id || '') + '\')"></button>' : '')
           + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
         + '</div>'
       + '</div>'
@@ -1265,11 +1265,11 @@ Object.assign(App, {
     const sessionDateTime = this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session);
     const actions = ctx.isStaff
       ? '<div class="edu-session-card-actions">'
-          + '<button class="outline-btn small edu-session-card-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();App.openCourseSessionForm(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">編輯</button>'
-          + '<button class="outline-btn small danger edu-session-card-delete" aria-label="刪除課堂" title="刪除課堂" onclick="event.stopPropagation();App.deleteCourseSession(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">刪除</button>'
+          + '<button class="outline-btn small edu-session-card-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();App.openCourseSessionForm(\'' + escapeJsAttr(ctx.teamId) + '\',\'' + escapeJsAttr(ctx.planId) + '\',\'' + escapeJsAttr(session.id) + '\')">編輯</button>'
+          + '<button class="outline-btn small danger edu-session-card-delete" aria-label="刪除課堂" title="刪除課堂" onclick="event.stopPropagation();App.deleteCourseSession(\'' + escapeJsAttr(ctx.teamId) + '\',\'' + escapeJsAttr(ctx.planId) + '\',\'' + escapeJsAttr(session.id) + '\')">刪除</button>'
         + '</div>'
       : '';
-    return '<article class="edu-session-card edu-session-card-' + status.cls + '" role="button" tabindex="0" onclick="App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')}">'
+    return '<article class="edu-session-card edu-session-card-' + status.cls + '" role="button" tabindex="0" onclick="App.openCourseSessionDetail(\'' + escapeJsAttr(ctx.teamId) + '\',\'' + escapeJsAttr(ctx.planId) + '\',\'' + escapeJsAttr(session.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.openCourseSessionDetail(\'' + escapeJsAttr(ctx.teamId) + '\',\'' + escapeJsAttr(ctx.planId) + '\',\'' + escapeJsAttr(session.id) + '\')}">'
       + '<div class="edu-session-card-main">'
         + '<div class="edu-session-card-head">'
           + '<span class="edu-session-number">第 ' + ctx.index + ' 堂</span>'

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { JSDOM } = require('jsdom');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 describe('activity timeline effective status label', () => {
   function loadTimelineModule(app, dom) {
@@ -26,6 +27,7 @@ describe('activity timeline effective status label', () => {
       cancelled: { label: '已取消', css: 'cancelled' },
     };
     context.DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+    context.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
     context.escapeHTML = (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

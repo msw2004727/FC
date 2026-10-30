@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { JSDOM } = require('jsdom');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/home-next-activity.js'),
@@ -65,6 +66,7 @@ function runModule(options = {}) {
       ensureGroup: jest.fn().mockResolvedValue(undefined),
     },
     escapeHTML: value => String(value ?? ''),
+    escapeJsAttr,
   });
   vm.runInContext(options.source || source, context, { filename: 'js/modules/home-next-activity.js' });
   return { app, dom, context };

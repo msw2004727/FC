@@ -162,7 +162,7 @@ Object.assign(App, {
       return;
     }
     sug.innerHTML = matches.map(r =>
-      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTeamRegion('${escapeHTML(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
+      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTeamRegion('${escapeJsAttr(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
     ).join('');
     sug.classList.add('show');
   },

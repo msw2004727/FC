@@ -205,7 +205,7 @@ Object.assign(App, {
 
         const isManualAward = normalizeString(achievement.condition?.action) === 'manual_award';
         const awardBtn = isManualAward && !isArchived
-          ? `<button class="text-btn" style="font-size:.72rem;color:var(--accent)" onclick="App.openManualAwardPanel('${achievement.id}')">授予</button>`
+          ? `<button class="text-btn" style="font-size:.72rem;color:var(--accent)" onclick="App.openManualAwardPanel('${escapeJsAttr(achievement.id)}')">授予</button>`
           : '';
 
         return `
@@ -226,10 +226,10 @@ Object.assign(App, {
         </div>
         <div class="admin-ach-actions">
           ${awardBtn}
-          <button class="text-btn" style="font-size:.72rem;color:${lockColor};display:inline-flex;align-items:center;gap:.2rem" title="${lockTitle}" onclick="App.toggleAchievementLock('${achievement.id}')">${lockIcon}</button>
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${achievement.id}')">編輯</button>
-          <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${achievement.id}')">${isArchived ? '上架' : '下架'}</button>
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${achievement.id}')">刪除</button>
+          <button class="text-btn" style="font-size:.72rem;color:${lockColor};display:inline-flex;align-items:center;gap:.2rem" title="${lockTitle}" onclick="App.toggleAchievementLock('${escapeJsAttr(achievement.id)}')">${lockIcon}</button>
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${escapeJsAttr(achievement.id)}')">編輯</button>
+          <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${escapeJsAttr(achievement.id)}')">${isArchived ? '上架' : '下架'}</button>
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${escapeJsAttr(achievement.id)}')">刪除</button>
         </div>
       </div>`;
       }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';

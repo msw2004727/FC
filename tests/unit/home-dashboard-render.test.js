@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const { JSDOM } = require("jsdom");
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const source = fs.readFileSync(
   path.join(__dirname, "../../js/modules/home-dashboard.js"),
@@ -88,6 +89,7 @@ function runHomeDashboardModule(options = {}) {
       { key: "basketball", label: "籃球" },
     ],
     escapeHTML: value => String(value ?? ""),
+    escapeJsAttr,
     getSportIconSvg: key => `<span>${key}</span>`,
     getSportKeySafe: key => key,
     getSportLabelByKey: key => key,

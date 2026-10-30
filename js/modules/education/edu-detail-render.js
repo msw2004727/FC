@@ -304,7 +304,6 @@ Object.assign(App, {
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const inlineTeamDetailV2 = !!container.closest?.('.td-v2-edu-card');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
-    const jsTeamId = escapeHTML(String(teamId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const buttonTeamId = String(teamId || '').replace(/[^a-zA-Z0-9_-]/g, '-');
 
     if (tab === 'course') {
@@ -321,7 +320,7 @@ Object.assign(App, {
       const courseAddButtonId = 'edu-course-plan-add-' + buttonTeamId;
       const courseAddButton = isStaff
         ? '<button id="' + courseAddButtonId + '" class="primary-btn small" '
-          + (hasCoursePlanCache ? 'disabled' : 'onclick="App.showEduCoursePlanForm(\'' + jsTeamId + '\')"')
+          + (hasCoursePlanCache ? 'disabled' : 'onclick="App.showEduCoursePlanForm(\'' + escapeJsAttr(teamId) + '\')"')
           + '>' + (hasCoursePlanCache ? '\u66f4\u65b0\u4e2d' : '\u65b0\u589e') + '</button>'
         : '';
       container.innerHTML = '<div class="' + panelClass + '">'
@@ -343,7 +342,7 @@ Object.assign(App, {
               btn.disabled = failed;
               btn.textContent = failed ? '\u66f4\u65b0\u5931\u6557' : '\u65b0\u589e';
               if (failed) btn.removeAttribute?.('onclick');
-              else btn.setAttribute?.('onclick', "App.showEduCoursePlanForm('" + jsTeamId + "')");
+              else btn.onclick = () => App.showEduCoursePlanForm(teamId);
             }
             return result;
           });
@@ -355,7 +354,7 @@ Object.assign(App, {
       const groupAddButtonId = 'edu-group-add-' + buttonTeamId;
       const groupAddButton = isStaff
         ? '<button id="' + groupAddButtonId + '" class="primary-btn small" '
-          + (hasGroupCache ? 'disabled' : 'onclick="App.showEduGroupForm(\'' + jsTeamId + '\')"')
+          + (hasGroupCache ? 'disabled' : 'onclick="App.showEduGroupForm(\'' + escapeJsAttr(teamId) + '\')"')
           + '>' + (hasGroupCache ? '\u66f4\u65b0\u4e2d' : '\u65b0\u589e') + '</button>'
         : '';
       container.innerHTML = '<div class="' + panelClass + '">'
@@ -374,7 +373,7 @@ Object.assign(App, {
             btn.disabled = failed;
             btn.textContent = failed ? '\u66f4\u65b0\u5931\u6557' : '\u65b0\u589e';
             if (failed) btn.removeAttribute?.('onclick');
-            else btn.setAttribute?.('onclick', "App.showEduGroupForm('" + jsTeamId + "')");
+            else btn.onclick = () => App.showEduGroupForm(teamId);
           }
           return result;
         });
@@ -475,7 +474,7 @@ Object.assign(App, {
     if (myStudents.length === 0) {
       container.innerHTML = '<div class="' + panelClass + '" style="padding:.6rem .8rem">'
         + refreshHtml
-        + (readOnly ? '<div class="edu-empty-state">學員資料暫時以上次資料顯示</div>' : '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（本人/代理）</button>')
+        + (readOnly ? '<div class="edu-empty-state">學員資料暫時以上次資料顯示</div>' : '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + escapeJsAttr(teamId) + '\')">申請加入（本人/代理）</button>')
         + '</div>';
       return;
     }
@@ -546,10 +545,10 @@ Object.assign(App, {
       if (readOnly) {
         actionBtns = '';
       } else if (!isPending) {
-        actionBtns = '<button class="outline-btn small edu-attendance-btn" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
-          + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
+        actionBtns = '<button class="outline-btn small edu-attendance-btn" onclick="App.showEduCalendar(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\')">出席紀錄</button>'
+          + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
       } else {
-        actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduCancelApply(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
+        actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduCancelApply(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
       }
       const actionWrapClass = isPending ? 'edu-header-actions' : 'edu-header-actions edu-member-inline-actions';
 
@@ -571,7 +570,7 @@ Object.assign(App, {
     // 追加學員按鈕（有任一 active 或 pending 時顯示）
     if (!readOnly && (hasActive || hasPending)) {
       html += '<div style="margin-top:.5rem">'
-        + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + teamId + '\')">追加學員</button>'
+        + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + escapeJsAttr(teamId) + '\')">追加學員</button>'
         + '</div>';
       if (!hasActive && hasPending) {
         html += '<div style="margin-top:.4rem;font-size:.78rem;color:var(--text-muted)">申請審核中，請等待教練審核</div>';
@@ -666,10 +665,6 @@ Object.assign(App, {
       + '<em>' + escapeHTML(nextClass.dateLabel || '未排定') + '</em>'
       + (meta ? '<small>' + escapeHTML(meta) + '</small>' : '')
       + '</div>';
-  },
-
-  _escapeEduInlineArg(value) {
-    return escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
   },
 
   _getEduStudentDisplayName(student) {
@@ -770,7 +765,7 @@ Object.assign(App, {
       || (this._eduDetailTeamId && this._eduDetailTeamId !== teamId)) return;
     this._eduUnpaidSummaryByTeam[teamId] = summary;
     if (summary.total > 0) {
-      statusEl.innerHTML = '<button type="button" class="edu-unpaid-tag" onclick="App.showEduUnpaidSummaryModal(\'' + this._escapeEduInlineArg(teamId) + '\')" aria-label="您尚有 ' + summary.total + ' 筆未繳費，點擊查看明細"><span>您尚有 <strong>' + summary.total + '</strong> 筆未繳費</span></button>';
+      statusEl.innerHTML = '<button type="button" class="edu-unpaid-tag" onclick="App.showEduUnpaidSummaryModal(\'' + escapeJsAttr(teamId) + '\')" aria-label="您尚有 ' + summary.total + ' 筆未繳費，點擊查看明細"><span>您尚有 <strong>' + summary.total + '</strong> 筆未繳費</span></button>';
       statusEl.style.display = 'flex';
     } else {
       statusEl.style.display = 'none';

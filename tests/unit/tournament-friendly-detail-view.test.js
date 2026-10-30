@@ -1,6 +1,7 @@
 describe('friendly tournament teams tab actions', () => {
   beforeEach(() => {
     jest.resetModules();
+    global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
     global.escapeHTML = value => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -24,6 +25,7 @@ describe('friendly tournament teams tab actions', () => {
     delete global.App;
     delete global.ApiService;
     delete global.escapeHTML;
+    delete global.escapeJsAttr;
     delete global.document;
     delete global.TOURNAMENT_STATUS;
     delete global.FirebaseService;
@@ -1563,6 +1565,7 @@ describe('friendly tournament teams tab actions', () => {
 describe('friendly tournament schedule tab rendering', () => {
   beforeEach(() => {
     jest.resetModules();
+    global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
     global.escapeHTML = value => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

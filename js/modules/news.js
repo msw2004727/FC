@@ -62,7 +62,7 @@ Object.assign(App, {
     if (typeof EVENT_SPORT_OPTIONS !== 'undefined') {
       EVENT_SPORT_OPTIONS.forEach(function(opt) {
         const isActive = activeTag === opt.key ? ' active' : '';
-        html += '<button class="news-tab' + isActive + '" data-tag="' + escapeHTML(opt.key) + '" onclick="App._handleNewsTabClick(\'' + escapeHTML(opt.key) + '\')">' + escapeHTML(opt.label) + '</button>';
+        html += '<button class="news-tab' + isActive + '" data-tag="' + escapeHTML(opt.key) + '" onclick="App._handleNewsTabClick(\'' + escapeJsAttr(opt.key) + '\')">' + escapeHTML(opt.label) + '</button>';
       });
     }
 
@@ -113,7 +113,6 @@ Object.assign(App, {
       const safeSource = escapeHTML(article.source || '');
       const sportTag = article.sportTag || 'general';
       const sportLabel = sportLabels[sportTag] || '';
-      const safeUrl = escapeHTML(article.url || '');
 
       // Time formatting
       let timeStr = '';
@@ -138,7 +137,7 @@ Object.assign(App, {
       const imgUrl = article.imageUrl || '';
       const sportEmoji = (typeof SPORT_ICON_EMOJI !== 'undefined' && SPORT_ICON_EMOJI[sportTag]) || '';
       const thumbHtml = imgUrl
-        ? '<img class="news-card-thumb" src="' + escapeHTML(imgUrl) + '" alt="" loading="lazy" decoding="async" onerror="this.outerHTML=\'<div class=\\\'news-card-thumb-placeholder\\\'>' + (sportEmoji || '') + '</div>\'">'
+        ? '<img class="news-card-thumb" src="' + escapeHTML(imgUrl) + '" alt="" loading="lazy" decoding="async" onerror="this.outerHTML=\'<div class=\\\'news-card-thumb-placeholder\\\'>' + (escapeJsAttr(sportEmoji || '')) + '</div>\'">'
         : '<div class="news-card-thumb-placeholder">' + (sportEmoji || '') + '</div>';
 
       // Sport tag badge
@@ -146,7 +145,7 @@ Object.assign(App, {
         ? '<span class="news-card-sport-tag">' + escapeHTML(sportLabel) + '</span>'
         : '';
 
-      return '<div class="news-card" onclick="App._openNewsUrl(\'' + safeUrl + '\')">'
+      return '<div class="news-card" onclick="App._openNewsUrl(\'' + escapeJsAttr(article.url || '') + '\')">'
         + thumbHtml
         + '<div class="news-card-body">'
         + '<div class="news-card-title">' + safeTitle + '</div>'

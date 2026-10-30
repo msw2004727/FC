@@ -22,7 +22,7 @@ Object.assign(App, {
           ? `<img src="${s.images[0]}" style="width:100%;height:100%;object-fit:cover">`
           : `<div class="shop-img-placeholder">商品圖 150 × 150</div>`;
         return `
-        <div class="shop-card" onclick="App.showShopDetail('${s.id}')">
+        <div class="shop-card" onclick="App.showShopDetail('${escapeJsAttr(s.id)}')">
           <div class="shop-img-wrap">${imgHtml}</div>
           <div class="shop-body">
             <div class="shop-name">${escapeHTML(s.name)}</div>
@@ -136,13 +136,13 @@ Object.assign(App, {
             </div>
             <div class="sm-meta">${escapeHTML(s.condition)} ・ ${escapeHTML(s.size)} ・ <strong style="color:var(--accent)">NT$${s.price.toLocaleString()}</strong></div>
             <div style="display:flex;gap:.3rem;margin-top:.3rem">
-              <button class="primary-btn small" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.editShopItem('${s.id}')">編輯</button>
-              <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showShopDetail('${s.id}')">查看</button>
+              <button class="primary-btn small" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.editShopItem('${escapeJsAttr(s.id)}')">編輯</button>
+              <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showShopDetail('${escapeJsAttr(s.id)}')">查看</button>
               ${isDelisted
-                ? `<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--success)" onclick="App.relistShopItem('${s.id}')">重新上架</button>`
-                : `<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.delistShopItem('${s.id}')">下架</button>`
+                ? `<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--success)" onclick="App.relistShopItem('${escapeJsAttr(s.id)}')">重新上架</button>`
+                : `<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.delistShopItem('${escapeJsAttr(s.id)}')">下架</button>`
               }
-              <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.removeShopItem('${s.id}')">刪除</button>
+              <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.removeShopItem('${escapeJsAttr(s.id)}')">刪除</button>
             </div>
           </div>
         </div>`;

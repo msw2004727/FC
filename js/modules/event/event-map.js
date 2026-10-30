@@ -102,7 +102,7 @@ Object.assign(App, {
     const current = this._getActivityMapSelectedRadiusKm();
     return this._getActivityMapRadiusOptions().map(radius => {
       const active = radius === current;
-      return `<button class="activity-map-radius-btn${active ? ' active' : ''}" type="button" aria-pressed="${active ? 'true' : 'false'}" onclick="App.setActivityMapRadius(${radius})">${radius}km</button>`;
+      return `<button class="activity-map-radius-btn${active ? ' active' : ''}" type="button" aria-pressed="${active ? 'true' : 'false'}" onclick="App.setActivityMapRadius(${Number(radius)})">${radius}km</button>`;
     }).join('');
   },
 
@@ -992,7 +992,7 @@ Object.assign(App, {
       const pos = this._activityMapProjectPoint?.(item.point, bounds);
       if (!pos) return '';
       const label = String(index + 1);
-      return `<button class="activity-map-marker" type="button" style="left:${(pos.x * 100).toFixed(2)}%;top:${(pos.y * 100).toFixed(2)}%" onclick="App.openActivityMapEvent('${escapeHTML(item.event.id || item.event._docId || '')}')" title="${escapeHTML(item.event.title || '活動')}">${label}</button>`;
+      return `<button class="activity-map-marker" type="button" style="left:${(pos.x * 100).toFixed(2)}%;top:${(pos.y * 100).toFixed(2)}%" onclick="App.openActivityMapEvent('${escapeJsAttr(item.event.id || item.event._docId || '')}')" title="${escapeHTML(item.event.title || '活動')}">${label}</button>`;
     }).join('');
     const userMarker = (() => {
       if (!data.userLocation) return '';
@@ -1037,7 +1037,7 @@ Object.assign(App, {
       stats ? `${stats.confirmedCount}/${stats.maxCount} 人` : '',
     ].filter(Boolean).join(' · ');
     return `
-      <button class="activity-map-card" type="button" onclick="App.openActivityMapEvent('${escapeHTML(event.id || event._docId || '')}')">
+      <button class="activity-map-card" type="button" onclick="App.openActivityMapEvent('${escapeJsAttr(event.id || event._docId || '')}')">
         <span class="activity-map-card-index">${index + 1}</span>
         ${this._renderActivityMapSportIcon(event)}
         <span class="activity-map-card-main">
@@ -1054,7 +1054,7 @@ Object.assign(App, {
     const time = String(event.date || '').split(' ')[1] || '';
     const meta = [typeConf.label || '活動', time, event.location || ''].filter(Boolean).join(' · ');
     return `
-      <button class="activity-map-card activity-map-card-fallback" type="button" onclick="App.openActivityMapEvent('${escapeHTML(event.id || event._docId || '')}')">
+      <button class="activity-map-card activity-map-card-fallback" type="button" onclick="App.openActivityMapEvent('${escapeJsAttr(event.id || event._docId || '')}')">
         ${this._renderActivityMapSportIcon(event)}
         <span class="activity-map-card-main">
           <span class="activity-map-card-title">${escapeHTML(event.title || '未命名活動')}</span>

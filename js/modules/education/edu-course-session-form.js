@@ -298,9 +298,9 @@ Object.assign(App, {
       container.innerHTML = '<span class="edu-session-template-empty">尚無範本</span>';
       return;
     }
-    container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCourseSessionTemplate(\'' + escapeHTML(t.id) + '\')">'
+    container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCourseSessionTemplate(\'' + escapeJsAttr(t.id) + '\')">'
       + escapeHTML(t.name)
-      + '<button type="button" onclick="event.stopPropagation();App._deleteCourseSessionTemplate(\'' + escapeHTML(t.id) + '\')" title="刪除範本">×</button>'
+      + '<button type="button" onclick="event.stopPropagation();App._deleteCourseSessionTemplate(\'' + escapeJsAttr(t.id) + '\')" title="刪除範本">×</button>'
       + '</span>').join('');
   },
 

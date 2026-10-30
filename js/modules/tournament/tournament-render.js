@@ -70,7 +70,7 @@ Object.assign(App, {
       const sportIcon = this._renderTournamentSportIcon?.(t, 'h-card-sport-chip') || '';
       const cornerBadges = sportIcon ? `<div class="h-card-corner-badges">${sportIcon}</div>` : '';
       return `
-      <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
+      <div class="h-card" onclick="App._openTournamentDetail('${escapeJsAttr(t.id)}')">
         ${t.image
           ? `<div class="h-card-img">${cornerBadges}<img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" width="1200" height="450" ${imagePriorityAttrs}></div>`
           : `<div class="h-card-img h-card-placeholder">${cornerBadges}220 × 90</div>`}
@@ -399,7 +399,7 @@ Object.assign(App, {
         <span style="font-size:.65rem;padding:.18rem .5rem;border-radius:20px;background:${ribbonBg};color:#fff;font-weight:700;white-space:nowrap;align-self:flex-start;margin-right:.4rem">${status}</span>`;
 
       return `
-        <div class="tl-event-row" onclick="App._openTournamentDetail('${t.id}')" style="display:flex;align-items:stretch;gap:0;padding:0;overflow:hidden;${isEnded ? 'opacity:.6;filter:grayscale(.3);' : ''}">
+        <div class="tl-event-row" onclick="App._openTournamentDetail('${escapeJsAttr(t.id)}')" style="display:flex;align-items:stretch;gap:0;padding:0;overflow:hidden;${isEnded ? 'opacity:.6;filter:grayscale(.3);' : ''}">
           <div style="flex:1;min-width:0;padding:.5rem .65rem">
             <div class="tl-event-title-row" style="margin-bottom:.18rem">${sportIcon}<div class="tl-event-title">${escapeHTML(t.name)}</div></div>
             <div style="font-size:.62rem;color:var(--text-muted);line-height:1.5">

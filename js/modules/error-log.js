@@ -164,9 +164,9 @@ Object.assign(App, {
     }).join('');
     if (totalPages > 1) {
       html += `<div class="error-log-pagination">
-        <button class="outline-btn" onclick="App._errorLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
+        <button class="outline-btn" onclick="App._errorLogGoPage(${Number(safePage - 1)})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
         <span>${safePage} / ${totalPages}，共 ${sorted.length} 筆</span>
-        <button class="outline-btn" onclick="App._errorLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
+        <button class="outline-btn" onclick="App._errorLogGoPage(${Number(safePage + 1)})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
       </div>`;
     }
     container.innerHTML = html;
@@ -239,7 +239,7 @@ Object.assign(App, {
     ].map(([label, value, mono]) => this._renderErrorDetailRow(label, value, mono)).join('');
     return `<details class="error-log-details">
       <summary>查看技術細節</summary>
-      <button type="button" class="outline-btn error-log-copy-btn" onclick="event.stopPropagation();App.copyErrorLogDiagnostic('${escapeHTML(copyId || '')}')">複製診斷包</button>
+      <button type="button" class="outline-btn error-log-copy-btn" onclick="event.stopPropagation();App.copyErrorLogDiagnostic('${escapeJsAttr(copyId || '')}')">複製診斷包</button>
       <div class="error-log-detail-grid">${rows}</div>
     </details>`;
   },
@@ -386,9 +386,9 @@ Object.assign(App, {
     }).join('');
     if (totalPages > 1) {
       html += `<div class="error-log-pagination">
-        <button class="outline-btn" onclick="App._userPromptLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
+        <button class="outline-btn" onclick="App._userPromptLogGoPage(${Number(safePage - 1)})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
         <span>${safePage} / ${totalPages}，共 ${sorted.length} 筆</span>
-        <button class="outline-btn" onclick="App._userPromptLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
+        <button class="outline-btn" onclick="App._userPromptLogGoPage(${Number(safePage + 1)})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
       </div>`;
     }
     container.innerHTML = html;
@@ -479,7 +479,7 @@ Object.assign(App, {
           <div class="error-log-title-row">
             <span class="log-type severity-warn">${escapeHTML(surface.label)}</span>
             <strong data-no-translate>${escapeHTML(log?.userName || '未知用戶')}</strong>
-            <button type="button" class="outline-btn error-log-copy-btn user-prompt-log-copy" onclick="event.stopPropagation();App.copyErrorLogDiagnostic('${escapeHTML(copyId || '')}')">複製診斷包</button>
+            <button type="button" class="outline-btn error-log-copy-btn user-prompt-log-copy" onclick="event.stopPropagation();App.copyErrorLogDiagnostic('${escapeJsAttr(copyId || '')}')">複製診斷包</button>
           </div>
           <div class="error-log-message">${escapeHTML(message)}</div>
           <div class="error-log-meta">${meta.map(item => `<span>${escapeHTML(item)}</span>`).join('')}</div>

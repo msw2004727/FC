@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const renderSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-lessons-render.js'),
@@ -238,6 +239,7 @@ function loadCourseLessonsContext(overrides = {}) {
       body: { appendChild: jest.fn(overrides.onAppendChild || (() => {})) },
     },
     escapeHTML,
+    escapeJsAttr,
     console,
     Promise,
     _withSportHubTimeout: overrides.withSportHubTimeout || (promise => Promise.resolve(promise)),
@@ -4150,6 +4152,7 @@ describe('edu course lessons', () => {
     const context = {
       App: {},
       escapeHTML,
+      escapeJsAttr,
       console,
       Date,
       String,

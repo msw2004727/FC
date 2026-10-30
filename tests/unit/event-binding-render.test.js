@@ -504,3 +504,497 @@ test('事件繫結強化：資料 key 與保留字同名仍操作欄位', () => 
     expect(app.toggleTeamThemeOverlay).not.toHaveBeenCalled();
   }
 });
+
+
+// 事件繫結強化：第二包使用真實模組與 config，封閉渲染入口另取原始產出片段。
+function loadBindingB(files, api = {}, initial = {}, globals = {}) {
+  const app = { renderRegisterButton: () => {}, ...initial };
+  const context = vm.createContext({
+    App: app, ApiService: api, document, window, console, setTimeout, clearTimeout,
+    localStorage, performance, I18N: { t: key => key }, t: key => key, ...globals,
+  });
+  const names = ['js/config.js', ...(files.some(f => f.startsWith('tournament/'))
+    ? ['js/modules/tournament/tournament-core.js'] : []), ...files.map(f => 'js/modules/' + f)];
+  names.forEach(name => vm.runInContext(fs.readFileSync(path.join(ROOT, name), 'utf8'), context, { filename: name }));
+  Object.assign(context, globals);
+  return app;
+}
+
+function activateBindingB(app, selector, method, expected, type = 'click', owner = 'App', stop) {
+  const element = document.querySelector(selector);
+  expect(element).not.toBeNull();
+  const source = element.getAttribute('on' + type);
+  const calls = [];
+  function visit(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression'
+      && node.callee.object.name === owner) calls.push(node.callee.property.name);
+    Object.values(node).forEach(child => Array.isArray(child) ? child.forEach(visit)
+      : child && typeof child.type === 'string' && visit(child));
+  }
+  visit(parse(source, { allowReturnOutsideFunction: true }));
+  expect(calls).toEqual([method]);
+  const target = owner === 'App' ? app : window;
+  const previous = target[method];
+  const call = jest.fn();
+  target[method] = call;
+  const execute = new Function('App', 'window', 'event', source);
+  const count = document.querySelectorAll('*').length;
+  delete window.__x;
+  try {
+    for (const native of [false, true]) {
+      call.mockClear();
+      const event = type === 'keydown' ? new KeyboardEvent(type, { key: 'Enter' }) : new Event(type);
+      const propagation = jest.spyOn(event, 'stopPropagation');
+      if (native) {
+        element['on' + type] = function (e) { return execute.call(this, app, window, e); };
+        if (type === 'click') element.click();
+        else element.dispatchEvent(event);
+      } else {
+        execute.call(element, app, window, event);
+        if (stop !== undefined) expect(propagation).toHaveBeenCalledTimes(stop ? 1 : 0);
+      }
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(call).toHaveBeenCalledWith(...expected(element));
+      expect(window.__x).toBeUndefined();
+      expect(document.querySelectorAll('*').length).toBe(count);
+    }
+  } finally {
+    target[method] = previous;
+    element['on' + type] = null;
+  }
+}
+
+// 封閉作用域或分頁排程入口：讀取真正模板的屬性與運算式，解碼後解析並觸發。
+function renderBindingAttributeB(file, needle, bindings, occurrence = 0) {
+  const source = fs.readFileSync(path.join(ROOT, 'js/modules/' + file), 'utf8');
+  const candidates = [];
+  function visit(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'TemplateLiteral') {
+      const text = node.quasis.map((q, i) => q.value.cooked
+        + (node.expressions[i] ? '\0' + i + '\0' : '')).join('');
+      for (const match of text.matchAll(/\b(on\w+)\s*=\s*"([^"]*)"/g)) {
+        if (match[2].includes(needle)) candidates.push({ node, name: match[1], text: match[2] });
+      }
+    }
+    Object.values(node).forEach(child => Array.isArray(child) ? child.forEach(visit)
+      : child && typeof child.type === 'string' && visit(child));
+  }
+  visit(parse(source));
+  expect(candidates.length).toBeGreaterThan(occurrence);
+  const found = candidates[occurrence];
+  const context = vm.createContext({ window, ...bindings });
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/config.js'), 'utf8'), context);
+  const attribute = found.text.replace(/\0(\d+)\0/g, (_, index) => {
+    const expression = found.node.expressions[Number(index)];
+    return vm.runInContext(source.slice(expression.start, expression.end), context);
+  });
+  mount('<button id="binding-fragment" ' + found.name + '="' + attribute + '"></button>');
+}
+
+describe.each(VALUES)('事件繫結強化：第二包原值 %p', value => {
+  afterEach(() => {
+    delete window.App;
+    delete window.HomeNextActivityUtils;
+    document.body.classList.remove('modal-open');
+  });
+
+  test('tournament-friendly-detail-view：名單、背號、編輯與取消的原值', () => {
+    const app = loadBindingB(['tournament/tournament-friendly-detail-view.js']);
+    const entry = { teamId: value, teamName: value };
+    const member = { uid: value, name: value };
+    mount(app._renderFriendlyTournamentRosterMemberChip(value, entry, member, true));
+    expect(document.querySelector('.tfd-member-name').textContent).toBe(value);
+    activateBindingB(app, 'button', 'promptFriendlyTournamentMemberJersey', el => [value, value, value, el]);
+    for (const editing of [false, true]) {
+      mount(app._renderFriendlyTournamentRosterListRow(value, entry, member, true, editing));
+      expect(document.querySelector('.tfd-roster-name-pill').textContent).toBe(value);
+      activateBindingB(app, '.outline-btn, .primary-btn', editing ? 'saveFriendlyTournamentRosterMemberProfile' : 'editFriendlyTournamentRosterMember',
+        el => editing ? [value, value, value, el] : [value, value, value]);
+      if (!editing) activateBindingB(app, '.tfd-roster-delete-btn', 'deleteFriendlyTournamentRosterMember', el => [value, value, value, el]);
+    }
+    app._isSameFriendlyTournamentEntry = () => true;
+    for (const stop of [false, true]) {
+      mount(app._buildFriendlyTournamentRosterActionButton(value, entry, {}, '報名中', { stopPropagation: stop }));
+      activateBindingB(app, 'button', 'joinFriendlyTournamentRoster', el => [value, value, el], 'click', 'App', stop);
+      mount(app._buildFriendlyTournamentRosterActionButton(value, entry, { primary: entry }, '報名中', { stopPropagation: stop }));
+      activateBindingB(app, 'button', 'cancelFriendlyTournamentRoster', el => [value, el], 'click', 'App', stop);
+      app._isSameFriendlyTournamentEntry = () => false;
+      mount(app._buildFriendlyTournamentRosterActionButton(value, entry, { primary: entry }, '報名中', { stopPropagation: stop }));
+      activateBindingB(app, 'button', 'showToast', () => ['你已有參賽隊伍'], 'click', 'App', stop);
+      app._isSameFriendlyTournamentEntry = () => true;
+    }
+    mount(app._buildFriendlyTournamentActionTeamSelector(value, [{ id: value, name: value }], value));
+    expect(document.querySelector('option').textContent).toBe(value);
+    activateBindingB(app, 'select', '_handleFriendlyTournamentActionTeamChange', () => [value, value], 'change');
+  });
+
+  test('tournament-detail-competition：隊伍名、比賽卡與鍵盤操作', () => {
+    const app = loadBindingB(['tournament/tournament-detail-competition.js']);
+    Object.assign(app, {
+      _renderTournamentMatchSideLabel: () => ({ teamId: value, label: value }),
+      _getTournamentMatchWinnerTeamId: () => '',
+      _renderTournamentMatchEventsSummaryHtml: () => '',
+      _renderTournamentLiveFrameHtml: () => '',
+    });
+    mount(app._renderTournamentMatchRowHtml({ id: value }, { id: value, status: 'scheduled' }, {}, {}, { canRecord: true }));
+    expect(document.querySelector('.tc-match-team-name').textContent).toBe(value);
+    activateBindingB(app, '.tc-record-btn', 'openTournamentMatchRecordModal', () => [value, value]);
+    activateBindingB(app, 'article', 'openTournamentMatchDetailModal', () => [value, value]);
+    activateBindingB(app, 'article', 'openTournamentMatchDetailModal', () => [value, value], 'keydown');
+  });
+
+  test('tournament-detail：工具列與報名', () => {
+    const record = { id: value, status: '報名中' };
+    const api = { getCurrentUser: () => ({ uid: 'u' }), getTeams: () => [{ id: 'team', captainUid: 'u' }], getMessages: () => [] };
+    const app = loadBindingB(['tournament/tournament-detail.js'], api);
+    mount('<div id="toolbar"></div><div id="td-register-area"></div>');
+    Object.assign(app, {
+      _ensureTournamentDetailTabsLayout: () => ({ toolbar: document.getElementById('toolbar') }),
+      _canManageTournamentRecord: () => true, _canDeleteTournamentGlobal: () => true,
+    });
+    app._renderTournamentDetailToolbar(record);
+    activateBindingB(app, '.td-edit-btn', 'openEditTournamentSafe', () => [value]);
+    activateBindingB(app, '.td-schedule-btn', 'openTournamentScheduleManager', () => [value]);
+    activateBindingB(app, '.td-delete-btn', 'openDeleteTournamentSafe', el => [value, el]);
+    app.renderRegisterButton(record);
+    activateBindingB(app, '#td-register-area button', 'registerTournament', () => [value]);
+  });
+
+  test('tournament-friendly-roster：加入、退出與多隊選擇', () => {
+    const app = loadBindingB(['tournament/tournament-friendly-roster.js']);
+    const entry = { teamId: value, teamName: value };
+    Object.assign(app, { _isFriendlyTournamentRecord: () => true, _getFriendlyTournamentApprovedUserEntries: () => [entry] });
+    for (const mode of ['join', 'cancel', 'pick']) {
+      mount('<div id="td-register-area"><div class="tfd-action-card"><div class="tfd-action-main"></div></div></div>');
+      app._getFriendlyTournamentRosterMembership = () => ({ primary: mode === 'cancel' ? entry : null });
+      app._getFriendlyTournamentJoinableEntries = () => mode === 'pick' ? [entry, entry] : [entry];
+      app.renderRegisterButton({ id: value, status: '報名中' });
+      const method = { join: 'joinFriendlyTournamentRoster', cancel: 'cancelFriendlyTournamentRoster', pick: 'openFriendlyTournamentRosterPicker' }[mode];
+      activateBindingB(app, 'button', method, el => mode === 'join' ? [value, value, el] : mode === 'cancel' ? [value, el] : [value]);
+      if (mode !== 'pick') expect(document.querySelector('.tfd-action-note').textContent).toContain(value);
+    }
+  });
+
+  test('tournament-manage-form：場地索引與日期原值', () => {
+    const app = loadBindingB(['tournament/tournament-manage-form.js']);
+    mount('<div id="venues"></div><div id="tf-match-dates-wrap"></div>');
+    document.getElementById('venues').id = value + '-venue-tags';
+    app._tournamentFormState.venues = [value];
+    app._tournamentFormState.matchDates = [value];
+    app._renderVenueTags(value);
+    expect(document.querySelector('a').textContent).toContain(value);
+    activateBindingB(app, '[onclick]', 'removeTournamentVenue', () => [value, 0]);
+    app._renderMatchDateTags('tf');
+    activateBindingB(app, '#tf-match-dates-wrap [onclick]', 'removeMatchDate', () => [value]);
+  });
+
+  test('tournament-manage：管理分支與地區原值', () => {
+    const record = { id: value, name: value, status: '報名中' };
+    const app = loadBindingB(['tournament/tournament-manage.js'], { getTournaments: () => [record] }, {},
+      { filterTwRegions: () => [value] });
+    Object.assign(app, {
+      _refreshTournamentCenterCreateButton: () => {}, _isTournamentGlobalAdmin: () => true,
+      _canReopenTournamentGlobal: () => true, _canDeleteTournamentGlobal: () => true,
+    });
+    for (const ended of [false, true]) {
+      mount('<div id="tournament-manage-list"></div><div id="tf-region-suggest"></div>');
+      record.ended = ended;
+      app._tmActiveTab = ended ? 'ended' : 'active';
+      app.renderTournamentManage();
+      expect(document.querySelector('.tl-event-title').textContent).toBe(value);
+      activateBindingB(app, '[onclick^="App.showTournamentDetail"]', 'showTournamentDetail', () => [value]);
+      activateBindingB(app, '[onclick^="App.handleDeleteTournament"]', 'handleDeleteTournament', el => [value, el]);
+      activateBindingB(app, ended ? '[onclick^="App.handleReopenTournament"]' : '[onclick^="App.openEditTournamentSafe"]',
+        ended ? 'handleReopenTournament' : 'openEditTournamentSafe', () => [value]);
+      app._renderTournamentRegionSuggest(value);
+      activateBindingB(app, '.team-user-suggest-item', '_selectTournamentRegion', () => [value], 'mousedown');
+    }
+  });
+
+  test('tournament-match-record：換人名單、使用者名稱與紀錄移除', () => {
+    const app = loadBindingB(['tournament/tournament-match-record.js', 'tournament/tournament-friendly-detail-view.js']);
+    mount('<select id="tmr-event-team"></select><div id="tmr-event-sub-out-suggestions"></div><div id="tmr-events-list"></div>');
+    const option = document.createElement('option');
+    option.value = value;
+    document.querySelector('select').appendChild(option);
+    app._tournamentMatchRecordState = { tournamentId: value, homeTeamId: value, homeName: value, events: [{ type: 'goal', teamId: value, name: value }] };
+    app._getFriendlyTournamentState = () => ({ entries: [{ teamId: value, memberRoster: [{ uid: value, name: value }] }] });
+    app._renderTournamentSubstitutionSearch('out');
+    expect(document.querySelector('.tmr-sub-suggestion').textContent).toBe(value);
+    activateBindingB(app, '.tmr-sub-suggestion', '_appendTournamentSubstitutionPlayer', () => ['out', value]);
+    app._renderTournamentMatchRecordEvents();
+    expect(document.querySelector('.tmr-event-copy strong').textContent).toContain(value);
+    expect(document.querySelector('.tmr-event-copy small').textContent).toBe(value);
+    activateBindingB(app, '.tc-event-remove', '_removeTournamentMatchRecordEvent', () => [0]);
+  });
+
+  test('tournament-render：首頁賽事名稱與識別值', () => {
+    const app = loadBindingB(['tournament/tournament-render.js'], { getTournaments: () => [{ id: value, name: value, teams: 2 }] });
+    mount('<div id="ongoing-tournaments"></div>');
+    app.renderOngoingTournaments();
+    expect(document.querySelector('.h-card-title').textContent).toBe(value);
+    activateBindingB(app, '.h-card', '_openTournamentDetail', () => [value]);
+  });
+
+  test('tournament-schedule-manage：產生、儲存與刪除的原值', () => {
+    const app = loadBindingB(['tournament/tournament-schedule-manage.js']);
+    const state = { tournament: { id: value }, matches: [{ id: value, stage: 'friendly', status: 'scheduled' }] };
+    Object.assign(app, {
+      _tournamentScheduleManagerState: { tournamentId: value }, _getFriendlyTournamentState: () => state,
+      _buildTournamentMatchesBySlot: () => ({}), _getTournamentTeamNameMap: () => ({}),
+      _renderTournamentMatchSideLabel: () => ({ label: value }), _getTournamentRoundLabel: () => '1',
+      _normalizeTournamentMatchRepeatCount: count => Number(count) || 1,
+    });
+    mount('<div id="tournament-schedule-summary"></div><div id="tournament-schedule-actions"></div><div id="tournament-schedule-list"></div>');
+    app._renderTournamentScheduleManager();
+    expect(document.querySelector('.tc-manage-title span').textContent).toBe(value);
+    activateBindingB(app, '.tc-schedule-generate-btn', 'generateTournamentSchedule', el => [value, el]);
+    activateBindingB(app, '.tc-save-all-btn', 'saveAllTournamentMatchMeta', el => [value, el]);
+    activateBindingB(app, '.tc-manage-delete', 'deleteTournamentScheduleMatch', el => [value, value, el]);
+  });
+});
+
+
+describe.each(VALUES)('事件繫結強化：第二包其餘模組 %p', value => {
+  afterEach(() => {
+    delete window.App;
+    delete window.HomeNextActivityUtils;
+    document.body.classList.remove('modal-open');
+  });
+
+  test('announcement：公告跑馬燈與管理操作原值', () => {
+    const record = { id: value, title: value, content: value, status: 'active' };
+    const app = loadBindingB(['announcement.js'], { getActiveAnnouncements: () => [record], getAnnouncements: () => [record] },
+      { _userTag: name => String(name) });
+    mount('<div id="announce-marquee-wrap"><div id="announce-marquee-track"></div></div><div id="announcement-manage-list"></div>');
+    app.renderAnnouncement();
+    expect(document.querySelector('.announce-marquee-item').textContent).toContain(value);
+    activateBindingB(app, '.announce-marquee-item', 'showAnnDetail', () => [value]);
+    app.renderAnnouncementManage();
+    for (const method of ['editAnnouncementItem', 'toggleAnnouncementStatus', 'deleteAnnouncementItem']) {
+      activateBindingB(app, '[onclick^="App.' + method + '"]', method, () => [value]);
+    }
+  });
+
+  test('data-sync：查詢保留原按鈕事件與前後區域優先序', () => {
+    const app = loadBindingB(['data-sync.js']);
+    mount('<div id="repair-pane-data-sync"><div class="form-card"></div>'
+      + '<div class="form-card" id="local"><button onclick="App.runDataSyncOp(\'teamMembers\')"></button></div></div>'
+      + '<div class="form-card" id="external"><button onclick="App._scanUserRegions()"></button></div>'
+      + '<div class="form-card" id="duplicate"><button onclick="App.runDataSyncOp(\'teamMembers\')"></button></div>');
+    document.querySelectorAll('button').forEach(button => { button.textContent = value; });
+    app._setupDataSyncToolLayout({ dataSync: true });
+    expect(document.getElementById('local').parentElement.id).toBe('data-sync-daily-tools');
+    expect(document.getElementById('duplicate').parentElement).toBe(document.body);
+    expect(document.getElementById('external').parentElement.tagName).toBe('DETAILS');
+    expect(document.querySelector('#local button').textContent).toBe(value);
+    activateBindingB(app, '#local button', 'runDataSyncOp', () => ['teamMembers']);
+    activateBindingB(app, '#external button', '_scanUserRegions', () => []);
+  });
+
+  test('game-log-viewer：名稱渲染與數字索引', () => {
+    const app = loadBindingB(['game-log-viewer.js']);
+    mount('<input id="game-log-search"><div id="game-log-results"></div>');
+    document.querySelector('input').value = value.slice(0, 1);
+    app._gameLogProfiles = [{ displayName: value, skin: value, level: 1 }];
+    app._filterGameLog();
+    expect(document.querySelector('[data-no-translate]').textContent).toContain(value);
+    activateBindingB(app, '[onclick]', 'viewGameLog', () => [0]);
+  });
+
+  test('game-manage：顯示開關原值', () => {
+    const app = loadBindingB(['game-manage.js']);
+    app._getHomeGameManageItems = () => [{ id: value, name: value }];
+    mount('<div id="game-manage-list"></div>');
+    app.renderGameManage();
+    activateBindingB(app, 'input', 'toggleHomeGameVisibility', () => [value, true], 'change');
+  });
+
+  test('home-dashboard：封閉入口產出字串解碼後解析', () => {
+    const app = {};
+    renderBindingAttributeB('home-dashboard.js', 'App.selectHomeSport', { item: { key: value } }, 1);
+    activateBindingB(app, 'button', 'selectHomeSport', () => [value]);
+    renderBindingAttributeB('home-dashboard.js', 'App.showPage', { page: value });
+    activateBindingB(app, 'button', 'showPage', () => [value]);
+  });
+
+  test('home-next-activity：活動原文與圖片錯誤事件', async () => {
+    const app = loadBindingB(['home-next-activity.js'], { getCurrentUser: () => ({ uid: 'fixture-user' }) });
+    mount('<div id="home-next-activity"></div>');
+    app._homeNextActivityCache = { uid: 'fixture-user', loadedAt: Date.now(),
+      next: { event: { id: value, title: value, location: value, date: '2099/01/01 10:00~12:00', status: 'open' } } };
+    await app.renderHomeNextActivity();
+    expect(document.querySelector('h4').textContent).toBe(value);
+    const img = document.querySelector('img');
+    const source = img.getAttribute('onerror');
+    const tree = parse(source);
+    expect(tree.program.body).toHaveLength(2);
+    const execute = new Function(source);
+    const received = [];
+    execute.call({ onerror: () => {}, set src(v) { received.push(v); } });
+    expect(received).toEqual(['LOGO/Nocoverimage%20set.png']);
+    const count = document.querySelectorAll('*').length;
+    delete window.__x;
+    img.onerror = execute;
+    img.dispatchEvent(new Event('error'));
+    expect(img.getAttribute('src')).toBe('LOGO/Nocoverimage%20set.png');
+    expect(img.onerror).toBeNull();
+    expect(document.querySelectorAll('*').length).toBe(count);
+    expect(window.__x).toBeUndefined();
+    app.openHomeNextActivityDetail = jest.fn();
+    document.querySelector('[data-home-next-action="detail"]').click();
+    expect(app.openHomeNextActivityDetail).toHaveBeenCalledWith(value);
+  });
+
+  test('error-log：診斷原值與分頁數字', () => {
+    const app = loadBindingB(['error-log.js']);
+    Object.assign(app, { _parseErrorContext: () => '', _getErrorPage: () => '',
+      _getErrorDisplayCode: () => '', _renderErrorDetailRow: () => '' });
+    mount(app._renderErrorLogDetails({ errorMessage: value }, value));
+    activateBindingB(app, 'button', 'copyErrorLogDiagnostic', () => [value]);
+    for (const method of ['_errorLogGoPage', '_userPromptLogGoPage']) {
+      renderBindingAttributeB('error-log.js', 'App.' + method, { safePage: 2 });
+      activateBindingB(app, 'button', method, () => [1]);
+    }
+  });
+
+  test('error-log-insights：群組內容與數字索引', () => {
+    const app = loadBindingB(['error-log-insights.js']);
+    mount(app._renderErrorLogGroup({ page: value, users: new Set(), versions: new Set(),
+      severity: { className: 'info', label: value }, codeLabel: value, logs: [{}], message: value }, 2));
+    expect(document.querySelector('.error-log-message').textContent).toBe(value);
+    activateBindingB(app, 'button', 'copyErrorLogDiagnosticGroup', () => [2]);
+  });
+
+  test('event-map：活動卡片原值與半徑', () => {
+    const app = loadBindingB(['event/event-map.js']);
+    app._renderActivityMapSportIcon = () => '';
+    for (const identity of [{ id: value }, { _docId: value }]) {
+      mount(app._renderActivityMapFallbackCard({ ...identity, title: value, location: value }));
+      expect(document.querySelector('.activity-map-card-title').textContent).toBe(value);
+      activateBindingB(app, 'button', 'openActivityMapEvent', () => [value]);
+    }
+    renderBindingAttributeB('event/event-map.js', 'App.setActivityMapRadius', { radius: 5 });
+    activateBindingB(app, 'button', 'setActivityMapRadius', () => [5]);
+  });
+
+  test('event-detail-companion：同行者現行入口與舊模板原值', () => {
+    const app = loadBindingB(['event/event-detail-companion.js'], {
+      getEvent: () => ({ id: value, title: value, max: 5, current: 0 }),
+      getCompanions: () => [{ id: value, name: value }], getMyRegistrationsByEvent: () => [],
+    });
+    mount('<div id="companion-select-overlay"><div id="companion-select-list"></div></div>');
+    app._updateCompanionSelectSummary = jest.fn();
+    app._openCompanionSelectModal(value);
+    expect(document.querySelector('.companion-toggle-name').textContent).toBe(value);
+    activateBindingB(app, 'input', '_updateCompanionSelectSummary', () => [value], 'change');
+    for (const occurrence of [0, 1, 2]) {
+      renderBindingAttributeB('event/event-detail-companion.js', 'App._updateCompanionSelectSummary', { eventId: value }, occurrence);
+      activateBindingB(app, 'button', '_updateCompanionSelectSummary', () => [value], 'change');
+    }
+  });
+
+  test('event-manage-waitlist：一般與課程候補原值', () => {
+    for (const course of [false, true]) {
+      const reg = { id: value, userId: value, userName: value, status: 'waitlisted', participantType: 'self',
+        ...(course ? { courseLinkSource: 'eduCourseLesson' } : {}) };
+      const app = loadBindingB(['event/event-manage-waitlist.js'], {
+        getEvent: () => ({ id: value }), getRegistrationsByEvent: () => [reg],
+      });
+      Object.assign(app, { _getWaitlistFallbackNames: () => [], _isRosterManagementEditing: () => true,
+        _userTag: () => '' });
+      mount('<div id="waitlist"></div>');
+      app._renderWaitlistSection(value, 'waitlist');
+      activateBindingB(app, 'button', '_forcePromoteWaitlist', () => [value, value, course ? value : '']);
+    }
+  });
+
+  test.each([
+    ['event/event-create-template.js', 'ce-template-selector', '_getEventTemplates', '_renderTemplateSelector', '_loadEventTemplate', '_deleteEventTemplate'],
+    ['event/event-create-external.js', 'cee-template-selector', '_getExternalEventTemplates', '_renderExternalTemplateSelector', '_loadExternalEventTemplate', '_deleteExternalEventTemplate'],
+  ])('%s：範本名稱及讀取刪除原值', (file, id, getter, render, open, remove) => {
+    const app = loadBindingB([file]);
+    app[getter] = () => [{ id: value, name: value }];
+    app._getEventTemplatesFromLocal = () => [];
+    mount('<div id="' + id + '"></div>');
+    app[render]();
+    expect(document.getElementById(id).textContent).toContain(value);
+    activateBindingB(app, '[onclick^="App."]', open, () => [value]);
+    activateBindingB(app, '[onclick^="event."]', remove, () => [value]);
+  });
+
+  test.each([
+    ['event/event-create-options.js', '_eventSocialLinksDraft', '_getEventSocialLinksNodes', '_renderEventSocialLinksFormRows', '_removeEventSocialLinkInput'],
+    ['team/team-contact-links.js', '_teamContactLinksDraft', '_getTeamContactLinksNodes', '_renderTeamContactLinksFormRows', '_removeTeamContactLinkInput'],
+  ])('%s：社群欄位內容與移除索引', (file, draft, nodes, render, remove) => {
+    const app = loadBindingB([file]);
+    mount('<div id="links"></div>');
+    app[draft] = [{ url: value }, { url: value }];
+    app[nodes] = () => ({ list: document.getElementById('links') });
+    app[render]();
+    expect(document.querySelector('input').getAttribute('value')).toBe(value);
+    activateBindingB(app, 'button', remove, () => [0]);
+  });
+
+  test.each([
+    ['event/event-list-timeline.js', 'App.openTimelineEventDetail', 'openTimelineEventDetail'],
+    ['event/event-list.js', 'App.openHomeEventDetailFromCard', 'openHomeEventDetailFromCard'],
+  ])('%s：分頁產出字串解碼後解析', (file, needle, method) => {
+    renderBindingAttributeB(file, needle, { e: { id: value } });
+    activateBindingB({}, 'button', method, el => [value, el]);
+  });
+
+  test('team-form-search：未連結領隊與教練名稱', () => {
+    const app = loadBindingB(['team/team-form-search.js'], { getUserDirectory: () => [] });
+    app._teamFormState = { leaders: [], coaches: [] };
+    app._ensureTeamFormUnresolvedStaffNames = () => ({ leaders: [value], coaches: [value] });
+    mount('<div id="ct-leaders-tags"></div><div id="ct-coach-tags"></div>');
+    for (const [role, render, id] of [['leaders', '_renderLeaderTags', 'ct-leaders-tags'], ['coaches', '_renderCoachTags', 'ct-coach-tags']]) {
+      app[render]();
+      expect(document.getElementById(id).textContent).toContain(value);
+      activateBindingB(app, '#' + id + ' [onclick]', '_removeUnresolvedTeamStaffName', () => [role, 0]);
+    }
+  });
+
+  test('dashboard-participant-share：分享網址原值', () => {
+    const app = loadBindingB(['dashboard/dashboard-participant-share.js']);
+    app._formatParticipantQueryShareDateTime = () => '';
+    mount(app._renderDashboardParticipantShareNotice({ shareUrl: value }));
+    expect(document.querySelector('.dash-query-share-link').textContent).toBe(value);
+    activateBindingB(app, '[onclick^="window.open"]', 'open', () => [value, 'sporthub_report', 'noopener'], 'click', 'window');
+  });
+});
+
+
+describe.each(VALUES)('事件繫結強化：第二包隊伍與申請人 %p', value => {
+  test('tournament-friendly-detail-view：已核准、待審與撤回分支', () => {
+    const app = loadBindingB(['tournament/tournament-friendly-detail-view.js']);
+    const application = { id: value, teamId: value, teamName: value, requestedByName: value, status: 'pending' };
+    const state = { tournament: { id: value, status: '報名中' },
+      entries: [{ teamId: value, teamName: value, entryStatus: 'approved', memberRoster: [] }] };
+    Object.assign(app, {
+      _getFriendlyTournamentVisibleApplications: () => [application],
+      _isFriendlyTournamentViewerTeamOfficer: () => true,
+      _isFriendlyTournamentViewerOnEntryTeam: () => false,
+      _getFriendlyTournamentRosterSummaryText: () => '0 / 1',
+    });
+    for (const manage of [true, false]) {
+      app._canManageTournamentRecord = () => manage;
+      mount(app._renderFriendlyTournamentTeamsTab(state));
+      expect(document.querySelector('.tfd-team-name').textContent).toBe(value);
+      expect(document.querySelector('.tfd-team-row-pending .tfd-team-name').textContent).toBe(value);
+      expect(document.querySelector('.tfd-team-row-pending .tfd-empty-text').textContent).toBe(value);
+      activateBindingB(app, '.tfd-roster-list-btn', 'openFriendlyTournamentRosterList', () => [value, value]);
+      if (manage) {
+        activateBindingB(app, '.tfd-entry-remove-btn', 'removeFriendlyTournamentEntry', el => [value, value, el]);
+        activateBindingB(app, '.tfd-review-actions .primary-btn', 'reviewFriendlyTournamentApplication', el => [value, value, 'approve', el]);
+        activateBindingB(app, '.tfd-review-actions .outline-btn', 'reviewFriendlyTournamentApplication', el => [value, value, 'reject', el]);
+      } else {
+        activateBindingB(app, '.tfd-entry-withdraw-btn', 'withdrawFriendlyTournamentTeam', el => [value, value, el]);
+        activateBindingB(app, '.tfd-team-row-pending .tfd-entry-withdraw-btn', 'withdrawFriendlyTournamentTeam', el => [value, value, el]);
+      }
+    }
+  });
+});

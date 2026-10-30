@@ -75,7 +75,7 @@ Object.assign(App, {
     const hasBindAction = this._isPopupBindLineNotifyAction(linkUrl);
     const safeUrl = (!hasBindAction && /^https?:\/\//i.test(linkUrl)) ? escapeHTML(linkUrl) : '';
     const clickHandler = (hasBindAction || safeUrl)
-      ? `onclick="App.handlePopupAdClick('${escapeHTML(ad.id)}')" style="cursor:pointer"`
+      ? `onclick="App.handlePopupAdClick('${escapeJsAttr(ad.id)}')" style="cursor:pointer"`
       : '';
     body.innerHTML = ad.image
       ? `<img src="${ad.image}" alt="${escapeHTML(ad.title || '')}" ${clickHandler}>`

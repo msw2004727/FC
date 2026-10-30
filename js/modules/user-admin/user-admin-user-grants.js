@@ -22,11 +22,6 @@ Object.assign(App, {
     return String(this._displayNameOrUidFallback?.(user?.name || user?.displayName, uid, '') || uid || '未命名用戶').trim();
   },
 
-  _escapeUserPermissionGrantArg(value) {
-    if (typeof this._escapeAdminUserArg === 'function') return this._escapeAdminUserArg(value);
-    return escapeHTML(String(value || '')).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  },
-
   _getUserPermissionGrantAllowedSet() {
     const codes = typeof getUserPermissionGrantAllowedCodes === 'function'
       ? getUserPermissionGrantAllowedCodes()
@@ -87,8 +82,7 @@ Object.assign(App, {
       const label = this._getUserPermissionGrantLabel(user);
       const roleLabel = (typeof ROLES !== 'undefined' && ROLES[user?.role]?.label) || user?.role || 'user';
       const selected = uid === this._userPermissionGrantSelectedUid;
-      const safeUid = this._escapeUserPermissionGrantArg(uid);
-      return '<button type="button" class="permission-audit-issue ' + (selected ? 'is-selected' : '') + '" style="width:100%;text-align:left" onclick="App.selectUserPermissionGrantUser(\'' + safeUid + '\')">'
+      return '<button type="button" class="permission-audit-issue ' + (selected ? 'is-selected' : '') + '" style="width:100%;text-align:left" onclick="App.selectUserPermissionGrantUser(\'' + escapeJsAttr(uid) + '\')">'
         + '<span class="permission-audit-badge ' + (selected ? 'ok' : 'neutral') + '">' + escapeHTML(roleLabel) + '</span>'
         + '<div><div class="permission-audit-issue-title">' + escapeHTML(label) + '</div>'
         + '<div class="permission-audit-issue-detail permission-audit-code">' + escapeHTML(uid) + '</div></div>'
@@ -185,10 +179,10 @@ Object.assign(App, {
     if (!categories.length) return '<div style="padding:.75rem .3rem;color:var(--text-muted);font-size:.78rem">目前沒有符合篩選條件的權限。</div>';
     return categories.map(category => {
       const entryToggle = category.entryItem ? this._renderUserPermissionGrantToggle(category.entryItem, current, disabledAttr, true) : '';
-      const subHtml = category.subItems.map(item => '<div class="perm-item"><span class="perm-item-label">' + escapeHTML(item.name) + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + item.code + '\')" title="說明">?</button></span>' + this._renderUserPermissionGrantToggle(item, current, disabledAttr) + '</div>').join('');
-      const info = category.entryItem ? '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + category.entryItem.code + '\')" title="說明">?</button>' : '';
+      const subHtml = category.subItems.map(item => '<div class="perm-item"><span class="perm-item-label">' + escapeHTML(item.name) + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + escapeJsAttr(item.code) + '\')" title="說明">?</button></span>' + this._renderUserPermissionGrantToggle(item, current, disabledAttr) + '</div>').join('');
+      const info = category.entryItem ? '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + escapeJsAttr(category.entryItem.code) + '\')" title="說明">?</button>' : '';
       return '<div class="perm-category ' + (category.subItems.length ? '' : 'no-sub') + '">'
-        + '<div class="perm-category-title" onclick="' + (category.subItems.length ? "this.parentElement.classList.toggle('collapsed')" : '') + '">'
+        + '<div class="perm-category-title" onclick="if (' + Boolean(category.subItems.length) + ') this.parentElement.classList.toggle(\'collapsed\')">'
         + '<span class="perm-cat-name">' + escapeHTML(category.cat) + info + '</span>' + entryToggle + '</div>'
         + (category.subItems.length ? '<div class="perm-items">' + subHtml + '</div>' : '')
         + '</div>';
@@ -198,7 +192,7 @@ Object.assign(App, {
   _renderUserPermissionGrantToggle(item, current, disabledAttr, isEntry = false) {
     const checked = current.has(item.code);
     return '<label class="toggle-switch ' + (checked ? 'active' : '') + '"' + (isEntry ? ' onclick="event.stopPropagation()"' : '') + '>'
-      + '<input type="checkbox" ' + (checked ? 'checked' : '') + disabledAttr + ' onchange="App.toggleUserPermissionGrantCode(\'' + item.code + '\')">'
+      + '<input type="checkbox" ' + (checked ? 'checked' : '') + disabledAttr + ' onchange="App.toggleUserPermissionGrantCode(\'' + escapeJsAttr(item.code) + '\')">'
       + '<span class="toggle-slider"></span></label>';
   },
 

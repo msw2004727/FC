@@ -42,8 +42,7 @@ Object.assign(App, {
     ).slice(0, 8);
     if (users.length === 0) { dd.classList.remove('open'); return; }
     dd.innerHTML = users.map(u => {
-      const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
-      return `<div class="ce-delegate-item" onclick="App._selectExpTarget('${safeName}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+      return `<div class="ce-delegate-item" onclick="App._selectExpTarget('${escapeJsAttr(u.name)}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
     }).join('');
     dd.classList.add('open');
   },
@@ -111,8 +110,7 @@ Object.assign(App, {
     ).slice(0, 8);
     if (users.length === 0) { dd.classList.remove('open'); return; }
     dd.innerHTML = users.map(u => {
-      const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
-      return `<div class="ce-delegate-item" onclick="App._addExpBatchUser('${safeName}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+      return `<div class="ce-delegate-item" onclick="App._addExpBatchUser('${escapeJsAttr(u.name)}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
     }).join('');
     dd.classList.add('open');
   },
@@ -139,8 +137,7 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = this._expBatchSelected.map(name => {
-      const safeName = escapeHTML(name).replace(/'/g, "\\'");
-      return `<span class="reward-tag">${escapeHTML(name)}<button onclick="App._removeExpBatchUser('${safeName}')">✕</button></span>`;
+      return `<span class="reward-tag">${escapeHTML(name)}<button onclick="App._removeExpBatchUser('${escapeJsAttr(name)}')">✕</button></span>`;
     }).join('') + `<span style="font-size:.72rem;color:var(--text-muted);align-self:center">共 ${this._expBatchSelected.length} 人</span>`;
   },
 
@@ -241,7 +238,7 @@ Object.assign(App, {
       const thumb = t.image
         ? `<img src="${t.image}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`
         : `<span style="width:24px;height:24px;border-radius:50%;border:1.5px dashed var(--border);display:inline-flex;flex-shrink:0"></span>`;
-      return `<div class="ce-delegate-item" style="display:flex;align-items:center;gap:.4rem" onclick="App._selectExpTeamTarget('${escapeHTML(t.id)}')">${thumb}<span class="ce-delegate-item-name">${escapeHTML(t.name)}</span><span style="color:var(--text-muted);font-size:.68rem;margin-left:auto">${(t.teamExp || 0).toLocaleString()}</span></div>`;
+      return `<div class="ce-delegate-item" style="display:flex;align-items:center;gap:.4rem" onclick="App._selectExpTeamTarget('${escapeJsAttr(t.id)}')">${thumb}<span class="ce-delegate-item-name">${escapeHTML(t.name)}</span><span style="color:var(--text-muted);font-size:.68rem;margin-left:auto">${(t.teamExp || 0).toLocaleString()}</span></div>`;
     }).join('');
     dd.classList.add('open');
   },
@@ -362,11 +359,11 @@ Object.assign(App, {
     if (totalPages <= 1) { pgEl.innerHTML = ''; return; }
     const cur = this._expLogPage;
     let html = '';
-    if (cur > 1) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${cur - 1})">‹</button>`;
+    if (cur > 1) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${Number(cur - 1)})">‹</button>`;
     for (let i = 1; i <= totalPages; i++) {
-      html += `<button class="exp-pg-btn${i === cur ? ' active' : ''}" onclick="App.goExpLogPage(${i})">${i}</button>`;
+      html += `<button class="exp-pg-btn${i === cur ? ' active' : ''}" onclick="App.goExpLogPage(${Number(i)})">${i}</button>`;
     }
-    if (cur < totalPages) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${cur + 1})">›</button>`;
+    if (cur < totalPages) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${Number(cur + 1)})">›</button>`;
     pgEl.innerHTML = html;
   },
 
@@ -654,9 +651,9 @@ Object.assign(App, {
 
     if (totalPages > 1) {
       html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.8rem 0;font-size:.78rem">
-        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${Number(safePage - 1)})" ${safePage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
         <span style="color:var(--text-muted)">${safePage} / ${totalPages}（共 ${sorted.length} 筆）</span>
-        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 ›</button>
+        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${Number(safePage + 1)})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 ›</button>
       </div>`;
     }
 

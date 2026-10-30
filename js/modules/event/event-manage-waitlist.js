@@ -252,7 +252,6 @@ Object.assign(App, {
     if (items.length === 0) { container.innerHTML = ''; _wsScrollEl.scrollTop = _wsSavedScroll; return; }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
-    const safeEId = escapeHTML(eventId);
     const safeCId = escapeHTML(containerId);
     const colCount = tableEditing ? 3 : 2;
     const doneBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
@@ -262,15 +261,13 @@ Object.assign(App, {
 
     let rows = '';
     items.forEach((item, idx) => {
-      const safeUid = item.userId ? escapeHTML(item.userId) : '';
       const actionRegistrationId = item.courseLinked ? item.registrationId : '';
-      const safeRegistrationId = actionRegistrationId ? escapeHTML(actionRegistrationId) : '';
       const rosterActionKey = actionRegistrationId || item.userId;
       const promotePending = rosterActionKey && this._isWaitlistActionPending?.('promote', eventId, rosterActionKey);
       const promoteBtnStyle = promoteStyle + (promotePending ? ';opacity:.65;cursor:not-allowed' : '');
       const promoteTd = tableEditing
         ? (item.userId
-            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}','${safeRegistrationId}')">${promotePending ? '...' : '正取'}</button></td>`
+            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${escapeJsAttr(eventId)}','${escapeJsAttr(item.userId)}','${escapeJsAttr(actionRegistrationId)}')">${promotePending ? '...' : '正取'}</button></td>`
             : `<td></td>`)
         : '';
       rows += `<tr style="border-bottom:1px solid var(--border)">

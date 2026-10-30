@@ -141,9 +141,9 @@ Object.assign(App, {
           </div>
         </div>
         <div class="admin-ach-actions">
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${a.id}')">編輯</button>
-          <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${a.id}')">${isArchived ? '上架' : '下架'}</button>
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${a.id}')">刪除</button>
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${escapeJsAttr(a.id)}')">編輯</button>
+          <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${escapeJsAttr(a.id)}')">${isArchived ? '上架' : '下架'}</button>
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${escapeJsAttr(a.id)}')">刪除</button>
         </div>
       </div>`;
     }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';

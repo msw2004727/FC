@@ -521,7 +521,7 @@ Object.assign(App, {
     }
     container.innerHTML = results.map(item => {
       const role = item.roleLabel ? '<span class="tus-uid">' + escapeHTML(item.roleLabel) + '</span>' : '';
-      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCoursePlanStaff(\'' + kind + '\',\'' + encodeURIComponent(item.key) + '\')">'
+      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCoursePlanStaff(\'' + escapeJsAttr(kind) + '\',\'' + escapeJsAttr(encodeURIComponent(item.key)) + '\')">'
         + '<span class="tus-name">' + escapeHTML(item.name) + '</span>'
         + role
         + '</div>';
@@ -881,9 +881,9 @@ Object.assign(App, {
       container.innerHTML = '<span class="edu-session-template-empty">尚無範本</span>';
       return;
     }
-    container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCoursePlanTemplate(\'' + escapeHTML(t.id) + '\')">'
+    container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCoursePlanTemplate(\'' + escapeJsAttr(t.id) + '\')">'
       + escapeHTML(t.name)
-      + '<button type="button" onclick="event.stopPropagation();App._deleteCoursePlanTemplate(\'' + escapeHTML(t.id) + '\')" title="刪除範本">×</button>'
+      + '<button type="button" onclick="event.stopPropagation();App._deleteCoursePlanTemplate(\'' + escapeJsAttr(t.id) + '\')" title="刪除範本">×</button>'
       + '</span>').join('');
   },
 
@@ -1089,8 +1089,8 @@ Object.assign(App, {
       rows.push('<div class="edu-cp-session-schedule-row">'
         + '<span class="edu-cp-session-schedule-index">' + slot + '</span>'
         + '<label>日期<input type="date" id="edu-cp-session-date-' + slot + '" value="' + escapeHTML(item.date || fallback.date || '') + '"></label>'
-        + '<label>開始<input type="time" id="edu-cp-session-start-' + slot + '" value="' + escapeHTML(selectedStartTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + slot + ')" onchange="App._updateCoursePlanSessionTimePreview(' + slot + ')"></label>'
-        + '<label>結束<input type="time" id="edu-cp-session-end-' + slot + '" value="' + escapeHTML(selectedEndTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + slot + ')" onchange="App._updateCoursePlanSessionTimePreview(' + slot + ')"></label>'
+        + '<label>開始<input type="time" id="edu-cp-session-start-' + slot + '" value="' + escapeHTML(selectedStartTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + Number(slot) + ')" onchange="App._updateCoursePlanSessionTimePreview(' + Number(slot) + ')"></label>'
+        + '<label>結束<input type="time" id="edu-cp-session-end-' + slot + '" value="' + escapeHTML(selectedEndTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + Number(slot) + ')" onchange="App._updateCoursePlanSessionTimePreview(' + Number(slot) + ')"></label>'
         + '<div class="edu-cp-session-time-preview" id="edu-cp-session-time-preview-' + slot + '" aria-live="polite">' + escapeHTML(this._formatCoursePlanSessionSelectedTimePreview(selectedStartTime, selectedEndTime)) + '</div>'
       + '</div>');
     }

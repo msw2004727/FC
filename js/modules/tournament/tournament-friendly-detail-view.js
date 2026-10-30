@@ -95,7 +95,7 @@ Object.assign(App, {
       : selectedTeam?.disabled
         ? 'tfd-team-select tfd-team-select-disabled'
         : 'tfd-team-select';
-    return `<select id="td-apply-team-select" class="${selectClass}" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
+    return `<select id="td-apply-team-select" class="${selectClass}" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeJsAttr(safeTournamentId)}', this.value)">${actionTeams.map(team => {
       const selected = team.id === selectedTeamId ? ' selected' : '';
       const classes = [
         team.hasPriorRejectedApplication ? 'tfd-apply-option-reapply' : '',
@@ -199,7 +199,6 @@ Object.assign(App, {
     const safeTournamentId = escapeHTML(String(tournamentId || '').trim());
     const safeTeamId = escapeHTML(String(entry?.teamId || entry?.id || '').trim());
     if (!safeTournamentId || !safeTeamId) return '';
-    const stop = options.stopPropagation ? 'event.stopPropagation();' : '';
     const fullWidth = options.fullWidth === true;
     const isCurrentEntry = !!(membership?.primary && this._isSameFriendlyTournamentEntry(membership.primary, entry));
     const hasOtherEntry = !!(membership?.primary && !isCurrentEntry);
@@ -209,13 +208,13 @@ Object.assign(App, {
       if (status !== TOURNAMENT_STATUS.REG_OPEN) {
         return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-joined-btn" disabled>已參賽</button>`;
       }
-      return `<button type="button" class="${fullWidth ? 'outline-btn full-width ' : ''}tfd-roster-leave-btn" onclick="${stop}return App.cancelFriendlyTournamentRoster('${safeTournamentId}', this)">取消參賽</button>`;
+      return `<button type="button" class="${fullWidth ? 'outline-btn full-width ' : ''}tfd-roster-leave-btn" onclick="if (${Boolean(options.stopPropagation)}) event.stopPropagation();return App.cancelFriendlyTournamentRoster('${escapeJsAttr(String(tournamentId || '').trim())}', this)">取消參賽</button>`;
     }
     if (hasOtherEntry) {
-      return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-blocked-btn" onclick="${stop}App.showToast('${alreadyJoinedToast}');return false;">參賽</button>`;
+      return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-blocked-btn" onclick="if (${Boolean(options.stopPropagation)}) event.stopPropagation();App.showToast('${escapeJsAttr(alreadyJoinedToast)}');return false;">參賽</button>`;
     }
     if (status !== TOURNAMENT_STATUS.REG_OPEN) return '';
-    return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-join-btn" onclick="${stop}return App.joinFriendlyTournamentRoster('${safeTournamentId}','${safeTeamId}', this)">參賽</button>`;
+    return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-join-btn" onclick="if (${Boolean(options.stopPropagation)}) event.stopPropagation();return App.joinFriendlyTournamentRoster('${escapeJsAttr(String(tournamentId || '').trim())}','${escapeJsAttr(String(entry?.teamId || entry?.id || '').trim())}', this)">參賽</button>`;
   },
 
   _normalizeFriendlyTournamentJerseyNumber(value) {
@@ -237,7 +236,7 @@ Object.assign(App, {
     const safeUid = escapeHTML(String(member?.uid || '').trim());
     const displayName = this._formatFriendlyTournamentRosterMemberName(member);
     const editButton = canEditJersey && safeTournamentId && safeTeamId && safeUid
-      ? `<button type="button" class="tfd-jersey-btn" title="登入背號" onclick="event.stopPropagation();return App.promptFriendlyTournamentMemberJersey('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">背號</button>`
+      ? `<button type="button" class="tfd-jersey-btn" title="登入背號" onclick="event.stopPropagation();return App.promptFriendlyTournamentMemberJersey('${escapeJsAttr(String(tournamentId || '').trim())}','${escapeJsAttr(String(entry?.teamId || entry?.id || '').trim())}','${escapeJsAttr(String(member?.uid || '').trim())}', this)">背號</button>`
       : '';
     return `<span class="tfd-member-chip${editButton ? ' tfd-member-chip-editable' : ''}"><span class="tfd-member-name">${escapeHTML(displayName)}</span>${editButton}</span>`;
   },
@@ -398,10 +397,7 @@ Object.assign(App, {
   },
 
   _renderFriendlyTournamentRosterListRow(tournamentId, entry, member, canEdit, isEditing) {
-    const safeTournamentId = escapeHTML(String(tournamentId || '').trim());
-    const safeTeamId = escapeHTML(String(entry?.teamId || entry?.id || '').trim());
     const uid = String(member?.uid || '').trim();
-    const safeUid = escapeHTML(uid);
     const displayName = this._displayNameOrUidFallback?.(member?.name || member?.displayName, uid, member?.name || uid || '球員') || member?.name || uid || '球員';
     const jerseyNumber = this._normalizeFriendlyTournamentJerseyNumber(member?.jerseyNumber) || '';
     const position = String(member?.position || '').trim();
@@ -417,7 +413,7 @@ Object.assign(App, {
           <label><span>位置</span><input id="${escapeHTML(positionId)}" type="text" maxlength="20" value="${escapeHTML(position)}" placeholder="例：前鋒"></label>
           <label><span>備註</span><input id="${escapeHTML(noteId)}" type="text" maxlength="30" value="${escapeHTML(note)}" placeholder="最多 30 字"></label>
           <div class="tfd-roster-list-actions">
-            <button type="button" class="primary-btn small" onclick="return App.saveFriendlyTournamentRosterMemberProfile('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">儲存</button>
+            <button type="button" class="primary-btn small" onclick="return App.saveFriendlyTournamentRosterMemberProfile('${escapeJsAttr(String(tournamentId || '').trim())}','${escapeJsAttr(String(entry?.teamId || entry?.id || '').trim())}','${escapeJsAttr(uid)}', this)">儲存</button>
             <button type="button" class="outline-btn small" onclick="App.cancelFriendlyTournamentRosterMemberEdit();return false;">取消</button>
           </div>
         </div>`;
@@ -441,8 +437,8 @@ Object.assign(App, {
           <span class="tfd-roster-note">${escapeHTML(note || '-')}</span>
         </div>
         <div class="tfd-roster-list-actions">
-          ${canEdit ? `<button type="button" class="outline-btn small" onclick="App.editFriendlyTournamentRosterMember('${safeTournamentId}','${safeTeamId}','${safeUid}');return false;">編輯</button>` : ''}
-          ${canEdit ? `<button type="button" class="tfd-roster-delete-btn" aria-label="刪除 ${escapeHTML(displayName)}" onclick="return App.deleteFriendlyTournamentRosterMember('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">×</button>` : ''}
+          ${canEdit ? `<button type="button" class="outline-btn small" onclick="App.editFriendlyTournamentRosterMember('${escapeJsAttr(String(tournamentId || '').trim())}','${escapeJsAttr(String(entry?.teamId || entry?.id || '').trim())}','${escapeJsAttr(uid)}');return false;">編輯</button>` : ''}
+          ${canEdit ? `<button type="button" class="tfd-roster-delete-btn" aria-label="刪除 ${escapeHTML(displayName)}" onclick="return App.deleteFriendlyTournamentRosterMember('${escapeJsAttr(String(tournamentId || '').trim())}','${escapeJsAttr(String(entry?.teamId || entry?.id || '').trim())}','${escapeJsAttr(uid)}', this)">×</button>` : ''}
         </div>
       </div>`;
   },
@@ -624,7 +620,7 @@ Object.assign(App, {
     return `
       <div class="tfd-action-withdraw">
         ${selector}
-        <button type="button" class="outline-btn full-width tfd-team-withdraw-btn" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(safeTournamentId)}', App._getFriendlyTournamentWithdrawSelection('${escapeHTML(selectId)}','${escapeHTML(firstTeamId)}'), this)">${escapeHTML(label)}</button>
+        <button type="button" class="outline-btn full-width tfd-team-withdraw-btn" onclick="return App.withdrawFriendlyTournamentTeam('${escapeJsAttr(safeTournamentId)}', App._getFriendlyTournamentWithdrawSelection('${escapeJsAttr(selectId)}','${escapeJsAttr(firstTeamId)}'), this)">${escapeHTML(label)}</button>
       </div>`;
   },
 
@@ -678,19 +674,19 @@ Object.assign(App, {
         <div class="signup-glow-border"></div>
         <div class="signup-glow-shadow"></div>
         <div class="signup-flipper">
-          <button class="primary-btn full-width" onclick="return App.registerTournament('${escapeHTML(tournament.id)}', this)">參加賽事</button>
+          <button class="primary-btn full-width" onclick="return App.registerTournament('${escapeJsAttr(tournament.id)}', this)">參加賽事</button>
         </div>
         <div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名中</span></div>
       </div>`;
     if (selectedTeam?.status === 'pending') {
       primaryHtml = `${selector}${pendingStatusButton}`;
       if (canWithdrawSelectedTeam) {
-        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">撤回申請</button>`;
+        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeJsAttr(tournament.id)}','${escapeJsAttr(selectedTeam.id)}', this)">撤回申請</button>`;
       }
     } else if (selectedTeam?.status === 'approved') {
       primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
       if (canWithdrawSelectedTeam) {
-        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">取消報名</button>`;
+        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeJsAttr(tournament.id)}','${escapeJsAttr(selectedTeam.id)}', this)">取消報名</button>`;
       }
     } else if (selectedTeam?.status === 'rejected') {
       primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部申請未通過</button>`;
@@ -714,9 +710,8 @@ Object.assign(App, {
       primaryHtml = `<button class="primary-btn full-width" onclick="App.showToast('需由俱樂部領隊或經理先行報名參賽。')">參加賽事</button>`;
     }
 
-    const safeTournamentId = escapeHTML(tournament.id);
-    const contactBtn = `<button type="button" class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${safeTournamentId}')">聯繫主辦人</button>`;
-    const shareBtn = `<button type="button" class="outline-btn full-width" onclick="return App.shareTournament('${safeTournamentId}', this)">分享賽事</button>`;
+    const contactBtn = `<button type="button" class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${escapeJsAttr(tournament.id)}')">聯繫主辦人</button>`;
+    const shareBtn = `<button type="button" class="outline-btn full-width" onclick="return App.shareTournament('${escapeJsAttr(tournament.id)}', this)">分享賽事</button>`;
     const actionGridClass = extraActionHtml ? 'tfd-action-grid tfd-action-grid-three' : 'tfd-action-grid';
 
     area.innerHTML = `
@@ -915,10 +910,10 @@ Object.assign(App, {
     const eventsHtml = this._renderFriendlyTournamentScheduleEvents(match, teamNames);
     const canRecord = !!(this._canRecordTournamentMatch?.(tournament, match, viewer) && match.status !== 'bye');
     const manageHtml = canRecord
-      ? `<button type="button" class="tfg-record-btn" onclick="event.stopPropagation();return App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">更新賽況</button>`
+      ? `<button type="button" class="tfg-record-btn" onclick="event.stopPropagation();return App.openTournamentMatchRecordModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')">更新賽況</button>`
       : '';
     return `
-      <article class="tfg-match-card tfg-match-${escapeHTML(statusMeta.key)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}');}">
+      <article class="tfg-match-card tfg-match-${escapeHTML(statusMeta.key)}" role="button" tabindex="0" onclick="App.openTournamentMatchDetailModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchDetailModal('${escapeJsAttr(tournament.id)}','${escapeJsAttr(match.id)}');}">
         <div class="tfg-match-main">
           <div class="tfg-score-lines">
             <div class="tfg-score-team-row">
@@ -953,9 +948,8 @@ Object.assign(App, {
     const viewer = ApiService.getCurrentUser?.();
     const canManage = !!(this._isTournamentGlobalAdmin?.(viewer) || this._canManageTournamentRecord?.(tournament, viewer));
     const finishedCount = matches.filter(match => match.status === 'finished' || match.status === 'walkover').length;
-    const safeTournamentId = escapeHTML(tournament.id);
     const manageButton = canManage
-      ? `<button type="button" class="tfg-manage-btn" onclick="return App.openTournamentScheduleManager('${safeTournamentId}')">賽程管理</button>`
+      ? `<button type="button" class="tfg-manage-btn" onclick="return App.openTournamentScheduleManager('${escapeJsAttr(tournament.id)}')">賽程管理</button>`
       : '';
     if (!matches.length) {
       return `
@@ -1028,7 +1022,7 @@ Object.assign(App, {
       const rosterSummary = isRosterHydrated ? this._getFriendlyTournamentRosterSummaryText(entry) : '-';
       const rosterTeamId = String(entry.teamId || entry.id || '').trim();
       const rosterListButton = isRosterHydrated
-        ? `<button type="button" class="tfd-roster-list-btn" onclick="event.stopPropagation();return App.openFriendlyTournamentRosterList('${escapeHTML(tournament.id)}','${escapeHTML(rosterTeamId)}')">${isViewerTeamOfficer ? '管理名單' : '球員名單'}</button>`
+        ? `<button type="button" class="tfd-roster-list-btn" onclick="event.stopPropagation();return App.openFriendlyTournamentRosterList('${escapeJsAttr(tournament.id)}','${escapeJsAttr(rosterTeamId)}')">${isViewerTeamOfficer ? '管理名單' : '球員名單'}</button>`
         : '<button type="button" class="tfd-roster-loading-btn" disabled>載入中</button>';
       const roster = `
         <div class="tfd-roster-summary">
@@ -1041,9 +1035,9 @@ Object.assign(App, {
           : '<button type="button" class="tfd-roster-loading-btn" disabled>載入中</button>')
         : '';
       const managementAction = canManage && entry.entryStatus !== 'host'
-        ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">剔除</button>`
+        ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeJsAttr(tournament.id)}','${escapeJsAttr(entry.teamId)}', this)">剔除</button>`
         : (!canManage && isViewerTeamOfficer && entry.entryStatus !== 'host'
-          ? `<button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">退出賽事</button>`
+          ? `<button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeJsAttr(tournament.id)}','${escapeJsAttr(entry.teamId)}', this)">退出賽事</button>`
           : '');
       const rowActions = [rosterAction, managementAction].filter(Boolean).join('');
       return `
@@ -1069,11 +1063,11 @@ Object.assign(App, {
       const requesterName = application.requestedByName || '申請人';
       const actions = canManage && !isRejected
         ? `<div class="tfd-review-actions">
-             <button type="button" class="primary-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeHTML(tournament.id)}','${escapeHTML(application.id)}','approve', this)">確認</button>
-             <button type="button" class="outline-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeHTML(tournament.id)}','${escapeHTML(application.id)}','reject', this)">拒絕</button>
+             <button type="button" class="primary-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeJsAttr(tournament.id)}','${escapeJsAttr(application.id)}','approve', this)">確認</button>
+             <button type="button" class="outline-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeJsAttr(tournament.id)}','${escapeJsAttr(application.id)}','reject', this)">拒絕</button>
            </div>`
         : (!canManage && isViewerTeamOfficer && !isRejected
-          ? `<div class="tfd-team-action"><button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(application.teamId)}', this)">撤回申請</button></div>`
+          ? `<div class="tfd-team-action"><button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeJsAttr(tournament.id)}','${escapeJsAttr(application.teamId)}', this)">撤回申請</button></div>`
           : '');
       return `
         <div class="tfd-team-row tfd-team-row-pending${isRejected ? ' tfd-team-row-rejected' : ''}">

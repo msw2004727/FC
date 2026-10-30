@@ -7,10 +7,6 @@ Object.assign(App, {
   _annEditId: null,
   _annBusy: false,
 
-  _annActionArg(value) {
-    return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  },
-
   _parseAnnDateTime(value) {
     if (!value) return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -75,8 +71,7 @@ Object.assign(App, {
     }
 
     const html = items.map(a => {
-      const id = this._annActionArg(a.id);
-      return `<span class="announce-marquee-item" onclick="App.showAnnDetail('${id}')">${escapeHTML(a.title || '公告')}：${escapeHTML(a.content || '')}</span>`;
+      return `<span class="announce-marquee-item" onclick="App.showAnnDetail('${escapeJsAttr(a.id)}')">${escapeHTML(a.title || '公告')}：${escapeHTML(a.content || '')}</span>`;
     }).join('');
 
     track.innerHTML = `<div class="announce-marquee-inner">${html}${html}</div>`;
@@ -120,7 +115,6 @@ Object.assign(App, {
 
     const now = new Date();
     container.innerHTML = items.map((a, idx) => {
-      const id = this._annActionArg(a.id);
       const effectiveStatus = ApiService._getAnnouncementEffectiveStatus
         ? ApiService._getAnnouncementEffectiveStatus(a, now)
         : (a.status || 'active');
@@ -131,8 +125,8 @@ Object.assign(App, {
       return `
         <article class="announcement-card">
           <div class="announcement-order-controls" aria-label="公告排序">
-            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${id}','up')" ${isFirst || this._annBusy ? 'disabled' : ''} aria-label="上移">▲</button>
-            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${id}','down')" ${isLast || this._annBusy ? 'disabled' : ''} aria-label="下移">▼</button>
+            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${escapeJsAttr(a.id)}','up')" ${isFirst || this._annBusy ? 'disabled' : ''} aria-label="上移">▲</button>
+            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${escapeJsAttr(a.id)}','down')" ${isLast || this._annBusy ? 'disabled' : ''} aria-label="下移">▼</button>
           </div>
           <div class="announcement-main">
             <div class="announcement-title-row">
@@ -147,9 +141,9 @@ Object.assign(App, {
             </div>
           </div>
           <div class="announcement-actions">
-            <button class="text-btn announcement-action-btn" type="button" onclick="App.editAnnouncementItem('${id}')" ${this._annBusy ? 'disabled' : ''}>編輯</button>
-            <button class="text-btn announcement-action-btn ${canActivate ? 'announcement-action-accent' : 'announcement-action-muted'}" type="button" onclick="App.toggleAnnouncementStatus('${id}')" ${this._annBusy ? 'disabled' : ''}>${canActivate ? '上架' : '下架'}</button>
-            <button class="text-btn announcement-action-btn announcement-action-danger" type="button" onclick="App.deleteAnnouncementItem('${id}')" ${this._annBusy ? 'disabled' : ''}>刪除</button>
+            <button class="text-btn announcement-action-btn" type="button" onclick="App.editAnnouncementItem('${escapeJsAttr(a.id)}')" ${this._annBusy ? 'disabled' : ''}>編輯</button>
+            <button class="text-btn announcement-action-btn ${canActivate ? 'announcement-action-accent' : 'announcement-action-muted'}" type="button" onclick="App.toggleAnnouncementStatus('${escapeJsAttr(a.id)}')" ${this._annBusy ? 'disabled' : ''}>${canActivate ? '上架' : '下架'}</button>
+            <button class="text-btn announcement-action-btn announcement-action-danger" type="button" onclick="App.deleteAnnouncementItem('${escapeJsAttr(a.id)}')" ${this._annBusy ? 'disabled' : ''}>刪除</button>
           </div>
         </article>
       `;

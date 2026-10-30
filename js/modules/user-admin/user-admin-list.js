@@ -58,10 +58,6 @@ Object.assign(App, {
     return String(this._displayNameOrUidFallback?.(user?.name || user?.displayName, uid, '') || '').trim();
   },
 
-  _escapeAdminUserArg(value) {
-    return escapeHTML(String(value || '')).replace(/'/g, "\\'");
-  },
-
   _findAdminUserByKey(userKey) {
     const key = String(userKey || '').trim();
     if (!key) return null;
@@ -397,8 +393,6 @@ Object.assign(App, {
 
       const teamInfo = u.teamName ? ` ・${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
-      const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
-      const safeUserKey = this._escapeAdminUserArg(this._getAdminUserKey(u));
       const uidMetaText = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
       const primaryMeta = [
         uidMetaText ? escapeHTML(uidMetaText) : '',
@@ -410,7 +404,7 @@ Object.assign(App, {
       const canEditThisUser = this._canOpenUserEditor(u);
       const isRestricted = !!u.isRestricted;
       const restrictBtnHtml = this._canToggleUserRestrictionFor(u)
-        ? `<button class="au-btn ${isRestricted ? 'au-btn-view' : 'au-btn-edit'}" onclick="App.toggleUserRestriction('${safeUserKey}')">${isRestricted ? '解除限制' : '限制'}</button>`
+        ? `<button class="au-btn ${isRestricted ? 'au-btn-view' : 'au-btn-edit'}" onclick="App.toggleUserRestriction('${escapeJsAttr(this._getAdminUserKey(u))}')">${isRestricted ? '解除限制' : '限制'}</button>`
         : '';
 
       return `
@@ -426,8 +420,8 @@ Object.assign(App, {
               <div class="admin-user-meta" style="word-break:break-all">最後登入：${this._formatLastLoginMeta(u)}</div>
             </div>
             <div class="admin-user-actions">
-              ${canEditThisUser && u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeUserKey}')">編輯</button>` : ''}
-              <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}',{uid:'${escapeHTML(u.uid || '')}'})">查看</button>
+              ${canEditThisUser && u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${escapeJsAttr(this._getAdminUserKey(u))}')">編輯</button>` : ''}
+              <button class="au-btn au-btn-view" onclick="App.showUserProfile('${escapeJsAttr(u.name || '')}',{uid:'${escapeJsAttr(u.uid || '')}'})">查看</button>
               ${restrictBtnHtml}
             </div>
           </div>

@@ -142,7 +142,7 @@ Object.assign(App, {
 
     if (!inGroup.length) {
       container.innerHTML = '<div class="edu-empty-state">此分組尚無學員'
-        + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">新增學員</button>' : '')
+        + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + escapeJsAttr(teamId) + '\',\'' + (escapeJsAttr(groupId || '')) + '\')">新增學員</button>' : '')
         + '</div>';
       return;
     }
@@ -158,7 +158,7 @@ Object.assign(App, {
 
     // ── 新增學員按鈕（職員）──
     if (isStaff) {
-      html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">＋ 新增學員</button></div>';
+      html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + escapeJsAttr(teamId) + '\',\'' + (escapeJsAttr(groupId || '')) + '\')">＋ 新增學員</button></div>';
     }
 
     // ── 正式學員 ──
@@ -200,8 +200,8 @@ Object.assign(App, {
       + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
       + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
       + '<span class="edu-header-actions">'
-      + '<button class="edu-approve-btn" onclick="App._approveFromList(\'' + teamId + '\',\'' + s.id + '\',this)">通過</button>'
-      + '<button class="edu-reject-btn" onclick="App._rejectFromList(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">拒絕</button>'
+      + '<button class="edu-approve-btn" onclick="App._approveFromList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',this)">通過</button>'
+      + '<button class="edu-reject-btn" onclick="App._rejectFromList(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',this)" data-name="' + escapeHTML(s.name) + '">拒絕</button>'
       + '</span>'
       + '</div>'
       + '</div>';
@@ -234,8 +234,8 @@ Object.assign(App, {
     if (isStaff) {
       const editBtn = isSelf
         ? '<button class="outline-btn small" disabled style="opacity:.4;font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem">編輯</button>'
-        : '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem" onclick="App.showEduStudentForm(\'' + teamId + '\',\'' + s.id + '\')">編輯</button>';
-      const removeBtn = '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem;min-width:1.6rem;color:var(--danger);border-color:var(--danger)" onclick="App._removeStudentFromGroup(\'' + teamId + '\',\'' + s.id + '\',\'' + (groupId || '') + '\',this)" data-name="' + escapeHTML(s.name) + '">移除</button>';
+        : '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem" onclick="App.showEduStudentForm(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\')">編輯</button>';
+      const removeBtn = '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem;min-width:1.6rem;color:var(--danger);border-color:var(--danger)" onclick="App._removeStudentFromGroup(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',\'' + (escapeJsAttr(groupId || '')) + '\',this)" data-name="' + escapeHTML(s.name) + '">移除</button>';
       actionBtns = '<span class="edu-header-actions">' + editBtn + removeBtn + '</span>';
     }
 
@@ -278,7 +278,7 @@ Object.assign(App, {
 
     if (!inGroup.length) {
       container.innerHTML = refreshHtml + '<div class="edu-empty-state">此分組尚無學員'
-        + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">新增學員</button>' : '')
+        + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + escapeJsAttr(teamId) + '\',\'' + (escapeJsAttr(groupId || '')) + '\')">新增學員</button>' : '')
         + '</div>';
       return;
     }
@@ -290,7 +290,7 @@ Object.assign(App, {
       html += '<hr style="border:none;border-top:1px solid var(--border);margin:.6rem 0">';
     }
     if (isStaff && !readOnly) {
-      html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">＋ 新增學員</button></div>';
+      html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + escapeJsAttr(teamId) + '\',\'' + (escapeJsAttr(groupId || '')) + '\')">＋ 新增學員</button></div>';
     }
     if (activeStudents.length) {
       html += activeStudents.map(s => this._renderActiveStudentRow(teamId, groupId, s, isStaff, { readOnly })).join('');
@@ -360,7 +360,7 @@ Object.assign(App, {
         + '<td class="edu-ci-td-name">' + escapeHTML(s.name) + '</td>'
         + '<td style="text-align:center"><span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span></td>'
         + '<td style="text-align:center;font-size:.78rem">' + ageLabel + '</td>'
-        + '<td style="text-align:center"><button class="primary-btn small" style="font-size:.68rem;padding:.15rem .5rem" onclick="App.showEduGroupPickerForStudent(\'' + teamId + '\',\'' + s.id + '\')">加入分組</button></td>'
+        + '<td style="text-align:center"><button class="primary-btn small" style="font-size:.68rem;padding:.15rem .5rem" onclick="App.showEduGroupPickerForStudent(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\')">加入分組</button></td>'
         + '</tr>';
     });
 
@@ -398,7 +398,7 @@ Object.assign(App, {
         + '<span class="edu-student-name">' + escapeHTML(g.name) + '</span>'
         + '<span style="font-size:.68rem;color:var(--text-muted);margin-left:.3rem">' + ageRange + ' · ' + genderText + '</span>'
         + '</div>'
-        + '<button class="primary-btn small" onclick="App._assignStudentToGroup(\'' + teamId + '\',\'' + studentId + '\',\'' + g.id + '\');App.closeModal()">加入</button>'
+        + '<button class="primary-btn small" onclick="App._assignStudentToGroup(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(studentId) + '\',\'' + escapeJsAttr(g.id) + '\');App.closeModal()">加入</button>'
         + '</div>';
     }).join('');
 

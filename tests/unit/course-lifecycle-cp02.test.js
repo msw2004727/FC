@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 const fs=require('fs'),path=require('path'),vm=require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 function setup(){
@@ -11,6 +12,7 @@ function setup(){
       listEduCoursePlans:jest.fn(()=>{const d=defer();requests.push(d);return d.promise;}),
       listEduStudents:jest.fn(()=>{const d=defer();studentReads.push(d);return d.promise;})},
     firebase:{firestore:()=>({collection:()=>({doc:()=>({collection:()=>({onSnapshot:cb=>{listeners.push(cb);return ()=>{};}})})})})},
+    escapeJsAttr:require('../helpers/event-binding').escapeJsAttr,
     escapeHTML:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'),
     App:{currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>false,
       _loadCourseSessions:async()=>[],_getCourseEnrollCacheKey:()=>null,_todayStr:()=> '2026-09-07',_weekdayLabel:()=>''}};

@@ -128,37 +128,37 @@ Object.assign(App, {
     const s = 'font-size:.72rem;padding:.2rem .5rem';
     const btns = [];
     if (status === 'empty') {
-      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">設定</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">設定</button>`);
     } else if (status === 'active') {
-      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
-      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('${type}','${id}')">下架</button>`);
-      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">編輯</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">下架</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">刪除</button>`);
     } else if (status === 'scheduled') {
-      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
-      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">編輯</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">刪除</button>`);
     } else {
       // expired / delisted
       const canRelist = !unpublishAt || this._remainDays(unpublishAt) > 0;
-      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">編輯</button>`);
       if (canRelist) {
-        btns.push(`<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('${type}','${id}')">重新上架</button>`);
+        btns.push(`<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">重新上架</button>`);
       }
-      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${escapeJsAttr(type)}','${escapeJsAttr(id)}')">刪除</button>`);
     }
     const html = btns.join('');
     if (type === 'homeinfo') {
       if (status === 'active') {
         return [
-          `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u7de8\u8f2f</button>`,
-          `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('homeinfo','${id}')">\u4e0b\u67b6</button>`,
+          `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${escapeJsAttr(id)}')">\u7de8\u8f2f</button>`,
+          `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('homeinfo','${escapeJsAttr(id)}')">\u4e0b\u67b6</button>`,
         ].join('');
       }
       if (status === 'empty') {
-        return `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u8a2d\u5b9a</button>`;
+        return `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${escapeJsAttr(id)}')">\u8a2d\u5b9a</button>`;
       }
       return [
-        `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u7de8\u8f2f</button>`,
-        `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('homeinfo','${id}')">\u91cd\u65b0\u4e0a\u67b6</button>`,
+        `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${escapeJsAttr(id)}')">\u7de8\u8f2f</button>`,
+        `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('homeinfo','${escapeJsAttr(id)}')">\u91cd\u65b0\u4e0a\u67b6</button>`,
       ].join('');
     }
     if (type === 'watchparty') {
@@ -333,8 +333,8 @@ Object.assign(App, {
             ${hint}
           </div>
           <div class="home-layout-row-actions">
-            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeHTML(key)}', -1)"${index === 0 ? ' disabled' : ''}>\u4e0a\u79fb</button>
-            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeHTML(key)}', 1)"${index === order.length - 1 ? ' disabled' : ''}>\u4e0b\u79fb</button>
+            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeJsAttr(key)}', -1)"${index === 0 ? ' disabled' : ''}>\u4e0a\u79fb</button>
+            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeJsAttr(key)}', 1)"${index === order.length - 1 ? ' disabled' : ''}>\u4e0b\u79fb</button>
           </div>
         </div>`;
     }).join('');

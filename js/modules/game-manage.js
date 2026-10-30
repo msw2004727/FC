@@ -90,7 +90,7 @@ Object.assign(App, {
               <div>頁面：<span style="font-family:monospace">${escapeHTML(item.page || '-')}</span></div>
             </div>
             <label class="toggle-switch" style="margin-left:0;${disabled ? 'opacity:.45;cursor:not-allowed' : ''}">
-              <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="App.toggleHomeGameVisibility('${escapeHTML(gameId)}', this.checked)">
+              <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="App.toggleHomeGameVisibility('${escapeJsAttr(gameId)}', this.checked)">
               <span class="toggle-slider"></span>
             </label>
           </div>

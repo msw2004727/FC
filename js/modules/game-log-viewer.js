@@ -123,7 +123,7 @@ Object.assign(App, {
         ? m.lastOnline.toDate().toLocaleString('zh-TW') : '-';
       return `
         <div class="banner-manage-card" style="cursor:pointer;margin-bottom:.4rem"
-             onclick="App.viewGameLog(${i})">
+             onclick="App.viewGameLog(${Number(i)})">
           <div style="display:flex;align-items:center;gap:.5rem;width:100%">
             <div style="flex:1">
               <div style="font-weight:700;font-size:.85rem" data-no-translate>${name} ${sub}</div>

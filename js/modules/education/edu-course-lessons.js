@@ -391,11 +391,8 @@ Object.assign(App, {
   },
 
   _renderCourseLessonRosterLoadFailure(teamId, planId, sessionId, message = '') {
-    const jsTeamId = this._eduCourseLessonsJsArg?.(teamId) || String(teamId || '');
-    const jsPlanId = this._eduCourseLessonsJsArg?.(planId) || String(planId || '');
-    const jsSessionId = this._eduCourseLessonsJsArg?.(sessionId) || String(sessionId || '');
     const detail = message || '&#35531;&#30906;&#35469;&#32178;&#36335;&#29376;&#24907;&#24460;&#20877;&#35430;';
-    return '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>' + detail + '</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
+    return '<div class="edu-course-lessons-empty"><strong>&#21517;&#21934;&#36617;&#20837;&#22833;&#25943;</strong><span>' + detail + '</span><button type="button" class="primary-btn small" onclick="App.showCourseLessonRoster(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(planId) + '\',\'' + escapeJsAttr(sessionId) + '\',{forceRefresh:true})">&#37325;&#35430;</button></div>';
   },
 
   async _handleCourseLessonRosterViewerChange(teamId, planId, sessionId, routeTransitionSeq, options = {}) {

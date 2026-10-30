@@ -414,7 +414,7 @@ Object.assign(App, {
         + '</div>'
         + existingGroups
         + '</div>'
-        + '<button class="primary-btn small" onclick="App._assignStudentToGroup(\'' + teamId + '\',\'' + s.id + '\',\'' + groupId + '\')">加入</button>'
+        + '<button class="primary-btn small" onclick="App._assignStudentToGroup(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(s.id) + '\',\'' + escapeJsAttr(groupId) + '\')">加入</button>'
         + '</div>';
     }).join('');
   },

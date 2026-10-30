@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const groupSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-group-list.js'),
@@ -41,6 +42,7 @@ describe('education cache-first readonly states', () => {
         getElementById: jest.fn((id) => id === 'edu-group-list' ? container : null),
       },
       escapeHTML,
+      escapeJsAttr,
       console,
       Promise,
     };
@@ -83,6 +85,7 @@ describe('education cache-first readonly states', () => {
         getElementById: jest.fn((id) => id === 'edu-student-list' ? container : null),
       },
       escapeHTML,
+      escapeJsAttr,
       console,
       Promise,
     };
@@ -128,6 +131,7 @@ describe('education cache-first readonly states', () => {
         getElementById: jest.fn((id) => id === 'edu-student-list' ? container : null),
       },
       escapeHTML,
+      escapeJsAttr,
       console,
       Promise,
     };

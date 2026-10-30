@@ -42,7 +42,7 @@ Object.assign(App, {
       '<div id="edu-scan-reader" style="width:100%;max-width:400px;margin:0 auto"></div>' +
       '<div id="edu-scan-result" style="margin-top:.5rem"></div>' +
       '<div style="margin-top:.5rem;text-align:center">' +
-        '<button class="outline-btn" onclick="App._stopEduScan();App.showEduCheckin(\'' + teamId + '\')">切換到批次簽到</button>' +
+        '<button class="outline-btn" onclick="App._stopEduScan();App.showEduCheckin(\'' + escapeJsAttr(teamId) + '\')">切換到批次簽到</button>' +
       '</div>' +
     '</div>';
 

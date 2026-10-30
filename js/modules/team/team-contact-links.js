@@ -115,7 +115,7 @@ Object.assign(App, {
         <div class="ce-social-link-row" data-index="${index}">
           <input type="url" class="ce-social-link-input" value="${escapeHTML(value)}" placeholder="\u8cbc\u4e0a\u793e\u7fa4\u7db2\u5740\uff0c\u4f8b\u5982 https://line.me/...">
           <span class="ce-social-link-preview">${preview}</span>
-          <button type="button" class="ce-social-link-remove" ${removeDisabled} onclick="App._removeTeamContactLinkInput(${index})">\u522a\u9664</button>
+          <button type="button" class="ce-social-link-remove" ${removeDisabled} onclick="App._removeTeamContactLinkInput(${Number(index)})">\u522a\u9664</button>
         </div>`;
     }).join('');
     nodes.list.querySelectorAll('.ce-social-link-input').forEach((input, index) => {

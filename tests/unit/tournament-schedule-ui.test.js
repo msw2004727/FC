@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 function loadModule(relPath, globals) {
   const code = fs.readFileSync(path.resolve(__dirname, '..', '..', relPath), 'utf8');
@@ -20,14 +21,14 @@ function buildCompetitionApp(apiOverrides = {}) {
   const App = { renderTournamentTab: jest.fn() };
   const ApiService = { getCurrentUser: () => null, ...apiOverrides };
   loadModule('js/modules/tournament/tournament-competition.js', { App, ApiService });
-  loadModule('js/modules/tournament/tournament-detail-competition.js', { App, ApiService, escapeHTML });
+  loadModule('js/modules/tournament/tournament-detail-competition.js', { App, ApiService, escapeHTML, escapeJsAttr });
   return App;
 }
 
 function buildScheduleApp(apiOverrides = {}) {
   const App = {};
   const ApiService = apiOverrides;
-  loadModule('js/modules/tournament/tournament-schedule-manage.js', { App, ApiService, escapeHTML });
+  loadModule('js/modules/tournament/tournament-schedule-manage.js', { App, ApiService, escapeHTML, escapeJsAttr });
   return App;
 }
 

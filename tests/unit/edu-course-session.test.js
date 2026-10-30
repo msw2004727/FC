@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { escapeJsAttr } = require('../helpers/event-binding');
 
 const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-session.js'),
@@ -45,6 +46,7 @@ function loadCourseSessionContext(overrides = {}) {
       getElementById: jest.fn((id) => (id === 'edu-ce-list' ? container : null)),
     },
     escapeHTML,
+    escapeJsAttr,
     console,
     Date,
     Math,
