@@ -30,6 +30,7 @@ function loadSignupModule({
     console: { ...console, warn: jest.fn(), error: jest.fn(), log: jest.fn() },
     setTimeout,
     clearTimeout,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: value => String(value || ''),
     document: {
       getElementById: jest.fn(() => null),

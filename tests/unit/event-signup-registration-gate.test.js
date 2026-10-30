@@ -114,6 +114,7 @@ function loadSignupModule({
     document,
     setTimeout,
     clearTimeout,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: value => String(value ?? ''),
   };
   vm.runInNewContext(readProjectFile('js/modules/event/event-detail-signup.js'), context, {

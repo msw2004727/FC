@@ -786,6 +786,11 @@ function escapeHTML(str) {
     .replace(/'/g, '&#39;');
 }
 
+// 內聯處理用：值轉為安全字串
+function escapeJsAttr(v) {
+  return escapeHTML(String(v ?? '').replace(/[\\'"\n\r\u2028\u2029]|<\//g, c => ({'\\':'\\\\',"'":"\\'",'"':'\\"','\n':'\\n','\r':'\\r','\u2028':'\\u2028','\u2029':'\\u2029','</':'<\\/'}[c])));
+}
+
 function generateId(prefix) {
   return (prefix || '') + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 }

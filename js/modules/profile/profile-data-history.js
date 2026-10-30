@@ -443,8 +443,8 @@ Object.assign(App, {
           ${c.gender ? `<span style="font-size:.72rem;color:var(--text-muted);margin-left:.3rem">${genderIcon[c.gender] || ''}${escapeHTML(c.gender)}</span>` : ''}
           ${c.notes ? `<div style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(c.notes)}</div>` : ''}
         </div>
-        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem" onclick="App.openCompanionModal('${escapeHTML(c.id)}')">編輯</button>
-        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem;color:var(--danger);border-color:var(--danger)" onclick="App.deleteCompanion('${escapeHTML(c.id)}')">刪除</button>
+        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem" onclick="App.openCompanionModal('${escapeJsAttr(c.id)}')">編輯</button>
+        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem;color:var(--danger);border-color:var(--danger)" onclick="App.deleteCompanion('${escapeJsAttr(c.id)}')">刪除</button>
       </div>
     `).join('') +
     (companions.length > 0 ? '<div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem">※ 序號為幫夥伴報名時的候補遞補順序</div>' : '');

@@ -38,6 +38,7 @@ function loadAttendanceModule({
       requestDetailAttendanceRealtime: jest.fn(),
     },
     shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? ''),
     isNoShowFeatureEnabled: () => true,
     console,

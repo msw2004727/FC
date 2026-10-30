@@ -141,16 +141,14 @@ Object.assign(App, {
         svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
       }
       if (options.canPickTeam) {
-        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeHTML(options.regDocId || '')}','${escapeHTML(options.eventId || '')}')`;
-        jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
+        jerseyHtml = `<span class="uc-jersey-tap" onclick="event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeJsAttr(options.regDocId || '')}','${escapeJsAttr(options.eventId || '')}')">${svg}</span>`;
       } else {
         jerseyHtml = svg;
       }
     } else if (options && options.showEmptyJersey) {
       const svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
       if (options.canPickTeam) {
-        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeHTML(options.regDocId || '')}','${escapeHTML(options.eventId || '')}')`;
-        jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
+        jerseyHtml = `<span class="uc-jersey-tap" onclick="event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeJsAttr(options.regDocId || '')}','${escapeJsAttr(options.eventId || '')}')">${svg}</span>`;
       } else {
         jerseyHtml = svg;
       }
@@ -511,9 +509,8 @@ Object.assign(App, {
     const _showStatsBlur = targetUid && !isSecondaryIdentity && !(_recordsCacheHit && _summaryCacheHit);
     const _showBadgesBlur = targetUid && !isSecondaryIdentity && !isSelf && !_badgeCacheHit;
 
-    const _blurOnClick = `App._loadUserCardUncovered('${escapeHTML(targetUid || '')}')`;
-    const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入活動記錄</div></div>` : '';
-    const _badgeBlurHtml = _showBadgesBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入此用戶的徽章</div></div>` : '';
+    const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="App._loadUserCardUncovered('${escapeJsAttr(targetUid || '')}')"><div class="uc-blur-text">點擊載入活動記錄</div></div>` : '';
+    const _badgeBlurHtml = _showBadgesBlur ? `<div class="uc-blur-overlay" onclick="App._loadUserCardUncovered('${escapeJsAttr(targetUid || '')}')"><div class="uc-blur-text">點擊載入此用戶的徽章</div></div>` : '';
     const userCardContainer = document.getElementById('user-card-full');
     if (!userCardContainer) return { ok: false, reason: 'missing-container' };
     userCardContainer.classList.toggle('is-secondary-private', isSecondaryIdentity);
@@ -794,12 +791,9 @@ Object.assign(App, {
       ? this.isValidLineUid(rawUid)
       : /^U[0-9a-f]{32}$/i.test(rawUid);
     const safeUid = isValidUid ? rawUid : '';
-    const pmAction = safeUid
-      ? `App.openPmDialog('${escapeHTML(safeUid)}')`
-      : `App.showToast('無法開啟私訊')`;
     return `<div class="uc-action-panel">
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">加好友</button>
-      <button type="button" class="uc-action-btn uc-action-btn-pm" onclick="${pmAction}">私訊</button>
+      <button type="button" class="uc-action-btn uc-action-btn-pm" ${safeUid ? `onclick="App.openPmDialog('${escapeJsAttr(safeUid)}')"` : `onclick="App.showToast('無法開啟私訊')"`}>私訊</button>
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">關注</button>
     </div>`;
   },

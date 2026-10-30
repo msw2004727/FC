@@ -37,39 +37,39 @@ Object.assign(App, {
       let scheduleInfo = '';
 
       if (m.status === 'sent') {
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
-             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.recallMsg('${m.id}')">回收</button>`
-             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.recallMsg('${escapeJsAttr(m.id)}')">回收</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${escapeJsAttr(m.id)}')">刪除</button>`;
       } else if (m.status === 'scheduled') {
         if (m.scheduledAt) {
           const schedDate = new Date(m.scheduledAt);
           const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
           scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(59,130,246,.1);color:#3b82f6;border-radius:4px;display:inline-block">&#128339; 預約發送：${schedStr}</div>`;
         }
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
-             + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.cancelScheduleMsg('${m.id}')">取消排程</button>`
-             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`
+             + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.cancelScheduleMsg('${escapeJsAttr(m.id)}')">取消排程</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${escapeJsAttr(m.id)}')">刪除</button>`;
       } else if (m.status === 'processing') {
         if (m.scheduledAt) {
           const schedDate = new Date(m.scheduledAt);
           const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
           scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(245,158,11,.12);color:#b45309;border-radius:4px;display:inline-block">&#128337; 處理中：${schedStr}</div>`;
         }
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`;
       } else if (m.status === 'recalled') {
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
-             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${escapeJsAttr(m.id)}')">刪除</button>`;
       } else if (m.status === 'cancelled') {
         if (m.scheduledAt) {
           const schedDate = new Date(m.scheduledAt);
           const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
           scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(156,163,175,.15);color:var(--text-muted);border-radius:4px;display:inline-block;text-decoration:line-through">&#128339; 原排程：${schedStr}</div>`;
         }
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
-             + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.restoreScheduleMsg('${m.id}')">恢復排程</button>`
-             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`
+             + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.restoreScheduleMsg('${escapeJsAttr(m.id)}')">恢復排程</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${escapeJsAttr(m.id)}')">刪除</button>`;
       } else if (m.status === 'deleted') {
-        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`;
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${escapeJsAttr(m.id)}')">查看</button>`;
       }
 
       // 狀態標籤

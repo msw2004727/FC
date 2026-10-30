@@ -101,6 +101,7 @@ function loadTeamSplitModule({ event, cacheRows = [], serverRows, random = Math.
     },
     db,
     I18N: { t: jest.fn(() => null) },
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: value => String(value || ''),
     requestAnimationFrame: cb => cb(),
     setTimeout,

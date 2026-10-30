@@ -40,6 +40,7 @@ function loadTeamCardModule(showTeamDetail) {
     App,
     ApiService: {},
     I18N: { t: key => key },
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: value => String(value == null ? '' : value),
     console: testConsole,
     setTimeout,

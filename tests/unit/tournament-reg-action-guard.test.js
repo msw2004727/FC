@@ -397,7 +397,7 @@ function buildHarness() {
     App, ApiService, document, ScriptLoader, FirebaseService,
   });
   loadModule('js/modules/message/message-render.js', {
-    App, ApiService, document, escapeHTML,
+    App, ApiService, document, escapeHTML, escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
   });
 
   App.showToast = jest.fn();

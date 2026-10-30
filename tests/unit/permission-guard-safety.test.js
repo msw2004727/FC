@@ -146,6 +146,6 @@ describe('Permission guard safety — management guards have fallback', () => {
   test('event detail scan button passes an event id with Firestore doc id fallback', () => {
     const source = readFile('js/modules/event/event-detail.js');
     expect(source).toContain('_currentDetailEventRecord = e');
-    expect(source).toContain("App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')");
+    expect(source).toContain("App.goToScanForEvent('${escapeJsAttr(e.id || e._docId || e.docId || '')}')");
   });
 });

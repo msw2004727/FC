@@ -50,6 +50,7 @@ function loadEventDetailModule({
     ScriptLoader: scriptLoader,
     TYPE_CONFIG: { friendly: { label: 'friendly' }, external: { label: 'external' }, course: { label: '\u8ab2\u7a0b' } },
     shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -165,6 +166,7 @@ function loadEventDetailCompanionModule({
     Promise,
     Date,
     Math,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -184,6 +186,7 @@ function loadEventManageAttendanceModule() {
     console,
     setTimeout,
     clearTimeout,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -213,6 +216,7 @@ function loadEventDetailAndAttendanceModule() {
     console,
     setTimeout,
     clearTimeout,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -240,6 +244,7 @@ function loadEventManageWaitlistModule(context) {
     console,
     setTimeout,
     clearTimeout,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -1160,7 +1165,7 @@ describe('Team reservation button loading contract', () => {
     expect(waitlistSource).toContain('_renderRosterTables?.(eventId, { skipFetch: true })');
     expect(waitlistSource).toContain("const editBtnHtml = '';");
     expect(detailSource).toContain("const editBtnHtml = '';");
-    expect(attendanceSource).toContain("_finishRosterManagement('${escapeHTML(eventId)}')");
+    expect(attendanceSource).toContain("_finishRosterManagement('${escapeJsAttr(eventId)}')");
     expect(confirmSource).toContain('this._renderWaitlistContainers?.(eventId);');
     expect(confirmSource).toContain('async _finishRosterManagement(eventId)');
   });

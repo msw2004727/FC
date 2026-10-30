@@ -71,6 +71,7 @@ beforeAll(() => {
   };
   global.ROLES = { user: { label: '一般用戶' } };
   global.escapeHTML = escapeHTML;
+  global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
   jest.isolateModules(() => {
     require('../../js/modules/profile/profile-core.js');
   });
@@ -91,6 +92,7 @@ afterAll(() => {
   delete global.ApiService;
   delete global.ROLES;
   delete global.escapeHTML;
+  delete global.escapeJsAttr;
 });
 
 describe('UID-first User Profile Lookup', () => {

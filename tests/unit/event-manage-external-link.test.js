@@ -8,6 +8,7 @@ const SOURCE_PATH = path.resolve(__dirname, '../../js/modules/event/event-manage
 
 describe('event-manage external activity link', () => {
   beforeEach(() => {
+    global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
     global.escapeHTML = (value) => String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -15,12 +16,14 @@ describe('event-manage external activity link', () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
     global.App = {};
+    require(path.resolve(__dirname, '../../js/modules/ad-manage/banner.js'));
     require(SOURCE_PATH);
   });
 
   afterEach(() => {
     jest.resetModules();
     delete global.App;
+    delete global.escapeJsAttr;
     delete global.escapeHTML;
   });
 
@@ -46,7 +49,7 @@ describe('event-manage external activity link', () => {
     expect(App._eventExternalInlineUrl(url)).toBe('');
   });
 
-  test('the card onclick no longer inlines the raw escaped externalUrl', () => {
+  test('事件繫結強化：外部活動共用連結檢查', () => {
     const source = fs.readFileSync(SOURCE_PATH, 'utf8');
     expect(source.includes("window.open('${escapeHTML(e.externalUrl")).toBe(false);
     expect(source.includes('App._eventExternalInlineUrl(e.externalUrl)')).toBe(true);

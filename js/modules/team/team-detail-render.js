@@ -38,7 +38,7 @@ Object.assign(App, {
       const spotsHtml = e.max > 0
         ? `<span style="font-size:.62rem;color:${e.current >= e.max ? 'var(--danger)' : 'var(--text-muted)'}">${e.current}/${e.max}</span>`
         : '';
-      return `<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="App.showEventDetail('${e.id}')">
+      return `<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="App.showEventDetail('${escapeJsAttr(e.id)}')">
         <div style="width:3px;align-self:stretch;border-radius:2px;background:${color};flex-shrink:0"></div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.82rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(e.title)}</div>
@@ -178,7 +178,7 @@ Object.assign(App, {
       : (signedUp ? '<span class="tl-stamp-confirmed">\u5df2\u5831</span>' : '');
 
     return `
-      <div class="tl-event-row ${rowClass}" onclick="App.openTeamEventDetailFromCard('${e.id}', this)">
+      <div class="tl-event-row ${rowClass}" onclick="App.openTeamEventDetailFromCard('${escapeJsAttr(e.id)}', this)">
         ${genderRibbon}
         ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy" alt="${escapeHTML(e.title || '')}"></div>` : ''}
         <div class="tl-event-info">
@@ -196,7 +196,7 @@ Object.assign(App, {
   _renderTeamEvents(teamId) {
     const teamEvents = this._getTeamFutureEvents(teamId);
     const createButton = this._canCreateTeamDetailActivity(teamId)
-      ? '<button type="button" class="td-section-create-btn" onclick="event.stopPropagation();App.openTeamDetailCreateEvent(\'' + teamId + '\')">\u65b0\u589e\u6d3b\u52d5</button>'
+      ? '<button type="button" class="td-section-create-btn" onclick="event.stopPropagation();App.openTeamDetailCreateEvent(\'' + escapeJsAttr(teamId) + '\')">\u65b0\u589e\u6d3b\u52d5</button>'
       : '';
     const titleHtml = '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(' + teamEvents.length + ')</span></span>' + createButton + '</div>';
     if (!teamEvents.length) {
@@ -211,7 +211,7 @@ Object.assign(App, {
     const hiddenCount = Math.max(0, teamEvents.length - visibleEvents.length);
     const cards = visibleEvents.map(e => this._renderTeamEventCard(e)).join('');
     const moreButton = teamEvents.length > 10
-      ? `<button class="td-team-events-more" onclick="event.stopPropagation();App.toggleTeamEventsExpanded('${teamId}')">${expanded ? '\u6536\u5408' : `\u67e5\u770b\u66f4\u591a${hiddenCount > 0 ? `\uff08\u9084\u6709 ${hiddenCount} \u7b46\uff09` : ''}`}</button>`
+      ? `<button class="td-team-events-more" onclick="event.stopPropagation();App.toggleTeamEventsExpanded('${escapeJsAttr(teamId)}')">${expanded ? '\u6536\u5408' : `\u67e5\u770b\u66f4\u591a${hiddenCount > 0 ? `\uff08\u9084\u6709 ${hiddenCount} \u7b46\uff09` : ''}`}</button>`
       : '';
 
     return `<div class="td-card td-section-card" id="team-events-section">
@@ -818,11 +818,11 @@ Object.assign(App, {
       ? this._getTeamJoinRequestState(t.id)
       : null;
     if (joinState?.status === 'pending') {
-      return '<button class="td-action-main td-action-pending" onclick="App.showTeamJoinPendingToast(\'' + t.id + '\')">\u5be9\u6838\u4e2d</button>';
+      return '<button class="td-action-main td-action-pending" onclick="App.showTeamJoinPendingToast(\'' + escapeJsAttr(t.id) + '\')">\u5be9\u6838\u4e2d</button>';
     }
     return isMember
-      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">\u9000\u51fa</button>'
-      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">\u52a0\u5165</button>';
+      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + escapeJsAttr(t.id) + '\')">\u9000\u51fa</button>'
+      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + escapeJsAttr(t.id) + '\')">\u52a0\u5165</button>';
   },
 
   _buildTeamDetailActionBar(t) {
@@ -832,12 +832,12 @@ Object.assign(App, {
     const memberCanInvite = t.allowMemberInvite !== false;
     const isMember = this._isTeamMember(t.id);
     const canInvite = isCaptainCoach || (isMember && memberCanInvite);
-    const share = '<button class="td-action-secondary" onclick="App.shareTeam(\'' + t.id + '\')">\u5206\u4eab</button>';
+    const share = '<button class="td-action-secondary" onclick="App.shareTeam(\'' + escapeJsAttr(t.id) + '\')">\u5206\u4eab</button>';
     const contact = t.captain
-      ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>'
+      ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeJsAttr(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>'
       : '<button class="td-action-secondary td-action-disabled" type="button" disabled>' + I18N.t('teamDetail.contactCaptain') + '</button>';
     const invite = canInvite
-      ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>'
+      ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + escapeJsAttr(t.id) + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>'
       : '<button class="td-action-secondary td-action-disabled" type="button" disabled>' + I18N.t('teamDetail.inviteQR') + '</button>';
     return '<div class="td-action-panel">' +
       '<div class="td-action-grid">' + share + contact + invite + '</div>' +
@@ -1087,7 +1087,7 @@ Object.assign(App, {
     const thumbHtml = imageUrl
       ? '<div class="td-team-tournament-thumb"><img src="' + escapeHTML(imageUrl) + '" loading="lazy" alt="' + name + '"></div>'
       : '<div class="td-team-tournament-thumb td-team-tournament-thumb-placeholder" aria-hidden="true">' + (sportIcon || '<span>T</span>') + '</div>';
-    return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + id + '\')">' +
+    return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + escapeJsAttr(id) + '\')">' +
       '<span class="td-team-tournament-main">' +
       '<span class="td-team-tournament-title-row"><strong>' + name + '</strong><span class="td-team-tournament-status">' + status + '</span></span>' +
       '<span class="td-team-tournament-meta">' +
@@ -1115,7 +1115,7 @@ Object.assign(App, {
     const activeTournaments = tournaments.filter(t => !this._isTeamTournamentEnded(t));
     const endedTournaments = tournaments.filter(t => this._isTeamTournamentEnded(t));
     const visibleTournaments = activeTab === 'ended' ? endedTournaments : activeTournaments;
-    const tabBtn = (key, label, count) => '<button type="button" class="td-team-tournament-tab td-team-tournament-tab-' + key + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamTournamentTab(\'' + teamId + '\',\'' + key + '\')">' + label + '<span class="td-team-tournament-tab-count">' + count + '</span></button>';
+    const tabBtn = (key, label, count) => '<button type="button" class="td-team-tournament-tab td-team-tournament-tab-' + key + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamTournamentTab(\'' + escapeJsAttr(teamId) + '\',\'' + escapeJsAttr(key) + '\')">' + label + '<span class="td-team-tournament-tab-count">' + count + '</span></button>';
     const emptyText = activeTab === 'ended'
       ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b'
       : '\u76ee\u524d\u6c92\u6709\u53c3\u8cfd\u4e2d\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b';
@@ -1731,19 +1731,19 @@ Object.assign(App, {
     let iconName = 'note';
     if (activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row)) {
       label = '\u7de8\u8f2f\u8cfd\u4e8b\u8cc7\u6599';
-      action = 'App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')';
+      action = 'match';
       className = 'td-member-match-edit-btn';
       iconName = 'match';
     } else if (this._isTeamDetailMemberNoteEditableRow(row)) {
       label = activeTab === 'course' ? '\u7de8\u8f2f\u8ab2\u7a0b\u5099\u8a3b' : '\u7de8\u8f2f\u6d3b\u52d5\u5099\u8a3b';
-      action = 'App.editTeamMemberNote(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(activeTab)) + ')';
+      action = 'note';
       if (activeTab === 'course') {
         className = 'td-member-course-edit-btn';
         iconName = 'course';
       }
     }
     if (!action) return '';
-    return '<button class="td-member-row-edit-btn td-mm-icon-btn ' + className + '" type="button" title="' + escapeHTML(label) + '" aria-label="' + escapeHTML(label) + '" onclick="event.stopPropagation();' + action + '">'
+    return '<button class="td-member-row-edit-btn td-mm-icon-btn ' + className + '" type="button" title="' + escapeHTML(label) + '" aria-label="' + escapeHTML(label) + '" ' + (action === 'match' ? `onclick="event.stopPropagation();App.editTeamMemberMatchData(this,${escapeHTML(JSON.stringify(t.id))},${escapeHTML(JSON.stringify(row.key))})"` : `onclick="event.stopPropagation();App.editTeamMemberNote(this,${escapeHTML(JSON.stringify(t.id))},${escapeHTML(JSON.stringify(row.key))},${escapeHTML(JSON.stringify(activeTab))})"`) + '>'
       + this._buildTeamMemberSvgIcon(iconName)
       + '<span class="td-mm-sr-only">' + escapeHTML(label) + '</span></button>';
   },
@@ -1963,7 +1963,7 @@ Object.assign(App, {
       const active = arr.includes(myUid);
       const bg = active ? 'var(--accent-bg, #ede9fe)' : 'var(--bg-elevated)';
       const border = active ? 'var(--primary)' : 'var(--border)';
-      return `<button style="display:flex;align-items:center;gap:.2rem;padding:.15rem .4rem;border:1px solid ${border};border-radius:var(--radius-full);background:${bg};font-size:.72rem;cursor:pointer;line-height:1" onclick="event.stopPropagation();App.toggleFeedReaction('${teamId}','${post.id}','${k.key}')">${k.emoji}<span style="font-size:.68rem;color:var(--text-secondary)">${arr.length || ''}</span></button>`;
+      return `<button style="display:flex;align-items:center;gap:.2rem;padding:.15rem .4rem;border:1px solid ${border};border-radius:var(--radius-full);background:${bg};font-size:.72rem;cursor:pointer;line-height:1" onclick="event.stopPropagation();App.toggleFeedReaction('${escapeJsAttr(teamId)}','${escapeJsAttr(post.id)}','${escapeJsAttr(k.key)}')">${k.emoji}<span style="font-size:.68rem;color:var(--text-secondary)">${arr.length || ''}</span></button>`;
     }).join('')}</div>`;
   },
 
@@ -1977,7 +1977,7 @@ Object.assign(App, {
         html += `<div style="font-size:.75rem;margin-bottom:.25rem;display:flex;align-items:baseline;gap:.3rem;flex-wrap:wrap">
           <span style="font-weight:600;color:var(--text-primary)" data-no-translate>${escapeHTML(c.name)}</span>
           <span style="color:var(--text-secondary);word-break:break-word">${escapeHTML(c.text)}</span>
-          <span style="font-size:.62rem;color:var(--text-muted);margin-left:auto;flex-shrink:0">${escapeHTML(c.time)}${canDel ? ` <span style="color:var(--danger);cursor:pointer" onclick="event.stopPropagation();App.deleteFeedComment('${teamId}','${post.id}','${c.id}')">\u2715</span>` : ''}</span>
+          <span style="font-size:.62rem;color:var(--text-muted);margin-left:auto;flex-shrink:0">${escapeHTML(c.time)}${canDel ? ` <span style="color:var(--danger);cursor:pointer" onclick="event.stopPropagation();App.deleteFeedComment('${escapeJsAttr(teamId)}','${escapeJsAttr(post.id)}','${escapeJsAttr(c.id)}')">\u2715</span>` : ''}</span>
         </div>`;
       });
       html += `</div>`;
@@ -1985,7 +1985,7 @@ Object.assign(App, {
     if (isMember) {
       html += `<div style="display:flex;gap:.3rem;margin-top:.25rem">
         <input type="text" id="fc-${post.id}" maxlength="100" placeholder="${I18N.t('teamDetail.commentPlaceholder')}" style="flex:1;font-size:.75rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);min-width:0">
-        <button style="font-size:.68rem;padding:.2rem .45rem;border:1px solid var(--primary);border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();App.submitFeedComment('${teamId}','${post.id}')">${I18N.t('teamDetail.commentSubmit')}</button>
+        <button style="font-size:.68rem;padding:.2rem .45rem;border:1px solid var(--primary);border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();App.submitFeedComment('${escapeJsAttr(teamId)}','${escapeJsAttr(post.id)}')">${I18N.t('teamDetail.commentSubmit')}</button>
       </div>`;
     }
     return html;

@@ -18,7 +18,7 @@ beforeEach(() => {
     _isCurrentUserTeamStaff: () => staff, _patchDetailAfterSignup: jest.fn() };
   const api = { getEvent: id => id === eventRecord.id ? eventRecord : null,
     getCurrentUser: () => ({ uid: userId }), getTeams: () => [{ id: 'tm_fixture', name: '測試俱樂部' }] };
-  new Function('App', 'ApiService', 'FirebaseService', 'escapeHTML', source)(app, api, service, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
+  new Function('App', 'ApiService', 'FirebaseService', 'escapeJsAttr', 'escapeHTML', source)(app, api, service, require('../helpers/event-binding').escapeJsAttr, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
   app._ensureTeamReservationStaffTeamsLoaded = jest.fn(async () => []);
   app._patchDetailAfterSignup = jest.fn();
   app._refreshSignupButton = jest.fn();

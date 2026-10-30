@@ -334,7 +334,7 @@ Object.assign(App, {
     return `<div class="reg-loading reg-loading-issue" style="align-items:flex-start;text-align:left;gap:.35rem">
       <div style="font-weight:700;color:var(--text-primary)">${title}</div>
       <div style="font-size:.78rem;color:var(--text-secondary);line-height:1.5">${note}</div>
-      <button type="button" style="font-size:.76rem;padding:.28rem .65rem;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);border-radius:var(--radius-sm);cursor:pointer" onclick="App._retryAttendanceTableLoad('${safeEventId}','${safeContainerId}')">重新同步名單</button>
+      <button type="button" style="font-size:.76rem;padding:.28rem .65rem;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);border-radius:var(--radius-sm);cursor:pointer" onclick="App._retryAttendanceTableLoad('${escapeJsAttr(eventId || '')}','${escapeJsAttr(containerId || 'attendance-table-container')}')">重新同步名單</button>
     </div>`;
   },
 
@@ -732,8 +732,8 @@ Object.assign(App, {
       const emptyGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'empty');
       if (!emptyGuard.ok) return emptyGuard;
       const emptyManageBtn = canManage ? (tableEditing
-        ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
-        : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
+        ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeJsAttr(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
+        : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeJsAttr(eventId)}')">管理名單</button>`
       ) : '';
       const emptyHeader = canManage
         ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap;margin:.2rem 0 .4rem;font-size:.8rem;font-weight:600">報名名單（0/${escapeHTML(e.max || 0)}）${emptyManageBtn}</div>`
@@ -801,7 +801,7 @@ Object.assign(App, {
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
         const adjustBtn = canAdjustTeam
-          ? `<button class="team-reservation-adjust-btn" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
+          ? `<button class="team-reservation-adjust-btn" onclick="App.openTeamReservationModal('${escapeJsAttr(eventId)}','${escapeJsAttr(p.teamReservationTeamId)}')">快速調整</button>`
           : '';
         const teamHeaderImageUrl = p.teamReservationTeamId ? this._getTeamReservationMarkerImage?.(p.teamReservationTeamId) : '';
         const teamHeaderAvatar = `<span class="team-reservation-section-avatar" aria-hidden="true">${
@@ -937,14 +937,14 @@ Object.assign(App, {
         </tr>`;
         }
         const kickTd = canRemoveConfirmed
-          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion},'${safeActionRegistrationId}')">踢</button></td>`
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeJsAttr(eventId)}','${escapeJsAttr(p.uid)}','${escapeJsAttr(p.name)}',${Boolean(p.isCompanion)},'${escapeJsAttr(actionRegistrationId)}')">踢</button></td>`
           : '';
         const rosterActionKey = actionRegistrationId || p.uid;
         const demotePending = !!this._isWaitlistActionPending?.('demote', eventId, rosterActionKey);
         const demoteDisabledAttr = (isSubmitting || demotePending) ? 'disabled' : '';
         const demoteBtnStyle = demoteStyle + (demotePending && !isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
         const demoteTd = hasDemote && !p.isCompanion
-          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteBtnStyle}" ${demoteDisabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion},'${safeActionRegistrationId}')">${demotePending ? '...' : '候'}</button></td>`
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteBtnStyle}" ${demoteDisabledAttr} onclick="App._forceDemoteToWaitlist('${escapeJsAttr(eventId)}','${escapeJsAttr(p.uid)}','${escapeJsAttr(p.name)}',${Boolean(p.isCompanion)},'${escapeJsAttr(actionRegistrationId)}')">${demotePending ? '...' : '候'}</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
         return `<tr data-attendance-key="${safeAttendanceKey}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
@@ -977,13 +977,13 @@ Object.assign(App, {
 
     // 編輯 / 完成 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
-      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeJsAttr(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
+      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeJsAttr(eventId)}')">管理名單</button>`
     ) : '';
 
     // 分隊排序按鈕（僅分隊活動顯示）
     const _sortBtnSvg = _tsEnabled
-      ? `<button class="att-team-sort-btn${this._attendanceSortByTeam ? ' active' : ''}" onclick="event.stopPropagation();App._toggleAttendanceSortByTeam('${escapeHTML(eventId)}','${escapeHTML(cId)}')" title="依球衣顏色排序"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="${this._attendanceSortByTeam ? '#fff' : 'var(--text-secondary)'}" stroke-width="2" stroke-linecap="round"><path d="M6 4v12M6 4l-3 3M6 4l3 3"/><path d="M14 16V4M14 16l-3-3M14 16l3-3"/></svg></button>`
+      ? `<button class="att-team-sort-btn${this._attendanceSortByTeam ? ' active' : ''}" onclick="event.stopPropagation();App._toggleAttendanceSortByTeam('${escapeJsAttr(eventId)}','${escapeJsAttr(cId)}')" title="依球衣顏色排序"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="${this._attendanceSortByTeam ? '#fff' : 'var(--text-secondary)'}" stroke-width="2" stroke-linecap="round"><path d="M6 4v12M6 4l-3 3M6 4l3 3"/><path d="M14 16V4M14 16l-3-3M14 16l3-3"/></svg></button>`
       : '';
 
     // 表頭：「報名名單（人數/上限）」欄含操作按鈕；編輯模式多「踢掉」欄
@@ -1176,7 +1176,7 @@ Object.assign(App, {
 
       if (tableEditing) {
         return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
-          <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
+          <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeJsAttr(eventId)}','${escapeJsAttr(p.uid)}','${escapeJsAttr(p.name)}')">踢掉</button></td>
           <td style="padding:.35rem .3rem;text-align:left" data-no-translate>${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkin-' + safeUid, hasCheckin)}</td>
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkout-' + safeUid, hasCheckout)}</td>
@@ -1193,8 +1193,8 @@ Object.assign(App, {
 
     // 編輯 / 完成 按鈕（放在表頭「未報名單」右側）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
-      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startUnregTableEdit('${escapeHTML(eventId)}')">編輯</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeJsAttr(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
+      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startUnregTableEdit('${escapeJsAttr(eventId)}')">編輯</button>`
     ) : '';
 
     const nameThContent = topBtn

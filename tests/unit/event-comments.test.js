@@ -38,6 +38,7 @@ function loadEventCommentsModule({ eventRecord, currentUser } = {}) {
     Date,
     Promise,
     Object,
+    escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

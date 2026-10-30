@@ -141,10 +141,9 @@ Object.assign(App, {
   _buildTeamDetailV2CoursesPanel(t) {
     const accepting = t?.eduSettings?.acceptingStudents !== false;
     const teamId = String(t?.id || '');
-    const jsTeamId = escapeHTML(teamId.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const isStaff = !!(teamId && this.isEduClubStaff?.(teamId));
     const createButton = isStaff
-      ? '<button type="button" class="primary-btn small td-v2-course-add-btn" onclick="App.showEduCoursePlanForm(\'' + jsTeamId + '\')">＋ 新增</button>'
+      ? '<button type="button" class="primary-btn small td-v2-course-add-btn" onclick="App.showEduCoursePlanForm(\'' + escapeJsAttr(teamId) + '\')">＋ 新增</button>'
       : '';
     const banner = '<div class="td-v2-recruit-banner ' + (accepting ? 'open' : 'closed') + '"><div><strong>' + (accepting ? '接受新學員報名' : '暫停招收新學員') + '</strong><span>' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span></div></div>';
     return banner

@@ -150,7 +150,7 @@ Object.assign(App, {
 
   _favHeartHtml(isFav, type, id) {
     const cls = isFav ? 'fav-heart active' : 'fav-heart';
-    return `<button class="${cls}" data-fav-type="${type}" data-fav-id="${id}" onclick="event.stopPropagation();App.toggleFavorite${type}('${id}')" title="${isFav ? '取消收藏' : '加入收藏'}">
+    return `<button class="${cls}" data-fav-type="${escapeHTML(type)}" data-fav-id="${escapeHTML(id)}" ${type === 'Event' ? `onclick="event.stopPropagation();App.toggleFavoriteEvent('${escapeJsAttr(id)}')"` : type === 'Tournament' ? `onclick="event.stopPropagation();App.toggleFavoriteTournament('${escapeJsAttr(id)}')"` : ''} title="${isFav ? '取消收藏' : '加入收藏'}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="${isFav ? 'var(--danger)' : 'none'}" stroke="${isFav ? 'var(--danger)' : 'var(--text-muted)'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
     </button>`;
   },
@@ -230,17 +230,11 @@ Object.assign(App, {
     // 渲染列表
     let html = sortHtml;
     items.forEach(it => {
-      const onclick = it.type === 'event'
-        ? `App.showEventDetail('${it.id}')`
-        : `App._openTournamentDetail('${it.id}')`;
-      const toggleFn = it.type === 'event'
-        ? `App.toggleFavoriteEvent('${it.id}')`
-        : `App.toggleFavoriteTournament('${it.id}')`;
       html += `<div class="fav-item">
-        <span class="fav-item-name" onclick="${onclick}">${escapeHTML(it.name)}</span>
+        <span class="fav-item-name" ${it.type === 'event' ? `onclick="App.showEventDetail('${escapeJsAttr(it.id)}')"` : `onclick="App._openTournamentDetail('${escapeJsAttr(it.id)}')"`}>${escapeHTML(it.name)}</span>
         <span class="fav-item-date">${it.date}</span>
         <span class="tl-event-status ${it.statusCss}" style="font-size:.62rem">${it.statusLabel}</span>
-        <button class="fav-remove-btn" onclick="event.stopPropagation();${toggleFn}" title="${t('toast.favoriteRemoved')}">
+        <button class="fav-remove-btn" ${it.type === 'event' ? `onclick="event.stopPropagation();App.toggleFavoriteEvent('${escapeJsAttr(it.id)}')"` : `onclick="event.stopPropagation();App.toggleFavoriteTournament('${escapeJsAttr(it.id)}')"`} title="${t('toast.favoriteRemoved')}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>`;

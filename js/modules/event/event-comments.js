@@ -162,11 +162,10 @@ Object.assign(App, {
     const safePhoto = String(photo || '').trim();
     const initial = String(name || '?').trim().charAt(0) || '?';
     const safeInitial = escapeHTML(initial);
-    const safeInitialJs = escapeHTML(JSON.stringify(initial));
     const crownHtml = this._renderEventCommentOfficialCrown(identitySnapshot);
     let avatarHtml = '';
     if (safePhoto) {
-      avatarHtml = `<img class="event-comment-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'event-comment-avatar event-comment-avatar-fallback',textContent:${safeInitialJs}}))">`;
+      avatarHtml = `<img class="event-comment-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'event-comment-avatar event-comment-avatar-fallback',textContent:${escapeHTML(JSON.stringify(initial))}}))">`;
     } else {
       avatarHtml = `<span class="event-comment-avatar event-comment-avatar-fallback">${safeInitial}</span>`;
     }
@@ -533,7 +532,6 @@ Object.assign(App, {
     if (!guard.ok) return false;
     const container = guard.container;
     const final = options.final === true;
-    const safeEventId = escapeHTML(eventId || '');
     const title = final
       ? '\u7559\u8a00\u66ab\u6642\u7121\u6cd5\u8f09\u5165'
       : '\u7559\u8a00\u8f09\u5165\u8f03\u4e45';
@@ -546,7 +544,7 @@ Object.assign(App, {
         <div class="event-comments-load-title">${title}</div>
         <div class="event-comments-load-note">${note}</div>
         <div class="event-comments-load-actions">
-          <button type="button" class="event-comment-retry-btn" onclick="App._retryEventComments('${safeEventId}')">\u91cd\u65b0\u8f09\u5165\u7559\u8a00</button>
+          <button type="button" class="event-comment-retry-btn" onclick="App._retryEventComments('${escapeJsAttr(eventId || '')}')">\u91cd\u65b0\u8f09\u5165\u7559\u8a00</button>
         </div>
       </div>
     </div>`;
@@ -800,9 +798,8 @@ Object.assign(App, {
   _renderEventCommentsHtml(eventRecord, comments) {
     const closed = this._isEventCommentsClosed(eventRecord);
     const canManage = this._canManageEventComments(eventRecord);
-    const eventId = escapeHTML(eventRecord.id || '');
     const inputHtml = closed ? '<div class="event-comments-closed">活動已結束，留言輸入已關閉</div>' : `
-      <form class="event-comment-form" onsubmit="App._submitEventComment('${eventId}');return false;">
+      <form class="event-comment-form" onsubmit="App._submitEventComment('${escapeJsAttr(eventRecord.id || '')}');return false;">
         <textarea id="event-comment-input" maxlength="300" rows="1" placeholder="輸入留言，最多 300 字"></textarea>
         <div class="event-comment-form-foot">
           <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言（僅主辦與委託能見）</label>
@@ -834,7 +831,7 @@ Object.assign(App, {
       const initial = escapeHTML(String(liker.authorName || '?').trim().charAt(0) || '?');
       const style = `--i:${index};z-index:${80 - index}`;
       if (safePhoto) {
-        return `<img class="event-comment-like-avatar" data-uid="${safeUid}" data-author-photo="${safePhotoAttr}" src="${safePhotoAttr}" alt="${safeName}" title="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="${style}" onerror="var s=document.createElement('span');s.className='event-comment-like-avatar event-comment-like-avatar-fallback';s.textContent='${initial}';s.setAttribute('title','${safeName}');s.setAttribute('data-uid','${safeUid}');s.setAttribute('style','${style}');this.replaceWith(s)">`;
+        return `<img class="event-comment-like-avatar" data-uid="${safeUid}" data-author-photo="${safePhotoAttr}" src="${safePhotoAttr}" alt="${safeName}" title="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="${style}" onerror="var s=document.createElement('span');s.className='event-comment-like-avatar event-comment-like-avatar-fallback';s.textContent='${escapeJsAttr(String(liker.authorName || '?').trim().charAt(0) || '?')}';s.setAttribute('title','${escapeJsAttr(liker.authorName || '用戶')}');s.setAttribute('data-uid','${escapeJsAttr(liker.uid || '')}');s.setAttribute('style','${escapeJsAttr(style)}');this.replaceWith(s)">`;
       }
       return `<span class="event-comment-like-avatar event-comment-like-avatar-fallback" data-uid="${safeUid}" title="${safeName}" style="${style}">${initial}</span>`;
     }).join('');
@@ -842,7 +839,6 @@ Object.assign(App, {
   },
 
   _renderEventCommentCard(eventRecord, comment, ctx) {
-    const safeEventId = escapeHTML(eventRecord.id || '');
     const safeCommentId = escapeHTML(comment.id);
     const privateBadge = comment.visibility === 'private' ? '<span class="event-comment-badge private">私密</span>' : '';
     const lockedBadge = comment.replyLocked ? '<span class="event-comment-badge locked">已鎖回覆</span>' : '';
@@ -850,18 +846,18 @@ Object.assign(App, {
       ? '<div class="event-comment-deleted">留言已刪除</div>'
       : `<div class="event-comment-body">${escapeHTML(comment.body)}</div>`;
     const manageHtml = ctx.canManage ? `
-      <button type="button" class="event-comment-mini-btn" onclick="App._setEventCommentReplyLocked('${safeEventId}','${safeCommentId}',${comment.replyLocked ? 'false' : 'true'})">${comment.replyLocked ? '解鎖' : '鎖回覆'}</button>
-      <button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventComment('${safeEventId}','${safeCommentId}')">刪除</button>` : '';
+      <button type="button" class="event-comment-mini-btn" onclick="App._setEventCommentReplyLocked('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}',${Boolean(!comment.replyLocked)})">${comment.replyLocked ? '解鎖' : '鎖回覆'}</button>
+      <button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventComment('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}')">刪除</button>` : '';
     const replyBtn = (!ctx.closed && !comment.replyLocked && !comment.deleted)
-      ? `<button type="button" class="event-comment-action" onclick="App._toggleEventCommentReplyBox('${safeCommentId}')">回覆</button>`
+      ? `<button type="button" class="event-comment-action" onclick="App._toggleEventCommentReplyBox('${escapeJsAttr(comment.id)}')">回覆</button>`
       : '';
     const replyForm = (!ctx.closed && !comment.replyLocked && !comment.deleted)
-      ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
+      ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
       : '';
     const isSecondarySnapshot = comment.identitySnapshot?.identityId === 'secondary';
     const authorHtml = isSecondarySnapshot
       ? `<span class="event-comment-author event-comment-author-static">${escapeHTML(comment.authorName)}</span>`
-      : `<button type="button" class="event-comment-author" onclick="App.showUserProfile('${escapeHTML(comment.authorName)}',{uid:'${escapeHTML(comment.authorUid)}',allowGuest:true})">${escapeHTML(comment.authorName)}</button>`;
+      : `<button type="button" class="event-comment-author" onclick="App.showUserProfile('${escapeJsAttr(comment.authorName)}',{uid:'${escapeJsAttr(comment.authorUid)}',allowGuest:true})">${escapeHTML(comment.authorName)}</button>`;
     const auditTraceHtml = this._renderEventCommentAuditTrace(comment);
     return `<article class="event-comment-card" data-comment-id="${safeCommentId}">
       <div class="event-comment-head">
@@ -873,7 +869,7 @@ Object.assign(App, {
       </div>
       ${bodyHtml}
       <div class="event-comment-actions">
-        <button type="button" class="event-comment-action event-comment-like${comment.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentLike('${safeEventId}','${safeCommentId}')" aria-pressed="${comment.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${comment.likeCount || 0}</span></button>
+        <button type="button" class="event-comment-action event-comment-like${comment.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentLike('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}')" aria-pressed="${comment.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${comment.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(comment)}
         ${replyBtn}
       </div>
@@ -889,11 +885,11 @@ Object.assign(App, {
     return `<div class="event-comment-replies">${comment.replies.map(r => {
       const safeReplyId = escapeHTML(r.id);
       const del = r.deleted ? '<span class="event-comment-deleted">回覆已刪除</span>' : escapeHTML(r.body);
-      const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${safeReplyId}')">刪除</button>` : '';
+      const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}','${escapeJsAttr(r.id)}')">刪除</button>` : '';
       const replyBadge = this._renderEventCommentAuditTrace(r);
       const replyBadgeLine = replyBadge ? `<div class="event-comment-reply-badge-line">${replyBadge}</div>` : '';
       const likeHtml = r.deleted ? '' : `<div class="event-comment-reply-actions">
-        <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${eventId}','${commentId}','${safeReplyId}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
+        <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${escapeJsAttr(eventRecord.id || '')}','${escapeJsAttr(comment.id)}','${escapeJsAttr(r.id)}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(r)}
       </div>`;
       return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto, r.identitySnapshot)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div>${replyBadgeLine}<div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;

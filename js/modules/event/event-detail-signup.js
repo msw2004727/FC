@@ -254,7 +254,7 @@ Object.assign(App, {
 
   _buildEventSignupSyncIssueButton(eventId) {
     const safeEventId = escapeHTML(eventId || '');
-    return `<button type="button" style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App._retryEventSignupRegistrationHydrate('${safeEventId}')">重新檢查報名狀態</button>`;
+    return `<button type="button" style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App._retryEventSignupRegistrationHydrate('${escapeJsAttr(eventId || '')}')">重新檢查報名狀態</button>`;
   },
 
   _retryEventSignupRegistrationHydrate(eventId) {
@@ -1361,7 +1361,7 @@ Object.assign(App, {
         </div>
         <div class="team-reservation-dialog-actions">
           <button type="button" class="outline-btn" onclick="App.closeTeamReservationSignupChoiceModal()">取消</button>
-          <button type="button" class="primary-btn" id="team-reservation-signup-choice-confirm-btn" onclick="App.confirmTeamReservationSignupChoice('${escapeHTML(eventId)}','${safeMode}')">確認報名</button>
+          <button type="button" class="primary-btn" id="team-reservation-signup-choice-confirm-btn" onclick="App.confirmTeamReservationSignupChoice('${escapeJsAttr(eventId)}','${escapeJsAttr(safeMode)}')">確認報名</button>
         </div>
       </div>`;
     modal.classList.add('open');
@@ -1497,10 +1497,10 @@ Object.assign(App, {
     const bg = '#2563eb';
     const glow = '#60a5fa';
     const hint = active ? '調整團隊名額中' : '建立團隊名額中';
-    const onclick = `App.openTeamReservationModal('${escapeHTML(e.id)}'${active ? `,'${escapeHTML(active.id)}'` : ''})`;
+    const onclick = `App.openTeamReservationModal('${escapeJsAttr(e.id)}'${active ? `,'${escapeJsAttr(active.id)}'` : ''})`;
     return '<div class="signup-glow-wrap team-reservation-action" style="--glow-c:' + bg + ';--glow-c-light:' + glow + '">'
       + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
-      + '<div class="signup-flipper"><button class="event-signup-team-button" style="background:' + bg + ';color:#fff" onclick="' + onclick + '">' + label + '</button></div>'
+      + '<div class="signup-flipper"><button class="event-signup-team-button" style="background:' + bg + ';color:#fff" ' + (active ? `onclick="App.openTeamReservationModal('${escapeJsAttr(e.id)}','${escapeJsAttr(active.id)}')"` : `onclick="App.openTeamReservationModal('${escapeJsAttr(e.id)}')"`) + '>' + label + '</button></div>'
       + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">' + hint + '</span></div></div>';
   },
 
@@ -1549,7 +1549,7 @@ Object.assign(App, {
     }
     if (opts.isGuestView) {
       return '<div class="event-early-bird-cta">'
-        + '<button class="event-early-bird-btn" onclick="App.requestProtectedEventAction(\'eventSignup\',\'' + eventId + '\')">早鳥報名 · ' + cost + ' 積分</button>'
+        + '<button class="event-early-bird-btn" onclick="App.requestProtectedEventAction(\'eventSignup\',\'' + escapeJsAttr(eventId) + '\')">早鳥報名 · ' + cost + ' 積分</button>'
         + '<div class="event-early-bird-subtext">登入後確認積分並完成報名</div>'
         + '</div>';
     }
@@ -1562,7 +1562,7 @@ Object.assign(App, {
     }
     return '<div class="signup-glow-wrap event-early-bird-cta" style="--glow-c:#d97706;--glow-c-light:#fbbf24">'
       + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
-      + '<div class="signup-flipper"><button class="event-early-bird-btn" onclick="App.handleSignup(\'' + eventId + '\',{earlyBird:true})">早鳥報名 · ' + cost + ' 積分</button></div>'
+      + '<div class="signup-flipper"><button class="event-early-bird-btn" onclick="App.handleSignup(\'' + escapeJsAttr(eventId) + '\',{earlyBird:true})">早鳥報名 · ' + cost + ' 積分</button></div>'
       + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">早鳥報名中</span></div>'
       + '</div>';
   },
@@ -1676,7 +1676,7 @@ Object.assign(App, {
             團隊名額不包含你本人；如果你也要參加，請再點「個人報名」。
           </div>
           <label class="team-reservation-label" for="team-reservation-team-select">俱樂部</label>
-          <select id="team-reservation-team-select" class="team-reservation-control" onchange="App.openTeamReservationModal('${escapeHTML(eventId)}', this.value)">
+          <select id="team-reservation-team-select" class="team-reservation-control" onchange="App.openTeamReservationModal('${escapeJsAttr(eventId)}', this.value)">
             ${teamOptions}
           </select>
           <label class="team-reservation-label" for="team-reservation-slots-input">團隊名額</label>
@@ -1689,7 +1689,7 @@ Object.assign(App, {
         </div>
         <div class="team-reservation-dialog-actions">
           <button type="button" class="outline-btn" onclick="App.closeTeamReservationModal()">取消</button>
-          <button type="button" class="primary-btn" id="team-reservation-confirm-btn" onclick="App.confirmTeamReservation('${escapeHTML(eventId)}','${escapeHTML(state.selectedTeam.id)}')">確認</button>
+          <button type="button" class="primary-btn" id="team-reservation-confirm-btn" onclick="App.confirmTeamReservation('${escapeJsAttr(eventId)}','${escapeJsAttr(state.selectedTeam.id)}')">確認</button>
         </div>
       </div>`;
     modal.classList.add('open');
@@ -2904,34 +2904,34 @@ Object.assign(App, {
       return '<button style="background:' + bg + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:' +
         (disabled ? 'not-allowed' : 'pointer') + (disabled ? ';opacity:.7' : '') + '"' +
         (disabled ? ' disabled' : '') +
-        (onclick ? ' onclick="' + onclick + '"' : '') + '>' + label + '</button>';
+        (onclick === 'cancel' ? ` onclick="App.handleCancelSignup('${escapeJsAttr(eventId)}')"` : onclick === 'signup' ? ` onclick="App.handleSignup('${escapeJsAttr(eventId)}')"` : '') + '>' + label + '</button>';
     };
 
     var html = '';
     if (isEnded) {
       html = _btn('#333', '已結束', '', true);
     } else if (isOnWaitlist) {
-      html = _gw(_btn('#d97706', '取消候補', "App.handleCancelSignup('" + eventId + "')"), '#d97706', '#f59e0b', '正在取消候補');
+      html = _gw(_btn('#d97706', '取消候補', 'cancel'), '#d97706', '#f59e0b', '正在取消候補');
     } else if (isSignedUp) {
-      html = _gw(_btn('#dc2626', '取消報名', "App.handleCancelSignup('" + eventId + "')"), '#dc2626', '#f87171', '正在取消報名');
+      html = _gw(_btn('#dc2626', '取消報名', 'cancel'), '#dc2626', '#f87171', '正在取消報名');
     } else if (isUpcoming) {
       html = this._buildEventEarlyBirdSignupHtml?.(e, { isMainFull }) || _btn('#64748b', '報名尚未開放', '', true);
     } else if (teamBlocked) {
       html = _btn('#64748b', '球隊限定', '', true);
     } else if (genderBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App._handleGenderRestrictedClick(' +
-        JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
+        escapeHTML(JSON.stringify(genderMsg)) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
     } else if (ageSyncing) {
       html = this._buildEventSignupLoadingButton?.() || _btn('#64748b', '\u7528\u6236\u8cc7\u6599\u540c\u6b65\u4e2d', '', true);
     } else if (ageBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App._handleEventAgeRestrictionClick(\'' +
-        eventId + '\')">' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageState) || '年齡限制') + '</button>';
+        escapeJsAttr(eventId) + '\')">' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageState) || '年齡限制') + '</button>';
     } else if (isMainFull && hasTeamReservationSignup) {
-      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
+      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + escapeJsAttr(eventId) + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
-      html = _gw(_btn('#7c3aed', '報名候補', "App.handleSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '報名候補中');
+      html = _gw(_btn('#7c3aed', '報名候補', 'signup'), '#7c3aed', '#a78bfa', '報名候補中');
     } else {
-      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
+      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + escapeJsAttr(eventId) + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     }
     if (typeof this._composeEventSignupActions === 'function') {
       html = this._composeEventSignupActions(e, html, {

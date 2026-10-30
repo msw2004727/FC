@@ -46,6 +46,7 @@ describe('team detail club activity section', () => {
       Array,
       Set,
       Map,
+      escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
       escapeHTML: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -81,6 +82,7 @@ describe('team detail club activity section', () => {
       String,
       Array,
       Set,
+      escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
       escapeHTML: (value) => String(value ?? ''),
       ...extraContext,
     };
@@ -1257,7 +1259,7 @@ describe('team detail club activity section', () => {
     expect(actionsSource).toContain("if (action === 'course')");
     expect(actionsSource).toContain("if (typeof this.showEduCoursePlanDetail === 'function') return this.showEduCoursePlanDetail(teamId, planId)");
     expect(actionsSource).toContain('return this.openTeamDetailV2CourseModal(planId)');
-    expect(actionsSource).toContain("App.applyCourseEnrollment(\\'' + escapeHTML(teamId) + '\\',\\'' + escapeHTML(plan.id || '') + '\\',this)");
+    expect(actionsSource).toContain("App.applyCourseEnrollment(\\'' + escapeJsAttr(teamId) + '\\',\\'' + escapeJsAttr(plan.id || '') + '\\',this)");
   });
 
   test('team detail v2 events and members use requested card and management-only layouts', () => {

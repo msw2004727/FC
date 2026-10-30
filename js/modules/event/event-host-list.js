@@ -203,10 +203,9 @@ Object.assign(App, {
       + '</tr></thead><tbody>';
 
     sorted.forEach(function(h) {
-      var _oc = 'event.stopPropagation();App.showUserProfile(\'' + escapeHTML(h.name) + '\',{uid:\'' + escapeHTML(h.uid) + '\'})';
       var avatarHtml = h.avatar
-        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" alt="' + escapeHTML(h.name || '') + '" width="32" height="32" loading="lazy" decoding="async" onclick="' + _oc + '">'
-        : '<div class="hl-avatar hl-avatar-fallback" onclick="' + _oc + '">?</div>';
+        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" alt="' + escapeHTML(h.name || '') + '" width="32" height="32" loading="lazy" decoding="async" onclick="event.stopPropagation();App.showUserProfile(\'' + escapeJsAttr(h.name) + '\',{uid:\'' + escapeJsAttr(h.uid) + '\'})">'
+        : '<div class="hl-avatar hl-avatar-fallback" onclick="event.stopPropagation();App.showUserProfile(\'' + escapeJsAttr(h.name) + '\',{uid:\'' + escapeJsAttr(h.uid) + '\'})">?</div>';
       html += '<tr>'
         + '<td>' + avatarHtml + '</td>'
         + '<td style="text-align:center;font-weight:600">' + h.eventCount + '</td>'

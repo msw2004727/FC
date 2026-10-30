@@ -150,7 +150,7 @@ Object.assign(App, {
     const waitlistHtml = counts.waitlistCount > 0
       ? `<span style="font-size:.78rem;color:var(--text-secondary);background:var(--bg-elevated, var(--bg-card));border-radius:999px;padding:.1rem .45rem;white-space:nowrap;">\u5019\u88dc ${counts.waitlistCount}</span>`
       : '';
-    const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">${actionLabel}</button>`;
+    const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeJsAttr(safeId)}')">${actionLabel}</button>`;
     return `
       <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.55rem .75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface, var(--bg-card));">
         <div style="min-width:0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
@@ -631,7 +631,7 @@ Object.assign(App, {
   },
   _buildEventDetailOwnerRowsHtml(e) {
     const teamNameLink = e.creatorTeamId
-      ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${escapeHTML(e.creatorTeamId)}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8')}</a>`
+      ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${escapeJsAttr(e.creatorTeamId)}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8')}</a>`
       : escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8');
     const rows = {
       host: this._buildEventHostRowHtml?.(e) || '',
@@ -937,9 +937,9 @@ Object.assign(App, {
       return `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>\u5831\u540d\u5df2\u7d50\u675f</button>`;
     }
     if (isMainFull) {
-      return `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.requestProtectedEventAction('eventSignup','${eventRecord.id}')">\u5831\u540d\u5019\u88dc</button>`;
+      return `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.requestProtectedEventAction('eventSignup','${escapeJsAttr(eventRecord.id)}')">\u5831\u540d\u5019\u88dc</button>`;
     }
-    return `<button class="primary-btn" onclick="App.requestProtectedEventAction('eventSignup','${eventRecord.id}')">\u7acb\u5373\u5831\u540d</button>`;
+    return `<button class="primary-btn" onclick="App.requestProtectedEventAction('eventSignup','${escapeJsAttr(eventRecord.id)}')">\u7acb\u5373\u5831\u540d</button>`;
   },
 
   _buildGuestEventPeople(eventRecord, fieldName) {
@@ -997,7 +997,7 @@ Object.assign(App, {
     }
     container.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:.4rem">
-        ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}',{uid:'${escapeHTML(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
+        ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeJsAttr(person.displayName)}',{uid:'${escapeJsAttr(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
       </div>`;
     return { ok: true, reason: 'guest-full' };
   },
@@ -1019,7 +1019,7 @@ Object.assign(App, {
       <div class="detail-section">
         <div class="detail-section-title">\u5019\u88dc\u540d\u55ae (${people.length})</div>
         <div style="display:flex;flex-wrap:wrap;gap:.4rem">
-          ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}',{uid:'${escapeHTML(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
+          ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeJsAttr(person.displayName)}',{uid:'${escapeJsAttr(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
         </div>
       </div>`;
   },
@@ -1351,23 +1351,23 @@ Object.assign(App, {
     } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isOnWaitlist) {
-      signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消候補</button>`, '#7c3aed', '#a78bfa', '正在取消候補');
+      signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${escapeJsAttr(e.id)}')">取消候補</button>`, '#7c3aed', '#a78bfa', '正在取消候補');
     } else if (isSignedUp) {
-      signupBtn = _glowWrap(`<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`, '#dc2626', '#f87171', '正在取消報名');
+      signupBtn = _glowWrap(`<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${escapeJsAttr(e.id)}')">取消報名</button>`, '#dc2626', '#f87171', '正在取消報名');
     } else if (isUpcoming) {
       signupBtn = this._buildEventEarlyBirdSignupHtml?.(e, { isGuestView, isMainFull }) || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
     } else if (e.teamOnly && !canTeamOnlySignup) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
-      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${escapeHTML(JSON.stringify(genderBlockedMessage))})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
     } else if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
-      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App._handleEventAgeRestrictionClick('${e.id}')">${escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageSignupState) || '年齡限制')}</button>`;
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App._handleEventAgeRestrictionClick('${escapeJsAttr(e.id)}')">${escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageSignupState) || '年齡限制')}</button>`;
     } else if (isMainFull && hasTeamReservationSignup) {
-      signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
+      signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${escapeJsAttr(e.id)}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
-      signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`, '#7c3aed', '#a78bfa', '報名候補中');
+      signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${escapeJsAttr(e.id)}')">報名候補</button>`, '#7c3aed', '#a78bfa', '報名候補中');
     } else {
-      signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
+      signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${escapeJsAttr(e.id)}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     }
 
     if (!isGuestView && typeof this._composeEventSignupActions === 'function') {
@@ -1386,7 +1386,7 @@ Object.assign(App, {
     }
 
     const teamNameLink = e.creatorTeamId
-      ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${e.creatorTeamId}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '俱樂部')}</a>`
+      ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${escapeJsAttr(e.creatorTeamId)}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '俱樂部')}</a>`
       : escapeHTML(e.creatorTeamName || '俱樂部');
     const teamTag = e.teamOnly ? `<div class="detail-row" data-detail-field="team-limit"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
     const privateTag = e.privateEvent ? `<div class="detail-row" data-detail-field="private-visibility"><span class="detail-label">可見</span><span style="color:#7c3aed;font-weight:600">🔒 私密活動 — 僅限連結分享</span></div>` : '';
@@ -1482,10 +1482,10 @@ Object.assign(App, {
       </div>` : ''}
       <div class="detail-action-zone">
         <div class="detail-action-toolbar">
-          ${_glowWrap(`<button class="detail-toolbar-btn companion-signup-toolbar-action" onclick="App._openCompanionSelectModal('${escapeHTML(e.id)}')">\u5E6B\u5925\u4F34\u5831\u540D</button>`, '#2563eb', '#60a5fa', '\u5BEB\u5165\u4E2D')}
-          <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">\u5206\u4EAB\u6D3B\u52D5</button>
-          <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
-          ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
+          ${_glowWrap(`<button class="detail-toolbar-btn companion-signup-toolbar-action" onclick="App._openCompanionSelectModal('${escapeJsAttr(e.id)}')">\u5E6B\u5925\u4F34\u5831\u540D</button>`, '#2563eb', '#60a5fa', '\u5BEB\u5165\u4E2D')}
+          <button class="detail-toolbar-btn" onclick="App.shareEvent('${escapeJsAttr(e.id)}')">\u5206\u4EAB\u6D3B\u52D5</button>
+          <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${escapeJsAttr(e.id)}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
+          ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeJsAttr(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
         </div>
         ${(this._tsRenderTeamSelectUI?.(e, this._tsSelectedTeamKey) || '')}
         <div class="detail-action-primary" id="detail-action-primary">${signupBtn}</div>
@@ -1796,7 +1796,6 @@ Object.assign(App, {
     }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
-    const safeEId = escapeHTML(eventId);
     const safeCId = escapeHTML(containerId);
     const doneBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
     const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
@@ -1808,11 +1807,10 @@ Object.assign(App, {
       const promoteStyle = 'font-size:.72rem;padding:.2rem .45rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
       let rows = '';
       items.forEach((item, idx) => {
-        const safeUid = item.userId ? escapeHTML(item.userId) : '';
         const promotePending = item.userId && this._isWaitlistActionPending?.('promote', eventId, item.userId);
         const promoteBtnStyle = promoteStyle + (promotePending ? ';opacity:.65;cursor:not-allowed' : '');
         const promoteBtn = item.userId
-          ? `<button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">${promotePending ? '...' : '正取'}</button>`
+          ? `<button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${escapeJsAttr(eventId)}','${escapeJsAttr(item.userId || '')}')">${promotePending ? '...' : '正取'}</button>`
           : '';
         rows += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
@@ -1875,7 +1873,7 @@ Object.assign(App, {
     });
     const expandBtn = needCollapse
       ? `<div id="${gridId}-expand" style="text-align:center;margin-top:.4rem">
-          <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${gridId}')">展開全部候補 (${items.length})</button>
+          <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${escapeJsAttr(gridId)}')">展開全部候補 (${items.length})</button>
         </div>`
       : '';
     patchGuard = canPatchWaitlist();
@@ -2088,7 +2086,7 @@ Object.assign(App, {
       return;
     }
     wrap.style.display = '';
-    wrap.innerHTML = '<button class="event-reg-log-btn" onclick="App.openEventRegLogModal(\'' + e.id + '\')">Log</button>';
+    wrap.innerHTML = '<button class="event-reg-log-btn" onclick="App.openEventRegLogModal(\'' + escapeJsAttr(e.id) + '\')">Log</button>';
   },
 
   _regLogToMs(v) {

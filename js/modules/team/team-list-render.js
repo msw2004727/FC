@@ -225,12 +225,12 @@ Object.assign(App, {
         '<span class="team-attention-hint">\u958b\u555f\u5f8c\u4ff1\u6a02\u90e8\u5361\u7247\u6703\u986f\u793a\u6d41\u52d5\u5149\u8de1</span>' +
       '</div>' +
       '<label class="td-settings-switch team-attention-switch" aria-label="\u5149\u8de1\u6548\u679c">' +
-        '<input type="checkbox"' + checked + ' onchange="App.toggleTeamAttentionEffect(\'' + escapeHTML(t.id) + '\', this.checked, this)">' +
+        '<input type="checkbox"' + checked + ' onchange="App.toggleTeamAttentionEffect(\'' + escapeJsAttr(t.id) + '\', this.checked, this)">' +
         '<span class="td-settings-switch-track"><span class="td-settings-switch-thumb"></span></span>' +
       '</label>' +
       '<label class="team-attention-color" aria-label="\u5149\u8de1\u984f\u8272">' +
         '<span>\u984f\u8272</span>' +
-        '<input type="color" value="' + escapeHTML(color) + '" onchange="App.changeTeamAttentionEffectColor(\'' + escapeHTML(t.id) + '\', this.value, this)">' +
+        '<input type="color" value="' + escapeHTML(color) + '" onchange="App.changeTeamAttentionEffectColor(\'' + escapeJsAttr(t.id) + '\', this.value, this)">' +
       '</label>' +
     '</div>';
   },
@@ -265,7 +265,7 @@ Object.assign(App, {
       const dim = !t.active ? ' team-inactive' : '';
       const mSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
       return `
-      <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
+      <div class="event-card${dim}" onclick="App.showTeamDetail('${escapeJsAttr(t.id)}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             ${this._buildTeamManageTitleHtml(t, mSportIcon)}
@@ -276,10 +276,10 @@ Object.assign(App, {
           </div>
           ${this._renderTeamAttentionEffectControls(t, isAdmin)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
-            ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
-            ${isAdmin ? `<button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>` : ''}
-            ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>` : ''}
-            ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${t.id}')">刪除</button>` : ''}
+            ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${escapeJsAttr(t.id)}')">編輯</button>` : ''}
+            ${isAdmin ? `<button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${escapeJsAttr(t.id)}')">${t.pinned ? '已置頂' : '置頂'}</button>` : ''}
+            ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${escapeJsAttr(t.id)}')">${t.active ? '下架' : '上架'}</button>` : ''}
+            ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${escapeJsAttr(t.id)}')">刪除</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -321,7 +321,7 @@ Object.assign(App, {
       const dim = !t.active ? ' team-inactive' : '';
       const aSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
       return `
-      <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
+      <div class="event-card${dim}" onclick="App.showTeamDetail('${escapeJsAttr(t.id)}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             ${this._buildTeamManageTitleHtml(t, aSportIcon)}
@@ -332,11 +332,11 @@ Object.assign(App, {
           </div>
           ${this._renderTeamAttentionEffectControls(t, true)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
-            <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
-            <button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${t.id}')">刪除</button>
+            <button class="primary-btn small" onclick="App.showTeamForm('${escapeJsAttr(t.id)}')">編輯</button>
+            <button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${escapeJsAttr(t.id)}')">${t.pinned ? '已置頂' : '置頂'}</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${escapeJsAttr(t.id)}')">${t.active ? '下架' : '上架'}</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${escapeJsAttr(t.id)}')">查看</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${escapeJsAttr(t.id)}')">刪除</button>
           </div>
         </div>
       </div>`;

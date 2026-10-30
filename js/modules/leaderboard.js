@@ -231,11 +231,17 @@ Object.assign(App, {
       </div>`;
     }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">點擊頁籤查看紀錄</div>';
 
+    let activity = false, userCard = false;
+    switch (callbackFn) {
+      case 'renderActivityRecords': activity = true; break;
+      case 'renderUserCardRecords': userCard = true; break;
+    }
+    const finitePage = Number.isFinite(Number(page)) && Number.isFinite(p);
     if (totalPages > 1) {
       html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.75rem">
-        <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.${callbackFn}('${filter}',${p - 1})" ${p <= 1 ? 'disabled' : ''}>‹</button>
+        <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" ${finitePage ? (activity ? `onclick="App.renderActivityRecords('${escapeJsAttr(filter)}',${Number(p - 1)})"` : userCard ? `onclick="App.renderUserCardRecords('${escapeJsAttr(filter)}',${Number(p - 1)})"` : '') : ''} ${p <= 1 ? 'disabled' : ''}>‹</button>
         <span style="color:var(--text-muted)">${p} / ${totalPages}</span>
-        <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.${callbackFn}('${filter}',${p + 1})" ${p >= totalPages ? 'disabled' : ''}>›</button>
+        <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" ${finitePage ? (activity ? `onclick="App.renderActivityRecords('${escapeJsAttr(filter)}',${Number(p + 1)})"` : userCard ? `onclick="App.renderUserCardRecords('${escapeJsAttr(filter)}',${Number(p + 1)})"` : '') : ''} ${p >= totalPages ? 'disabled' : ''}>›</button>
       </div>`;
     }
     return html;

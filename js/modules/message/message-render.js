@@ -55,7 +55,7 @@ Object.assign(App, {
           : '<div class="msg-ribbon msg-ribbon-reviewed">已審核</div>';
       }
       return `
-      <div class="msg-card${isUnread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
+      <div class="msg-card${isUnread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${escapeJsAttr(m.id)}')">
         ${ribbon}
         <div class="msg-card-header">
           <span class="msg-dot ${isUnread ? 'unread' : 'read'}"></span>
@@ -188,7 +188,7 @@ Object.assign(App, {
       if (msg.actionStatus === 'pending') {
         actionHtml = `
           <div class="msg-action-btns">
-            <button class="msg-action-approve" onclick="App.openFriendlyTournamentMessageReview('${msg.id}')">查看賽事</button>
+            <button class="msg-action-approve" onclick="App.openFriendlyTournamentMessageReview('${escapeJsAttr(msg.id)}')">查看賽事</button>
           </div>`;
       } else {
         actionHtml = this._renderMessageActionStatus(msg.actionStatus, msg.reviewerName);
@@ -198,9 +198,9 @@ Object.assign(App, {
         if (this._canManageTournamentRecord?.(ApiService.getTournament(msg.meta?.tournamentId), ApiService.getCurrentUser())) {
           actionHtml = `
           <div class="msg-action-btns">
-            <button class="msg-action-approve" onclick="App.handleTournamentRegAction('${msg.id}','approve')">同意</button>
-            <button class="msg-action-reject" onclick="App.handleTournamentRegAction('${msg.id}','reject')">拒絕</button>
-            <button class="msg-action-ignore" onclick="App.handleTournamentRegAction('${msg.id}','ignore')">忽略</button>
+            <button class="msg-action-approve" onclick="App.handleTournamentRegAction('${escapeJsAttr(msg.id)}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App.handleTournamentRegAction('${escapeJsAttr(msg.id)}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App.handleTournamentRegAction('${escapeJsAttr(msg.id)}','ignore')">忽略</button>
           </div>`;
         }
       } else {
@@ -216,9 +216,9 @@ Object.assign(App, {
       if (msg.actionStatus === 'pending') {
         actionHtml = `
           <div class="msg-action-btns">
-            <button class="msg-action-approve" onclick="App.handleTeamJoinAction('${msg.id}','approve')">同意</button>
-            <button class="msg-action-reject" onclick="App.handleTeamJoinAction('${msg.id}','reject')">拒絕</button>
-            <button class="msg-action-ignore" onclick="App.handleTeamJoinAction('${msg.id}','ignore')">忽略</button>
+            <button class="msg-action-approve" onclick="App.handleTeamJoinAction('${escapeJsAttr(msg.id)}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App.handleTeamJoinAction('${escapeJsAttr(msg.id)}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App.handleTeamJoinAction('${escapeJsAttr(msg.id)}','ignore')">忽略</button>
           </div>`;
       } else {
         const statusLabels = {
@@ -236,9 +236,9 @@ Object.assign(App, {
       if (msg.actionStatus === 'pending' && teamId && studentId) {
         actionHtml = `
           <div class="msg-action-btns">
-            <button class="msg-action-approve" onclick="App._handleEduApplyAction('${msg.id}','approve')">同意</button>
-            <button class="msg-action-reject" onclick="App._handleEduApplyAction('${msg.id}','reject')">拒絕</button>
-            <button class="msg-action-ignore" onclick="App._handleEduApplyAction('${msg.id}','ignore')">略過</button>
+            <button class="msg-action-approve" onclick="App._handleEduApplyAction('${escapeJsAttr(msg.id)}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App._handleEduApplyAction('${escapeJsAttr(msg.id)}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App._handleEduApplyAction('${escapeJsAttr(msg.id)}','ignore')">略過</button>
           </div>`;
       } else {
         const statusLabels = {
@@ -252,10 +252,9 @@ Object.assign(App, {
       }
     }
 
-    const safeMsgIdForAction = String(msg.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const removeActionHtml = `
       <div class="msg-detail-remove-row">
-        <button class="msg-detail-remove-btn" type="button" onclick="App.removeInboxMessage('${safeMsgIdForAction}')">\u5f9e\u6211\u7684\u6536\u4ef6\u5323\u79fb\u9664</button>
+        <button class="msg-detail-remove-btn" type="button" onclick="App.removeInboxMessage('${escapeJsAttr(msg.id || '')}')">\u5f9e\u6211\u7684\u6536\u4ef6\u5323\u79fb\u9664</button>
       </div>`;
 
     content.innerHTML = `

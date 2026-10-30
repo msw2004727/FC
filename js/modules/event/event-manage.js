@@ -9,9 +9,9 @@
 
 Object.assign(App, {
 
-  // 外部活動卡的內聯 onclick 用：只接受安全字元的 http(s) 連結，其餘視為沒有連結。
+  // 外部活動連結共用既有檢查。
   _eventExternalInlineUrl(url) {
-    return (typeof url === 'string' && /^https?:\/\/[^\s'"\\<>`]+$/.test(url)) ? escapeHTML(url) : '';
+    return typeof url === 'string' && typeof this._adUrl === 'function' ? this._adUrl(url) : '';
   },
 
   // ══════════════════════════════════
@@ -359,30 +359,30 @@ Object.assign(App, {
         const canPin = this._canManageAllActivities?.() && canManage;
         let btns = '';
         const pinBtn = canPin
-          ? `<button class="outline-btn" style="${s};opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '已置頂' : '置頂'}</button>`
+          ? `<button class="outline-btn" style="${s};opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleMyActivityPin('${escapeJsAttr(e.id)}')">${e.pinned ? '已置頂' : '置頂'}</button>`
           : '';
         if (isExternal) {
-          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editExternalActivity('${e.id}')">編輯</button>`;
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editExternalActivity('${escapeJsAttr(e.id)}')">編輯</button>`;
           if (e.status !== 'cancelled' && canCancel) {
-            btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+            btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${escapeJsAttr(e.id)}')">取消</button>`;
           } else if (e.status === 'cancelled' && canReopenRelist) {
-            btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
+            btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${escapeJsAttr(e.id)}')">重新開放</button>`;
           }
-          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
-          if (canManage) btns += `<button class="outline-btn" style="${s};margin-left:auto;color:var(--accent)" onclick="event.stopPropagation();App.shareExternalEvent('${e.id}')">分享</button>`;
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${escapeJsAttr(e.id)}')">刪除</button>`;
+          if (canManage) btns += `<button class="outline-btn" style="${s};margin-left:auto;color:var(--accent)" onclick="event.stopPropagation();App.shareExternalEvent('${escapeJsAttr(e.id)}')">分享</button>`;
         } else if (e.status === 'upcoming') {
-          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
-          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${escapeJsAttr(e.id)}')">編輯</button>`;
+          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${escapeJsAttr(e.id)}')">取消</button>`;
         } else if (e.status === 'open' || e.status === 'full') {
-          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
-          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${escapeJsAttr(e.id)}')">編輯</button>`;
+          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${escapeJsAttr(e.id)}')">取消</button>`;
         } else if (e.status === 'ended') {
-          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
-          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistMyActivity('${e.id}')">上架</button>`;
-          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${escapeJsAttr(e.id)}')">編輯</button>`;
+          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistMyActivity('${escapeJsAttr(e.id)}')">上架</button>`;
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${escapeJsAttr(e.id)}')">刪除</button>`;
         } else if (e.status === 'cancelled') {
-          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
-          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${escapeJsAttr(e.id)}')">重新開放</button>`;
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${escapeJsAttr(e.id)}')">刪除</button>`;
         }
         if (canPin && pinBtn && btns) {
           const firstBtnEnd = btns.indexOf('</button>');
@@ -445,11 +445,8 @@ Object.assign(App, {
         }
 
         const externalOpenUrl = isExternal ? App._eventExternalInlineUrl(e.externalUrl) : '';
-        const cardOnclick = isExternal
-          ? (externalOpenUrl ? `if(!event.target.closest('button'))window.open('${externalOpenUrl}','_blank')` : '')
-          : `if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')`;
         return `
-      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" onclick="${cardOnclick}">
+      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" ${isExternal ? (externalOpenUrl ? `onclick="if(!event.target.closest('button'))window.open('${escapeJsAttr(e.externalUrl)}','_blank')"` : '') : `onclick="if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${escapeJsAttr(e.id)}')"`}>
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
           ${pinBadge}
@@ -622,9 +619,8 @@ Object.assign(App, {
     if (!matched.length) { dd.classList.remove('open'); return; }
     /* innerHTML — safe: all dynamic values pass through escapeHTML() */
     dd.innerHTML = matched.map(c => {
-      const safeC = escapeHTML(c).replace(/'/g, "\\'");
       const count = allEvents.filter(e => e.creator === c).length;
-      return `<div class="ce-delegate-item" onclick="App._selectCreatorFilter('${safeC}')"><span class="ce-delegate-item-name">${escapeHTML(c)}</span><span style="color:var(--text-muted);font-size:.68rem">${count} 場</span></div>`;
+      return `<div class="ce-delegate-item" onclick="App._selectCreatorFilter('${escapeJsAttr(c)}')"><span class="ce-delegate-item-name">${escapeHTML(c)}</span><span style="color:var(--text-muted);font-size:.68rem">${count} 場</span></div>`;
     }).join('');
     dd.classList.add('open');
   },

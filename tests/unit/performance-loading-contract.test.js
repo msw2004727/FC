@@ -43,9 +43,9 @@ describe('startup performance guardrails', () => {
     // Reviewed safe-directory, atomic event writes, reliable-message, delegated-profile,
     // and create-modal navigation guards, plus the PageLoader robots-meta strip,
     // and the home next-activity registration query (status-in filter, limit warning,
-    // stale-cache calibration, legacy-root filter; T-034); gzip remains below the existing 390 KB ceiling.
-    expect(rawBytes).toBeLessThanOrEqual(1_547_900);
-    expect(gzipBytes).toBeLessThanOrEqual(390_000);
+    // stale-cache calibration, legacy-root filter; T-034); 事件繫結強化僅加入實測增量：raw 334 bytes、gzip 88 bytes（第 1 包實測，整批完成後再回調）。
+    expect(rawBytes).toBeLessThanOrEqual(1_548_234);
+    expect(gzipBytes).toBeLessThanOrEqual(390_088);
   });
 
   test('public activity list uses list-only scripts and data', () => {

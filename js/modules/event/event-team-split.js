@@ -57,8 +57,6 @@ Object.assign(App, {
     const h = Math.round(w * 0.875);
     const cls = options.className || '';
     const clickable = options.clickable ? ' clickable' : '';
-    const onclick = options.onclick || '';
-    const onclickAttr = onclick ? ` onclick="${onclick}"` : '';
     const empty = !color || color === 'transparent';
     const safeColor = empty ? 'transparent' : this._tsSanitizeHex(color);
     const safeStroke = empty ? '#9CA3AF' : this._tsSanitizeHex(stroke || this._tsDarkenHex(color, 0.85));
@@ -75,7 +73,7 @@ Object.assign(App, {
       + `style="${inlinePos}width:${w}px;height:${h}px" viewBox="0 0 32 28" fill="none" `
       + `role="${clickable ? 'button' : 'img'}" `
       + `${clickable ? 'tabindex="0" ' : ''}`
-      + `aria-label="${ariaLabel}"${onclickAttr}>`
+      + `aria-label="${ariaLabel}">`
       + `<title>${ariaLabel}</title>`
       + `<path d="${this._TEAM_SPLIT_JERSEY_PATH}" fill="${safeColor}" stroke="${safeStroke}" stroke-width="${sw}"${dash}/>`
       + circleEl
@@ -115,9 +113,9 @@ Object.assign(App, {
     if (!canManage) return '';
     const eid = event.id;
     return `<div class="team-batch-actions">`
-      + `<button class="batch-btn" onclick="App._tsBatchRandom('${eid}')">${I18N?.t?.('teamSplit.batch.random') || '隨機'}</button>`
-      + `<button class="batch-btn" onclick="App._tsBatchFill('${eid}')">${I18N?.t?.('teamSplit.batch.fill') || '補齊'}</button>`
-      + `<button class="batch-btn" onclick="App._tsBatchReset('${eid}')">${I18N?.t?.('teamSplit.batch.reset') || '重置'}</button>`
+      + `<button class="batch-btn" onclick="App._tsBatchRandom('${escapeJsAttr(eid)}')">${I18N?.t?.('teamSplit.batch.random') || '隨機'}</button>`
+      + `<button class="batch-btn" onclick="App._tsBatchFill('${escapeJsAttr(eid)}')">${I18N?.t?.('teamSplit.batch.fill') || '補齊'}</button>`
+      + `<button class="batch-btn" onclick="App._tsBatchReset('${escapeJsAttr(eid)}')">${I18N?.t?.('teamSplit.batch.reset') || '重置'}</button>`
       + `</div>`;
   },
 
@@ -629,10 +627,7 @@ Object.assign(App, {
       const svg = this._tsJerseySvg(t.color, null, t.key, { width: 32, inline: true });
       const capStr = cap ? `/${cap}` : '';
       const cls = `team-select-card${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}`;
-      const onclick = isFull
-        ? `this.classList.add('shake');setTimeout(()=>this.classList.remove('shake'),300)`
-        : `App._tsSelectTeam('${t.key}')`;
-      return `<div class="${cls}" onclick="${onclick}">`
+      return `<div class="${cls}" ${isFull ? `onclick="this.classList.add('shake');setTimeout(()=>this.classList.remove('shake'),300)"` : `onclick="App._tsSelectTeam('${escapeJsAttr(t.key)}')"`}>`
         + svg
         + `<div class="team-select-name">${escapeHTML(t.name || t.key + ' 隊')}</div>`
         + `<div class="team-select-count">${c}${capStr}${I18N?.t?.('common.person') || '人'}</div>`
@@ -685,14 +680,12 @@ Object.assign(App, {
     const capsule = jerseyEl.closest('.user-capsule');
     if (!capsule) return;
 
-    const rdId = escapeHTML(regDocId);
-    const evId = escapeHTML(eventId);
     const items = teams.map(t => {
       const svg = this._tsJerseySvg(t.color, null, t.key, { width: 20, inline: true });
-      return `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${rdId}','${evId}','${t.key}')" title="${escapeHTML(t.name || t.key)}">${svg}</div>`;
+      return `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${escapeJsAttr(regDocId)}','${escapeJsAttr(eventId)}','${escapeJsAttr(t.key)}')" title="${escapeHTML(t.name || t.key)}">${svg}</div>`;
     }).join('');
     const cancelSvg = this._tsJerseySvg(null, null, '✕', { width: 20, inline: true });
-    const cancelHtml = `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${rdId}','${evId}','')" title="取消分配">${cancelSvg}</div>`;
+    const cancelHtml = `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${escapeJsAttr(regDocId)}','${escapeJsAttr(eventId)}','')" title="取消分配">${cancelSvg}</div>`;
 
     const jerseyRect = jerseyEl.getBoundingClientRect();
     const anchor = document.createElement('div');

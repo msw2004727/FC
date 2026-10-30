@@ -345,6 +345,7 @@ describe('profile related activity shortcuts', () => {
       Object,
       Math,
       console,
+      escapeJsAttr: require('../helpers/event-binding').escapeJsAttr,
       escapeHTML: value => String(value || ''),
     };
     vm.runInNewContext(

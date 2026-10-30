@@ -74,6 +74,7 @@ function installModule(file, options = {}) {
     ...options.lineAuth,
   };
   global.ROLES = { user: {} };
+  global.escapeJsAttr = require('../helpers/event-binding').escapeJsAttr;
   global.escapeHTML = value => String(value == null ? '' : value);
 
   eval(readSource(file));
@@ -90,6 +91,7 @@ describe('async route entry transition guards', () => {
     delete global.ScriptLoader;
     delete global.LineAuth;
     delete global.ROLES;
+    delete global.escapeJsAttr;
     delete global.escapeHTML;
     delete global.requestAnimationFrame;
     document.body.innerHTML = '';

@@ -273,17 +273,6 @@ Object.assign(App, {
       } else {
         const minLevel = ROLE_LEVEL_MAP[item.minRole] || 0;
         const isLocked = !!item.locked;
-        const onClick = isLocked
-          ? `App.showToast('功能尚未開放'); App.closeDrawer()`
-          : item.action === 'share'
-          ? `App._copyShareUrl()`
-          : item.action === 'apply-role'
-          ? `App._handleApplyRoleClick()`
-          : item.action === 'manual'
-          ? `window.open('https://toosterx.com/manual.html','_blank');App.closeDrawer()`
-          : item.action === 'coming-soon'
-          ? `App.showToast('功能尚未開放'); App.closeDrawer()`
-          : `App.openDrawerPage('${item.page}')`;
         const role = item.minRole || 'user';
         const roleInfo = ROLES[role];
         const bgClass = item.highlight === 'yellow' ? 'drawer-role-yellow'
@@ -298,7 +287,7 @@ Object.assign(App, {
         const displayLabel = item.i18nKey ? t(item.i18nKey) : item.label;
         const lockIcon = isLocked ? '<span style="margin-left:auto;font-size:.7rem;opacity:.5">🔒</span>' : '';
         const lockedStyle = isLocked ? ' style="opacity:.55;display:flex;align-items:center"' : '';
-        html += `<div class="drawer-item ${bgClass}"${lockedStyle} onclick="${onClick}">
+        html += `<div class="drawer-item ${bgClass}"${lockedStyle} ${isLocked || item.action === 'coming-soon' ? `onclick="App.showToast('功能尚未開放'); App.closeDrawer()"` : item.action === 'share' ? `onclick="App._copyShareUrl()"` : item.action === 'apply-role' ? `onclick="App._handleApplyRoleClick()"` : item.action === 'manual' ? `onclick="window.open('https://toosterx.com/manual.html','_blank');App.closeDrawer()"` : `onclick="App.openDrawerPage('${escapeJsAttr(item.page)}')"`}>
           ${displayLabel}${lockIcon}
         </div>`;
         hasRenderedActionItem = true;
