@@ -128,4 +128,47 @@ describe('home banner carousel image loading', () => {
     expect(document.querySelectorAll('.banner-fixed-content')).toHaveLength(1);
     expect(document.querySelectorAll('.banner-dot')).toHaveLength(3);
   });
+
+  describe('inline onclick link handling', () => {
+    const slideOnclicks = () => Array.from(document.querySelectorAll('.banner-slide'))
+      .map(el => el.getAttribute('onclick'));
+
+    test('plain http(s) link keeps the click handler and opens exactly that url', () => {
+      global.ApiService.getBanners = () => [
+        { id: 'ban1', status: 'active', image: 'https://cdn.test/one.jpg', slot: 1, title: 'A', linkUrl: 'https://example.test/a?x=1&y=2' },
+      ];
+      App.renderBannerCarousel({ autoplay: false });
+
+      const [handler] = slideOnclicks();
+      expect(handler).toContain("App.trackAdClick('banner','ban1')");
+      expect(handler).toContain("window.open('https://example.test/a?x=1&y=2'");
+    });
+
+    test.each([
+      ['single quote', "https://example.test/x'),alert(1),('"],
+      ['double quote', 'https://example.test/x"y'],
+      ['backslash', 'https://example.test/x' + String.fromCharCode(92) + 'y'],
+      ['whitespace', 'https://example.test/x y'],
+      ['angle bracket', 'https://example.test/<b>'],
+      ['non-http scheme', 'javascript:alert(1)'],
+    ])('link with %s is treated as no link', (_label, linkUrl) => {
+      global.ApiService.getBanners = () => [
+        { id: 'ban1', status: 'active', image: 'https://cdn.test/one.jpg', slot: 1, title: 'A', linkUrl },
+      ];
+      App.renderBannerCarousel({ autoplay: false });
+
+      expect(slideOnclicks()).toEqual([null]);
+    });
+
+    test('an id with quotes is stripped instead of reaching the handler', () => {
+      global.ApiService.getBanners = () => [
+        { id: "ban');alert(1);('", status: 'active', image: 'https://cdn.test/one.jpg', slot: 1, title: 'A', linkUrl: 'https://example.test/a' },
+      ];
+      App.renderBannerCarousel({ autoplay: false });
+
+      const [handler] = slideOnclicks();
+      expect(handler).toContain("App.trackAdClick('banner','')");
+      expect(handler).not.toContain('alert');
+    });
+  });
 });

@@ -6,6 +6,9 @@ Object.assign(App, {
   _bannerRenderFingerprint: '',
   _bannerImageReady: {},
 
+  _adUrl(u) { return /^https?:\/\/[^\s'"\\<>`]+$/.test(u) ? escapeHTML(u) : ''; },
+  _adId(i) { return /^[\w-]+$/.test(i || '') ? i : ''; },
+
   _getBannerRenderFingerprint(banners) {
     const fieldSep = String.fromCharCode(31);
     const rowSep = String.fromCharCode(30);
@@ -250,9 +253,9 @@ Object.assign(App, {
       </div>`;
     } else {
       track.innerHTML = banners.map((b, idx) => {
-        const safeUrl = (b.linkUrl && /^https?:\/\//.test(b.linkUrl)) ? escapeHTML(b.linkUrl) : '';
+        const safeUrl = App._adUrl(b.linkUrl);
         const clickHandler = safeUrl
-          ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
+          ? `onclick="App.trackAdClick('banner','${App._adId(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
           : '';
         if (b.image) {
           // 先不設 background-image，等預載+解碼完成後再淡入
@@ -448,9 +451,9 @@ Object.assign(App, {
     if (!container) return;
     const ads = ApiService.getFloatingAds().filter(ad => ad.status === 'active');
     container.innerHTML = ads.map(ad => {
-      const safeUrl = (ad.linkUrl && /^https?:\/\//.test(ad.linkUrl)) ? escapeHTML(ad.linkUrl) : '';
+      const safeUrl = App._adUrl(ad.linkUrl);
       const clickHandler = safeUrl
-        ? `onclick="App.trackAdClick('float','${escapeHTML(ad.id)}');window.open('${safeUrl}','sporthub_ad')"`
+        ? `onclick="App.trackAdClick('float','${App._adId(ad.id)}');window.open('${safeUrl}','sporthub_ad')"`
         : '';
       return `
       <div class="float-ad" title="${escapeHTML(ad.title || '贊助廣告')}" ${clickHandler}>
@@ -484,10 +487,10 @@ Object.assign(App, {
     }
 
     const html = activeSponsors.map(sp => {
-      const hasLink = !!sp.linkUrl && /^https?:\/\//.test(sp.linkUrl);
-      const safeUrl = hasLink ? escapeHTML(sp.linkUrl) : '';
+      const safeUrl = App._adUrl(sp.linkUrl);
+      const hasLink = !!safeUrl;
       const clickHandler = hasLink
-        ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
+        ? `onclick="App.trackAdClick('sponsor','${App._adId(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
         : '';
       return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
         <img src="${escapeHTML(sp.image)}" alt="${escapeHTML(sp.title || '')}" width="100" height="100" loading="lazy" decoding="async">

@@ -9,6 +9,11 @@
 
 Object.assign(App, {
 
+  // 外部活動卡的內聯 onclick 用：只接受安全字元的 http(s) 連結，其餘視為沒有連結。
+  _eventExternalInlineUrl(url) {
+    return (typeof url === 'string' && /^https?:\/\/[^\s'"\\<>`]+$/.test(url)) ? escapeHTML(url) : '';
+  },
+
   // ══════════════════════════════════
   //  My Activities (Coach+)
   // ══════════════════════════════════
@@ -439,8 +444,9 @@ Object.assign(App, {
           </div>` : '';
         }
 
+        const externalOpenUrl = isExternal ? App._eventExternalInlineUrl(e.externalUrl) : '';
         const cardOnclick = isExternal
-          ? `if(!event.target.closest('button'))window.open('${escapeHTML(e.externalUrl || '')}','_blank')`
+          ? (externalOpenUrl ? `if(!event.target.closest('button'))window.open('${externalOpenUrl}','_blank')` : '')
           : `if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')`;
         return `
       <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" onclick="${cardOnclick}">
