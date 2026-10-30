@@ -19,6 +19,11 @@ const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createRoleGraphLoader } = require("./role-hierarchy");
 const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
+const {
+  createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
+} = require("./event-roster-status");
+const { maskId: maskRosterId } = require("./team-membership-core");
+
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
@@ -3825,6 +3830,52 @@ exports.adjustEventCapacity = createAdjustEventCapacityCallable({
   normalizeTeamReservationSummaries,
   registrationTeamReservationTeamId,
 });
+// 名單狀態調整：重用既有授權與投影 helper，課程連動仍由原 Callable 處理。
+exports.forceDemoteToWaitlist = createForceDemoteCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  logger,
+  sanitizeStr,
+  maskId: maskRosterId,
+  getCallerAccessContext,
+  getEventDocByPublicIdInTransaction,
+  canOperateEventSiteForAccess,
+  canRemoveConfirmedParticipantForAccess,
+  isCourseLinkedEventData,
+  isCourseLinkedRegistrationData,
+  rebuildOccupancy,
+  preserveUpcomingEventOccupancyStatus,
+  findActivityRecordForRegistration,
+  writeInboxNotification,
+  writeAuditEntryInternal,
+  settleBestEffortPostCommitOps,
+  claimRequestId: createRosterRequestClaim({ db, FieldValue, Timestamp, now: Date.now, logger }),
+});
+exports.forcePromoteWaitlist = createForcePromoteCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  logger,
+  sanitizeStr,
+  maskId: maskRosterId,
+  getCallerAccessContext,
+  getEventDocByPublicIdInTransaction,
+  canOperateEventSiteForAccess,
+  canRemoveConfirmedParticipantForAccess,
+  isCourseLinkedEventData,
+  isCourseLinkedRegistrationData,
+  rebuildOccupancy,
+  preserveUpcomingEventOccupancyStatus,
+  findActivityRecordForRegistration,
+  writeInboxNotification,
+  writeAuditEntryInternal,
+  settleBestEffortPostCommitOps,
+  claimRequestId: createRosterRequestClaim({ db, FieldValue, Timestamp, now: Date.now, logger }),
+});
+
 // 名單確認出席：取代舊站前端 _confirmAllAttendance 的直寫（只用 uid，不以名稱比對）。
 exports.confirmEventAttendance = createConfirmEventAttendanceCallable({
   onCall,
