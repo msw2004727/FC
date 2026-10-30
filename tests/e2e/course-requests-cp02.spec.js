@@ -14,7 +14,8 @@ async function fixture(page, theme) {
       <div id="edu-detail-tab-content"></div><div style="height:900px"></div></main></body></html>`});
   });
   await page.goto('/cp02-fixture');
-  await page.evaluate(() => {
+  await page.evaluate((jsAttrSource) => {
+    window.escapeJsAttr = (0, eval)('(' + jsAttrSource + ')');
     window.escapeHTML = value => String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     window.viewer = {uid:'viewer-a'};
     window.auth = {currentUser:window.viewer};
@@ -29,7 +30,7 @@ async function fixture(page, theme) {
     window.App={currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>false,
       _loadCourseSessions:async()=>[],_getCourseEnrollCacheKey:()=>null,
       _weekdayLabel:()=>'',_todayStr:()=> '2026-09-07'};
-  });
+  }, require('../helpers/event-binding').escapeJsAttr.toString());
   for (const name of ['edu-course-plan','edu-student-list','edu-detail-render','edu-detail-realtime','edu-course-plan-render']) {
     await page.addScriptTag({url:'/js/modules/education/'+name+'.js'});
   }

@@ -6,6 +6,7 @@ const fixture = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"
 <script>
 window.eventRecord={id:'evt_fixture',max:10,current:0,status:'open'}; window.staff=true; window.calls=[]; window.nextError=null;
 window.escapeHTML=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+window.escapeJsAttr=${require('../helpers/event-binding').escapeJsAttr.toString()};
 window.ApiService={getEvent:()=>eventRecord,getCurrentUser:()=>({uid:'fixture_user'}),getTeams:()=>[{id:'tm_fixture',name:'測試俱樂部'}]};
 window.FirebaseService={adjustTeamReservation:async (...args)=>{calls.push(args);if(window.hold)await new Promise(r=>window.release=r);if(nextError){const e=nextError;nextError=null;throw e;}return {};}};
 window.App={currentPage:'page-activity-detail',_currentDetailEventId:'evt_fixture',_requireProtectedActionLogin:()=>false,_isCurrentUserTeamStaff:()=>staff,showToast:s=>document.getElementById('toast').textContent=s};

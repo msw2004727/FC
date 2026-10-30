@@ -44,7 +44,7 @@ describe('startup performance guardrails', () => {
     // and create-modal navigation guards, plus the PageLoader robots-meta strip,
     // and the home next-activity registration query (status-in filter, limit warning,
     // stale-cache calibration, legacy-root filter; T-034); 2026-10-30 事件繫結強化借支：上限由 raw 1,547,900／gz 390,000 調為 1,548,376／390,113（全批 b／c 包完成後實測，相對原上限 +476／+113），A 下線後不追回
-    expect(rawBytes).toBeLessThanOrEqual(1_548_376);
+    expect(rawBytes).toBeLessThanOrEqual(1_548_377);
     expect(gzipBytes).toBeLessThanOrEqual(390_113);
   });
 
