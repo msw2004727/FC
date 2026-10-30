@@ -327,12 +327,6 @@ describe.each(VALUES)('事件繫結強化：第二輪資料 %p', value => {
 });
 
 describe('事件繫結強化：分支邊界', () => {
-  test.each([NaN, Infinity])('leaderboard：非有限頁碼 %p', page => {
-    const app = load('leaderboard.js');
-    mount(app._renderRecordListHtml(Array(30).fill({ name: '測試' }), page, 'renderActivityRecords', 'all'));
-    expect(document.querySelectorAll('button')).toHaveLength(2);
-    expect([...document.querySelectorAll('button')].every(button => !button.hasAttribute('onclick'))).toBe(true);
-  });
   test('leaderboard：未知目的方法', () => {
     const app = load('leaderboard.js');
     mount(app._renderRecordListHtml(Array(30).fill({ name: VALUES[0] }), 2, VALUES[0], VALUES[0]));

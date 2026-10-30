@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { JSDOM } = require('jsdom');
-const { escapeJsAttr } = require('../helpers/event-binding');
 
 describe('activity timeline effective status label', () => {
   function loadTimelineModule(app, dom) {

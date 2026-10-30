@@ -324,8 +324,6 @@ Object.assign(App, {
   },
 
   _renderAttendanceLoadIssue(eventId, containerId, issue = {}) {
-    const safeEventId = escapeHTML(eventId || '');
-    const safeContainerId = escapeHTML(containerId || 'attendance-table-container');
     const isTimeout = issue?.reason === 'timeout';
     const title = isTimeout ? '報名名單同步較久' : '報名名單暫時無法同步';
     const note = isTimeout
@@ -908,10 +906,7 @@ Object.assign(App, {
         ? `<div class="reg-name-badges-wrap"><div class="reg-name-badges">${nameInner}${badgeHtml}</div></div>`
         : nameInner;
 
-      const safeUid = escapeHTML(p.uid);
-      const safeName = escapeHTML(p.name);
       const actionRegistrationId = p.courseLinkedRegistration ? (p.regDocId || '') : '';
-      const safeActionRegistrationId = escapeHTML(actionRegistrationId);
       const safeAttendanceKey = escapeHTML(attendanceKey);
       const teamReservationRowAttr = p.teamReservationTeamId ? ' class="team-reservation-member-row"' : '';
 
@@ -1172,7 +1167,6 @@ Object.assign(App, {
       const combinedNote = ['未報名', noteText].filter(Boolean).join('・');
       const nameHtml = escapeHTML(p.name);
       const safeUid = escapeHTML(p.uid);
-      const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
         return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">

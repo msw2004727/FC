@@ -1,6 +1,5 @@
 /** @jest-environment jsdom */
 const fs=require('fs'),path=require('path'),vm=require('vm');
-const { escapeJsAttr } = require('../helpers/event-binding');
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 function setup(){

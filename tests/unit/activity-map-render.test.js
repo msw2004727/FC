@@ -4,7 +4,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { escapeJsAttr } = require('../helpers/event-binding');
 
 function readModule(relPath) {
   return fs.readFileSync(path.join(__dirname, '../..', relPath), 'utf8');

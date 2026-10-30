@@ -3,7 +3,6 @@
  */
 
 const path = require('path');
-const { escapeJsAttr } = require('../helpers/event-binding');
 
 describe('home banner carousel image loading', () => {
   let createdImages;
@@ -161,6 +160,30 @@ describe('home banner carousel image loading', () => {
       App.renderBannerCarousel({ autoplay: false });
 
       expect(slideOnclicks()).toEqual([null]);
+    });
+
+    test('floating ad opens the stored url text without extra escaping', () => {
+      document.body.insertAdjacentHTML('beforeend', '<div id="floating-ads"></div>');
+      global.ApiService.getFloatingAds = () => [
+        { id: 'fl1', status: 'active', image: 'https://cdn.test/f.jpg', linkUrl: 'https://example.test/a?x=1&amp;y=2' },
+      ];
+      App.renderFloatingAds();
+
+      const handler = document.querySelector('#floating-ads [onclick]').getAttribute('onclick');
+      expect(handler).toContain("App.trackAdClick('float','fl1')");
+      expect(handler).toContain("window.open('https://example.test/a?x=1&amp;y=2'");
+    });
+
+    test('sponsor slot opens the stored url text without extra escaping', () => {
+      document.body.insertAdjacentHTML('beforeend', '<div id="sponsor-grid"></div>');
+      global.ApiService.getSponsors = () => [
+        { id: 'sp1', status: 'active', image: 'https://cdn.test/s.jpg', slot: 1, title: 'S', linkUrl: 'https://example.test/a?x=1&amp;y=2' },
+      ];
+      App.renderSponsors();
+
+      const handler = document.querySelector('#sponsor-grid [onclick]').getAttribute('onclick');
+      expect(handler).toContain("App.trackAdClick('sponsor','sp1')");
+      expect(handler).toContain("window.open('https://example.test/a?x=1&amp;y=2'");
     });
 
     test('an id with quotes is stripped instead of reaching the handler', () => {

@@ -253,7 +253,6 @@ Object.assign(App, {
   },
 
   _buildEventSignupSyncIssueButton(eventId) {
-    const safeEventId = escapeHTML(eventId || '');
     return `<button type="button" style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App._retryEventSignupRegistrationHydrate('${escapeJsAttr(eventId || '')}')">重新檢查報名狀態</button>`;
   },
 
@@ -1497,7 +1496,6 @@ Object.assign(App, {
     const bg = '#2563eb';
     const glow = '#60a5fa';
     const hint = active ? '調整團隊名額中' : '建立團隊名額中';
-    const onclick = `App.openTeamReservationModal('${escapeJsAttr(e.id)}'${active ? `,'${escapeJsAttr(active.id)}'` : ''})`;
     return '<div class="signup-glow-wrap team-reservation-action" style="--glow-c:' + bg + ';--glow-c-light:' + glow + '">'
       + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
       + '<div class="signup-flipper"><button class="event-signup-team-button" style="background:' + bg + ';color:#fff" ' + (active ? `onclick="App.openTeamReservationModal('${escapeJsAttr(e.id)}','${escapeJsAttr(active.id)}')"` : `onclick="App.openTeamReservationModal('${escapeJsAttr(e.id)}')"`) + '>' + label + '</button></div>'
@@ -1538,7 +1536,6 @@ Object.assign(App, {
 
   _buildEventEarlyBirdSignupHtml(eventRecord, opts = {}) {
     if (!this._isEventEarlyBirdWindow?.(eventRecord)) return '';
-    const eventId = escapeHTML(eventRecord.id || eventRecord._docId || '');
     const cost = this._getEventEarlyBirdCost(eventRecord);
     const disabledClass = 'event-early-bird-btn event-early-bird-btn-disabled';
     if (opts.isMainFull) {

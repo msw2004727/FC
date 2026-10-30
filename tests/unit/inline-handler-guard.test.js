@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { parse } = require('@babel/parser');
 
-// 事件繫結強化：已核對檔案保留作交接索引，守門掃描全部 js/。
+// 事件繫結強化：COMPLETED_FILES 只作存在性斷言（交接索引）；實際守門掃描全部 js/**/*.js。
 const COMPLETED_FILES = [
   "js/api-service.js",
   "js/config.js",
@@ -374,7 +374,7 @@ describe('事件繫結強化：靜態守門', () => {
     expect(expressions.filter(item => !accepted(item))).toEqual([]);
   });
 
-  test('事件繫結強化：字元參照與既有引號位置一致', () => {
+  test('事件繫結強化：屬性內引號位置判定', () => {
     const tick = String.fromCharCode(96);
     const slot = expression => String.fromCharCode(36) + '{' + expression + '}';
     const source = 'const html = ' + tick + '<button onclick="f(&quot;' + slot('escapeJsAttr(value)') + '&quot;, &#39;' + slot('Number(index)') + '&#39;)">' + tick + ';';
