@@ -79,6 +79,8 @@ ToosterX 是運動活動報名與管理系統，包含活動、俱樂部、錦�
 - **R-CTX-002 [B/HARD]**：`ModeManager.getMode()` 可作既有 localStorage key namespace；不表示存在第二環境。
 - **R-CTX-003 [B/HARD]**：Firebase browser config／公開 client identifier 與 server secret 分類處理；`js/firebase-config.js`、`js/config.js` 的公開 client 設定不能證明 server secret 可硬編。
 - **R-CTX-004 [C/DEFAULT]**：不在本檔硬編檔案數、行數、export 數、cache 版號、CI run ID、ACTIVE Functions 數或工具版本；需要時即時查。
+- **R-CTX-007 [A/HARD]**：舊站 A（本 repo 前端）是維護模式，新站 FC-B 是主線。凡是「非舊站既有設計」的改動（新功能、新介面、新流程、效能或體驗改良、舊站沒有的設計）一律只做在新站、以新站為主，舊站不改，也不以舊站當對照標準回頭補。舊站只在兩種情況可動：①發現**既有 bug**（功能錯、資料錯、安全或權限問題）——新舊兩站同時修正、同一批驗證，不得只修一邊，除非該功能新站刻意不做（見 memory `project_b_intentional_diffs_from_a`／`project_fcb_scope_cut_2026-10-27`）；②兩站共用項目（Functions、Firestore／Storage Rules、索引、共用資料格式、Secret）。動舊站時請示或 commit 說明必須寫明屬於①或②。（2026-10-31 站長指示；取代 2026-10-26「未來改版只改新站」的口頭默契並明定 bug 兩邊同修。）
+- **R-CTX-008 [B/HARD]**：每次修正與改版的取捨順序固定為「穩定 → 速度 → 省錢」（省錢含 Firestore 讀寫量、Functions 執行、第三方呼叫與 AI 用量），之後才是功能完整與外觀。提案、簡報與審查結論必須說明對這三項的影響；三者衝突先保穩定，取捨寫進簡報或 commit 說明，不得為了速度或省錢引入未驗證的行為變更。（2026-10-31 站長指示。）
 
 ### 1.2 目錄責任
 

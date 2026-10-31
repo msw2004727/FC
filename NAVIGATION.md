@@ -311,7 +311,7 @@
 `paths` 與各規則檔的 frontmatter 一致，以規則檔為準；`.claude/rules/`、`GEMINI.md`、`NAVIGATION.md` 為 2026-10-18 拆分時新建。
 | 規則檔 | 管哪些路徑（`paths`） | 主要 Rule ID 區間 |
 |---|---|---|
-| `CLAUDE.md` | 核心章節（每次 session 必讀） | R-GOV-001～006、R-GOV-010～015、R-MODE-001～004、R-CTX-001～006、R-SAFE-001～015、R-EXEC-001～016、R-CODE-001～005、R-ENC-001～007、R-DOC-001～006、R-SHIP-001～019、R-LOG-001～005、R-COM-001～005 |
+| `CLAUDE.md` | 核心章節（每次 session 必讀） | R-GOV-001～006、R-GOV-010～015、R-MODE-001～004、R-CTX-001～008、R-SAFE-001～015、R-EXEC-001～016、R-CODE-001～005、R-ENC-001～007、R-DOC-001～006、R-SHIP-001～019、R-LOG-001～005、R-COM-001～005 |
 | `.claude/rules/architecture-tunables.md` | `js/**`、`css/**`、`pages/**`、`index.html`、`app.js`、`sw.js`、`functions/**` | R-ARCH-001～005、R-TUNE-001～002 |
 | `.claude/rules/release-sw.md` | `sw.js`、`app.js`、`js/**`、`css/**`、`pages/**`、`index.html`、`scripts/bump-version.js`、`_worker.js`、`_routes.json`、`_headers`、`404.html`、`manual.html`、`privacy.html`、`terms.html`、`game-lab.html`、`GrowthGames.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-REL-001～017 |
 | `.claude/rules/testing-review.md` | `js/**`、`css/**`、`pages/**`、`functions/**`、`tests/**`、`firestore.rules`、`storage.rules`、`sw.js`、`app.js`、`_worker.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**`、`package.json`、`playwright.config.js`、`.github/workflows/**` | R-QA-001～013、R-REVIEW-001～006、R-REVIEW-010～014 |
