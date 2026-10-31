@@ -44,5 +44,7 @@ paths:
 - **R-UI-024 [C/DEFAULT]**：文字輸入、inline editable cell 不適用；legacy 名單不一次回溯，重構時收斂。
 - **R-UI-025 [B/HARD]**：驗 desktop／mobile／light／dark、角色底色、Lv、附掛資訊、點擊名片。
 
----
+### 14.3 畫面文字通用原則
+
+- **R-UI-026 [C/DEFAULT]**：站長 2026-10-31 定：「Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.」（不要多餘的副標與說明文字，讓版面自己說明）。適用於新站 FC-B 的新畫面與新增元件：先問「版面能不能自己說明」，能就不加字；每張畫面派工卡與預覽包必須帶這條並列出可刪的副標／說明句。既有照舊版 A 搬的畫面文案仍照 A（R-CTX-007），要刪 A 既有文字屬 UI 改動，須站長預覽同意；舊站 A 不回頭改。canonical 在此，FC-B `CLAUDE.md` 只鏡射一行並指回本條。
 

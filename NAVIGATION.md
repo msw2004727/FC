@@ -320,7 +320,7 @@
 | `.claude/rules/firestore-functions.md` | `firestore.rules`、`storage.rules`、`firebase.json`、`firestore.indexes.json`、`functions/**`、`js/**`、`package.json`、`tests/firestore-rules/**`、`tests/unit/cloud-functions.test.js`、`.github/workflows/**` | R-DATA-001～005、R-CF-001～012 |
 | `.claude/rules/navigation-history.md` | `app.js`、`index.html`、`js/core/**`、`js/modules/**`、`_worker.js`、`_routes.json`、`404.html`、`tests/unit/*route*.test.js`、`tests/unit/*popstate*.test.js`、`tests/unit/*history*.test.js` | R-NAV-001～008、R-NAV-011～020 |
 | `.claude/rules/share.md` | `js/modules/**/*share*.js`、`js/modules/education/edu-course-plan-render.js`、`js/modules/profile/**`、`js/modules/scan/**`、`js/modules/dashboard/**`、`js/config.js`、`functions/index.js`、`_worker.js`、`index.html`、`tests/unit/*share*.test.js` | R-SHARE-001～013 |
-| `.claude/rules/ui.md` | `css/**`、`pages/**`、`js/modules/**`、`js/core/**`、`app.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-UI-001～006、R-UI-010～014、R-UI-020～025 |
+| `.claude/rules/ui.md` | `css/**`、`pages/**`、`js/modules/**`、`js/core/**`、`app.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-UI-001～006、R-UI-010～014、R-UI-020～026 |
 | `.claude/rules/seo.md` | `seo/**`、`sitemap*.xml`、`robots.txt`、`_headers`、`_worker.js`、`blog/**`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`functions/index.js`、`scripts/build-sitemap.js`、`scripts/submit-sitemap.js`、`scripts/gsc-snapshot.js`、`scripts/verify-gsc-read.js`、`scripts/inject-hot-events.js`、`.github/workflows/**` | R-SEO-001～004 |
 | `.claude/rules/governance-migration.md` | `CLAUDE.md`、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md`、`.claude/rules/**` | §17 遷移表；無自有 Rule ID |
 
