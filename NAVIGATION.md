@@ -311,7 +311,7 @@
 `paths` 與各規則檔的 frontmatter 一致，以規則檔為準；`.claude/rules/`、`GEMINI.md`、`NAVIGATION.md` 為 2026-10-18 拆分時新建。
 | 規則檔 | 管哪些路徑（`paths`） | 主要 Rule ID 區間 |
 |---|---|---|
-| `CLAUDE.md` | 核心章節（每次 session 必讀） | R-GOV-001～006、R-GOV-010～015、R-MODE-001～004、R-CTX-001～006、R-SAFE-001～015、R-EXEC-001～016、R-CODE-001～005、R-ENC-001～007、R-DOC-001～006、R-SHIP-001～019、R-LOG-001～005、R-COM-001～005 |
+| `CLAUDE.md` | 核心章節（每次 session 必讀） | R-GOV-001～006、R-GOV-010～015、R-MODE-001～004、R-CTX-001～008、R-SAFE-001～015、R-EXEC-001～016、R-CODE-001～005、R-ENC-001～007、R-DOC-001～006、R-SHIP-001～019、R-LOG-001～005、R-COM-001～005 |
 | `.claude/rules/architecture-tunables.md` | `js/**`、`css/**`、`pages/**`、`index.html`、`app.js`、`sw.js`、`functions/**` | R-ARCH-001～005、R-TUNE-001～002 |
 | `.claude/rules/release-sw.md` | `sw.js`、`app.js`、`js/**`、`css/**`、`pages/**`、`index.html`、`scripts/bump-version.js`、`_worker.js`、`_routes.json`、`_headers`、`404.html`、`manual.html`、`privacy.html`、`terms.html`、`game-lab.html`、`GrowthGames.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-REL-001～017 |
 | `.claude/rules/testing-review.md` | `js/**`、`css/**`、`pages/**`、`functions/**`、`tests/**`、`firestore.rules`、`storage.rules`、`sw.js`、`app.js`、`_worker.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**`、`package.json`、`playwright.config.js`、`.github/workflows/**` | R-QA-001～013、R-REVIEW-001～006、R-REVIEW-010～014 |
@@ -320,7 +320,7 @@
 | `.claude/rules/firestore-functions.md` | `firestore.rules`、`storage.rules`、`firebase.json`、`firestore.indexes.json`、`functions/**`、`js/**`、`package.json`、`tests/firestore-rules/**`、`tests/unit/cloud-functions.test.js`、`.github/workflows/**` | R-DATA-001～005、R-CF-001～012 |
 | `.claude/rules/navigation-history.md` | `app.js`、`index.html`、`js/core/**`、`js/modules/**`、`_worker.js`、`_routes.json`、`404.html`、`tests/unit/*route*.test.js`、`tests/unit/*popstate*.test.js`、`tests/unit/*history*.test.js` | R-NAV-001～008、R-NAV-011～020 |
 | `.claude/rules/share.md` | `js/modules/**/*share*.js`、`js/modules/education/edu-course-plan-render.js`、`js/modules/profile/**`、`js/modules/scan/**`、`js/modules/dashboard/**`、`js/config.js`、`functions/index.js`、`_worker.js`、`index.html`、`tests/unit/*share*.test.js` | R-SHARE-001～013 |
-| `.claude/rules/ui.md` | `css/**`、`pages/**`、`js/modules/**`、`js/core/**`、`app.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-UI-001～006、R-UI-010～014、R-UI-020～025 |
+| `.claude/rules/ui.md` | `css/**`、`pages/**`、`js/modules/**`、`js/core/**`、`app.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-UI-001～006、R-UI-010～014、R-UI-020～026 |
 | `.claude/rules/seo.md` | `seo/**`、`sitemap*.xml`、`robots.txt`、`_headers`、`_worker.js`、`blog/**`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`functions/index.js`、`scripts/build-sitemap.js`、`scripts/submit-sitemap.js`、`scripts/gsc-snapshot.js`、`scripts/verify-gsc-read.js`、`scripts/inject-hot-events.js`、`.github/workflows/**` | R-SEO-001～004 |
 | `.claude/rules/governance-migration.md` | `CLAUDE.md`、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md`、`.claude/rules/**` | §17 遷移表；無自有 Rule ID |
 
