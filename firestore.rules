@@ -2444,24 +2444,28 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  新站賽事卡片（T-089，新站 FC-B 專屬；與舊站 tournaments 集合完全分開）
-    //  公開可讀；總管或持有 admin.tournaments.entry 可新增／編輯／刪除。
+    //  公開可讀；總管或持有 admin.tournaments.manage_all（預設 admin 起跳、可個別授權）可新增／編輯／刪除。
+    //  （T-089 終驗：站長選「管理員以上管理」；不用 admin.tournaments.entry，R-IAM-010 禁止拿 .entry 當動作授權。）
+    //  卡片 ID 為 generateId('tc_')（R-ID-006）。
     //  欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt
     //  沒有圖片時 image／imagePath 不寫；圖片放 Storage images/tournamentCards/{cardId}/{檔名}（沿用 images/** 規則，不可刪）。
     // ═══════════════════════════════════════════
     function isTournamentCardManager() {
-      return isSuperAdmin() || hasEffectivePerm('admin.tournaments.entry');
+      return isSuperAdmin() || hasEffectivePerm('admin.tournaments.manage_all');
     }
 
     function isTournamentCardDate(value) {
       return value is string && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
     }
 
-    function isValidTournamentCard(data) {
+    // cardId 已由呼叫端限定 tc_[A-Za-z0-9_]+，可直接接進 imagePath 的正規式。
+    function isValidTournamentCard(data, cardId) {
       return data.keys().hasOnly(['name', 'type', 'startDate', 'endDate', 'url', 'image', 'imagePath', 'createdBy', 'createdAt', 'updatedAt'])
         && data.keys().hasAll(['name', 'type', 'startDate', 'endDate', 'url', 'createdBy', 'createdAt', 'updatedAt'])
         && data.name is string
         && data.name.size() > 0
         && data.name.size() <= 80
+        && data.name.matches('(?s).*\\S.*')
         && data.type in ['league', 'cup', 'friendly']
         && isTournamentCardDate(data.startDate)
         && isTournamentCardDate(data.endDate)
@@ -2473,7 +2477,7 @@ service cloud.firestore {
           || (data.image is string && data.image.size() <= 1200 && data.image.matches('https://[!-~]+')))
         && (!('imagePath' in data)
           || (data.imagePath is string && data.imagePath.size() <= 300
-            && data.imagePath.matches('images/tournamentCards/[^/]+/[^/]+')))
+            && data.imagePath.matches('images/tournamentCards/' + cardId + '/[^/]+')))
         && data.createdBy is string
         && data.createdAt is timestamp
         && data.updatedAt == request.time;
@@ -2482,13 +2486,16 @@ service cloud.firestore {
     match /tournamentCards/{cardId} {
       allow read: if true;
       // 先驗欄位（不花讀取），最後才查權限（users／rolePermissions／userPermissionGrants 文件讀取）。
+      // 用已存在的 id 再 setDoc 會被當成 update 評估：createdAt／createdBy 須與原文件相同，新建式 payload 會被拒，不另查 exists。
       allow create: if isAuth()
-        && isValidTournamentCard(request.resource.data)
+        && cardId.matches('tc_[A-Za-z0-9_]+')
+        && isValidTournamentCard(request.resource.data, cardId)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdAt == request.time
         && isTournamentCardManager();
       allow update: if isAuth()
-        && isValidTournamentCard(request.resource.data)
+        && cardId.matches('tc_[A-Za-z0-9_]+')
+        && isValidTournamentCard(request.resource.data, cardId)
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
         && isTournamentCardManager();

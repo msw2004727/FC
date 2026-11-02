@@ -2,11 +2,11 @@
  * 契約測試：新站賽事卡片 `tournamentCards/{id}`（T-089，新站 FC-B 專屬；與舊站 `tournaments` 集合分開）。
  *
  *   - read：公開（含未登入）。
- *   - create／update／delete：`isSuperAdmin() || hasEffectivePerm('admin.tournaments.entry')`
- *     （rolePermissions 角色權限，或啟用中的 userPermissionGrants 個別授權）。不新增權限碼。
- *   - create／update 欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt；
- *     type ∈ league／cup／friendly；日期 YYYY-MM-DD 且 startDate <= endDate；url 以 https:// 開頭；
- *     image（有的話）以 https:// 開頭；imagePath（有的話）是 images/tournamentCards/{cardId}/{檔名}；
+ *   - create／update／delete：`isSuperAdmin() || hasEffectivePerm('admin.tournaments.manage_all')`
+ *     （rolePermissions 角色權限，或啟用中的 userPermissionGrants 個別授權）。不新增權限碼；只有 admin.tournaments.entry 不夠（R-IAM-010）。
+ *   - create／update：文件 ID 須為 tc_[A-Za-z0-9_]+；欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt；
+ *     name 不可純空白；type ∈ league／cup／friendly；日期 YYYY-MM-DD 且 startDate <= endDate；url 以 https:// 開頭；
+ *     image（有的話）以 https:// 開頭；imagePath（有的話）是 images/tournamentCards/{本卡 ID}/{檔名}；
  *     create 時 createdBy == 自己 uid、createdAt／updatedAt == request.time；update 不可改 createdBy／createdAt。
  *
  * B 的寫入 payload：新增 setDoc；編輯 updateDoc（name, type, startDate, endDate, url, updatedAt，有圖片時加 image, imagePath）。
@@ -36,7 +36,8 @@ const {
 
 const PROJECT_ID = 'demo-rules-test';
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
-const PERM = 'admin.tournaments.entry';
+const PERM = 'admin.tournaments.manage_all';
+const ENTRY = 'admin.tournaments.entry';
 const COL = 'tournamentCards';
 let testEnv;
 
@@ -124,7 +125,7 @@ describe('tournamentCards 讀取：公開', () => {
 });
 
 describe('tournamentCards 新增：權限', () => {
-  test('角色權限：rolePermissions/admin 含 admin.tournaments.entry 的 admin 可建', async () => {
+  test('角色權限：rolePermissions/admin 含 admin.tournaments.manage_all 的 admin 可建', async () => {
     await seedRolePermission('admin', [PERM]);
     await assertSucceeds(setDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_new'), CREATE_PAYLOAD('uidAdmin')));
   });
@@ -149,6 +150,26 @@ describe('tournamentCards 新增：權限', () => {
   test('角色權限只有其他碼（admin.tournaments.create）拒絕', async () => {
     await seedRolePermission('admin', ['admin.tournaments.create', 'admin.banners.entry']);
     await assertFails(setDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_new'), CREATE_PAYLOAD('uidAdmin')));
+  });
+
+  test('只有 admin.tournaments.entry 的 coach（角色權限）拒絕：.entry 不是動作授權', async () => {
+    await seedRolePermission('coach', [ENTRY]);
+    await assertFails(setDoc(doc(ctx('uidCoach', 'coach'), COL, 'tc_new'), CREATE_PAYLOAD('uidCoach')));
+    await assertFails(updateDoc(doc(ctx('uidCoach', 'coach'), COL, 'tc_feda'), UPDATE_PAYLOAD()));
+    await assertFails(deleteDoc(doc(ctx('uidCoach', 'coach'), COL, 'tc_feda')));
+  });
+
+  test('只有 admin.tournaments.entry 個別授權的一般用戶拒絕', async () => {
+    await seedGrant('uidEntry', { permissions: [ENTRY], enabled: true });
+    await assertFails(setDoc(doc(ctx('uidEntry', 'user'), COL, 'tc_new'), CREATE_PAYLOAD('uidEntry')));
+  });
+
+  test('用已存在的 id 再 setDoc（新建式 payload）拒絕：會被當成 update，createdBy／createdAt 不符', async () => {
+    await seedRolePermission('admin', [PERM]);
+    await assertFails(setDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_feda'), CREATE_PAYLOAD('uidAdmin', {
+      image: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.webp',
+      imagePath: 'images/tournamentCards/tc_feda/cover_1.webp',
+    })));
   });
 
   test('個別授權停用（enabled:false）拒絕', async () => {
@@ -192,6 +213,7 @@ describe('tournamentCards 新增：欄位', () => {
   test.each([
     ['type 不在清單', { type: 'open' }],
     ['name 空字串', { name: '' }],
+    ['name 純空白', { name: '   ' }],
     ['name 太長', { name: 'x'.repeat(81) }],
     ['name 不是字串', { name: 123 }],
     ['日期格式不對', { startDate: '2026/10/09' }],
@@ -210,8 +232,22 @@ describe('tournamentCards 新增：欄位', () => {
     ['imagePath 多一層', { imagePath: 'images/tournamentCards/tc_new/x/cover_1.webp' }],
     ['imagePath 少一層', { imagePath: 'images/tournamentCards/cover_1.webp' }],
     ['imagePath 是空字串', { imagePath: '' }],
+    ['imagePath 指到別張卡片的資料夾', { imagePath: 'images/tournamentCards/tc_other/cover_1.webp' }],
   ])('%s 拒絕', async (_label, overrides) => {
     await assertFails(create(overrides));
+  });
+
+  test.each([
+    ['不是 tc_ 開頭', 'ct_1760000000000_abc123'],
+    ['含不允許字元', 'tc_bad-id'],
+    ['只有前綴', 'tc_'],
+  ])('文件 ID %s 拒絕', async (_label, cardId) => {
+    const payload = CREATE_PAYLOAD('uidAdmin', { imagePath: `images/tournamentCards/${cardId}/cover_1.webp` });
+    await assertFails(setDoc(doc(admin(), COL, cardId), payload));
+  });
+
+  test('名稱前後有空白但有內容可建（B 會先去空白，Rules 只擋純空白）', async () => {
+    await assertSucceeds(create({ name: ' 冬季盃 ' }));
   });
 
   test('缺必要欄位（url）拒絕', async () => {
@@ -259,6 +295,9 @@ describe('tournamentCards 編輯', () => {
     ['多出欄位', { clicks: 1 }],
     ['image 改成 http', { image: 'http://a.com/a.webp', imagePath: 'images/tournamentCards/tc_feda/cover_2.webp' }],
     ['imagePath 指到別的路徑', { image: 'https://a.com/a.webp', imagePath: 'images/events/ce_1_cover_1' }],
+    ['imagePath 指到別張卡片', { image: 'https://a.com/a.webp', imagePath: 'images/tournamentCards/tc_other/cover_2.webp' }],
+    ['updatedAt 不是伺服器時間', { updatedAt: Timestamp.fromMillis(1760000000000) }],
+    ['name 改成純空白', { name: '   ' }],
   ])('權限者 %s 拒絕', async (_label, overrides) => {
     await seedRolePermission('admin', [PERM]);
     await assertFails(updateDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_feda'), UPDATE_PAYLOAD(overrides)));
