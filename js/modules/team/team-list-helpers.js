@@ -231,6 +231,17 @@ Object.assign(App, {
     return this._isTeamOwnerUser(team) || this._hasRolePermission('team.manage_all');
   },
 
+  // 刪除鈕與 removeTeam 共用，對齊 Callable deleteTeam：
+  // super_admin ∨ ((擁有者 ∨ team.manage_all) ∧ (教練以上 ∨ admin.repair.team_join_repair))
+  _canDeleteTeam(team) {
+    if (!team) return false;
+    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+    if (role === 'super_admin') return true;
+    const coachPlus = (ROLE_LEVEL_MAP[role] || 0) >= ROLE_LEVEL_MAP.coach
+      || this._hasRolePermission('admin.repair.team_join_repair');
+    return coachPlus && this._canEditTeamByRoleOrCaptain(team);
+  },
+
   _canAccessTeamManageRecord(team) {
     if (!team) return false;
     return this._canEditTeamByRoleOrCaptain(team) || this._canManageTeamMembers(team);

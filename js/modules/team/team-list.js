@@ -348,7 +348,7 @@ Object.assign(App, {
   async removeTeam(btn, id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
-    if (!this._canEditTeamByRoleOrCaptain?.(t)) {
+    if (!this._canDeleteTeam?.(t)) {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
       this.renderTeamManage();
       return;

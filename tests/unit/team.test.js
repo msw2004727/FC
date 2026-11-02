@@ -371,7 +371,8 @@ describe('team pin management wiring', () => {
     expect(teamListRenderSource).toContain('this._canEditTeamByRoleOrCaptain?.(t)');
     expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
     expect(teamListSource).toMatch(/toggleTeamActive\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
-    expect(teamListSource).toMatch(/removeTeam\(btn, id\)[\s\S]*_canEditTeamByRoleOrCaptain\?\.\(t\)/);
+    // 測試同步更新：刪除改用與 Callable deleteTeam 對齊的 _canDeleteTeam
+    expect(teamListSource).toMatch(/removeTeam\(btn, id\)[\s\S]*_canDeleteTeam\?\.\(t\)/);
   });
 
   test('club join pending state reuses the 24h request cooldown', () => {
