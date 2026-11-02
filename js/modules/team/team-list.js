@@ -358,37 +358,26 @@ Object.assign(App, {
     return this._withButtonLoading(btn, '刪除中...', async () => {
       const tName = t.name;
 
-      // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
-      const affectedUids = [];
-      const allUsers = ApiService.getAdminUsers();
-      if (t.captainUid) {
-        affectedUids.push(t.captainUid);
-      } else if (t.captain) {
-        const capUser = allUsers.find(u => u.name === t.captain);
-        if (capUser) affectedUids.push(capUser.uid);
-      }
-      (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
-        if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
-      });
-      (t.coaches || []).forEach(cName => {
-        const cUser = allUsers.find(u => u.name === cName);
-        if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
-      });
-
+      // 俱樂部刪除流程統一：成員清除、幹部角色重算與通知、操作紀錄都由 Callable deleteTeam 在伺服器完成，
+      // 取代原本前端自行收集幹部 uid、刪後逐一重算角色並另寫操作紀錄（改走 Callable 後再做會重複通知與紀錄）。
+      let result;
       try {
-        await ApiService.deleteTeam(id);
+        result = await ApiService.deleteTeam(id);
       } catch (err) {
         console.error('[removeTeam] delete failed:', err);
-        this.showToast('刪除俱樂部失敗，請稍後再試');
+        const msg = String(err?.message || '');
+        this.showToast(msg.includes('COACH_PLUS_REQUIRED')
+          ? '權限不足，需教練以上身分才能刪除俱樂部'
+          : msg.includes('TEAM_DELETE_DENIED')
+            ? '權限不足'
+            : '刪除俱樂部失敗，請稍後再試');
         ApiService._writeErrorLog({ fn: 'removeTeam', teamId: id, teamName: tName }, err);
         return;
       }
-      ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
-
-      // 刪隊後逐一重新計算角色
-      affectedUids.forEach(uid => {
-        this._applyRoleChange(ApiService._recalcUserRole(uid));
-      });
+      if (result?.status === 'partial') {
+        this.showToast('部分成員資料尚未清除，請再按一次刪除');
+        return;
+      }
 
       this.showToast(`已刪除「${tName}」`);
       this.showPage('page-teams');

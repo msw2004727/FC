@@ -1331,18 +1331,14 @@ const ApiService = {
   updateTeam(id, updates) { return this._update('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
   async updateTeamAwait(id, updates) { return await this._updateAwaitWrite('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
 
+  // 改走 Callable（伺服器清成員後才刪 team）；失敗或 partial 時快取不動
   async deleteTeam(id) {
+    await FirebaseService.ensureAuthReadyForWrite();
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('deleteTeam');
+    const res = (await callable({ teamId: id }))?.data || {};
+    if (res.partial) return { status: 'partial' };
+
     const source = this._src('teams');
-
-    // 先取得 _docId 再刪 Firestore，最後才從快取移除
-    const doc = source.find(t => t.id === id);
-    if (doc && doc._docId) {
-      await FirebaseService.deleteTeam(id);
-    } else {
-      throw new Error('TEAM_DOC_NOT_FOUND');
-    }
-
-    // 從快取移除
     const idx = source.findIndex(t => t.id === id);
     if (idx >= 0) source.splice(idx, 1);
     FirebaseService._saveToLS('teams', source);
@@ -1397,42 +1393,15 @@ const ApiService = {
           };
     };
 
-    const pendingWrites = [];
-    const writtenDocIds = new Set();
-
-    // 清除所有引用此俱樂部的用戶
-    const users = this._src('adminUsers');
-    users.forEach(u => {
+    this._src('adminUsers').forEach(u => {
       const updates = buildNextMembership(u);
-      if (!updates) return;
-
-      Object.assign(u, updates);
-      if (u._docId && !writtenDocIds.has(u._docId)) {
-        writtenDocIds.add(u._docId);
-        pendingWrites.push(
-          FirebaseService.updateUser(u._docId, updates)
-            .catch(err => console.error('[deleteTeam] clear user team:', err))
-        );
-      }
+      if (updates) Object.assign(u, updates);
     });
-
-    // 清除 currentUser 的俱樂部引用
     const cur = this.getCurrentUser();
     const currentUserUpdates = buildNextMembership(cur);
-    if (cur && currentUserUpdates) {
-      Object.assign(cur, currentUserUpdates);
-      if (cur._docId && !writtenDocIds.has(cur._docId)) {
-        writtenDocIds.add(cur._docId);
-        pendingWrites.push(
-          FirebaseService.updateUser(cur._docId, currentUserUpdates)
-            .catch(err => console.error('[deleteTeam] clear currentUser team:', err))
-        );
-      }
-    }
+    if (cur && currentUserUpdates) Object.assign(cur, currentUserUpdates);
 
-    if (pendingWrites.length > 0) await Promise.all(pendingWrites);
-
-    return true;
+    return { status: 'deleted' };
   },
 
   // ════════════════════════════════
