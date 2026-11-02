@@ -2446,6 +2446,7 @@ service cloud.firestore {
     //  新站賽事卡片（T-089，新站 FC-B 專屬；與舊站 tournaments 集合完全分開）
     //  公開可讀；總管或持有 admin.tournaments.entry 可新增／編輯／刪除。
     //  欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt
+    //  沒有圖片時 image／imagePath 不寫；圖片放 Storage images/tournamentCards/{cardId}/{檔名}（沿用 images/** 規則，不可刪）。
     // ═══════════════════════════════════════════
     function isTournamentCardManager() {
       return isSuperAdmin() || hasEffectivePerm('admin.tournaments.entry');
@@ -2468,8 +2469,11 @@ service cloud.firestore {
         && data.url is string
         && data.url.size() <= 500
         && data.url.matches('https://[!-~]+')
-        && (!('image' in data) || (data.image is string && data.image.size() <= 1200))
-        && (!('imagePath' in data) || (data.imagePath is string && data.imagePath.size() <= 300))
+        && (!('image' in data)
+          || (data.image is string && data.image.size() <= 1200 && data.image.matches('https://[!-~]+')))
+        && (!('imagePath' in data)
+          || (data.imagePath is string && data.imagePath.size() <= 300
+            && data.imagePath.matches('images/tournamentCards/[^/]+/[^/]+')))
         && data.createdBy is string
         && data.createdAt is timestamp
         && data.updatedAt == request.time;
@@ -2488,7 +2492,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
         && isTournamentCardManager();
-      allow delete: if isTournamentCardManager();
+      allow delete: if isAuth() && isTournamentCardManager();
     }
 
     // ═══════════════════════════════════════════

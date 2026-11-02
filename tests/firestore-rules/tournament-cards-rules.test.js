@@ -6,9 +6,11 @@
  *     （rolePermissions 角色權限，或啟用中的 userPermissionGrants 個別授權）。不新增權限碼。
  *   - create／update 欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt；
  *     type ∈ league／cup／friendly；日期 YYYY-MM-DD 且 startDate <= endDate；url 以 https:// 開頭；
+ *     image（有的話）以 https:// 開頭；imagePath（有的話）是 images/tournamentCards/{cardId}/{檔名}；
  *     create 時 createdBy == 自己 uid、createdAt／updatedAt == request.time；update 不可改 createdBy／createdAt。
  *
- * B 的寫入 payload：新增 setDoc 全部欄位；編輯 updateDoc（name, type, startDate, endDate, url, image, imagePath, updatedAt）。
+ * B 的寫入 payload：新增 setDoc；編輯 updateDoc（name, type, startDate, endDate, url, updatedAt，有圖片時加 image, imagePath）。
+ * 沒有圖片時 image／imagePath 不寫（不寫空字串）。
  */
 const fs = require('fs');
 const path = require('path');
@@ -46,8 +48,8 @@ const CREATE_PAYLOAD = (uid, overrides = {}) => ({
   startDate: '2026-10-09',
   endDate: '2026-10-11',
   url: 'https://cup.toosterx.com/',
-  image: 'https://firebasestorage.googleapis.com/v0/b/x/o/tournamentCards%2Ftc_new%2Fcover_1.webp',
-  imagePath: 'tournamentCards/tc_new/cover_1.webp',
+  image: 'https://firebasestorage.googleapis.com/v0/b/x/o/images%2FtournamentCards%2Ftc_new%2Fcover_1.webp?alt=media&token=t',
+  imagePath: 'images/tournamentCards/tc_new/cover_1.webp',
   createdBy: uid,
   createdAt: serverTimestamp(),
   updatedAt: serverTimestamp(),
@@ -59,8 +61,6 @@ const UPDATE_PAYLOAD = (overrides = {}) => ({
   startDate: '2026-10-09',
   endDate: '2026-10-12',
   url: 'https://cup.toosterx.com/2026',
-  image: '',
-  imagePath: '',
   updatedAt: serverTimestamp(),
   ...overrides,
 });
@@ -85,8 +85,6 @@ beforeEach(async () => {
       startDate: '2026-10-09',
       endDate: '2026-10-11',
       url: 'https://cup.toosterx.com/',
-      image: '',
-      imagePath: '',
       createdBy: 'uidCreator',
       createdAt: Timestamp.fromMillis(1760000000000),
       updatedAt: Timestamp.fromMillis(1760000000000),
@@ -203,6 +201,15 @@ describe('tournamentCards 新增：欄位', () => {
     ['createdAt 不是 request.time', { createdAt: Timestamp.fromMillis(1) }],
     ['updatedAt 不是 request.time', { updatedAt: Timestamp.fromMillis(1) }],
     ['image 太長', { image: `https://a.com/${'a'.repeat(1200)}` }],
+    ['image 是 http', { image: 'http://firebasestorage.googleapis.com/v0/b/x/o/a.webp' }],
+    ['image 是 javascript', { image: 'javascript:alert(1)' }],
+    ['image 是空字串', { image: '' }],
+    ['image 含空白', { image: 'https://a.com/a b.webp' }],
+    ['imagePath 不在 images/tournamentCards 下', { imagePath: 'tournamentCards/tc_new/cover_1.webp' }],
+    ['imagePath 是其他 images 路徑', { imagePath: 'images/events/ce_1_cover_1' }],
+    ['imagePath 多一層', { imagePath: 'images/tournamentCards/tc_new/x/cover_1.webp' }],
+    ['imagePath 少一層', { imagePath: 'images/tournamentCards/cover_1.webp' }],
+    ['imagePath 是空字串', { imagePath: '' }],
   ])('%s 拒絕', async (_label, overrides) => {
     await assertFails(create(overrides));
   });
@@ -218,6 +225,14 @@ describe('tournamentCards 編輯', () => {
   test('權限者可編輯（B 的 updateDoc payload）', async () => {
     await seedRolePermission('admin', [PERM]);
     await assertSucceeds(updateDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_feda'), UPDATE_PAYLOAD()));
+  });
+
+  test('權限者編輯時換上新圖片（image＋imagePath）', async () => {
+    await seedRolePermission('admin', [PERM]);
+    await assertSucceeds(updateDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_feda'), UPDATE_PAYLOAD({
+      image: 'https://firebasestorage.googleapis.com/v0/b/x/o/images%2FtournamentCards%2Ftc_feda%2Fcover_2.webp?alt=media',
+      imagePath: 'images/tournamentCards/tc_feda/cover_2.webp',
+    })));
   });
 
   test('個別授權者可編輯別人建的卡片', async () => {
@@ -242,6 +257,8 @@ describe('tournamentCards 編輯', () => {
     ['url 改成 http', { url: 'http://cup.toosterx.com/' }],
     ['結束日早於開始日', { endDate: '2026-10-01' }],
     ['多出欄位', { clicks: 1 }],
+    ['image 改成 http', { image: 'http://a.com/a.webp', imagePath: 'images/tournamentCards/tc_feda/cover_2.webp' }],
+    ['imagePath 指到別的路徑', { image: 'https://a.com/a.webp', imagePath: 'images/events/ce_1_cover_1' }],
   ])('權限者 %s 拒絕', async (_label, overrides) => {
     await seedRolePermission('admin', [PERM]);
     await assertFails(updateDoc(doc(ctx('uidAdmin', 'admin'), COL, 'tc_feda'), UPDATE_PAYLOAD(overrides)));

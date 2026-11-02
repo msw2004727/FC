@@ -22,55 +22,6 @@ service firebase.storage {
       allow delete: if false;
     }
 
-    // T-089 新站賽事卡片圖片：與 Firestore tournamentCards 同一判斷（總管或持有 admin.tournaments.entry）。
-    // Storage 跨服務讀 Firestore 每個請求最多 2 份不同文件（firebase.google.com/docs/rules/rules-behavior）：
-    // users/{uid} 必讀；角色權限通過就不再讀第二份以外的文件。
-    // 已知限制：非 user 角色「角色權限沒有、只有個別授權」時需要第三份文件，可能被上限拒絕（Firestore 端可寫，圖片上傳不行）。
-    // 部署時 Firebase 會要求授權 Storage 讀 Firestore 的服務帳號權限（IAM，GATED）。
-    function storageAuthRole() {
-      let userPath = /databases/(default)/documents/users/$(request.auth.uid);
-      let docRole = firestore.exists(userPath) && firestore.get(userPath).data.get('role', '') is string
-        ? firestore.get(userPath).data.get('role', '')
-        : '';
-      return docRole != ''
-        ? docRole
-        : ((('role' in request.auth.token) && request.auth.token.role is string)
-          ? request.auth.token.role
-          : 'user');
-    }
-
-    function storageHasRolePerm(role, perm) {
-      let rpPath = /databases/(default)/documents/rolePermissions/$(role);
-      return role != 'user'
-        && firestore.exists(rpPath)
-        && firestore.get(rpPath).data.get('permissions', null) is list
-        && perm in firestore.get(rpPath).data.get('permissions', []);
-    }
-
-    function storageHasUserGrant(perm) {
-      let grantPath = /databases/(default)/documents/userPermissionGrants/$(request.auth.uid);
-      return firestore.exists(grantPath)
-        && firestore.get(grantPath).data.get('permissions', null) is list
-        && firestore.get(grantPath).data.get('enabled', true) == true
-        && perm in firestore.get(grantPath).data.get('permissions', []);
-    }
-
-    function isTournamentCardManager() {
-      let role = storageAuthRole();
-      return role == 'super_admin'
-        || storageHasRolePerm(role, 'admin.tournaments.entry')
-        || storageHasUserGrant('admin.tournaments.entry');
-    }
-
-    match /tournamentCards/{cardId}/{fileName} {
-      allow read: if true;
-      allow create, update: if request.auth != null
-        && isImageUpload()
-        && isTournamentCardManager();
-      allow delete: if request.auth != null
-        && isTournamentCardManager();
-    }
-
     match /images/{allPaths=**} {
       allow read: if true;
       allow create, update: if request.auth != null
