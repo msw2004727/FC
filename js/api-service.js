@@ -1334,7 +1334,7 @@ const ApiService = {
   // 改走 Callable（伺服器清成員後才刪 team）；失敗或 partial 時快取不動
   async deleteTeam(id) {
     await FirebaseService.ensureAuthReadyForWrite();
-    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('deleteTeam');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('deleteTeam', { timeout: 125000 });
     const res = (await callable({ teamId: id }))?.data || {};
     if (res.partial) return { status: 'partial' };
 

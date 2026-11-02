@@ -366,10 +366,10 @@ Object.assign(App, {
       } catch (err) {
         console.error('[removeTeam] delete failed:', err);
         const msg = String(err?.message || '');
-        this.showToast(msg.includes('COACH_PLUS_REQUIRED')
-          ? '權限不足，需教練以上身分才能刪除俱樂部'
-          : msg.includes('TEAM_DELETE_DENIED')
-            ? '權限不足'
+        this.showToast(msg.includes('COACH_PLUS_REQUIRED') || msg.includes('TEAM_DELETE_DENIED')
+          ? '權限不足'
+          : msg.includes('TEAM_ID_MISMATCH')
+            ? '此俱樂部資料格式較舊，請聯繫管理員處理'
             : '刪除俱樂部失敗，請稍後再試');
         ApiService._writeErrorLog({ fn: 'removeTeam', teamId: id, teamName: tName }, err);
         return;

@@ -14,7 +14,7 @@ const vm = require('vm');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 function loadApiService({ callableImpl }) {
-  const calls = { regions: [], names: [], payloads: [], directWrites: [] };
+  const calls = { regions: [], names: [], options: [], payloads: [], directWrites: [] };
   const cache = {
     teams: [
       { id: 'tm_a', _docId: 'tm_a', name: '甲隊' },
@@ -40,8 +40,9 @@ function loadApiService({ callableImpl }) {
     ensureFirebaseFunctionsSdk: async (region) => {
       calls.regions.push(region);
       return {
-        httpsCallable: (name) => {
+        httpsCallable: (name, options) => {
           calls.names.push(name);
+          calls.options.push(options);
           return async (payload) => {
             calls.payloads.push(payload);
             return callableImpl(payload);
@@ -72,6 +73,7 @@ describe('ApiService.deleteTeam（Callable deleteTeam）', () => {
     expect(snapshot(cache)).toEqual(before);
     expect(calls.regions).toEqual(['asia-east1']);
     expect(calls.names).toEqual(['deleteTeam']);
+    expect(calls.options).toEqual([{ timeout: 125000 }]);
     expect(calls.payloads).toEqual([{ teamId: 'tm_a' }]);
     expect(calls.directWrites).toEqual([]);
   });
