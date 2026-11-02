@@ -2443,6 +2443,55 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  新站賽事卡片（T-089，新站 FC-B 專屬；與舊站 tournaments 集合完全分開）
+    //  公開可讀；總管或持有 admin.tournaments.entry 可新增／編輯／刪除。
+    //  欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt
+    // ═══════════════════════════════════════════
+    function isTournamentCardManager() {
+      return isSuperAdmin() || hasEffectivePerm('admin.tournaments.entry');
+    }
+
+    function isTournamentCardDate(value) {
+      return value is string && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+
+    function isValidTournamentCard(data) {
+      return data.keys().hasOnly(['name', 'type', 'startDate', 'endDate', 'url', 'image', 'imagePath', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['name', 'type', 'startDate', 'endDate', 'url', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 80
+        && data.type in ['league', 'cup', 'friendly']
+        && isTournamentCardDate(data.startDate)
+        && isTournamentCardDate(data.endDate)
+        && data.startDate <= data.endDate
+        && data.url is string
+        && data.url.size() <= 500
+        && data.url.matches('https://[!-~]+')
+        && (!('image' in data) || (data.image is string && data.image.size() <= 1200))
+        && (!('imagePath' in data) || (data.imagePath is string && data.imagePath.size() <= 300))
+        && data.createdBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    match /tournamentCards/{cardId} {
+      allow read: if true;
+      // 先驗欄位（不花讀取），最後才查權限（users／rolePermissions／userPermissionGrants 文件讀取）。
+      allow create: if isAuth()
+        && isValidTournamentCard(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && isTournamentCardManager();
+      allow update: if isAuth()
+        && isValidTournamentCard(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isTournamentCardManager();
+      allow delete: if isTournamentCardManager();
+    }
+
+    // ═══════════════════════════════════════════
     //  Popup Ads（彈窗廣告）
     //  公開可讀；admin 或持有 admin.banners.entry 可寫
     // ═══════════════════════════════════════════
