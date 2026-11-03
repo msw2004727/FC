@@ -28,6 +28,7 @@ const { createConfirmEventAttendanceCallable } = require("./event-attendance-con
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
 const { createDeleteTeamCallable } = require("./team-deletion");
+const { createDeleteEventCallable } = require("./event-deletion");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
 const { createRelationQueries } = require("./notification-relation-queries");
@@ -3921,6 +3922,16 @@ exports.deleteTeam = createDeleteTeamCallable({
   setRoleClaimMerged,
   buildOperationLogPayload,
   defaultNotificationTemplates: DEFAULT_NOTIFICATION_TEMPLATES,
+});
+
+// T-076a: hard-delete only the event parent and atomically retain minimal audit data.
+exports.deleteEvent = createDeleteEventCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  courseLinkedEventManagedByCourseError,
+  logger,
 });
 
 
