@@ -27,7 +27,8 @@ const BATCH_LIMIT = 450;
 const MAX_ATTEMPTS = 3;
 const MAX_RECHECKS = 3;
 
-const isConflict = (error) => isFirestoreError(error, "failed-precondition") || isFirestoreError(error, "not-found");
+const isAborted = (error) => error?.code === 10 || error?.code === "aborted" || String(error?.message || "").includes("ABORTED");
+const isConflict = (error) => isFirestoreError(error, "failed-precondition") || isFirestoreError(error, "not-found") || isAborted(error);
 
 // 兩組查詢（teamIds array-contains、舊 teamId ==）分頁讀完並依 docId 去重；
 // 再補上幹部 UID 的 users 文件（例如 teamIds 元素帶空白、查詢比對不到的舊資料），去重後只留「實際含本隊」者。
