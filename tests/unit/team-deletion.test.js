@@ -200,36 +200,38 @@ describe("deleteTeam 輸入與查無 team", () => {
 });
 
 describe("deleteTeam 邏輯 id 加固（審查 P3-1）", () => {
-  test("文件 id 與 id 欄位不同（owner 把自己隊的 id 改成別隊）→ TEAM_ID_MISMATCH，別隊成員不被動到", async () => {
+  test("測試同步更新：偽造 id 欄位 → 仍刪本隊，別隊成員不被動到", async () => {
     const docs = seedDocs({
       "teams/tm_atk": { id: "tm_victim", name: "攻擊者的隊", captainUid: "U-cap" },
       "teams/tm_victim": { id: "tm_victim", name: "受害隊", captainUid: "U-victimcap" },
       "users/U-v": { uid: "U-v", role: "user", teamId: "tm_victim", teamIds: ["tm_victim"], teamNames: ["受害隊"] },
     });
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_atk" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
-    expect(fake.state.writes).toHaveLength(0);
+    await expect(call({ teamId: "tm_atk" })).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has("teams/tm_atk")).toBe(false);
+    expect(fake.writesTo("users/U-v")).toHaveLength(0);
     expect(fake.get("users/U-v").teamIds).toEqual(["tm_victim"]);
   });
 
-  test("舊資料（文件 id≠id 欄位）以邏輯 id 呼叫 → TEAM_ID_MISMATCH，不誤報 alreadyDeleted（成員歸屬以文件 id 為準）", async () => {
+  test("測試同步更新：舊資料以唯一邏輯 id 呼叫 → 刪隊並清理舊成員", async () => {
     const docs = {
       "teams/doc_x": { id: "tm_logic", name: "舊制隊", captainUid: "U-cap" },
       "users/U-cap": { uid: "U-cap", displayName: "隊長", role: "captain", teamId: "tm_logic", teamIds: ["tm_logic"], teamNames: ["舊制隊"] },
     };
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_logic" }))).toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
-    expect(fake.state.writes).toHaveLength(0);
-    expect(fake.has("teams/doc_x")).toBe(true);
+    await expect(call({ teamId: "tm_logic" })).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.get("users/U-cap").teamIds).toEqual([]);
+    expect(fake.has("teams/doc_x")).toBe(false);
   });
 
-  test("成員歸屬看文件 id：users 引用被竄改後的 id 欄位值時不會被當成本隊成員（id 欄位被改 → 直接拒絕）", async () => {
+  test("測試同步更新：id 欄位與別隊文件 id 衝突 → 只清本隊文件 id", async () => {
     const docs = seedDocs();
     docs[TEAM_PATH] = { ...docs[TEAM_PATH], id: "tm_other" };
     const { call, fake } = setup({ docs });
-    expect(await rejection(call())).toMatchObject({ message: "TEAM_ID_MISMATCH" });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
     expect(fake.get("users/U-stranger").teamIds).toEqual(["tm_other"]);
-    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.writesTo("users/U-stranger")).toHaveLength(0);
+    expect(fake.get("users/U-m1").teamIds).toEqual([]);
   });
 
   test("id 欄位與文件 id 相同、或根本沒有 id 欄位 → 正常處理", async () => {

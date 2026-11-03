@@ -5,7 +5,7 @@
  *
  * 權限＝A 前端刪隊准入（captainUid／creatorUid／ownerUid 或 team.manage_all）∧ 呼叫者 coach 以上；
  * 權限碼（team.manage_all／team.create）一律用 team-permission.js 的 Rules 對齊判斷：rolePermissions/{role} 文件不存在
- * 視為沒有該權限，不回退 getCallerAccessContext 的預設權限。成員歸屬以 team 文件 id 為準，不用文件內可被 owner 改寫的 id 欄位。
+ * 視為沒有該權限，不回退 getCallerAccessContext 的預設權限。成員歸屬以文件 id 與經跨隊衝突檢查的舊 id 為準。
  * 可重入、冪等，最後才刪 team 文件（任何階段失敗使用者可直接重試）：
  *   Phase 1 伺服器查成員集合 → 分批清 users 四欄（每批 ≤450，見 team-deletion-members.js）；
  *           清完後再查一次「仍含本隊」的人（recheck），有新加入者就再清，最多共 3 次 recheck；仍 >0 → TEAM_MEMBERS_CHURNING；
@@ -25,6 +25,7 @@ const {
   maskId,
   normalizeId,
   readActorNames,
+  resolveMembershipTeamIds,
   resolveTeamSnapshot,
 } = require("./team-membership-core");
 const { maskUid } = require("./notification-fields");
@@ -96,8 +97,9 @@ function createDeleteTeamHandler({
       const actor = { uid: callerUid, ...(await readActorNames(db, callerUid, access.role)) };
 
       phase = "clean-members";
+      const membershipTeamIds = await resolveMembershipTeamIds(db, teamSnap);
       const cleanup = await settleTeamMembers({
-        db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, logger, ctx, progress,
+        db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, membershipTeamIds, logger, ctx, progress,
       });
       if (cleanup.failed.length > 0) {
         // 有成員在重試上限內仍清不掉（持續與併發寫入衝突）：不進角色重算、不刪 team，讓呼叫者重跑。

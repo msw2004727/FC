@@ -10,7 +10,7 @@
  *    唯一例外：持有 admin.repair.team_join_repair 的自訂角色會通過（與 Rules 1712 一致）。
  *  - 權限碼（admin.repair.team_join_repair）一律用 team-permission.js 的 Rules 對齊判斷：rolePermissions/{role} 文件不存在
  *    視為沒有該權限，不回退 getCallerAccessContext 的預設權限（審查 P3-7）。
- *  - 成員歸屬以 team 文件 id 為準，不用文件內可被 owner 改寫的 id 欄位（審查 P3-1）。
+ *  - 成員歸屬以文件 id 與經跨隊衝突檢查的舊 id 為準；衝突的 id 欄位不參與清理。
  * transaction 內只寫被剔者 users 四欄＋operationLog；teams.members 在提交後用 countTeamMembers 冪等重算，
  * 重算失敗只記 log，Callable 仍回 ok（memberCount: null）。
  */
@@ -19,7 +19,6 @@ const { getUserTeamIds, isUserInTeam } = require("./team-member-count");
 const { resolveStrictUserIdentity } = require("./team-role-promotion");
 const { createRulesAlignedAccess } = require("./team-permission");
 const {
-  assertTeamDocIdConsistent,
   buildNextMembership,
   collectStaffUids,
   maskId,
@@ -27,6 +26,7 @@ const {
   readActorNames,
   readTeamNames,
   recountAndWriteTeamMembers,
+  resolveMembershipTeamIds,
   resolveTeamSnapshot,
 } = require("./team-membership-core");
 
@@ -89,7 +89,6 @@ function createRemoveTeamMemberHandler({
       if (!teamSnap) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
       const teamRef = teamSnap.ref;
       const teamData = teamSnap.data() || {};
-      const teamDocId = teamSnap.id;
 
       // 權限（失敗不寫任何東西）
       if (!isFrontendTeamMemberManager(teamData, callerUid)) {
@@ -116,7 +115,6 @@ function createRemoveTeamMemberHandler({
         // 先全部讀、再寫；以 transaction 內的現值重驗，避免兩次呼叫之間幹部名單或被剔者隊伍已變。
         const freshTeamSnap = await tx.get(teamRef);
         if (!freshTeamSnap.exists) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
-        assertTeamDocIdConsistent(freshTeamSnap, HttpsError);
         const freshTeam = freshTeamSnap.data() || {};
         if (!isFrontendTeamMemberManager(freshTeam, callerUid)) {
           throw new HttpsError("permission-denied", "TEAM_MANAGE_DENIED");
@@ -126,20 +124,21 @@ function createRemoveTeamMemberHandler({
           throw new HttpsError("failed-precondition", "TARGET_IS_STAFF");
         }
 
+        const membershipTeamIds = await resolveMembershipTeamIds(db, freshTeamSnap, (ref) => tx.get(ref));
         const userRef = db.collection("users").doc(target.docId);
         const userSnap = await tx.get(userRef);
         if (!userSnap.exists) throw new HttpsError("not-found", "MEMBER_NOT_FOUND");
         const userData = userSnap.data() || {};
-        if (!isUserInTeam(userData, teamDocId)) return { alreadyRemoved: true };
+        if (!membershipTeamIds.some((id) => isUserInTeam(userData, id))) return { alreadyRemoved: true };
 
-        const remainingIds = getUserTeamIds(userData).filter((id) => id !== teamDocId);
+        const remainingIds = getUserTeamIds(userData).filter((id) => !membershipTeamIds.includes(id));
         const teamNames = await readTeamNames(remainingIds, (id) => tx.get(db.collection("teams").doc(id)));
         // 對齊 A（team-detail.js）：被剔者顯示名稱 name || displayName，沒有就「隊員」，不用任何 UID 格式化。
         const memberName = String(userData.name || userData.displayName || "").trim() || "隊員";
         const teamName = typeof freshTeam.name === "string" && freshTeam.name ? freshTeam.name : "俱樂部";
 
         tx.update(userRef, {
-          ...buildNextMembership(userData, teamDocId, teamNames),
+          ...membershipTeamIds.reduce((data, id) => buildNextMembership(data, id, teamNames), userData),
           updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(opRef, {

@@ -134,15 +134,15 @@ describe("removeTeamMember 輸入與權限（失敗一律不寫任何東西）",
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test("舊資料（文件 id≠id 欄位）以邏輯 id 呼叫 → TEAM_ID_MISMATCH，不誤報查無（成員歸屬以文件 id 為準）", async () => {
+  test("測試同步更新：舊資料以唯一邏輯 id 呼叫 → 成功剔除", async () => {
     const docs = seedDocs({
       "teams/doc_x": { id: "tm_logic", name: "邏輯隊", captainUid: "U-cap" },
       "users/U-x": { uid: "U-x", ...membership(["tm_logic"], ["邏輯隊"]) },
     });
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_logic", memberUid: "U-x" })))
-      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
-    expect(fake.state.writes).toHaveLength(0);
+    await expect(call({ teamId: "tm_logic", memberUid: "U-x" }))
+      .resolves.toMatchObject({ ok: true, alreadyRemoved: false });
+    expect(fake.get("users/U-x")).toMatchObject({ teamId: null, teamIds: [] });
   });
 
   test("呼叫者不是該隊幹部（即使 role=admin）→ TEAM_MANAGE_DENIED", async () => {
@@ -432,27 +432,29 @@ describe("removeTeamMember 審查退修（P3 與測試強化）", () => {
     expect(fake.writesTo("operationLogs/")[0].data.content).toBe(`隊長 將「正式姓名」移出「${TEAM_NAME}」`);
   });
 
-  test("文件 id 與 id 欄位不同（owner 把自己隊的 id 改成別隊）→ TEAM_ID_MISMATCH，別隊成員不被動到", async () => {
+  test("測試同步更新：偽造 id 欄位 → 別隊成員視為 alreadyRemoved、不被動到", async () => {
     const docs = seedDocs({
       "teams/tm_atk": { id: "tm_victim", name: "攻擊者的隊", captainUid: "U-cap" },
       "teams/tm_victim": { id: "tm_victim", name: "受害隊", captainUid: "U-victimcap" },
       "users/U-v": { uid: "U-v", role: "user", ...membership(["tm_victim"], ["受害隊"]) },
     });
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: "tm_atk", memberUid: "U-v" })))
-      .toMatchObject({ code: "failed-precondition", message: "TEAM_ID_MISMATCH" });
+    await expect(call({ teamId: "tm_atk", memberUid: "U-v" }))
+      .resolves.toEqual({ ok: true, alreadyRemoved: true });
+    expect(fake.get("users/U-v").teamIds).toEqual(["tm_victim"]);
     expect(fake.state.writes).toHaveLength(0);
   });
 
   test("成員歸屬以文件 id 為準：id 欄位被竄改成別的值時，即使 users.teamIds 含該值也不會被當成本隊成員處理", async () => {
-    // 文件 id=tm_main、id 欄位被改成 tm_other：解析階段直接 TEAM_ID_MISMATCH，連 transaction 都不會進
+    // 測試同步更新：別隊占用 tm_other 時，交易內略過衝突別名，仍驗證本隊與成員。
     const docs = seedDocs();
     docs[`teams/${TEAM}`] = { ...docs[`teams/${TEAM}`], id: "tm_other" };
+    docs["teams/tm_other"] = { id: "tm_other", name: "別隊" };
     docs["users/U-o"] = { uid: "U-o", ...membership(["tm_other"], ["B 隊"]) };
     const { call, fake } = setup({ docs });
-    expect(await rejection(call({ teamId: TEAM, memberUid: "U-o" }))).toMatchObject({ message: "TEAM_ID_MISMATCH" });
+    await expect(call({ teamId: TEAM, memberUid: "U-o" })).resolves.toEqual({ ok: true, alreadyRemoved: true });
     expect(fake.state.writes).toHaveLength(0);
-    expect(fake.state.transactionAttempts).toBe(0);
+    expect(fake.get("users/U-o").teamIds).toEqual(["tm_other"]);
   });
 });
 

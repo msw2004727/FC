@@ -2,8 +2,9 @@
 
 /**
  * deleteTeam Phase 1：查出成員集合並分批清除隊伍欄位（T-027 7b(A)）。
- * 成員歸屬一律以 team 文件 id（teamDocId）為準，不用 team 文件內可被 owner 改寫的 id 欄位。
- * 可重入：已清過的人不再符合查詢條件。每筆更新帶 lastUpdateTime 前置條件，讀與寫之間若成員自己的隊伍欄位又被改過
+ * 成員歸屬使用文件 id 與呼叫端已驗證無跨隊衝突的舊 id（membershipTeamIds）。
+ * 可重入：已清過的人不再符合查詢條件。一般格式更新帶 lastUpdateTime 前置條件；舊格式用交易重讀再寫，
+ * 讀與寫之間若成員自己的隊伍欄位又被改過
  * （例如剛退出別隊、或入隊審核剛加一隊），不會把併發的變更蓋掉（寫回別隊退出的值是資料損壞，不能當已知限制）：
  *  1. 整批以前置條件提交；衝突（FAILED_PRECONDITION／NOT_FOUND）時重讀該批、略過已不在本隊者、重算後重試，最多 3 次。
  *  2. 仍衝突時改為逐位處理（一位的衝突不拖累其他人），每位最多 3 次。
@@ -19,6 +20,7 @@ const {
   maskId,
   readAllDocs,
   readTeamNames,
+  resolveMembershipTeamIds,
 } = require("./team-membership-core");
 
 const BATCH_LIMIT = 450;
@@ -29,14 +31,19 @@ const isConflict = (error) => isFirestoreError(error, "failed-precondition") || 
 
 // 兩組查詢（teamIds array-contains、舊 teamId ==）分頁讀完並依 docId 去重；
 // 再補上幹部 UID 的 users 文件（例如 teamIds 元素帶空白、查詢比對不到的舊資料），去重後只留「實際含本隊」者。
-async function listTeamMemberDocs({ db, FieldPath, teamDocId, teamData }) {
+async function listTeamMemberDocs({ db, FieldPath, teamDocId, teamData, membershipTeamIds = [teamDocId] }) {
+  if (membershipTeamIds.length > 1) {
+    const freshTeam = await db.collection("teams").doc(teamDocId).get();
+    const safeIds = await resolveMembershipTeamIds(db, freshTeam);
+    membershipTeamIds = membershipTeamIds.filter((id) => safeIds.includes(id));
+  }
   const users = db.collection("users");
-  const [byTeamIds, byTeamId] = await Promise.all([
-    readAllDocs(users.where("teamIds", "array-contains", teamDocId), FieldPath),
-    readAllDocs(users.where("teamId", "==", teamDocId), FieldPath),
-  ]);
+  const results = await Promise.all(membershipTeamIds.flatMap((id) => [
+    readAllDocs(users.where("teamIds", "array-contains", id), FieldPath),
+    readAllDocs(users.where("teamId", "==", id), FieldPath),
+  ]));
   const byDocId = new Map();
-  [...byTeamIds, ...byTeamId].forEach((doc) => byDocId.set(doc.id, doc));
+  results.flat().forEach((doc) => byDocId.set(doc.id, doc));
 
   const known = new Set();
   byDocId.forEach((doc) => {
@@ -48,12 +55,12 @@ async function listTeamMemberDocs({ db, FieldPath, teamDocId, teamData }) {
   staffDocs.forEach((doc) => {
     if (doc?.exists) byDocId.set(doc.id, doc);
   });
-  return [...byDocId.values()].filter((doc) => isUserInTeam(doc.data() || {}, teamDocId));
+  return [...byDocId.values()].filter((doc) => membershipTeamIds.some((id) => isUserInTeam(doc.data() || {}, id)));
 }
 
-async function rereadStillInTeam(docs, teamDocId) {
+async function rereadStillInTeam(docs, membershipTeamIds) {
   const snaps = await Promise.all(docs.map((doc) => doc.ref.get()));
-  return snaps.filter((snap) => snap.exists && isUserInTeam(snap.data() || {}, teamDocId));
+  return snaps.filter((snap) => snap.exists && membershipTeamIds.some((id) => isUserInTeam(snap.data() || {}, id)));
 }
 
 // 依每位成員「目前文件」重算四欄；回傳 { failed }（遮罩後的成員識別清單）。
@@ -61,12 +68,12 @@ async function rereadStillInTeam(docs, teamDocId) {
 // 呼叫端的失敗 log 看到的是「已成功清掉的人數」而不是 0。
 // 口徑：cleanedMembers 只計「本次呼叫實際寫入隊伍欄位」的人；重讀後發現已自行退出本隊或文件已不存在（gone）者
 // 既不計入 cleanedMembers 也不計入 failed（他們不需要、也沒有被我們寫）。
-async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress }) {
+async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, membershipTeamIds = [teamDocId], logger, ctx, progress }) {
   const nameCache = new Map();
   const namesFor = async (docs) => {
     const missing = new Set();
     docs.forEach((doc) => getUserTeamIds(doc.data() || {}).forEach((id) => {
-      if (id !== teamDocId && !nameCache.has(id)) missing.add(id);
+      if (!membershipTeamIds.includes(id) && !nameCache.has(id)) missing.add(id);
     }));
     if (missing.size > 0) {
       (await readTeamNames([...missing], (id) => db.collection("teams").doc(id).get()))
@@ -75,22 +82,44 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
     return nameCache;
   };
   const updatesFor = (doc, names) => ({
-    ...buildNextMembership(doc.data() || {}, teamDocId, names),
+    ...membershipTeamIds.reduce((data, id) => buildNextMembership(data, id, names), doc.data() || {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   const precondition = (doc) => ({ lastUpdateTime: doc.updateTime });
+
+  // 舊 id 的占用狀態可能在分批之間改變；檢查與成員更新同交易，避免誤清新占用者。
+  // 只取本次刪隊原先的 id 與現值安全 id 的交集，不追隨 owner 中途改成的新 id。
+  const cleanLegacyBatch = async (docs) => db.runTransaction(async (tx) => {
+    const freshTeam = await tx.get(db.collection("teams").doc(teamDocId));
+    const safeIds = await resolveMembershipTeamIds(db, freshTeam, (ref) => tx.get(ref));
+    const removedIds = membershipTeamIds.filter((id) => safeIds.includes(id));
+    const snapshots = await Promise.all(docs.map((doc) => tx.get(doc.ref)));
+    const currentDocs = snapshots.filter((doc) => doc.exists
+      && removedIds.some((id) => isUserInTeam(doc.data() || {}, id)));
+    const remainingIds = [...new Set(currentDocs.flatMap((doc) => getUserTeamIds(doc.data() || {})))]
+      .filter((id) => !removedIds.includes(id));
+    const names = await readTeamNames(remainingIds, (id) => tx.get(db.collection("teams").doc(id)));
+    currentDocs.forEach((doc) => tx.update(doc.ref, {
+      ...removedIds.reduce((data, id) => buildNextMembership(data, id, names), doc.data() || {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    }));
+    return currentDocs.length;
+  });
 
   // 逐位處理：回傳 "cleaned"｜"gone"（已不在本隊，不必寫）｜"failed"
   const cleanOne = async (first) => {
     let current = first;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      const names = await namesFor([current]);
+      const names = membershipTeamIds.length > 1 ? null : await namesFor([current]);
       try {
+        if (membershipTeamIds.length > 1) {
+          return (await cleanLegacyBatch([current])) > 0 ? "cleaned" : "gone";
+        }
         await current.ref.update(updatesFor(current, names), precondition(current));
         return "cleaned";
       } catch (error) {
         if (!isConflict(error)) throw error;
-        [current] = await rereadStillInTeam([current], teamDocId);
+        [current] = await rereadStillInTeam([current], membershipTeamIds);
         if (!current) return "gone";
       }
     }
@@ -106,12 +135,16 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
   for (let i = 0; i < memberDocs.length; i += BATCH_LIMIT) {
     let pending = memberDocs.slice(i, i + BATCH_LIMIT);
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && pending.length > 0; attempt += 1) {
-      const names = await namesFor(pending);
-      const batch = db.batch();
-      pending.forEach((doc) => batch.update(doc.ref, updatesFor(doc, names), precondition(doc)));
       try {
-        await batch.commit();
-        progress.cleanedMembers += pending.length;
+        if (membershipTeamIds.length > 1) {
+          progress.cleanedMembers += await cleanLegacyBatch(pending);
+        } else {
+          const names = await namesFor(pending);
+          const batch = db.batch();
+          pending.forEach((doc) => batch.update(doc.ref, updatesFor(doc, names), precondition(doc)));
+          await batch.commit();
+          progress.cleanedMembers += pending.length;
+        }
         pending = [];
       } catch (error) {
         if (!isConflict(error)) throw error;
@@ -120,7 +153,7 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
           attempt,
           code: String(error?.code || "unknown"),
         });
-        pending = await rereadStillInTeam(pending, teamDocId);
+        pending = await rereadStillInTeam(pending, membershipTeamIds);
       }
     }
     for (const doc of pending) {
@@ -133,17 +166,17 @@ async function cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger,
 }
 
 // Phase 1＋「最後一批前再查人」的收斂迴圈（審查 F-6，FC 顧問裁示 (b)）：
-// 清完一輪後以同一組查詢（兩組查詢＋幹部補齊、以文件 id 為準）再查一次「仍含本隊」的人（recheck）；
+// 清完一輪後以同一組查詢（各安全 id 的兩組查詢＋幹部補齊）再查一次「仍含本隊」的人（recheck）；
 // 有人（Phase 1 之後才加入本隊的成員）就再清一輪，最多共 3 次 recheck（Phase 1 一輪＋最多 2 輪補清）；
 // 某次 recheck＝0 才算收斂。3 次 recheck 仍 >0（有人持續加入）→ 記 log（帶 remaining）並拋 TEAM_MEMBERS_CHURNING，
 // 此時 team 與所有角色都還沒動，呼叫者可重試。任何一輪清理有成員衝突耗盡 → 回傳 { failed }（呼叫端回 partial）。
 // 註：Callable 無狀態，「連續 3 次」以同一次呼叫內的輪數計，不跨呼叫計數（見報告 §12）。
-async function settleTeamMembers({ db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, logger, ctx, progress }) {
-  let memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData });
+async function settleTeamMembers({ db, FieldValue, FieldPath, HttpsError, teamDocId, teamData, membershipTeamIds = [teamDocId], logger, ctx, progress }) {
+  let memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData, membershipTeamIds });
   for (let round = 1; ; round += 1) {
-    const { failed } = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, logger, ctx, progress });
+    const { failed } = await cleanMemberships({ db, FieldValue, memberDocs, teamDocId, membershipTeamIds, logger, ctx, progress });
     if (failed.length > 0) return { failed };
-    memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData }); // recheck
+    memberDocs = await listTeamMemberDocs({ db, FieldPath, teamDocId, teamData, membershipTeamIds }); // recheck
     if (memberDocs.length === 0) return { failed: [] };
     if (round >= MAX_RECHECKS) {
       logger.error?.("[deleteTeam] members keep joining, giving up after rechecks", {
