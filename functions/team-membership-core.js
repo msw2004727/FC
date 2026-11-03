@@ -155,20 +155,24 @@ async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
   // 成員歸屬以文件 id 為準（見 resolveTeamSnapshot）；覆寫 id 欄位，countTeamMembers 才不會用被竄改的值比對。
   const teamData = { ...(teamSnap.data() || {}), id: teamRef.id };
   const teamDocId = teamRef.id;
+  const membershipTeamIds = await resolveMembershipTeamIds(db, teamSnap);
 
-  const [byTeamIds, byTeamId, studentsSnap] = await Promise.all([
-    db.collection("users").where("teamIds", "array-contains", teamDocId).get(),
-    db.collection("users").where("teamId", "==", teamDocId).get(),
+  const [userSnapshots, studentsSnap] = await Promise.all([
+    Promise.all(membershipTeamIds.flatMap((id) => [
+      db.collection("users").where("teamIds", "array-contains", id).get(),
+      db.collection("users").where("teamId", "==", id).get(),
+    ])),
     teamRef.collection("students").get(),
   ]);
   const userByDocId = new Map();
   const collectUser = (doc) => {
     if (!doc || doc.exists === false) return;
     const data = doc.data() || {};
-    userByDocId.set(doc.id, { ...data, _docId: doc.id, uid: data.uid || doc.id });
+    // 只在計數副本中把安全別名對齊文件 id，保留 countTeamMembers 的文件 id 比對語意。
+    const teamIds = getUserTeamIds(data).map((id) => membershipTeamIds.includes(id) ? teamDocId : id);
+    userByDocId.set(doc.id, { ...data, teamIds, _docId: doc.id, uid: data.uid || doc.id });
   };
-  (byTeamIds?.docs || []).forEach(collectUser);
-  (byTeamId?.docs || []).forEach(collectUser);
+  userSnapshots.forEach((snapshot) => (snapshot?.docs || []).forEach(collectUser));
 
   const known = new Set();
   userByDocId.forEach((user) => {

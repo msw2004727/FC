@@ -83,6 +83,7 @@ for (const kind of ["deleteTeam", "removeTeamMember"]) {
       expect(fake.writesTo("users/U-victim")).toHaveLength(0);
       expect(fake.get(otherPath)).toEqual(other);
       if (kind === "removeTeamMember") {
+        expect(fake.get("teams/" + DOC_ID).members).toBe(1);
         await expect(call(DOC_ID, "U-victim")).resolves.toEqual({ ok: true, alreadyRemoved: true });
         expect(fake.writesTo("users/U-victim")).toHaveLength(0);
       }
@@ -100,6 +101,29 @@ for (const kind of ["deleteTeam", "removeTeamMember"]) {
     });
   });
 }
+
+describe("removeTeamMember 舊格式人數重算", () => {
+  test.each(["teamIds", "teamId", "雙 id"])("10 人使用 %s 歸屬，剔除 1 人後去重寫回 9 人", async (field) => {
+    const docs = {
+      ["teams/" + DOC_ID]: { id: LOGICAL_ID, name: "舊格式俱樂部", captainUid: CAPTAIN, members: 10 },
+      ["users/" + MEMBER]: { uid: MEMBER, role: "user", ...membership([LOGICAL_ID]) },
+    };
+    const ids = field === "雙 id" ? [DOC_ID, LOGICAL_ID] : [LOGICAL_ID];
+    for (const uid of [CAPTAIN, ...Array.from({ length: 8 }, (_, i) => "U-remaining" + i)]) {
+      docs["users/" + uid] = {
+        uid, role: uid === CAPTAIN ? "captain" : "user",
+        ...(field === "teamIds" ? { teamIds: ids } : field === "teamId" ? { teamId: LOGICAL_ID } : membership(ids)),
+      };
+    }
+    const { fake, call } = setup("removeTeamMember", docs);
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyRemoved: false, memberCount: 9 });
+    expect(fake.get("teams/" + DOC_ID).members).toBe(9);
+    expect(fake.get("users/" + MEMBER).teamIds).toEqual([]);
+    for (const [path, data] of Object.entries(docs)) {
+      if (path.startsWith("users/") && path !== "users/" + MEMBER) expect(fake.get(path)).toEqual(data);
+    }
+  });
+});
 
 describe("resolver 與交易邊界", () => {
   test("文件與邏輯 id 均查無 → null", async () => {
