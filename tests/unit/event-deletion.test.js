@@ -148,9 +148,81 @@ test("user capabilities and client-supplied permissions/identity do not grant de
   await expect(f.call({ eventId: ID, role: "super_admin", actorUid: "other", permissions: ["event.delete"] })).rejects.toMatchObject({ code: "permission-denied" });
   expect(f.state.writes).toEqual([]);
 });
-test.each([undefined, "", null, 42])("Rules authRole claim fallback for doc role %j", async (role) => {
+test.each([{}, { role: undefined }])("existing user without role %j is denied and sanitized", async (userDoc) => {
+  const f = setup({ tokenRole: "admin" }); f.put("users/" + UID, userDoc);
+  await expect(f.call()).rejects.toMatchObject({ code: "permission-denied", message: "EVENT_DELETE_DENIED", details: undefined });
+  expect(f.state.writes).toEqual([]); expect(f.docs.has(PATH)).toBe(true);
+  expect(f.logger.error).toHaveBeenCalledWith("[deleteEvent] failed", expect.objectContaining({ phase: "authorize", code: "permission-denied" }));
+  const serialized = JSON.stringify(f.logger.error.mock.calls);
+  for (const secret of [UID, ID, EVENT.title]) expect(serialized).not.toContain(secret);
+});
+test.each(["event.delete", "event.delete_self"])("missing role denies even an owner with individual %s", async (permission) => {
+  const f = setup({ tokenRole: "admin", event: { creatorUid: UID }, grant: { permissions: [permission], enabled: true } });
+  f.put("users/" + UID, {});
+  await denied(f);
+});
+test.each(["", null, 42])("Rules authRole claim fallback for present doc role %j", async (role) => {
   const f = setup({ tokenRole: "admin" }); f.put("users/" + UID, { role });
   await expect(f.call()).resolves.toMatchObject({ alreadyDeleted: false });
+});
+
+// Narrow offline Rules source model: these fixtures have no role/grant permissions
+// and are not event owners. This is not a Rules emulator or full Rules evaluation.
+// Missing map fields throw (unlike JS undefined):
+// https://firebase.google.com/docs/firestore/security/rules-fields#enforcing_types_for_optional_fields
+const rulesSource = fs.readFileSync(require.resolve("../../firestore.rules"), "utf8");
+const rulesRoleSource = ["userDocRoleOrEmpty", "authRole", "isAdmin"].map((name) =>
+  rulesSource.match(new RegExp("function " + name + "\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}"))[0],
+).join("\n")
+  .replace("/databases/$(database)/documents/users/$(uid)", '"users/" + uid')
+  .replace(/(get\(userPath\)\.data\.role|request\.auth\.token\.role) is string/g, '(typeof $1 === "string")')
+  .replace("authRole() in ['admin', 'super_admin']", "['admin', 'super_admin'].includes(authRole())");
+const rulesDeleteCondition = rulesSource.slice(rulesSource.indexOf("match /events/{eventId} {"))
+  .match(/allow delete: if ([\s\S]*?);/)[1];
+function rulesAllowDeleteWithoutPermissions(userDoc, tokenRole) {
+  const missingField = new Error("RULES_MISSING_FIELD");
+  const strictData = new Proxy(userDoc || {}, { get: (data, key) => {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) throw missingField;
+    return data[key];
+  } });
+  try {
+    return vm.runInNewContext(rulesRoleSource + "\n" + rulesDeleteCondition, {
+      request: { auth: { uid: UID, token: clone({ role: tokenRole }) } },
+      exists: (path) => path === "users/" + UID && userDoc !== undefined,
+      get: (path) => { if (path !== "users/" + UID) throw Error("unexpected Rules path"); return { data: strictData }; },
+      hasEffectivePerm: () => false,
+      isEventOwner: () => false,
+    });
+  } catch (error) {
+    if (error !== missingField) throw error;
+    return false;
+  }
+}
+const roleFallbackMatrix = [
+  { label: "absent document / admin token", userDoc: undefined, tokenRole: "admin", expected: true },
+  { label: "absent document / super_admin token", userDoc: undefined, tokenRole: "super_admin", expected: true },
+  { label: "absent document / no token role", userDoc: undefined, tokenRole: undefined, expected: false },
+  { label: "missing role / admin token", userDoc: {}, tokenRole: "admin", expected: false },
+  { label: "missing role / super_admin token", userDoc: {}, tokenRole: "super_admin", expected: false },
+  { label: "undefined role serialized away / admin token", userDoc: { role: undefined }, tokenRole: "admin", expected: false },
+  { label: "missing role / no token role", userDoc: {}, tokenRole: undefined, expected: false },
+  { label: "empty role / admin token", userDoc: { role: "" }, tokenRole: "admin", expected: true },
+  { label: "null role / admin token", userDoc: { role: null }, tokenRole: "admin", expected: true },
+  { label: "numeric role / admin token", userDoc: { role: 42 }, tokenRole: "admin", expected: true },
+  { label: "null role / user token", userDoc: { role: null }, tokenRole: "user", expected: false },
+  { label: "user role / stale admin token", userDoc: { role: "user" }, tokenRole: "admin", expected: false },
+  { label: "admin role / user token", userDoc: { role: "admin" }, tokenRole: "user", expected: true },
+  { label: "super_admin role / user token", userDoc: { role: "super_admin" }, tokenRole: "user", expected: true },
+  { label: "untrimmed role / admin token", userDoc: { role: " admin " }, tokenRole: "admin", expected: false },
+  { label: "unknown role / admin token", userDoc: { role: "unknown" }, tokenRole: "admin", expected: false },
+];
+test.each(roleFallbackMatrix)("Rules source model / Callable: $label => $expected", async (row) => {
+  const f = setup({ tokenRole: row.tokenRole }); f.put("users/" + UID, row.userDoc);
+  // Feed the same post-serialization document to both sides, including absent docs.
+  const rulesAllowed = rulesAllowDeleteWithoutPermissions(f.docs.get("users/" + UID), row.tokenRole);
+  expect(rulesAllowed).toBe(row.expected);
+  if (rulesAllowed) await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: false });
+  else await denied(f);
 });
 test("canonical user role overrides stale admin token; no legacy uid lookup or role normalization", async () => {
   for (const role of ["user", " admin ", "unknown"]) await denied(setup({ role, tokenRole: "admin",
@@ -268,9 +340,9 @@ test.each(["captainUid", "creatorUid", "ownerUid"])("private owner %s with perso
 test("private delegate with individual global delete grant is still denied", async () => {
   await denied(setup({ role: "user", event: { privateEvent: true, delegateUids: [UID] }, grant: { permissions: ["event.delete"] } }));
 });
-test("transaction retry observes canonical user role revocation", async () => {
+test.each([{ role: "user" }, {}, { role: undefined }])("transaction retry observes canonical user role revocation %j", async (userDoc) => {
   const f = setup({ role: "admin", tokenRole: "admin" });
-  f.state.beforeCommit = () => { f.state.beforeCommit = null; f.put("users/" + UID, { role: "user" }); };
+  f.state.beforeCommit = () => { f.state.beforeCommit = null; f.put("users/" + UID, userDoc); };
   await denied(f); expect(f.state.attempts).toBe(2);
 });
 test.each([{}, { permissions: "event.delete" }, { permissions: ["event.edit_all"] }])("malformed or unrelated grant %j cannot authorize", async (grant) => {

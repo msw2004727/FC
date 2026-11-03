@@ -11,7 +11,13 @@ const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
 async function readDeleteAccess(db, transaction, request) {
   const uid = request.auth.uid;
   const userSnap = await transaction.get(db.collection("users").doc(uid));
-  const docRole = userSnap.exists ? userSnap.data()?.role : null;
+  const userData = userSnap.exists ? userSnap.data() : null;
+  // Rules direct field access fails on an existing document without role.
+  // Return no access so the caller uses its sanitized permission-denied path.
+  if (userSnap.exists && !Object.prototype.hasOwnProperty.call(userData || {}, "role")) {
+    return { isAdmin: false, hasPermission: () => false };
+  }
+  const docRole = userData?.role;
   const tokenRole = request.auth.token?.role;
   const role = typeof docRole === "string" && docRole !== ""
     ? docRole : (typeof tokenRole === "string" ? tokenRole : "user");
