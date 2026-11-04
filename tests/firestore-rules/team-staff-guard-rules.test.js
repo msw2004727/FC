@@ -57,6 +57,11 @@ describe('T-090i user-created staff assignment needs membership', () => {
     await assertSucceeds(write({ ...asCoach([]), ...asLeader([]) }));
   });
 
+  test('a non-member inserted at the head while the tail is an existing staff member is rejected', async () => {
+    await seedUserCreated({ coachUids: ['member'] });
+    await assertFails(write(asCoach(['outsider', 'member'])));
+  });
+
   test('removing a member from teamIds before assignment blocks the assignment', async () => {
     await h.seed('users', 'member', profile('member', { teamId: null, teamIds: [] }));
     await assertFails(write(asCoach(['coach', 'member'])));

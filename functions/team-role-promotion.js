@@ -91,6 +91,8 @@ const TEAM_ASSIGNMENT_PAGE_SIZE = 10;
 
 async function hasManagedTeamAssignment(teamCollection, field, operator, uid, excludeTeamDocId = "") {
   let query = teamCollection.where(field, operator, uid).limit(TEAM_ASSIGNMENT_PAGE_SIZE);
+  // 取捨：迴圈不設頁數上限；四個欄位合計最壞讀取＝命中的自建隊數＋4 次（每個查詢至少計 1 次）。
+  // 設上限會讓「大量自建隊掛名」把 legacy 隊擠出結果而誤降級（穩定優先於省讀取）；正常人只掛少數隊，多半第一頁就結束。
   for (;;) {
     const snapshot = await query.get();
     const docs = snapshot.docs || [];
