@@ -80,6 +80,32 @@ Object.assign(App, {
       && this._getTeamFormSubmitSignature() === context.signature;
   },
 
+  // T-090k：對應 firestore.rules isUserCreatedStaffChangeSafe（自建俱樂部新增職員，本人除外，一次一位、
+  // 放在教練或領隊名單最後、且須是本隊成員）；非自建俱樂部或沒有新增職員時回傳空字串。
+  _getUserCreatedTeamStaffBlockMessage(team, vals) {
+    if (String(team?.createdVia || '') !== 'user_capability') return '';
+    const clean = list => (Array.isArray(list) ? list : []).map(v => String(v || '').trim()).filter(Boolean);
+    const coachUids = clean(vals.newCoachUids);
+    const leaderUids = clean(vals.realLeaderUids);
+    const oldStaff = new Set([...clean(vals.oldCoachUids), ...clean(vals.oldLeaderUids), ...clean([team.leaderUid])]);
+    const myUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    const added = Array.from(new Set([...coachUids, ...leaderUids]))
+      .filter(uid => !oldStaff.has(uid) && uid !== myUid);
+    if (added.length === 0) return '';
+    if (added.length > 1) return '自建俱樂部一次只能新增一位教練或領隊';
+    const uid = added[0];
+    if (coachUids[coachUids.length - 1] !== uid && leaderUids[leaderUids.length - 1] !== uid) {
+      return '新增的教練或領隊請排在名單最後';
+    }
+    // 使用者目錄不帶隊伍欄位，只用 adminUsers 判斷；查不到就交給 Rules，不在前端誤擋
+    const user = (ApiService.getAdminUsers?.() || []).find(u => u && (u.uid === uid || u._docId === uid));
+    const teamKey = String(team._docId || team.id || '').trim();
+    if (user && !this._isUserInTeam?.(user, teamKey)) {
+      return '自建俱樂部的教練或領隊須先是本隊成員';
+    }
+    return '';
+  },
+
   async handleSaveTeam() {
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（建立/編輯俱樂部屬於寫入行為）
     if (this._requireProfileComplete()) return;
@@ -96,6 +122,12 @@ Object.assign(App, {
       const targetTeam = ApiService.getTeam?.(this._teamFormState.editId);
       if (!targetTeam || !this._canEditTeamByRoleOrCaptain?.(targetTeam)) {
         this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+        return;
+      }
+      // T-090k\uff1a\u81ea\u5efa\u4ff1\u6a02\u90e8\u7684\u8077\u54e1\u898f\u5247\u5148\u5728\u524d\u7aef\u8aaa\u660e\uff0c\u907f\u514d\u6574\u7b46\u7de8\u8f2f\u88ab Rules \u62d2\u7d55\u53ea\u770b\u5230\u300c\u66f4\u65b0\u5931\u6557\u300d
+      const staffBlockMessage = this._getUserCreatedTeamStaffBlockMessage(targetTeam, vals);
+      if (staffBlockMessage) {
+        this.showToast(staffBlockMessage);
         return;
       }
     }

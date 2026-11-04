@@ -139,8 +139,9 @@ describe("allow（鎖住現況）：Callable 上線後前端直寫路徑維持�
     await assertSucceeds(write(CAP, MEMBER_LEGACY, CLEARED));
   });
 
-  test("4. 1713 不綁定俱樂部：role=coach 但不是 team_main 幹部者也能清空 team_main 成員（現況，列為收緊候選）", async () => {
-    await assertSucceeds(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+  // T-090k：原本鎖住「不綁定俱樂部」的現況（列為收緊候選），收緊後改成拒絕。
+  test("4. T-090k：role=coach 但不是 team_main 幹部者清空 team_main 成員 → 拒", async () => {
+    await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
   });
 
   test("5. admin（1713）與 super_admin（1711）清空他人", async () => {
@@ -209,5 +210,88 @@ describe("deny（新增）：coach 以上也只能動四個隊伍欄位＋update
 
   test("19. teamName 不是 string／null → 拒", async () => {
     await assertFails(write(CAP, MEMBER_ONE, { ...CLEARED, teamName: ["Main"] }));
+  });
+});
+
+describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那一隊", () => {
+  const COACH_MAIN = "coach_main";     // users.role=coach，team_main coachUids 內
+  const LEADER_MAIN = "leader_main";   // users.role=coach，team_main leaderUids 內（無個別授權）
+  const MEMBER_INCONSISTENT = "member_inconsistent"; // 舊資料：teamIds 與 teamId 不一致
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "teams", TEAM_MAIN), {
+        id: TEAM_MAIN, name: "Main", captainUid: CAP, leaderUids: [GRANT_LEADER, LEADER_MAIN], coachUids: [COACH_MAIN],
+      });
+      await setDoc(doc(db, "users", COACH_MAIN), { uid: COACH_MAIN, role: "coach", ...membership([TEAM_MAIN]) });
+      await setDoc(doc(db, "users", LEADER_MAIN), { uid: LEADER_MAIN, role: "coach", ...membership([TEAM_MAIN]) });
+      await setDoc(doc(db, "users", MEMBER_INCONSISTENT), {
+        uid: MEMBER_INCONSISTENT, role: "user",
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["Low"],
+      });
+    });
+  });
+
+  describe("allow", () => {
+    test("20. 隊長（coach 以上）核准：在尾端加入自己那隊", async () => {
+      await assertSucceeds(write(CAP, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertSucceeds(write(CAP, MEMBER_LOW, membership(["team_low", TEAM_MAIN])));
+    });
+
+    test("21. coachUids 內的教練、leaderUids 內的領隊（coach 以上）可加入／移除自己那隊", async () => {
+      await assertSucceeds(write(COACH_MAIN, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertSucceeds(write(LEADER_MAIN, MEMBER_TWO, membership([TEAM_OTHER])));
+    });
+
+    test("22. 移除第一隊時 teamId 改指向原本就有的下一隊（不算新增）", async () => {
+      await assertSucceeds(write(CAP, MEMBER_TWO, membership([TEAM_OTHER])));
+    });
+
+    test("23. 舊資料 teamIds 與 teamId 不一致時，核准仍只算新增一隊", async () => {
+      await assertSucceeds(write(CAP, MEMBER_INCONSISTENT, {
+        teamId: "team_low", teamName: "Low",
+        teamIds: ["team_low", TEAM_OTHER, TEAM_MAIN], teamNames: ["Low", "Other", "Main"],
+      }));
+    });
+
+    test("24. admin 不是幹部仍可核准／移除（A 入隊審核允許 admin、資料同步清無效隊伍）", async () => {
+      await assertSucceeds(write(ADMIN, EMPTY_USER, membership([TEAM_OTHER])));
+      await assertSucceeds(write(ADMIN, MEMBER_LOW_TWO, membership(["team_low"])));
+    });
+  });
+
+  describe("deny", () => {
+    test("25. 不是該隊職員的 coach 把他人加進該隊 → 拒", async () => {
+      await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertFails(write(CAP, EMPTY_USER, membership([TEAM_OTHER])));
+    });
+
+    test("26. 職員移除他人「別隊」的條目 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, membership([TEAM_MAIN])));
+      await assertFails(write(COACH_MAIN, MEMBER_LOW_TWO, membership(["team_low"])));
+    });
+
+    test("27. 同一筆同時加自己那隊、移除別隊 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_LOW_TWO, membership(["team_low", TEAM_MAIN])));
+    });
+
+    test("28. 一次加入兩隊（含自己那隊）→ 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, membership([TEAM_MAIN, TEAM_OTHER])));
+    });
+
+    test("29. teamIds 不變、只把 teamId 換成別隊 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_LOW, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["team_low-name"],
+      }));
+    });
+
+    test("30. 只調整他人隊伍順序（沒有增減）→ 拒", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, membership([TEAM_OTHER, TEAM_MAIN])));
+    });
+
+    test("31. 職員加入自己那隊的同時改 role → 拒（欄位白名單不變）", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { ...membership([TEAM_MAIN]), role: "coach" }));
+    });
   });
 });

@@ -928,6 +928,15 @@ describe("/users/{userId}", () => {
   });
 
   test("[SECURITY_HARDENED] coach/staff path still works with server timestamp but rejects spoofed timestamp", async () => {
+    // T-090k：coach 以上只能動自己當職員的隊，這裡讓 uidCoach 成為 teamA 教練；時間戳檢查改用同一隊，只驗時間戳。
+    await seedDoc("teams", "teamA", {
+      id: "teamA",
+      name: "Team A",
+      captainUid: "uidA",
+      creatorUid: "uidA",
+      ownerUid: "uidA",
+      coachUids: ["uidCoach"],
+    });
     await assertSucceeds(
       updateDoc(doc(coach(), "users", "uidUser"), {
         teamId: "teamA",
@@ -940,11 +949,23 @@ describe("/users/{userId}", () => {
 
     await assertFails(
       updateDoc(doc(coach(), "users", "uidUser"), {
+        teamId: null,
+        teamName: null,
+        teamIds: [],
+        teamNames: [],
+        updatedAt: new Date("2000-01-01T00:00:00.000Z"),
+      })
+    );
+  });
+
+  test("[T-090k] coach 不是該隊職員時不能把他人加進該隊", async () => {
+    await assertFails(
+      updateDoc(doc(coach(), "users", "uidUser"), {
         teamId: "teamB",
         teamName: "Team B",
         teamIds: ["teamB"],
         teamNames: ["Team B"],
-        updatedAt: new Date("2000-01-01T00:00:00.000Z"),
+        updatedAt: serverTimestamp(),
       })
     );
   });

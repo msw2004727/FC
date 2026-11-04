@@ -1644,6 +1644,24 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
+      // T-090k：users 文件的隊伍鍵＝teamIds（list）加上舊欄位 teamId（string），用來算這次增減了哪些隊。
+      function userTeamKeysOf(data) {
+        return (data.get('teamIds', null) is list ? data.teamIds : [])
+          .concat(data.get('teamId', null) is string ? [data.teamId] : []);
+      }
+
+      // T-090k：非 admin 的 coach 以上改他人隊伍欄位時，一次只能新增或移除「一支」隊，且自己必須是那支隊的職員
+      // （isCurrentUserTeamStaff：captainUid／creatorUid／ownerUid／leaderUid／leaderUids／coachUids），其他隊的條目不得增減。
+      // 取代原本「任何 coach 以上可改任意用戶任意隊」的寫法（S4 前複核 P2）；隊名欄位只驗型別，不比對內容。
+      function isTeamStaffMembershipDelta() {
+        let oldKeys = userTeamKeysOf(resource.data);
+        let newKeys = userTeamKeysOf(request.resource.data);
+        let added = newKeys.removeAll(oldKeys);
+        let removed = oldKeys.removeAll(newKeys);
+        return added.toSet().size() + removed.toSet().size() == 1
+          && isCurrentUserTeamStaff(added.size() > 0 ? added[0] : removed[0]);
+      }
+
       function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
         return newTeamIds.size() > index
           && newTeamIds[index] is string
@@ -1715,7 +1733,9 @@ service cloud.firestore {
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
         || (isSuperAdmin() && isSafeSuperAdminUserUpdate())
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
-        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff())
+        // T-090k：admin／super_admin 維持原樣（A 入隊審核允許 admin、資料同步清無效隊伍）；其餘 coach 以上限自己當職員的那一隊。
+        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff()
+          && (isAdmin() || isTeamStaffMembershipDelta()))
         || isSafeGrantedTeamReviewJoinUpdate();
       allow delete: if false;
 

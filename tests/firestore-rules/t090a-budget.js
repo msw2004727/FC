@@ -39,6 +39,10 @@ const specs = [
   ['users-create-full', 'users/{userId}', 'create', 'new_user', 'profile-full'],
   ['users-update-self', 'users/{userId}', 'update', 'owner', 'profile-edit'],
   ['users-update-review-join', 'users/{userId}', 'update', 'owner', 'join'],
+  // T-090k: coach+ branch (staff-of-that-team delta) and the admin pass-through on the same branch.
+  ['users-update-coach-staff-join', 'users/{userId}', 'update', 'coach', 'staff-join'],
+  ['users-update-coach-staff-remove', 'users/{userId}', 'update', 'coach', 'staff-remove'],
+  ['users-update-admin-join', 'users/{userId}', 'update', 'admin', 'staff-join'],
   ['teams-update-owner-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix'],
   ['teams-update-owner-removal', 'teams/{teamId}', 'update', 'owner', 'team-removal'],
   ['teams-update-managed-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix-managed'],
@@ -92,6 +96,8 @@ async function trial(spec, pads) {
       else if (kind === 'profile-full') await setDoc(doc(db, 'users', uid), profile(uid, { lineUserId: uid, pictureUrl: null, email: null, exp: 0, level: 1, gender: null, birthday: null, region: null, sports: null, phone: null, titleBig: null, titleNormal: null, totalGames: 0, completedGames: 0, attendanceRate: 0, badgeCount: 0, profileCompleted: false, favorites: [], socialLinks: {}, lineNotify: {}, companions: [], eduChildren: [], stealth: false, createdAt: serverTimestamp(), lastLogin: serverTimestamp(), updatedAt: serverTimestamp() }));
       else if (kind === 'profile-edit') await updateDoc(doc(db, 'users', uid), { displayName: 'Edited' });
       else if (kind === 'join') await updateDoc(doc(db, 'users', 'other'), { teamId: ID, teamName: 'Budget team', teamIds: [ID], teamNames: ['Budget team'] });
+      else if (kind === 'staff-join') await updateDoc(doc(db, 'users', 'other'), { teamId: ID, teamName: 'Budget team', teamIds: [ID], teamNames: ['Budget team'], updatedAt: serverTimestamp() });
+      else if (kind === 'staff-remove') await updateDoc(doc(db, 'users', 'member'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
       else if (kind === 'course') await setDoc(doc(db, 'teams', ID, 'coursePlans', 'plan'), { title: 'Course' });
       return { allowed: true };
     } catch (error) {
