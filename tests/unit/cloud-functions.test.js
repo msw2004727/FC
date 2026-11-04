@@ -5461,14 +5461,18 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     });
   });
 
-  test('T-090f: source-less untyped inbox silently skips with zero business writes', async () => {
+  // T-090f 顧問改裁：缺 source 視為 client:unknown 照常投遞（取代原「缺 source 成功略過、零寫入」）。
+  test('T-090f: source-less untyped inbox is treated as client:unknown and delivered', async () => {
     const db = createDeliverInboxMemoryDb({ users: { uid_caller: { role: 'user' }, uid_target: { role: 'user' } } });
-    const callable = loadDeliverToInbox(db, makeConsole());
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
     await expect(callable.handler({ auth: { uid: 'uid_caller' }, data: {
       message: message({ source: undefined }), targetUid: 'uid_target',
-    } })).resolves.toEqual({ success: true, delivered: 0, skipped: true });
-    expect(db.appliedWrites).toHaveLength(0);
-    expect(db.commitAttempts).toBe(0);
+    } })).resolves.toEqual({ success: true, delivered: 1 });
+    expect(db.appliedWrites).toHaveLength(1);
+    expect(db.appliedWrites[0].path).toBe(inboxPath('uid_target', 'msg_t022'));
+    expect(consoleImpl.warns.some(([msg, data]) => msg === '[notificationGuards] gate triggered'
+      && data.relation === 'client_unknown' && data.source === 'client:unknown')).toBe(true);
   });
 
   test('allow: missing target and broadcast fields delivers zero', async () => {

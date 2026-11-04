@@ -98,7 +98,7 @@ async function decideBroadcastPermission(rel, ctx, queries, mode) {
   if (rel.roleUpgradeWithoutTeam) {
     // 無 teamId 且 admin.users.change_role 不成立：不是差距，也不是 R5。常數改 enforce 才拒。
     if (mode === "enforce") return outcomeOf("deny", rel.id, "role_upgrade_no_permission");
-    // 一般層且無全站授權者無法確認不是只憑自建俱樂部職員身分：略過（教練以上舊路徑照舊記錄）。
+    // T-090f 顧問改裁：缺 teamId 時由伺服器以呼叫者反查自建俱樂部職員身分；命中且收件者非成員才略過，查無走舊路徑記錄。
     const scoped = await teamScopeAllows(ctx, queries);
     if (scoped === null) return outcomeOf("deny", rel.id, "query_missing");
     if (!scoped) return outcomeOf("skip", rel.id, "team_scope_unconfirmed");
@@ -149,12 +149,14 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
     }
     if (rel.id === "R6") return await decideBroadcastPermission(rel, ctx2, queries, mode);
 
-    // T-090f 補裁：R5 缺鍵不受信，log／enforce 都成功略過，不查詢。
     const flags = keyFlags(rel, safeKeys, assignmentRole);
     const missingKey = missingKeyNames(rel, safeKeys, assignmentRole).length > 0;
-    if (missingKey && rel.id === "R5") return outcomeOf("skip", rel.id, "missing_key", flags);
+    // T-090f 顧問改裁 (a)：入隊審核類缺 applicantUid 無法核對收件者，log／enforce 都成功略過，不查詢。
+    // （取代原「R5 缺鍵一律略過」：R5 缺 teamId 改由下方俱樂部範圍反查決定。）
+    if (rel.id === "R4" && !safeKeys.applicantUid) return outcomeOf("skip", rel.id, "missing_applicant_uid", flags);
 
-    // T-090f B3：R4／R5（含 member）先過俱樂部範圍收斂，再走原本的鍵與關係判斷。
+    // T-090f B3 (b)：R4／R5（含 member）先過俱樂部範圍收斂，再走原本的鍵與關係判斷；
+    // 缺 teamId 時由查詢層以呼叫者反查自建俱樂部職員身分（查無＝舊路徑）。
     if (rel.id === "R4" || rel.id === "R5") {
       const scoped = await teamScopeAllows(ctx2, queries);
       if (scoped === null) return outcomeOf("deny", rel.id, "query_missing", flags);

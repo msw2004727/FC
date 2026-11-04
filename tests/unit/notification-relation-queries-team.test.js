@@ -377,19 +377,79 @@ describe("T-090f B3 teamScopedDeliveryAllowed（伺服器端俱樂部範圍收�
     }
   });
 
-  test("缺 teamId 或解不出隊伍（含巢狀路徑）：一般層略過；教練以上與全站授權者照舊", async () => {
-    for (const keys of [{}, { teamId: "t404" }, { teamId: "t1/students/forged" }, { teamId: ".." }]) {
-      const { queries, db } = setup({
-        "teams/t1": OWN, "teams/t1/students/forged": { ownerUid: "uidA" },
-        "userPermissionGrants/uidG": { permissions: ["team.manage_all"] },
-      });
-      expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys }))).toBe(false);
-      expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerUid: "uidG" }))).toBe(true);
-      for (const role of ["coach", "captain", "venue_owner", "admin"]) {
-        expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerRole: role }))).toBe(true);
+  // T-090f 顧問改裁：缺 teamId 不再以角色推定，改以呼叫者反查自建俱樂部職員身分。
+  describe("缺 teamId 或解不出隊伍：以呼叫者反查自建俱樂部職員", () => {
+    const MISSING = [{}, { teamId: "t404" }, { teamId: "t1/students/forged" }, { teamId: ".." }];
+    const UC = (extra) => ({ createdVia: "user_capability", ...extra });
+
+    test.each([
+      ["captainUid", UC({ captainUid: "uidA" })],
+      ["coachUids", UC({ coachUids: ["uidA"] })],
+      ["leaderUids", UC({ leaderUids: ["uidA"] })],
+    ])("命中 %s：收件者非成員 false、是成員 true（不分呼叫者角色）", async (_field, teamData) => {
+      for (const keys of MISSING) {
+        for (const role of ["user", "coach", "captain", "venue_owner"]) {
+          const out = setup({ "teams/tu": teamData, "users/uidB": { teamIds: ["t9"] } });
+          expect(await out.queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerRole: role }))).toBe(false);
+          const member = setup({ "teams/tu": teamData, "users/uidB": { teamIds: ["tu"] } });
+          expect(await member.queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerRole: role }))).toBe(true);
+        }
       }
+    });
+
+    test("反查查無（只有管理端／legacy 隊伍或別人的自建隊）：舊路徑 true，不讀權限與收件者文件", async () => {
+      for (const keys of MISSING) {
+        const { queries, db } = setup({
+          "teams/t1": { ...TEAM, captainUid: "uidA", coachUids: ["uidA"], leaderUids: ["uidA"] },
+          "teams/tl": { captainUid: "uidA", createdVia: "admin" },
+          "teams/tx": UC({ captainUid: "uidOther", coachUids: ["uidZ"] }),
+          "users/uidB": { teamIds: [] },
+        });
+        for (const role of ["user", "coach", "captain", "admin", "super_admin"]) {
+          expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerRole: role }))).toBe(true);
+        }
+        expect(db.readsOf("Permission")).toHaveLength(0);
+        expect(db.readsOf("users/")).toHaveLength(0);
+      }
+    });
+
+    test("反查只用等值＋array-contains 三個查詢、各帶 createdVia；有 teamId 解得出時不查", async () => {
+      const { queries, db } = setup({ "teams/tu": UC({ captainUid: "uidA" }), "users/uidB": { teamIds: ["tu"] } });
+      await queries.teamScopedDeliveryAllowed(makeCtx({ keys: {} }));
+      expect(db.readsOf("query:teams").sort()).toEqual([
+        "query:teams:captainUid==uidA&createdVia==user_capability",
+        "query:teams:coachUidsarray-containsuidA&createdVia==user_capability",
+        "query:teams:leaderUidsarray-containsuidA&createdVia==user_capability",
+      ].sort());
+      const present = setup({ "teams/tu": UC({ captainUid: "uidA" }), "users/uidB": { teamIds: ["tu"] } });
+      await present.queries.teamScopedDeliveryAllowed(makeCtx({ keys: { teamId: "tu" } }));
+      expect(present.db.readsOf("query:")).toHaveLength(0);
+    });
+
+    test("命中但呼叫者有全站授權（admin／super_admin、team.manage_all、team.create）：照舊 true", async () => {
+      for (const role of ["admin", "super_admin"]) {
+        const { queries } = setup({ "teams/tu": UC({ captainUid: "uidA" }), "users/uidB": { teamIds: [] } });
+        expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys: {}, callerRole: role }))).toBe(true);
+      }
+      for (const code of ["team.manage_all", "team.create"]) {
+        const { queries } = setup({
+          "teams/tu": UC({ coachUids: ["uidA"] }), "users/uidB": { teamIds: [] },
+          "userPermissionGrants/uidA": { permissions: [code] },
+        });
+        expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys: {} }))).toBe(true);
+      }
+    });
+
+    test("LINE 重用 recipientFound，零 users 讀取；巢狀路徑不讀子集合；反查失敗往外丟", async () => {
+      const { queries, db } = setup({ "teams/tu": UC({ leaderUids: ["uidA"] }), "teams/t1/students/forged": { ownerUid: "uidA" } });
+      expect(await queries.teamScopedDeliveryAllowed(makeCtx({
+        keys: { teamId: "t1/students/forged" }, recipientFound: { docId: "uidB", data: { teamIds: ["tu"] } },
+      }))).toBe(true);
+      expect(db.readsOf("users/")).toHaveLength(0);
       expect(db.reads.some((item) => item.includes("students"))).toBe(false);
-    }
+      const failing = setup({}, { query: (path) => (path === "teams" ? boom() : null) });
+      await expect(failing.queries.teamScopedDeliveryAllowed(makeCtx({ keys: {} }))).rejects.toThrow("UNAVAILABLE");
+    });
   });
 
   test("讀取失敗往外丟（由決策層轉 deny）", async () => {

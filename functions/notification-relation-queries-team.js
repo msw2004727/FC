@@ -27,9 +27,6 @@ function trimmedList(value) {
   return Array.isArray(value) ? value.map(str).filter(Boolean) : [];
 }
 
-// 教練以上（與 notification-guards isStaffRole、autoPromoteTeamRole 的 coach+ 門檻一致；自訂角色視為一般層）。
-const STAFF_ROLES = new Set(["coach", "captain", "venue_owner", "admin", "super_admin"]);
-
 function createTeamQueries({ db, helpers, readAccess }) {
   const loadTeam = memoByCtx((ctx) => readTeamByDocId(db, ctx?.keys?.teamId));
   // LINE 重用伺服器已讀的 recipientFound；站內信至多多讀一份 users 文件（同一次決策內共用）。
@@ -44,6 +41,23 @@ function createTeamQueries({ db, helpers, readAccess }) {
     const userData = await loadRecipientData(ctx);
     return Array.isArray(userData?.teamIds) && userData.teamIds.includes(team.docId);
   };
+  // 只在缺 teamId（或解不出隊伍）時查：三個「等值＋array-contains」查詢，不需複合索引。
+  // 沒有呼叫者無從反查，視為命中（空字串標記，任何收件者都不會是成員）＝略過。
+  const loadCallerUserCreatedStaffTeamIds = memoByCtx(async (ctx) => {
+    const caller = str(ctx?.callerUid);
+    if (!caller) return [""];
+    const teams = db.collection("teams");
+    const snaps = await Promise.all([
+      teams.where("captainUid", "==", caller).where("createdVia", "==", "user_capability").get(),
+      teams.where("coachUids", "array-contains", caller).where("createdVia", "==", "user_capability").get(),
+      teams.where("leaderUids", "array-contains", caller).where("createdVia", "==", "user_capability").get(),
+    ]);
+    const ids = new Set();
+    snaps.forEach((snap) => (snap?.docs || []).forEach((doc) => {
+      if (isUserCreatedTeam(doc.data())) ids.add(doc.id);
+    }));
+    return [...ids];
+  });
   const mayReceiveAssignment = memoByCtx(async (ctx) => {
     const team = await loadTeam(ctx);
     if (!team) return false;
@@ -63,12 +77,18 @@ function createTeamQueries({ db, helpers, readAccess }) {
     // T-090f B3：不看 source／template 分類，只用伺服器讀到的隊伍標記、呼叫者角色與收件者 teamIds。
     // 管理端／legacy 隊伍與全站授權者維持既有流程（true）；自建隊伍且無全站授權時，
     // 呼叫者必須是該隊擁有者或職員、收件者必須已是該隊成員，否則略過。
-    // teamId 缺或解不出隊伍：無法確認呼叫者不是只憑自建俱樂部職員身分，教練以上與全站授權者照舊，其餘略過。
+    // teamId 缺或解不出隊伍：以呼叫者反查自建俱樂部職員身分（captainUid／coachUids／leaderUids，各加 createdVia）。
+    // 查無＝舊路徑（true）；命中時同上：全站授權者照舊，其餘收件者須是任一命中隊伍的成員。
+    // （T-090f 顧問改裁，取代原「教練以上與全站授權者推定非自建、照舊」的角色推定。）
     async teamScopedDeliveryAllowed(ctx) {
       const team = await loadTeam(ctx);
       if (!team) {
-        if (STAFF_ROLES.has(str(ctx?.callerRole))) return true;
-        return callerHasGlobalTeamAuthority(ctx);
+        const staffTeamIds = await loadCallerUserCreatedStaffTeamIds(ctx);
+        if (staffTeamIds.length === 0) return true;
+        if (await callerHasGlobalTeamAuthority(ctx)) return true;
+        const userData = await loadRecipientData(ctx);
+        const teamIds = Array.isArray(userData?.teamIds) ? userData.teamIds : [];
+        return staffTeamIds.some((id) => teamIds.includes(id));
       }
       if (!isUserCreatedTeam(team.data)) return true;
       if (await callerHasGlobalTeamAuthority(ctx)) return true;

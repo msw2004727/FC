@@ -278,12 +278,22 @@ describe("decideRelation R3／R4／R8（log 缺鍵放行、鍵齊查無拒絕）
     expect(await decide("team_join_request", keys, makeQueries({ recipientIsTeamStaff: boom() }))).toMatchObject({ outcome: "deny", reason: "query_error" });
   });
 
-  test("R4 需要 teamId 與 applicantUid：缺任一個都是 missing_key", async () => {
+  // T-090f 顧問改裁 (a)：缺 applicantUid 不分模式成功略過、不查詢；只缺 teamId 時過俱樂部範圍（反查）後走舊路徑 missing_key。
+  test("R4 缺 applicantUid：成功略過不查詢；有 applicantUid 缺 teamId：收斂通過後 missing_key", async () => {
     const source = "team_join_review:approve";
-    for (const keys of [{}, { teamId: "t1" }, { applicantUid: "uidB" }]) {
-      const result = await decide(source, keys, makeQueries());
-      expect(result).toMatchObject({ outcome: "missing_key", relationId: "R4" });
+    for (const inject of [{}, { modeOf: enforceAll }]) {
+      for (const keys of [{}, { teamId: "t1" }, { teamId: "t1", applicantUid: "  " }]) {
+        const queries = makeQueries();
+        expect(await decide(source, keys, queries, { inject }))
+          .toMatchObject({ outcome: "skip", relationId: "R4", reason: "missing_applicant_uid" });
+        expect(calledNames(queries)).toEqual([]);
+      }
     }
+    const noTeam = makeQueries();
+    expect(await decide(source, { applicantUid: "uidB" }, noTeam)).toMatchObject({ outcome: "missing_key", relationId: "R4" });
+    expect(calledNames(noTeam)).toEqual(["teamScopedDeliveryAllowed"]);
+    expect(await decide(source, { applicantUid: "uidB" }, makeQueries({ teamScopedDeliveryAllowed: false })))
+      .toMatchObject({ outcome: "skip", relationId: "R4", reason: "team_scope_not_member" });
     const full = { teamId: "t1", applicantUid: "uidB" };
     expect(await decide(source, full, makeQueries())).toMatchObject({ outcome: "allow", relationId: "R4" });
     expect(await decide(source, full, makeQueries({ callerMayReviewJoin: false }))).toMatchObject({ outcome: "deny" });
@@ -312,7 +322,7 @@ describe("decideRelation R3／R4／R8（log 缺鍵放行、鍵齊查無拒絕）
   });
 
   test("R3／R4／R8 注入 enforce 後缺鍵變 deny", async () => {
-    for (const [source, keys] of [["team_join_request", {}], ["team_join_review:reject", { teamId: "t1" }], ["tournament_review:approve", {}]]) {
+    for (const [source, keys] of [["team_join_request", {}], ["team_join_review:reject", { applicantUid: "uidB" }], ["tournament_review:approve", {}]]) {
       expect(await decide(source, keys, makeQueries(), { inject: { modeOf: enforceAll } })).toMatchObject({ outcome: "deny", gate: "relation_denied" });
     }
   });
@@ -322,15 +332,20 @@ describe("decideRelation R5", () => {
   const SOURCES = ["captain", "leader", "coach"].map((role) => `team_role_assignment:${role}`);
   const keys = { teamId: "t1" };
 
-  // 測試同步更新（T-090f 補裁）：R5 缺鍵不再放行，亦不向呼叫者丟錯。
-  test.each(SOURCES)("%s 缺 teamId：log／enforce 均 skip，不查詢", async (source) => {
-    for (const inject of [{}, { modeOf: enforceAll }]) {
-      for (const teamId of [undefined, null, "", "  ", 7, {}]) {
-        const queries = makeQueries();
-        const result = await decide(source, { teamId }, queries, { inject });
-        expect(result).toMatchObject({ outcome: "skip", relationId: "R5", reason: "missing_key" });
-        expect(calledNames(queries)).toEqual([]);
-      }
+  // 測試同步更新（T-090f 顧問改裁，取代「R5 缺鍵一律略過」）：缺 teamId 先過俱樂部範圍（查詢層反查）；
+  // 不通過略過，通過走舊路徑（log missing_key 放行、enforce deny）。
+  test.each(SOURCES)("%s 缺 teamId：只查俱樂部範圍；不通過 skip，通過 log missing_key／enforce deny", async (source) => {
+    for (const teamId of [undefined, null, "", "  ", 7, {}]) {
+      const blocked = makeQueries({ teamScopedDeliveryAllowed: false });
+      expect(await decide(source, { teamId }, blocked))
+        .toMatchObject({ outcome: "skip", relationId: "R5", reason: "team_scope_not_member" });
+      expect(calledNames(blocked)).toEqual(["teamScopedDeliveryAllowed"]);
+      const legacy = makeQueries();
+      expect(await decide(source, { teamId }, legacy))
+        .toMatchObject({ outcome: "missing_key", relationId: "R5", reason: "missing_key" });
+      expect(calledNames(legacy)).toEqual(["teamScopedDeliveryAllowed"]);
+      expect(await decide(source, { teamId }, makeQueries(), { inject: { modeOf: enforceAll } }))
+        .toMatchObject({ outcome: "deny", relationId: "R5", reason: "missing_key" });
     }
   });
 
@@ -365,12 +380,14 @@ describe("decideRelation R5", () => {
   });
 
   // T-090f B3：取代「鍵齊即 record、不查詢」；member 鍵齊也要先過俱樂部範圍收斂，不查指派欄位。
-  test("member：缺 teamId 略過不查詢；鍵齊只查俱樂部範圍收斂，通過 record、不通過 skip", async () => {
+  test("member：缺 teamId 收斂不通過略過、通過走舊路徑；鍵齊只查俱樂部範圍收斂，通過 record、不通過 skip", async () => {
     for (const inject of [{}, { modeOf: enforceAll }]) {
-      const missing = makeQueries();
+      const missing = makeQueries({ teamScopedDeliveryAllowed: false });
       expect(await decide("team_role_assignment:member", {}, missing, { inject }))
-        .toMatchObject({ outcome: "skip", relationId: "R5", reason: "missing_key" });
-      expect(calledNames(missing)).toEqual([]);
+        .toMatchObject({ outcome: "skip", relationId: "R5", reason: "team_scope_not_member" });
+      expect(calledNames(missing)).toEqual(["teamScopedDeliveryAllowed"]);
+      expect(await decide("team_role_assignment:member", {}, makeQueries(), { inject }))
+        .toMatchObject(inject.modeOf ? { outcome: "deny", reason: "missing_key" } : { outcome: "missing_key" });
       for (const scoped of [true, false]) {
         const queries = makeQueries({
           callerMayAssignTeamRole: false, recipientMatchesAssignment: false, teamScopedDeliveryAllowed: scoped,
@@ -385,11 +402,13 @@ describe("decideRelation R5", () => {
     }
   });
 
-  test("template:role_upgrade 有 teamId 走 R5；assignmentRole 缺或無效當缺鍵；member 為 record", async () => {
+  test("template:role_upgrade 有 teamId 走 R5；assignmentRole 缺或無效當缺鍵（舊路徑 missing_key）；member 為 record", async () => {
     const source = "template:role_upgrade";
-    expect(await decide(source, { teamId: "t1" }, makeQueries())).toMatchObject({ outcome: "skip", relationId: "R5" });
+    expect(await decide(source, { teamId: "t1" }, makeQueries())).toMatchObject({ outcome: "missing_key", relationId: "R5" });
     expect((await decide(source, { teamId: "t1" }, makeQueries())).flags).toEqual({ hasTeamId: true, hasAssignmentRole: false });
-    expect(await decide(source, { teamId: "t1", assignmentRole: "king" }, makeQueries())).toMatchObject({ outcome: "skip" });
+    expect(await decide(source, { teamId: "t1", assignmentRole: "king" }, makeQueries())).toMatchObject({ outcome: "missing_key" });
+    expect(await decide(source, { teamId: "t1" }, makeQueries({ teamScopedDeliveryAllowed: false })))
+      .toMatchObject({ outcome: "skip", reason: "team_scope_not_member" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "captain" }, makeQueries())).toMatchObject({ outcome: "allow", relationId: "R5" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "coach" }, makeQueries({ recipientMatchesAssignment: false }))).toMatchObject({ outcome: "record" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "member" }, makeQueries())).toMatchObject({ outcome: "record" });
@@ -452,11 +471,11 @@ describe("decideRelation R6", () => {
       expect(result).toMatchObject({ outcome: "allow", relationId: "R6" });
     });
 
-    test("無 teamId、權限碼不成立：record（relation_missing_key 放行），不是 gap，不查差距", async () => {
+    test("無 teamId、權限碼不成立、俱樂部範圍（反查）通過：record（relation_missing_key 放行），不是 gap，不查差距", async () => {
       const queries = makeQueries({ callerHasBroadcastPermission: false, callerBroadcastPermissionGap: true });
       const result = await decide(roleUpgrade, {}, queries);
       expect(result).toMatchObject({ outcome: "record", relationId: "R6", gate: "relation_missing_key" });
-      expect(queries.callerBroadcastPermissionGap).not.toHaveBeenCalled();
+      expect(calledNames(queries)).toEqual(["callerHasBroadcastPermission", "teamScopedDeliveryAllowed"]);
     });
 
     test("無 teamId、權限碼不成立、R6 注入 enforce：deny", async () => {
@@ -570,14 +589,14 @@ describe("T-090f B3 俱樂部範圍收斂（不信 source／template 分類）",
     ["team_join_review:approve", { teamId: "t1", applicantUid: "uidB" }],
     ["team_join_review:reject", { teamId: "t1", applicantUid: "uidB" }],
     ["team_join_review:broadcast:approve", { teamId: "t1", applicantUid: "uidB" }],
-    ["team_join_review:approve", {}],
-    ["team_join_review:approve", { teamId: "t1" }],
+    ["team_join_review:approve", { applicantUid: "uidB" }],
+    ["team_role_assignment:coach", {}],
   ])("%s %j 收斂不通過：成功略過，不查原關係", async (source, keys) => {
     const queries = notScoped();
     expect(await decide(source, keys, queries)).toMatchObject({ outcome: "skip", reason: "team_scope_not_member" });
     expect(calledNames(queries)).toEqual(["teamScopedDeliveryAllowed"]);
   });
-  test("template:role_upgrade 省略 teamId、無 change_role：收斂不通過略過；通過照舊 record", async () => {
+  test("template:role_upgrade 省略 teamId、無 change_role：收斂不通過略過；通過照舊 record；change_role 對齊 allow", async () => {
     const skipped = makeQueries({ callerHasBroadcastPermission: false, teamScopedDeliveryAllowed: false });
     expect(await decide("template:role_upgrade", {}, skipped))
       .toMatchObject({ outcome: "skip", relationId: "R6", reason: "team_scope_unconfirmed" });
@@ -587,10 +606,28 @@ describe("T-090f B3 俱樂部範圍收斂（不信 source／template 分類）",
     expect(await decide("template:role_upgrade", {}, makeQueries({ teamScopedDeliveryAllowed: false })))
       .toMatchObject({ outcome: "allow", relationId: "R6" });
   });
+  // T-090f 顧問改裁：決策層不看呼叫者角色；缺 teamId 的結果只由俱樂部範圍查詢（反查）決定，不再有「教練以上推定」。
+  test.each(["user", "coach", "captain", "admin", "super_admin"])("呼叫者角色 %s 缺 teamId：結果只看收斂查詢", async (role) => {
+    const ctx = { callerRole: role };
+    for (const [source, keys, legacyOutcome] of [
+      ["team_join_review:reject", { applicantUid: "uidB" }, "missing_key"],
+      ["team_role_assignment:coach", {}, "missing_key"],
+      ["team_role_assignment:member", {}, "missing_key"],
+    ]) {
+      const blocked = makeQueries({ teamScopedDeliveryAllowed: false });
+      expect(await decide(source, keys, blocked, { ctx })).toMatchObject({ outcome: "skip", reason: "team_scope_not_member" });
+      expect(calledNames(blocked)).toEqual(["teamScopedDeliveryAllowed"]);
+      expect(await decide(source, keys, makeQueries(), { ctx })).toMatchObject({ outcome: legacyOutcome });
+    }
+    const noApplicant = makeQueries();
+    expect(await decide("team_join_review:broadcast:approve", {}, noApplicant, { ctx }))
+      .toMatchObject({ outcome: "skip", reason: "missing_applicant_uid" });
+    expect(calledNames(noApplicant)).toEqual([]);
+  });
   test("收斂通過時 R4／R5 結果與原本一致", async () => {
     expect(await decide("team_join_review:approve", { teamId: "t1", applicantUid: "uidB" }, makeQueries()))
       .toMatchObject({ outcome: "allow", relationId: "R4" });
-    expect(await decide("team_join_review:approve", {}, makeQueries()))
+    expect(await decide("team_join_review:approve", { applicantUid: "uidB" }, makeQueries()))
       .toMatchObject({ outcome: "missing_key", relationId: "R4" });
     expect(await decide("team_role_assignment:coach", { teamId: "t1" }, makeQueries()))
       .toMatchObject({ outcome: "allow", relationId: "R5" });

@@ -142,17 +142,53 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     }
   });
 
-  test.each(['captain', 'leader', 'coach', 'member'])('T-090f LINE %s 缺 teamId：成功略過，不查隊伍或扣每日額度', async (role) => {
+  // T-090f 顧問改裁：缺 teamId 不再一律略過；以呼叫者反查自建俱樂部職員（captainUid／coachUids／leaderUids＋createdVia）。
+  test.each(['captain', 'leader', 'coach', 'member'])('T-090f LINE %s 缺 teamId、呼叫者非自建俱樂部職員：舊路徑照常入列', async (role) => {
     for (const teamId of [undefined, null, '', '  ', 7, {}]) {
+      const env = load({ extraSeed: { 'teams/tl': { id: 'tl', captainUid: CALLER, coachUids: [CALLER], createdVia: 'admin' } } });
+      await expect(env.call(payload({ source: 'team_role_assignment:' + role, teamId, dedupeKey: '' })))
+        .resolves.toMatchObject({ queued: true });
+      expect(queued(env.db)).toHaveLength(1);
+    }
+  });
+
+  test.each([
+    ['captainUid', { captainUid: CALLER }],
+    ['coachUids', { coachUids: [CALLER] }],
+    ['leaderUids', { leaderUids: [CALLER] }],
+  ])('T-090f LINE 缺 teamId、反查命中自建俱樂部 %s：對非成員略過（不扣每日額度）、對成員入列', async (_field, staff) => {
+    for (const source of ['team_role_assignment:coach', 'team_role_assignment:member', 'template:role_upgrade']) {
+      for (const [teamIds, sent] of [[[], false], [['tu'], true]]) {
+        const env = load({
+          users: { [TARGET]: boundUser({ teamIds }) },
+          extraSeed: { 'teams/tu': { id: 'tu', createdVia: 'user_capability', ...staff } },
+        });
+        const result = await env.call(payload({ source, dedupeKey: '', recipientFound: { data: { teamIds: ['tu'] } } }));
+        expect(result).toEqual(sent ? expect.objectContaining({ queued: true }) : { queued: false, skipped: true, reason: 'notification_skipped' });
+        expect(queued(env.db)).toHaveLength(sent ? 1 : 0);
+        if (!sent) expect(counterPaths(env.db).filter((p) => p.includes('caller_day') || p.includes('caller_target'))).toHaveLength(0);
+      }
+    }
+  });
+
+  test.each(['user', 'coach', 'captain', 'admin', 'super_admin'])('T-090f LINE 入隊審核類缺 applicantUid（%s）：成功略過，不讀隊伍、不扣每日額度', async (role) => {
+    for (const extra of [
+      { source: 'team_join_review:approve', teamId: 't1' },
+      { source: 'team_join_review:reject' },
+      { source: 'team_join_review:broadcast:approve', teamId: 't1' },
+      { source: 'team_join_review:broadcast:reject' },
+    ]) {
       const reads = [];
-      const env = load({ faults: { read: ({ path }) => { reads.push(path); return null; } } });
-      await expect(env.call(payload({ source: 'team_role_assignment:' + role, teamId })))
+      const env = load({
+        roles: { [CALLER]: role },
+        extraSeed: { 'teams/t1': { id: 't1', captainUid: CALLER, createdVia: 'admin' } },
+        faults: { read: ({ path }) => { reads.push(path); return null; } },
+      });
+      await expect(env.call(payload({ dedupeKey: '', ...extra })))
         .resolves.toEqual({ queued: false, skipped: true, reason: 'notification_skipped' });
       expect(queued(env.db)).toHaveLength(0);
       expect(reads.some((path) => path.startsWith('teams/'))).toBe(false);
-      expect(counterPaths(env.db)).toHaveLength(1);
-      expect(counterPaths(env.db)[0]).toContain('_caller_enqueue_');
-      expect(env.db.state.writes).toHaveLength(1);
+      expect(counterPaths(env.db).filter((p) => p.includes('caller_day') || p.includes('caller_target'))).toHaveLength(0);
     }
   });
 
@@ -182,12 +218,11 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       expect(counterPaths(env.db).filter((p) => p.includes('caller_day') || p.includes('caller_target'))).toHaveLength(0);
     });
 
-    test.each(B3_CASES.filter(([name]) => !name.startsWith('role_upgrade')))(
-      '自建俱樂部擁有者 %s → 本隊成員：照常入列', async (_name, extra) => {
-        const { env, result } = await run({ createdVia: 'user_capability', teamIds: ['t1'], extra });
-        expect(result).toMatchObject({ queued: true });
-        expect(queued(env.db)).toHaveLength(1);
-      });
+    test.each(B3_CASES)('自建俱樂部擁有者 %s → 本隊成員：照常入列', async (_name, extra) => {
+      const { env, result } = await run({ createdVia: 'user_capability', teamIds: ['t1'], extra });
+      expect(result).toMatchObject({ queued: true });
+      expect(queued(env.db)).toHaveLength(1);
+    });
 
     test.each(['admin', undefined])('管理端／legacy %s 俱樂部：member 照舊入列；無審核權限的 approve 照舊拒絕', async (createdVia) => {
       const member = await run({ createdVia, extra: B3_CASES[0][1] });
@@ -205,10 +240,15 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       }
     });
 
-    test.each(['coach', 'captain'])('教練以上 %s 省略 teamId 的 role_upgrade：舊路徑維持入列', async (role) => {
-      const { env, result } = await run({ createdVia: 'user_capability', role, extra: { source: 'template:role_upgrade' } });
-      expect(result).toMatchObject({ queued: true });
-      expect(queued(env.db)).toHaveLength(1);
+    // 取代原「教練以上省略 teamId 的 role_upgrade：舊路徑維持入列」——角色不再推定，看反查結果。
+    test.each(['coach', 'captain'])('%s 省略 teamId 的 role_upgrade：反查命中自建俱樂部→外人略過；只當管理端／legacy 職員→舊路徑入列', async (role) => {
+      const own = await run({ createdVia: 'user_capability', role, extra: { source: 'template:role_upgrade' } });
+      expect(own.result).toEqual({ queued: false, skipped: true, reason: 'notification_skipped' });
+      for (const createdVia of ['admin', undefined]) {
+        const { env, result } = await run({ createdVia, role, extra: { source: 'template:role_upgrade' } });
+        expect(result).toMatchObject({ queued: true });
+        expect(queued(env.db)).toHaveLength(1);
+      }
     });
   });
 
@@ -744,7 +784,7 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
     typeName: '系統',
     senderName: '系統',
     time: '2026/10/23 12:00',
-    // 顯示／節流案例給明確來源；缺來源另以專案案例驗證成功略過。
+    // 顯示／節流案例給明確來源；缺來源（視為 client:unknown 照常投遞）另以專案案例驗證。
     source: 'client:unknown',
     ...extra,
   });
@@ -769,28 +809,33 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
     if (!sent) expect(counterPaths(env.db).filter((p) => p.includes("caller_day"))).toHaveLength(0);
   });
 
-  test.each(['user', 'admin', 'super_admin'])('T-090f inbox 缺 source 對 %s 亦略過，不能以管理權限繞過', async (role) => {
-    const env = load({ users: { ...baseUsers(), [CALLER]: { role } } });
-    await expect(env.call({ message: msg({ source: undefined }), targetUid: TARGET }))
-      .resolves.toEqual({ success: true, delivered: 0, skipped: true });
-    expect(env.db.state.writes).toHaveLength(1);
-    expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
+  // T-090f 顧問改裁：站內信缺 source 視為 client:unknown 走既有路徑（取代原「缺 source 一律成功略過」）。
+  const A_SHAPE = (extra = {}) => ({ message: msg({ source: undefined, ...extra }), targetUid: TARGET, targetTeamId: undefined, targetRoles: undefined, targetType: undefined });
+  const FCB_SHAPE = (extra = {}) => {
+    const message = msg({ source: undefined, toUid: TARGET, targetUid: TARGET, targetTeamId: null, targetRoles: null, targetType: 'individual', dedupeKey: 'k', unread: true, readBy: [], hiddenBy: [], ...extra });
+    return { message, targetUid: TARGET, targetTeamId: null, targetRoles: null, targetType: 'individual' };
+  };
+  test.each([
+    ['A message-notify', A_SHAPE],
+    ['FC-B inbox-delivery', FCB_SHAPE],
+  ])('T-090f inbox 缺 source（%s 現行請求形狀）：照常投遞並以 client_unknown 記錄', async (_name, shape) => {
+    for (const role of ['user', 'coach', 'admin', 'super_admin']) {
+      for (const source of [undefined, null, '', 'bad source!']) {
+        const env = load({ users: { ...baseUsers(), [CALLER]: { role, displayName: '王小明' } } });
+        await expect(env.call(shape({ source }))).resolves.toEqual({ success: true, delivered: 1 });
+        expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(1);
+        expect(relationWarns(env.consoleImpl).map(([, data]) => data.relation)).toEqual(['client_unknown']);
+      }
+    }
   });
 
-  test.each([
-    { targetType: 'all' },
-    { targetTeamId: 'other-team' },
-    { targetRoles: ['coach'], targetType: 'role' },
-  ])('T-090f 無來源廣播 %j：缺鍵優先成功略過，不展開收件人', async (target) => {
-    for (const actionType of [undefined, null, '']) {
-      const env = load({ users: baseUsers() });
-      await expect(env.call({ message: msg({ source: undefined, actionType }), ...target }))
-        .resolves.toEqual({ success: true, delivered: 0, skipped: true });
-      expect(env.db.state.writes).toHaveLength(1);
-      expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
-      expect(env.consoleImpl.out.warns).toHaveLength(0);
-      expect(env.consoleImpl.out.errors).toHaveLength(0);
-    }
+  test('T-090f 無來源廣播：走既有廣播權限（一般層對全體拒絕；admin 對全體照常投遞）', async () => {
+    const denied = load({ users: baseUsers() });
+    await expect(denied.call({ message: msg({ source: undefined }), targetType: 'all' }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    const admin = load({ users: { ...baseUsers(), [CALLER]: { role: 'admin', displayName: '王小明' } } });
+    await expect(admin.call({ message: msg({ source: undefined }), targetType: 'all' }))
+      .resolves.toEqual({ success: true, delivered: 2 });
   });
 
   describe('T-090f B3 inbox 俱樂部範圍收斂', () => {
@@ -815,7 +860,7 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       expect(counterPaths(env.db).filter((p) => p.includes('caller_day'))).toHaveLength(0);
     });
 
-    test.each(B3_CASES.filter(([name]) => !name.startsWith('role_upgrade')))(
+    test.each(B3_CASES)(
       '自建俱樂部擁有者 %s → 本隊成員：照常投遞', async (_name, source, keys) => {
         const { env, result } = run({ createdVia: 'user_capability', teamIds: ['t1'], source, keys });
         await expect(result).resolves.toEqual({ success: true, delivered: 1 });
@@ -835,14 +880,61 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
         expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(1);
       }
     });
+
+    // 取代原「教練以上省略 teamId 舊路徑」：角色不推定，看反查結果。
+    test.each(['coach', 'captain'])('%s 省略 teamId 的 role_upgrade：反查命中自建俱樂部→外人略過；只當管理端／legacy 職員→舊路徑投遞', async (role) => {
+      const own = run({ createdVia: 'user_capability', role, source: 'template:role_upgrade', keys: {} });
+      await expect(own.result).resolves.toEqual({ success: true, delivered: 0, skipped: true });
+      for (const createdVia of ['admin', undefined]) {
+        const { env, result } = run({ createdVia, role, source: 'template:role_upgrade', keys: {} });
+        await expect(result).resolves.toEqual({ success: true, delivered: 1 });
+        expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(1);
+      }
+    });
   });
 
-  test.each(['captain', 'leader', 'coach', 'member'])('T-090f inbox %s 有 source 缺 teamId 亦成功略過', async (role) => {
-    const env = load({ users: baseUsers() });
+  // T-090f 顧問改裁：與 LINE 一致——缺 teamId 反查自建俱樂部職員；入隊審核類缺 applicantUid 略過。
+  test.each(['captain', 'leader', 'coach', 'member'])('T-090f inbox %s 缺 teamId、呼叫者非自建俱樂部職員：舊路徑照常投遞', async (role) => {
+    const env = load({ users: baseUsers(), extraSeed: { 'teams/tl': { id: 'tl', captainUid: CALLER, leaderUids: [CALLER], createdVia: 'admin' } } });
     await expect(env.call({ message: msg({ source: 'team_role_assignment:' + role }), targetUid: TARGET }))
-      .resolves.toEqual({ success: true, delivered: 0, skipped: true });
-    expect(env.db.state.writes).toHaveLength(1);
-    expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
+      .resolves.toEqual({ success: true, delivered: 1 });
+  });
+
+  test.each([
+    ['captainUid', { captainUid: CALLER }],
+    ['coachUids', { coachUids: [CALLER] }],
+    ['leaderUids', { leaderUids: [CALLER] }],
+  ])('T-090f inbox 缺 teamId、反查命中自建俱樂部 %s：對非成員略過、對成員投遞', async (_field, staff) => {
+    // 入隊審核帶 applicantUid、缺 teamId：收斂通過後走原 R4 缺鍵（log 放行）。
+    for (const source of ['team_role_assignment:coach', 'team_role_assignment:member', 'template:role_upgrade', 'team_join_review:approve']) {
+      for (const [teamIds, sent] of [[[], false], [['tu'], true]]) {
+        const env = load({
+          users: { ...baseUsers(), [TARGET]: { role: 'user', teamIds } },
+          extraSeed: { 'teams/tu': { id: 'tu', createdVia: 'user_capability', ...staff } },
+        });
+        const result = await env.call({ message: msg({ source }), targetUid: TARGET, applicantUid: TARGET, teamIds: ['tu'] });
+        expect(result).toEqual(sent ? { success: true, delivered: 1 } : { success: true, delivered: 0, skipped: true });
+        expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(sent ? 1 : 0);
+        if (!sent) expect(counterPaths(env.db).filter((p) => p.includes('caller_day'))).toHaveLength(0);
+      }
+    }
+  });
+
+  test.each(['user', 'coach', 'captain', 'admin', 'super_admin'])('T-090f inbox 入隊審核類缺 applicantUid（%s）：成功略過，無 inbox／每日額度寫入', async (role) => {
+    for (const [source, keys] of [
+      ['team_join_review:approve', { teamId: 't1' }],
+      ['team_join_review:reject', {}],
+      ['team_join_review:broadcast:approve', { teamId: 't1' }],
+    ]) {
+      const env = load({
+        users: { ...baseUsers(), [CALLER]: { role, displayName: '王小明' }, [TARGET]: { role: 'user', teamIds: ['t1'] } },
+        extraSeed: { 'teams/t1': { id: 't1', captainUid: CALLER, createdVia: 'admin' } },
+      });
+      await expect(env.call({ message: msg({ source }), targetUid: TARGET, ...keys }))
+        .resolves.toEqual({ success: true, delivered: 0, skipped: true });
+      expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(0);
+      expect(counterPaths(env.db).filter((p) => p.includes('caller_day'))).toHaveLength(0);
+    }
   });
 
   const adminRoles = { targetRoles: ['admin', 'super_admin'], targetType: 'role' };

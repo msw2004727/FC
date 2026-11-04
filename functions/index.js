@@ -16098,12 +16098,9 @@ exports.deliverToInbox = onCall(
     const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
     await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "minute" });
 
-    // T-090f 補裁：無 actionType 的站內信缺 source 一律成功略過，含廣播。
-    // 與 sanitizeDeliverToInboxMessage 的未分類判定相同；typed 訊息仍走原授權。
-    const relationSource = notificationGuards.logSafeSource(message.source);
-    if (!relationSource && (message.actionType === undefined || message.actionType === null || message.actionType === "")) {
-      return { success: true, delivered: 0, skipped: true };
-    }
+    // T-090f 顧問改裁：站內信缺 source（或格式不合）一律視為 client:unknown 走既有路徑，不略過
+    // （取代原「缺 source 一律成功略過」：A message-notify 與 FC-B inbox-delivery 現行請求都不帶 source）。
+    const relationSource = notificationGuards.logSafeSource(message.source) || "client:unknown";
 
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
@@ -16154,7 +16151,7 @@ exports.deliverToInbox = onCall(
       ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
       : null;
 
-    // 防護：未分類訊息有 source 才做關係檢查；每日額度排在檢查之後。
+    // 防護：未分類訊息一律做關係檢查（缺 source 以 client:unknown 判）；每日額度排在檢查之後。
     if (!sanitized.actionType) {
       const relation = await notificationRelation.check({
         kind: "inbox",
