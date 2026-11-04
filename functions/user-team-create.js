@@ -7,6 +7,9 @@
  * 每人自建上限與冪等（同一查詢）、伺服器產生 id、teams create、建立者 users 四欄追加。
  * 欄位語意對齊 A js/modules/team/team-form.js#handleSaveTeam 建立分支與 B teams-create.ts basicKeys；
  * 幹部欄位、管理員專屬欄位與身分欄位一律由伺服器決定。
+ * T-090d（P2-1）：教學功能（B2）對自建俱樂部一律不開放，故拒絕 type==='education'、任何 eduSettings 與
+ * teachingEnabled:true（固定回 invalid-argument／CREATE_USER_TEAM_TYPE_NOT_ALLOWED），teachingEnabled 一律寫 false；
+ * 取代原「education 可建、teachingEnabled 由分類推導」，避免出現「教學俱樂部卻無課程」的半套狀態。
  */
 
 const crypto = require("crypto");
@@ -37,7 +40,8 @@ const BASIC_KEYS = new Set([
 // 長度上限取 A pages/team.html 與 B TeamFormModal.tsx 的 maxlength；nameEn 無 UI 上限，取 50。
 const TEXT_LIMITS = Object.freeze({ nameEn: 50, nationality: 20, region: 20, contact: 100, bio: 500 });
 const NAME_MAX = 15;
-const TEAM_TYPES = new Set(["none", "competitive", "education", "leisure"]);
+// 自建俱樂部可用分類；education 由 rejectTeachingInput 先以 CREATE_USER_TEAM_TYPE_NOT_ALLOWED 拒絕（T-090d）。
+const TEAM_TYPES = new Set(["none", "competitive", "leisure"]);
 const SPORT_TAG_RE = /^[a-z][a-z0-9_]{0,31}$/;
 // 同 B team-contact-links.ts TEAM_CONTACT_LINKS_MAX 與 TeamContactPlatformKey。
 const CONTACT_LINKS_MAX = 5;
@@ -93,19 +97,13 @@ function sanitizeTeamInput(team) {
   if (team.type === undefined) out.type = "none";
   else if (TEAM_TYPES.has(team.type)) out.type = team.type;
   else return null;
-  const isTeaching = out.type === "education";
   if (team.sportTag === undefined || team.sportTag === "") out.sportTag = "";
   else if (typeof team.sportTag === "string" && SPORT_TAG_RE.test(team.sportTag)) out.sportTag = team.sportTag;
   else return null;
-  // A：teachingEnabled 由分類決定；客戶端若提供必須一致。
-  if (team.teachingEnabled !== undefined && team.teachingEnabled !== isTeaching) return null;
-  out.teachingEnabled = isTeaching;
-  if (team.eduSettings !== undefined) {
-    const edu = team.eduSettings;
-    if (!isTeaching || !isPlainObject(edu) || !hasOnlyKeys(edu, ["acceptingStudents", "teachingEnabled"])
-      || typeof edu.acceptingStudents !== "boolean" || edu.teachingEnabled !== true) return null;
-    out.eduSettings = { acceptingStudents: edu.acceptingStudents, teachingEnabled: true };
-  }
+  // 自建俱樂部不開教學（T-090d）：客戶端只能省略或給 false；eduSettings 不寫入。
+  if (team.teachingEnabled !== undefined && team.teachingEnabled !== false) return null;
+  if (team.eduSettings !== undefined) return null;
+  out.teachingEnabled = false;
 
   if (team.image === undefined || team.image === null) out.image = null;
   else if (isHttpsUrl(team.image)) out.image = team.image;
@@ -122,6 +120,11 @@ function sanitizeTeamInput(team) {
     if (kept.cover || kept.card) out.imageVariants = kept;
   }
   return out;
+}
+
+// 教學相關輸入（education 分類、任何 eduSettings、teachingEnabled:true）回 true；先於一般欄位驗證，給固定原因碼。
+function rejectTeachingInput(team) {
+  return team.type === "education" || team.eduSettings !== undefined || team.teachingEnabled === true;
 }
 
 function readCapabilityDecision(capSnap) {
@@ -160,6 +163,7 @@ function createUserTeamHandler({
       const requestId = input.requestId;
       if (!isPlainObject(input.team)) fail("invalid-argument", "CREATE_USER_TEAM_INVALID_FIELD");
       if (!Object.keys(input.team).every(key => BASIC_KEYS.has(key))) fail("invalid-argument", "CREATE_USER_TEAM_UNKNOWN_FIELD");
+      if (rejectTeachingInput(input.team)) fail("invalid-argument", "CREATE_USER_TEAM_TYPE_NOT_ALLOWED");
       const basic = sanitizeTeamInput(input.team);
       if (!basic) fail("invalid-argument", "CREATE_USER_TEAM_INVALID_FIELD");
 

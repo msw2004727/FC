@@ -143,8 +143,8 @@ describe("createUserTeam happy path and server-forced fields", () => {
   });
   test.each([
     [{ name: "" }], [{ name: "x".repeat(16) }], [{ name: 5 }], [{ bio: "x".repeat(501) }], [{ region: 1 }],
-    [{ founded: "20x4" }], [{ type: "pro" }], [{ sportTag: "Foot Ball" }], [{ teachingEnabled: true }],
-    [{ eduSettings: { acceptingStudents: true, teachingEnabled: true } }], [{ image: "javascript:alert(1)" }],
+    [{ founded: "20x4" }], [{ type: "pro" }], [{ sportTag: "Foot Ball" }], [{ teachingEnabled: "yes" }],
+    [{ image: "javascript:alert(1)" }],
     [{ image: "http://x.test/a.png" }], [{ imageVariants: { cover: "https://x.test/a", extra: "https://x.test/b" } }],
     [{ contactLinks: [{ url: "ftp://x", platform: "line", label: "", host: "" }] }],
     [{ contactLinks: Array(6).fill({ url: "https://line.me/x", platform: "line", label: "LINE", host: "line.me" }) }],
@@ -152,10 +152,32 @@ describe("createUserTeam happy path and server-forced fields", () => {
   ])("invalid field %j is rejected", async patch => {
     await denied(harness(), call({ team: { ...TEAM, ...patch } }), "invalid-argument", "CREATE_USER_TEAM_INVALID_FIELD");
   });
-  test("education team keeps eduSettings and derives teachingEnabled", async () => {
+  // T-090d：自建俱樂部不開教學。修正前 type:"education"＋eduSettings 會建出 teachingEnabled:true 的俱樂部（resolves），
+  // 單獨的 teachingEnabled:true／eduSettings 回 CREATE_USER_TEAM_INVALID_FIELD，故以下 reason 斷言修正前皆失敗。
+  test.each([
+    ["education type", { type: "education" }],
+    ["education with matching teaching fields", { type: "education", teachingEnabled: true, eduSettings: { acceptingStudents: false, teachingEnabled: true } }],
+    ["eduSettings on a non-education team", { eduSettings: { acceptingStudents: true, teachingEnabled: true } }],
+    ["eduSettings even when null", { eduSettings: null }],
+    ["teachingEnabled true", { teachingEnabled: true }],
+  ])("teaching input is not allowed: %s", async (_label, patch) => {
     const h = harness();
-    const { teamId } = await h.handler(call({ team: { ...TEAM, type: "education", teachingEnabled: true, eduSettings: { acceptingStudents: false, teachingEnabled: true } } }));
-    expect(h.get(`teams/${teamId}`)).toMatchObject({ teachingEnabled: true, eduSettings: { acceptingStudents: false, teachingEnabled: true } });
+    await denied(h, call({ team: { ...TEAM, ...patch } }), "invalid-argument", "CREATE_USER_TEAM_TYPE_NOT_ALLOWED");
+    expect(teamKeys(h)).toEqual([]);
+  });
+  test.each([undefined, "none", "competitive", "leisure"])("type %p is allowed and teachingEnabled is written false", async type => {
+    const team = { ...TEAM, type };
+    if (type === undefined) delete team.type;
+    const h = harness();
+    const { teamId } = await h.handler(call({ team }));
+    const saved = h.get(`teams/${teamId}`);
+    expect(saved).toMatchObject({ type: type || "none", teachingEnabled: false });
+    expect(saved).not.toHaveProperty("eduSettings");
+  });
+  test("explicit teachingEnabled:false is accepted and stored false", async () => {
+    const h = harness();
+    const { teamId } = await h.handler(call({ team: { ...TEAM, type: "competitive", teachingEnabled: false } }));
+    expect(h.get(`teams/${teamId}`).teachingEnabled).toBe(false);
   });
   test.each([undefined, "", "short", "a/b/c/d/e", "x".repeat(65)])("invalid requestId %p rejected", async requestId => {
     await denied(harness(), call({ requestId }), "invalid-argument", "CREATE_USER_TEAM_INVALID_REQUEST_ID");
