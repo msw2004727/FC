@@ -140,6 +140,8 @@ function teamSupportsTargetRole(teamData, targetUid, role) {
 
 async function canCallerRecalculateRole({
   access, callerUser, targetUser, decision, roleLevels, teamId, teamData,
+  normalizeRole, findUserDocByUidOrLineUserId,
+  getRolePermissionsFromFirestore, getUserPermissionGrantsFromFirestore,
 }) {
   const currentLevel = roleLevels[decision.currentRole];
   const newLevel = roleLevels[decision.newRole];
@@ -152,7 +154,22 @@ async function canCallerRecalculateRole({
   if (!teamId || !teamData || roleLevels[access.role] < roleLevels.captain) return false;
   const isKnownMember = getTeamIdsFromUser(callerUser.data).has(teamId);
   const isSavedCaptain = normalizeUid(teamData.captainUid) === callerUser.uid;
-  return isKnownMember || isSavedCaptain;
+  if (!isKnownMember && !isSavedCaptain) return false;
+  if (newLevel <= currentLevel) return true;
+
+  // T-090b Q7：只有管理端建立的俱樂部能透過隊內職位升級；缺欄位保留 legacy。
+  if (!Object.prototype.hasOwnProperty.call(teamData, "creatorUid")) return true;
+  const creatorUid = normalizeUid(teamData.creatorUid);
+  if (!creatorUid) return false;
+  const creator = await findUserDocByUidOrLineUserId(creatorUid);
+  if (!creator) return false;
+  const creatorRole = normalizeRole(creator.data?.role);
+  if ((roleLevels[creatorRole] ?? -1) >= roleLevels.admin) return true;
+  const [creatorPermissions, creatorGrants] = await Promise.all([
+    getRolePermissionsFromFirestore(creatorRole),
+    getUserPermissionGrantsFromFirestore(creatorUid),
+  ]);
+  return creatorPermissions.includes("team.create") || creatorGrants.includes("team.create");
 }
 
 function getRoleDecision({ targetData, savedTeamRole, roleLevels, normalizeRole }) {
@@ -188,6 +205,9 @@ function createAutoPromoteTeamRoleHandler({
   roleLevels,
   normalizeRole,
   getCallerAccessContext,
+  findUserDocByUidOrLineUserId,
+  getRolePermissionsFromFirestore,
+  getUserPermissionGrantsFromFirestore,
   ensureAuthUser,
   setRoleClaimMerged,
   logger = console,
@@ -244,6 +264,10 @@ function createAutoPromoteTeamRoleHandler({
         roleLevels,
         teamId,
         teamData,
+        normalizeRole,
+        findUserDocByUidOrLineUserId,
+        getRolePermissionsFromFirestore,
+        getUserPermissionGrantsFromFirestore,
       });
       if (!authorized) {
         throw new HttpsError("permission-denied", "Not allowed to recalculate this team role");

@@ -22,7 +22,7 @@ const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
-const { maskId: maskRosterId } = require("./team-membership-core");
+const { maskId: maskRosterId, normalizeId: normalizeTeamId, resolveTeamSnapshot } = require("./team-membership-core");
 
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
@@ -247,6 +247,7 @@ const ROLE_ACTIVITY_CAPABILITY_CODES = new Set([
   "user.activity.site_operate",
   "user.activity.delegate_assign",
   "user.activity.addons_use",
+  "user.activity.team_create",
 ]);
 const DEFAULT_USER_ACTIVITY_CAPABILITIES = Object.freeze([
   "user.activity.basic_create",
@@ -256,6 +257,7 @@ const DEFAULT_USER_ACTIVITY_CAPABILITIES = Object.freeze([
   "user.activity.own_cancel",
   "user.activity.site_operate",
   "user.activity.delegate_assign",
+  "user.activity.team_create",
 ]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",
@@ -3808,6 +3810,9 @@ exports.autoPromoteTeamRole = createAutoPromoteTeamRoleCallable({
   roleLevels: ROLE_LEVELS,
   normalizeRole,
   getCallerAccessContext,
+  findUserDocByUidOrLineUserId,
+  getRolePermissionsFromFirestore,
+  getUserPermissionGrantsFromFirestore,
   ensureAuthUser,
   setRoleClaimMerged,
 });
@@ -15693,8 +15698,8 @@ exports.eduCheckin = onCall(
     const { teamId, records } = request.data || {};
 
     // 2. 參數驗證
-    if (typeof teamId !== "string" || !teamId.trim()) {
-      throw new HttpsError("invalid-argument", "teamId 為必填");
+    if (!normalizeTeamId(teamId) || normalizeTeamId(teamId) !== teamId) {
+      throw new HttpsError("invalid-argument", "teamId 必須為有效的單一文件 ID");
     }
     if (!Array.isArray(records) || records.length === 0) {
       throw new HttpsError("invalid-argument", "records 必須為非空陣列");
@@ -15704,12 +15709,12 @@ exports.eduCheckin = onCall(
     }
 
     // 3. 驗證呼叫者是否為該俱樂部幹部
-    //    前端傳入的 teamId 是資料的 id 欄位（自訂 ID），非 Firestore 文件 ID
-    const teamSnap = await db.collection("teams").where("id", "==", teamId).limit(1).get();
-    if (teamSnap.empty) {
+    //    F1：文件 id 優先；查無時只接受唯一的舊 id 欄位，重複命中拒絕。
+    const teamSnap = await resolveTeamSnapshot(db, teamId, HttpsError);
+    if (!teamSnap) {
       throw new HttpsError("not-found", "俱樂部不存在");
     }
-    const team = teamSnap.docs[0].data();
+    const team = teamSnap.data();
 
     const isStaff =
       team.captainUid === callerUid ||

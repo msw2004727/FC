@@ -3,7 +3,7 @@
 /**
  * deleteTeam — 刪除俱樂部（取代舊站 A removeTeam 的前端 4 段接力，T-027 7b(A)）。
  *
- * 權限＝A 前端刪隊准入（captainUid／creatorUid／ownerUid 或 team.manage_all）∧ 呼叫者 coach 以上；
+ * 權限＝captainUid／creatorUid／ownerUid 本人，或既有 super_admin／team.manage_all 且 coach 以上；
  * 權限碼（team.manage_all／team.create）一律用 team-permission.js 的 Rules 對齊判斷：rolePermissions/{role} 文件不存在
  * 視為沒有該權限，不回退 getCallerAccessContext 的預設權限。成員歸屬以文件 id 與經跨隊衝突檢查的舊 id 為準。
  * 可重入、冪等，最後才刪 team 文件（任何階段失敗使用者可直接重試）：
@@ -32,6 +32,11 @@ const { maskUid } = require("./notification-fields");
 
 const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
 
+function isTeamOwner(team, uid) {
+  return !!team && typeof uid === "string" && !!uid
+    && OWNER_FIELDS.some((field) => typeof team[field] === "string" && team[field] === uid);
+}
+
 // A team-list-helpers.js#_canEditTeamByRoleOrCaptain 的 owner 欄位 ∨ team.manage_all；
 // owner 欄位比對對齊 Rules isResourceOwnerByField（firestore.rules:485-490）：欄位必須是字串且與 uid 完全相等，
 // 不 trim、不字串化（A 前端的 _isTeamOwnerUser 會 trim，這裡刻意更嚴，不比 Rules 放寬）。
@@ -39,8 +44,7 @@ function isFrontendTeamDeleter(team, uid, access) {
   if (!team) return false;
   if (access?.isSuperAdmin) return true;
   if (typeof access?.hasPermission === "function" && access.hasPermission("team.manage_all") === true) return true;
-  if (typeof uid !== "string" || !uid) return false;
-  return OWNER_FIELDS.some((field) => typeof team[field] === "string" && team[field] === uid);
+  return isTeamOwner(team, uid);
 }
 
 function createDeleteTeamHandler({
@@ -89,7 +93,7 @@ function createDeleteTeamHandler({
       if (!isFrontendTeamDeleter(teamData, callerUid, access)) {
         throw new HttpsError("permission-denied", "TEAM_DELETE_DENIED");
       }
-      if (!isCoachPlusAccess(access, roleLevels)) {
+      if (!isTeamOwner(teamData, callerUid) && !isCoachPlusAccess(access, roleLevels)) {
         throw new HttpsError("permission-denied", "COACH_PLUS_REQUIRED");
       }
 

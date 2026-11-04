@@ -243,7 +243,7 @@ describe("deleteTeam 邏輯 id 加固（審查 P3-1）", () => {
   });
 });
 
-describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗一律不寫）", () => {
+describe("deleteTeam 權限矩陣（owner 免 coach 門檻；其餘准入不變）", () => {
   test.each([
     ["captainUid", "U-cap", createAccess({ role: "captain" })],
     ["creatorUid", "U-creator", createAccess({ role: "coach" })],
@@ -258,11 +258,10 @@ describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗
 
   test.each([
     ["captainUid", "U-cap"], ["creatorUid", "U-creator"], ["ownerUid", "U-owner"],
-  ])("%s 但 users.role=user → COACH_PLUS_REQUIRED（A 現況的半成品改為明確拒絕）", async (_label, uid) => {
-    const { call, fake } = setup({ access: createAccess({ role: "user" }) });
-    expect(await rejection(call({ teamId: TEAM }, uid))).toMatchObject({ code: "permission-denied", message: "COACH_PLUS_REQUIRED" });
-    expect(fake.state.writes).toHaveLength(0);
-    expect(fake.has(TEAM_PATH)).toBe(true);
+  ])("測試同步更新：%s 且 users.role=user → 可刪除（T-090b owner 免 coach 門檻）", async (_label, uid) => {
+    const { call, fake } = setup({ access: createAccess({ role: "user" }), callerUid: uid });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has(TEAM_PATH)).toBe(false);
   });
 
   test("team.manage_all（個別授權）但 users.role=user → COACH_PLUS_REQUIRED", async () => {
@@ -271,9 +270,10 @@ describe("deleteTeam 權限矩陣（前端刪隊准入 ∧ coach 以上；失敗
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test("owner 但為自訂角色 → COACH_PLUS_REQUIRED（已知限制）", async () => {
-    const { call } = setup({ access: createAccess({ role: "my_custom_role" }) });
-    expect(await rejection(call())).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
+  test("測試同步更新：owner 為自訂角色 → 同樣免 coach 門檻", async () => {
+    const { call, fake } = setup({ access: createAccess({ role: "my_custom_role" }) });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has(TEAM_PATH)).toBe(false);
   });
 
   test.each([["領隊", "U-lead"], ["教練", "U-coach"], ["非幹部", "U-stranger"]])(
@@ -1419,5 +1419,64 @@ describe("deleteTeam 冪等、可重入與「最後才刪 team」", () => {
     expect(context).toMatchObject({ phase: "clean-members", callerUid: maskUid("U-cap") });
     expect(context.callerUid).not.toBe("U-cap");
     expect(context.teamId).not.toBe(TEAM);
+  });
+});
+
+
+describe("T-090b owner 放寬與 F1 邊界", () => {
+  test.each(["user", "coach"])("非 owner 的 %s 仍拒絕，沒有寫入", async (role) => {
+    const { call, fake } = setup({ access: createAccess({ role }), callerUid: "U-stranger" });
+    await expect(call()).rejects.toMatchObject({ code: "permission-denied", message: "TEAM_DELETE_DENIED" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each(["captainUid", "creatorUid", "ownerUid"])("user 的 %s 必須嚴格等於 auth.uid", async (field) => {
+    for (const value of [" U-owner ", ["U-owner"], { uid: "U-owner" }, 123, null]) {
+      const { call, fake } = setup({
+        docs: { [TEAM_PATH]: { id: TEAM, [field]: value } },
+        access: createAccess({ role: "user" }), callerUid: "U-owner",
+      });
+      await expect(call()).rejects.toMatchObject({ code: "permission-denied" });
+      expect(fake.state.writes).toHaveLength(0);
+    }
+  });
+
+  test("user owner 的唯一舊 id 橋接仍可刪除", async () => {
+    const { call, fake } = setup({
+      docs: {
+        "teams/doc_legacy": { id: TEAM, ownerUid: "U-owner" },
+        "users/U-owner": { uid: "U-owner", role: "user", teamIds: [TEAM] },
+      },
+      access: createAccess({ role: "user" }), callerUid: "U-owner",
+    });
+    await expect(call()).resolves.toMatchObject({ ok: true });
+    expect(fake.has("teams/doc_legacy")).toBe(false);
+    expect(fake.get("users/U-owner").teamIds).toEqual([]);
+    expect(fake.get("users/U-owner").role).toBe("user");
+  });
+
+  test("偽造 id 不能取代文件 id 命中隊伍的 owner", async () => {
+    const { call, fake } = setup({
+      docs: {
+        [TEAM_PATH]: { id: TEAM, ownerUid: "U-victim" },
+        "teams/tm_impostor": { id: TEAM, ownerUid: "U-attacker" },
+      },
+      access: createAccess({ role: "user" }), callerUid: "U-attacker",
+    });
+    await expect(call()).rejects.toMatchObject({ code: "permission-denied" });
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.has(TEAM_PATH)).toBe(true);
+  });
+
+  test("user owner 遇舊 id 多筆命中一律拒絕", async () => {
+    const { call, fake } = setup({
+      docs: {
+        "teams/doc_one": { id: TEAM, ownerUid: "U-owner" },
+        "teams/doc_two": { id: TEAM, ownerUid: "U-other" },
+      },
+      access: createAccess({ role: "user" }), callerUid: "U-owner",
+    });
+    await expect(call()).rejects.toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
+    expect(fake.state.writes).toHaveLength(0);
   });
 });
