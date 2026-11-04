@@ -17,6 +17,7 @@ const {
 } = require('../../functions/scoreboard-sportsapipro');
 const { createNotificationGuards } = require('../../functions/notification-guards');
 const { createRelationSandbox } = require('./notification-guards-test-helpers');
+const { resolveTeamSnapshot, isUserCreatedTeamOwner } = require('../../functions/team-membership-core');
 
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
@@ -3894,6 +3895,8 @@ describe('syncGroupActionStatus caller authorization', () => {
       HttpsError: TestHttpsError,
       onCall: (options, handler) => ({ options, handler }),
       getCallerAccessContext,
+      resolveTeamSnapshot,
+      isUserCreatedTeamOwner,
       exports: {},
       console: consoleImpl,
     };
@@ -4671,8 +4674,8 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
       roleLevels: ROLE_LEVELS,
       logger: consoleImpl,
     });
-    // 測試同步更新（通知發送授權強化第 2 批）：deliverToInbox 新增關係檢查依賴；這些案例的訊息都沒有 source，
-    // 不會進關係檢查，這裡只補上識別字（真實的決策與查詢模組，資料庫為此測試的 fake db）。
+    // 測試同步更新（T-090f 補裁）：一般訊息 fixture 明列 source，缺來源略過另有專案案例。
+    // 使用真實的決策與查詢模組，資料庫為此測試的 fake db。
     const sandbox = {
       db,
       HttpsError: TestHttpsError,
@@ -4681,6 +4684,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
       exports: {},
       console: consoleImpl,
       notificationGuards,
+      resolveTeamSnapshot,
       ...createRelationSandbox({ db, guards: notificationGuards }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-to-inbox-t022.vm.js' });
@@ -4704,6 +4708,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
 
   function message(partial = {}) {
     return {
+      source: 'client:unknown',
       id: 'msg_t022',
       title: '標題',
       body: '內文',
@@ -5281,7 +5286,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     expect(db.appliedWrites[0].op).toBe('create');
   });
 
-  test('allow: untyped message strips review fields and warns once without uids', async () => {
+  test('allow: untyped message strips review fields and logs sanitized relation without uids', async () => {
     const caller = 'UidCallerT022x7';
     const target = 'UidTargetT022x7';
     const db = createDeliverInboxMemoryDb();
@@ -5308,7 +5313,10 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     expect(written.actionStatus).toBeNull();
     expect(written.reviewerName).toBeNull();
     expect(written.meta).toEqual({ foo: 1 });
-    expect(consoleImpl.warns).toHaveLength(1);
+    expect(consoleImpl.warns).toHaveLength(2);
+    expect(consoleImpl.warns[1]).toEqual(['[notificationGuards] gate triggered', expect.objectContaining({
+      relation: 'client_unknown', source: 'client:unknown', reason: 'client_unknown',
+    })]);
     expect(consoleImpl.warns[0][1]).toEqual({
       stripped: ['actionStatus', 'reviewerName', 'meta.groupId'],
       broadcast: false,
@@ -5451,6 +5459,20 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     ['uid_admin_team', 'uid_other_team', 'uid_prefix_team', 'uid_similar_team'].forEach(uid => {
       expect(db.readInbox(uid, msgId)).toBeNull();
     });
+  });
+
+  // T-090f 顧問改裁：缺 source 視為 client:unknown 照常投遞（取代原「缺 source 成功略過、零寫入」）。
+  test('T-090f: source-less untyped inbox is treated as client:unknown and delivered', async () => {
+    const db = createDeliverInboxMemoryDb({ users: { uid_caller: { role: 'user' }, uid_target: { role: 'user' } } });
+    const consoleImpl = makeConsole();
+    const callable = loadDeliverToInbox(db, consoleImpl);
+    await expect(callable.handler({ auth: { uid: 'uid_caller' }, data: {
+      message: message({ source: undefined }), targetUid: 'uid_target',
+    } })).resolves.toEqual({ success: true, delivered: 1 });
+    expect(db.appliedWrites).toHaveLength(1);
+    expect(db.appliedWrites[0].path).toBe(inboxPath('uid_target', 'msg_t022'));
+    expect(consoleImpl.warns.some(([msg, data]) => msg === '[notificationGuards] gate triggered'
+      && data.relation === 'client_unknown' && data.source === 'client:unknown')).toBe(true);
   });
 
   test('allow: missing target and broadcast fields delivers zero', async () => {
@@ -6160,7 +6182,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     expect(serialized).not.toContain('inbox');
   });
 
-  test('allow: untyped message array meta writes null and warns once', async () => {
+  test('allow: untyped message array meta writes null and logs sanitized relation', async () => {
     const caller = 'uid_caller_metarray_41';
     const target = 'uid_target_metarray_41';
     const db = createDeliverInboxMemoryDb();
@@ -6185,7 +6207,10 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     expect(written.actionStatus).toBeNull();
     expect(written.reviewerName).toBeNull();
     expect(written.meta).toBeNull();
-    expect(consoleImpl.warns).toHaveLength(1);
+    expect(consoleImpl.warns).toHaveLength(2);
+    expect(consoleImpl.warns[1]).toEqual(['[notificationGuards] gate triggered', expect.objectContaining({
+      relation: 'client_unknown', source: 'client:unknown', reason: 'client_unknown',
+    })]);
     expect(consoleImpl.warns[0]).toEqual([
       '[deliverToInbox] stripped review fields from untyped message',
       { stripped: ['meta'], broadcast: false },

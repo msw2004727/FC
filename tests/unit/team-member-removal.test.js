@@ -64,6 +64,11 @@ function setup({
   return { fake, handler, call, logger, getCallerAccessContext };
 }
 
+// 測試同步更新：權限碼回歸案例用非擁有者領隊，保留既有門檻覆蓋。
+function setupNonOwner(options = {}) {
+  return setup({ ...options, callerUid: "U-lead" });
+}
+
 async function rejection(promise) {
   try {
     await promise;
@@ -160,8 +165,6 @@ describe("removeTeamMember 輸入與權限（失敗一律不寫任何東西）",
   });
 
   test.each([
-    ["creatorUid", { creatorUid: "U-creator" }, "U-creator"],
-    ["ownerUid", { ownerUid: "U-owner" }, "U-owner"],
     ["舊 leaderUid", { leaderUid: "U-oldlead" }, "U-oldlead"],
   ])("只靠 %s 不算幹部（比 isTeamStaffForData 窄）→ TEAM_MANAGE_DENIED", async (_label, teamPatch, callerUid) => {
     const docs = seedDocs();
@@ -180,15 +183,15 @@ describe("removeTeamMember 輸入與權限（失敗一律不寫任何東西）",
       .toMatchObject({ code: "permission-denied", message: "TEAM_MANAGE_DENIED" });
   });
 
-  test("幹部但 users.role=user → COACH_PLUS_REQUIRED，且完全不寫", async () => {
-    const { call, fake } = setup({ access: createAccess({ role: "user" }) });
+  test("非擁有者幹部但 users.role=user → COACH_PLUS_REQUIRED，且完全不寫", async () => {
+    const { call, fake } = setupNonOwner({ access: createAccess({ role: "user" }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" })))
       .toMatchObject({ code: "permission-denied", message: "COACH_PLUS_REQUIRED" });
     expect(fake.state.writes).toHaveLength(0);
   });
 
-  test("幹部但為自訂角色 → COACH_PLUS_REQUIRED（已知限制）", async () => {
-    const { call } = setup({ access: createAccess({ role: "my_custom_role" }) });
+  test("非擁有者幹部但為自訂角色 → COACH_PLUS_REQUIRED（已知限制）", async () => {
+    const { call } = setupNonOwner({ access: createAccess({ role: "my_custom_role" }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" })))
       .toMatchObject({ code: "permission-denied", message: "COACH_PLUS_REQUIRED" });
   });
@@ -276,7 +279,7 @@ describe("removeTeamMember 冪等", () => {
 
   test("已不在隊時權限仍先驗（不能當探測管道）", async () => {
     const docs = seedDocs({ "users/U-gone": { uid: "U-gone", ...membership([]) } });
-    const { call } = setup({ docs, access: createAccess({ role: "user" }) });
+    const { call } = setupNonOwner({ docs, access: createAccess({ role: "user" }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-gone" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 
@@ -403,9 +406,9 @@ describe("removeTeamMember 審查退修（P3 與測試強化）", () => {
   });
 
   test("持有 admin.repair.team_join_repair 的自訂角色通過（與 Rules 1712 一致），沒有該權限的自訂角色仍被拒", async () => {
-    const allowed = setup({ access: createAccess({ role: "my_custom_role", permissions: ["admin.repair.team_join_repair"] }) });
+    const allowed = setupNonOwner({ access: createAccess({ role: "my_custom_role", permissions: ["admin.repair.team_join_repair"] }) });
     await expect(allowed.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
-    const denied = setup({ access: createAccess({ role: "my_custom_role", permissions: ["team.manage_all"] }) });
+    const denied = setupNonOwner({ access: createAccess({ role: "my_custom_role", permissions: ["team.manage_all"] }) });
     expect(await rejection(denied.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 
@@ -463,41 +466,41 @@ describe("removeTeamMember 權限碼與 Rules 一致（審查 P3-7：rolePermiss
   const repair = "admin.repair.team_join_repair";
 
   test("users.role=user 且沒有任何授權文件 → 拒絕（不看 mock 的 hasPermission）", async () => {
-    const { call, fake } = setup({ access: createAccess({ role: "user" }) });
+    const { call, fake } = setupNonOwner({ access: createAccess({ role: "user" }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
     expect(fake.state.writes).toHaveLength(0);
   });
 
   test("自訂角色沒有 rolePermissions 文件 → 拒絕；文件存在但不含入隊修復權限 → 拒絕；文件含該權限 → 通過", async () => {
-    const noDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: null }) });
+    const noDoc = setupNonOwner({ access: createAccess({ role: "my_custom_role", permissions: null }) });
     expect(await rejection(noDoc.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
-    const emptyDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: [] }) });
+    const emptyDoc = setupNonOwner({ access: createAccess({ role: "my_custom_role", permissions: [] }) });
     expect(await rejection(emptyDoc.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
-    const withDoc = setup({ access: createAccess({ role: "my_custom_role", permissions: [repair] }) });
+    const withDoc = setupNonOwner({ access: createAccess({ role: "my_custom_role", permissions: [repair] }) });
     await expect(withDoc.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
   });
 
   test("文件的 permissions 不是 list → 視為沒有權限", async () => {
     const docs = seedDocs({ "rolePermissions/my_custom_role": { permissions: repair } });
-    const { call } = setup({ docs, access: createAccess({ role: "my_custom_role", permissions: null }) });
+    const { call } = setupNonOwner({ docs, access: createAccess({ role: "my_custom_role", permissions: null }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 
   test("users.role=user 靠個別授權：enabled 缺欄位或 true → 通過；enabled:false 或 permissions 不含 → 拒絕", async () => {
-    const grant = (data) => seedDocs({ "userPermissionGrants/U-cap": data });
-    const noEnabledField = setup({ docs: grant({ permissions: [repair] }), access: createAccess({ role: "user" }) });
+    const grant = (data) => seedDocs({ "userPermissionGrants/U-lead": data });
+    const noEnabledField = setupNonOwner({ docs: grant({ permissions: [repair] }), access: createAccess({ role: "user" }) });
     await expect(noEnabledField.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
-    const enabled = setup({ docs: grant({ permissions: [repair], enabled: true }), access: createAccess({ role: "user" }) });
+    const enabled = setupNonOwner({ docs: grant({ permissions: [repair], enabled: true }), access: createAccess({ role: "user" }) });
     await expect(enabled.call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toMatchObject({ ok: true });
-    const disabled = setup({ docs: grant({ permissions: [repair], enabled: false }), access: createAccess({ role: "user" }) });
+    const disabled = setupNonOwner({ docs: grant({ permissions: [repair], enabled: false }), access: createAccess({ role: "user" }) });
     expect(await rejection(disabled.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
-    const other = setup({ docs: grant({ permissions: ["team.review_join"], enabled: true }), access: createAccess({ role: "user" }) });
+    const other = setupNonOwner({ docs: grant({ permissions: ["team.review_join"], enabled: true }), access: createAccess({ role: "user" }) });
     expect(await rejection(other.call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 
   test("users.role=user 時 rolePermissions/user 文件一律不算（Rules hasPerm：role != 'user'）", async () => {
     const docs = seedDocs({ "rolePermissions/user": { permissions: [repair] } });
-    const { call } = setup({ docs, access: createAccess({ role: "user", permissions: null }) });
+    const { call } = setupNonOwner({ docs, access: createAccess({ role: "user", permissions: null }) });
     expect(await rejection(call({ teamId: TEAM, memberUid: "U-m1" }))).toMatchObject({ message: "COACH_PLUS_REQUIRED" });
   });
 });
@@ -536,6 +539,128 @@ describe("removeTeamMember 終驗補強（Opus 終驗 F-2／F-3）", () => {
     await expect(call({ teamId: TEAM, memberUid: "U-m1" })).resolves.toEqual({ ok: true, alreadyRemoved: false, memberCount: 4 });
     expect(fake.get("users/U-m1")).toMatchObject({ teamId: null, teamIds: [] });
     expect(fake.get(`teams/${TEAM}`).members).toBe(4);
+  });
+});
+
+
+describe("T-090b removeTeamMember 擁有者免 coach+", () => {
+  const ownerFields = ["captainUid", "creatorUid", "ownerUid"];
+
+  function ownerSetup(field, teamExtra = {}, options = {}) {
+    const docs = seedDocs();
+    docs['teams/' + TEAM] = {
+      ...docs['teams/' + TEAM], [field]: 'U-owner-user', ...teamExtra,
+    };
+    docs['users/U-owner-user'] = { uid: 'U-owner-user', role: 'user' };
+    return setup({ docs, callerUid: 'U-owner-user', access: createAccess({ role: 'user' }), ...options });
+  }
+
+  test.each(ownerFields.flatMap(field => [undefined, 'user_capability'].map(createdVia => [field, createdVia])))(
+    '%s 本人 role=user／createdVia=%s 可剔除；只寫既有三筆、不改角色', async (field, createdVia) => {
+      const { call, fake } = ownerSetup(field, { createdVia });
+      await expect(call({ teamId: TEAM, memberUid: 'U-m1' })).resolves.toMatchObject({ ok: true, alreadyRemoved: false });
+      expect(fake.get('users/U-m1')).toMatchObject({ teamId: null, teamIds: [], role: 'user' });
+      expect(fake.get('users/U-owner-user').role).toBe('user');
+      expect(fake.state.writes).toHaveLength(3);
+      expect(fake.writesTo('users/U-m1')).toHaveLength(1);
+      expect(fake.writesTo('operationLogs/')[0].data.actorUid).toBe('U-owner-user');
+      expect(fake.writesTo('teams/')).toHaveLength(1);
+    },
+  );
+
+  test.each(ownerFields.flatMap(field => [null, '', ' U-owner-user ', 123, ['U-owner-user'], { uid: 'U-owner-user' }]
+    .map(value => [field, value])))(
+    '%s=%j 不作 trim／轉型，不取得擁有者資格', async (field, value) => {
+      const { call, fake } = ownerSetup(field, { [field]: value });
+      await expect(call({ teamId: TEAM, memberUid: 'U-m1' }))
+        .rejects.toMatchObject({ code: 'permission-denied', message: 'TEAM_MANAGE_DENIED' });
+      expect(fake.state.writes).toHaveLength(0);
+    },
+  );
+
+  test.each(['user', 'coach'])('非擁有者、非該隊幹部 %s 仍拒絕；request 偽造 owner 欄位無效', async role => {
+    const { call, fake } = setup({ callerUid: 'U-outsider', access: createAccess({ role }) });
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1', captainUid: 'U-outsider', creatorUid: 'U-outsider', ownerUid: 'U-outsider' }))
+      .rejects.toMatchObject({ code: 'permission-denied', message: 'TEAM_MANAGE_DENIED' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each(ownerFields)('%s 擁有者仍不能剔除隊內幹部', async field => {
+    const { call, fake } = ownerSetup(field);
+    await expect(call({ teamId: TEAM, memberUid: 'U-coach' }))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: 'TARGET_IS_STAFF' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each(ownerFields)('%s 改用 F1 唯一邏輯 id 解出的文件驗權，仍只清本隊', async field => {
+    const { call, fake } = ownerSetup(field);
+    const team = fake.get('teams/' + TEAM);
+    fake.remove('teams/' + TEAM);
+    fake.touch('teams/doc_legacy', { ...team, id: TEAM });
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' })).resolves.toMatchObject({ ok: true });
+    expect(fake.get('users/U-m1').teamIds).toEqual([]);
+    expect(fake.writesTo('teams/').map(write => write.path)).toEqual(['teams/doc_legacy']);
+  });
+
+  test('F1 直接文件優先：別隊偽造同名 id 與 owner 不能授權', async () => {
+    const { call, fake } = setup({ callerUid: 'U-outsider', access: createAccess({ role: 'user' }) });
+    fake.touch('teams/doc_impostor', { id: TEAM, ownerUid: 'U-outsider' });
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' }))
+      .rejects.toMatchObject({ code: 'permission-denied', message: 'TEAM_MANAGE_DENIED' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test('F1 同名邏輯 id 兩筆，即使兩筆都填本人 owner 也拒絕', async () => {
+    const { call, fake } = ownerSetup('ownerUid');
+    fake.remove('teams/' + TEAM);
+    fake.touch('teams/doc_a', { id: TEAM, ownerUid: 'U-owner-user' });
+    fake.touch('teams/doc_b', { id: TEAM, ownerUid: 'U-owner-user' });
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' }))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: 'TEAM_ID_AMBIGUOUS' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each(ownerFields)('%s 交易前失去擁有者、只剩 coachUids 且 role=user，必須重驗 coach+', async field => {
+    const { call, fake } = ownerSetup(field, { coachUids: ['U-owner-user', 'U-coach'] });
+    const runTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async callback => {
+      fake.touch('teams/' + TEAM, { [field]: 'U-new-owner' });
+      return runTransaction(callback);
+    };
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' }))
+      .rejects.toMatchObject({ code: 'permission-denied', message: 'COACH_PLUS_REQUIRED' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test('交易前失去擁有者與隊內幹部資格 → TEAM_MANAGE_DENIED', async () => {
+    const { call, fake } = ownerSetup('ownerUid');
+    const runTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async callback => {
+      fake.touch('teams/' + TEAM, { ownerUid: 'U-new-owner' });
+      return runTransaction(callback);
+    };
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' }))
+      .rejects.toMatchObject({ code: 'permission-denied', message: 'TEAM_MANAGE_DENIED' });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test('失去 owner 但仍是既有 coach+ 幹部，原路徑仍可剔除', async () => {
+    const { call, fake } = ownerSetup('ownerUid', { coachUids: ['U-owner-user'] }, { access: createAccess({ role: 'coach' }) });
+    const runTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async callback => {
+      fake.touch('teams/' + TEAM, { ownerUid: 'U-new-owner' });
+      return runTransaction(callback);
+    };
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' })).resolves.toMatchObject({ ok: true });
+    expect(fake.state.writes).toHaveLength(3);
+  });
+
+  test('擁有者移除別隊成員只回 alreadyRemoved、不清別隊', async () => {
+    const { call, fake } = ownerSetup('ownerUid');
+    fake.touch('users/U-m1', membership(['tm_b']));
+    await expect(call({ teamId: TEAM, memberUid: 'U-m1' })).resolves.toEqual({ ok: true, alreadyRemoved: true });
+    expect(fake.get('users/U-m1').teamIds).toEqual(['tm_b']);
+    expect(fake.state.writes).toHaveLength(0);
   });
 });
 

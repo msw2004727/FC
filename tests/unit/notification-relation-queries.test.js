@@ -27,7 +27,7 @@ describe("createRelationQueries 介面", () => {
       "callerIsApplicant", "recipientIsTeamStaff", "callerMayReviewJoin", "recipientIsReviewTarget",
       "callerMayAssignTeamRole", "recipientMatchesAssignment", "callerHasBroadcastPermission",
       "recipientRoleIsAdmin", "callerMatchesTournamentSource", "recipientInTournamentAudience",
-      "callerBroadcastPermissionGap",
+      "callerBroadcastPermissionGap", "teamIsNotUserCreated",
     ].forEach((name) => expect(typeof queries[name]).toBe("function"));
   });
 

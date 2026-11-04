@@ -174,7 +174,8 @@ function createUserAttendanceStatsExports({
   const sourceOptions = {
     region: REGION,
     timeoutSeconds: 60,
-    memory: "128MiB",
+    // 2026-11-04 hotfix：128MiB 在冷啟動載入大型 index.js 時 OOM（instance could not start），改 256MiB，與 onUserAttendanceEventWrite 一致。
+    memory: "256MiB",
     cpu: "gcf_gen1",
     retry: true,
   };

@@ -1,8 +1,8 @@
 "use strict";
 
 /**
- * removeTeamMember / deleteTeam 共用的純函式與 Firestore 讀取 helper（T-027 7b(A)）。
- * 只放兩個 Callable 都會用到的東西，權限判斷各自留在 team-member-removal.js / team-deletion.js。
+ * 俱樂部 Callable 共用的純函式與 Firestore 讀取 helper。
+ * 各 Callable 的動作權限判斷留在各自模組。
  */
 
 const { countTeamMembers, getUserTeamIds } = require("./team-member-count");
@@ -10,6 +10,17 @@ const { countTeamMembers, getUserTeamIds } = require("./team-member-count");
 const MAX_ID_LENGTH = 128;
 const PAGE_SIZE = 500;
 const TEAM_NAME_READ_CHUNK = 50;
+
+// T-090 共用標記定義；legacy 無欄位視為管理端建立，不查創建者目前資格。
+function isUserCreatedTeam(teamData) {
+  return teamData?.createdVia === "user_capability";
+}
+
+// OWNER_FIELDS 與 deleteTeam／removeTeamMember 相同；只接受文件內的本人 UID。
+function isUserCreatedTeamOwner(teamData, uid) {
+  return isUserCreatedTeam(teamData) && typeof uid === "string" && uid.length > 0
+    && ["captainUid", "creatorUid", "ownerUid"].some((field) => teamData[field] === uid);
+}
 
 // 同時擋掉 Firestore 不允許的文件 id（"."、".."、"__x__"），否則 .doc(id) 會同步拋非 HttpsError 而變成 internal。
 function normalizeId(value) {
@@ -34,12 +45,15 @@ function assertTeamDocIdConsistent(teamSnap, HttpsError) {
 }
 
 // 文件 id 優先；查無時才接受唯一的舊邏輯 id，避免任選同名文件。
-async function resolveTeamSnapshot(db, teamId, HttpsError) {
-  const direct = await db.collection("teams").doc(teamId).get();
+async function resolveTeamSnapshot(db, teamId, HttpsError, readSnapshot = (ref) => ref.get()) {
+  // T-090f：共用邊界只收 normalizeId 原樣通過的單一路徑段；巢狀路徑（tm/students/x）會把子集合文件當俱樂部。
+  // 不合格視為查無、零讀取；F1 入口已先 normalizeId，合法 id 行為不變。
+  if (typeof teamId !== "string" || !teamId || normalizeId(teamId) !== teamId) return null;
+  const direct = await readSnapshot(db.collection("teams").doc(teamId));
   if (direct && direct.exists) {
     return direct;
   }
-  const legacy = await db.collection("teams").where("id", "==", teamId).limit(2).get();
+  const legacy = await readSnapshot(db.collection("teams").where("id", "==", teamId).limit(2));
   if (legacy.docs.length > 1) {
     throw new HttpsError("failed-precondition", "TEAM_ID_AMBIGUOUS");
   }
@@ -201,6 +215,8 @@ module.exports = {
   collectStaffUids,
   formatTaipeiDateTime,
   isFirestoreError,
+  isUserCreatedTeam,
+  isUserCreatedTeamOwner,
   maskId,
   normalizeId,
   readActorNames,

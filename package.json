@@ -10,6 +10,8 @@
     "test:unit": "jest tests/unit/",
     "test:unit:coverage": "jest tests/unit/ --coverage",
     "test:functions": "jest tests/unit/cloud-functions.test.js",
+    "test:functions:emulator:unit": "jest --runInBand tests/emulator/",
+    "test:functions:emulator": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-delete-event \"npm run test:functions:emulator:unit\"",
     "check:registration-ops": "node scripts/check-registration-ops-guard.js",
     "test:e2e": "npx playwright test tests/e2e/",
     "test:e2e:smoke": "npx playwright test tests/e2e/ --project=chromium-desktop",

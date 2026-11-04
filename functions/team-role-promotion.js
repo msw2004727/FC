@@ -1,5 +1,7 @@
 "use strict";
 
+const { isUserCreatedTeam } = require("./team-membership-core");
+
 const MAX_UID_LENGTH = 128;
 const MAX_IDENTITY_MATCHES = 5;
 const IDENTITY_QUERY_LIMIT = MAX_IDENTITY_MATCHES + 1;
@@ -138,21 +140,29 @@ function teamSupportsTargetRole(teamData, targetUid, role) {
     || leaderUids.map(normalizeUid).includes(targetUid);
 }
 
-async function canCallerRecalculateRole({
+function canManageTeamRoles(access) {
+  return access.isSuperAdmin
+    || access.hasPermission("team.manage_all")
+    || access.hasPermission("team.create");
+}
+
+function canCallerRecalculateRole({
   access, callerUser, targetUser, decision, roleLevels, teamId, teamData,
 }) {
   const currentLevel = roleLevels[decision.currentRole];
   const newLevel = roleLevels[decision.newRole];
   if (newLevel > currentLevel
     && !teamSupportsTargetRole(teamData, targetUser.uid, decision.newRole)) return false;
-  if (access.isSuperAdmin
-    || access.hasPermission("team.manage_all")
-    || access.hasPermission("team.create")) return true;
+  if (canManageTeamRoles(access)) return true;
   if (callerUser.uid === targetUser.uid && newLevel < currentLevel) return true;
   if (!teamId || !teamData || roleLevels[access.role] < roleLevels.captain) return false;
   const isKnownMember = getTeamIdsFromUser(callerUser.data).has(teamId);
   const isSavedCaptain = normalizeUid(teamData.captainUid) === callerUser.uid;
-  return isKnownMember || isSavedCaptain;
+  if (!isKnownMember && !isSavedCaptain) return false;
+  if (newLevel <= currentLevel) return true;
+
+  // Q7：只看已讀取的建立來源標記；自降與管理權限路徑維持原判斷。
+  return !isUserCreatedTeam(teamData);
 }
 
 function getRoleDecision({ targetData, savedTeamRole, roleLevels, normalizeRole }) {
@@ -226,6 +236,12 @@ function createAutoPromoteTeamRoleHandler({
           roleLevels,
           normalizeRole,
         });
+        // 只阻擋 contextRole 的實際升級；不把職位強制降成 user，也不攔既有自降／no_change。
+        if (!decision.skipped
+          && roleLevels[decision.newRole] > roleLevels[decision.currentRole]
+          && isUserCreatedTeam(teamData) && !canManageTeamRoles(access)) {
+          throw new HttpsError("permission-denied", "Not allowed to recalculate this team role");
+        }
       }
       if (decision.skipped) {
         if (decision.reason === "no_change") {
@@ -236,7 +252,7 @@ function createAutoPromoteTeamRoleHandler({
         return { success: true, skipped: true, ...decision };
       }
 
-      const authorized = await canCallerRecalculateRole({
+      const authorized = canCallerRecalculateRole({
         access,
         callerUser,
         targetUser,

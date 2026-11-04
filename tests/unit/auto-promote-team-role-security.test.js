@@ -337,3 +337,196 @@ describe('frontend team role recomputation', () => {
     expect(source).toContain('teamId: nextTeamId');
   });
 });
+// 測試同步更新：§6.3 以 createdVia 取代創建者資格，Q7 不再增加讀取。
+const { parse } = require('@babel/parser');
+const { createFakeFirestore } = require('./team-callable-fake-db');
+const { isUserCreatedTeam } = require('../../functions/team-membership-core');
+const indexSource = fs.readFileSync(path.join(__dirname, '../../functions/index.js'), 'utf8');
+
+function trackReads(db, reads) {
+  function wrap(ref, label) {
+    return new Proxy(ref, {
+      get(target, key) {
+        if (key === 'get') return async () => { reads.push(label); return target.get(); };
+        if (['doc', 'where', 'limit'].includes(key)) {
+          return (...args) => wrap(target[key](...args), label + '/' + key + ':' + args.join(':'));
+        }
+        return target[key];
+      },
+    });
+  }
+  return { ...db, collection: name => wrap(db.collection(name), name) };
+}
+
+function q7Setup({ creator = { role: 'admin' }, teamExtra = {}, callerRole = 'captain', callerPermissions = [], extraDocs = {}, knownMember = false } = {}) {
+  const callerUid = 'U-captain';
+  const targetUid = 'U-staff';
+  const creatorUid = 'U-creator';
+  const fake = createFakeFirestore({
+    ['users/' + callerUid]: { uid: callerUid, role: callerRole, ...(knownMember ? { teamIds: ['tm-real'] } : {}) },
+    ['users/' + targetUid]: { uid: targetUid, role: 'user', manualRole: 'user' },
+    ...(creator ? { ['users/' + creatorUid]: { uid: creatorUid, ...creator } } : {}),
+    'teams/tm-real': { creatorUid, captainUid: callerUid, coachUids: [targetUid], ...teamExtra },
+    ...extraDocs,
+  });
+  const reads = [];
+  const obsoleteReaders = Object.fromEntries([
+    'findUserDocByUidOrLineUserId', 'getRolePermissionsFromFirestore', 'getUserPermissionGrantsFromFirestore',
+  ].map(name => [name, jest.fn(() => { throw new Error('Unexpected creator read: ' + name); })]));
+  const setRoleClaimMerged = jest.fn(async () => null);
+  const handler = createHandler(trackReads(fake.db, reads), {
+    ...obsoleteReaders, setRoleClaimMerged,
+    getCallerAccessContext: jest.fn(async () => access(callerRole, callerPermissions)),
+  });
+  const call = (overrides = {}) => handler({ auth: { uid: callerUid }, data: { targetUid, teamId: 'tm-real', ...overrides } });
+  return { call, fake, reads, obsoleteReaders, setRoleClaimMerged, callerUid, targetUid };
+}
+
+function expectNoQ7Reads(context, self = false) {
+  // 既有 identity 3 次 × 1/2 人 + context team 1 次 + 已存職位 4 次；不含注入的 caller access。
+  expect(context.reads).toHaveLength(self ? 8 : 11);
+  expect(context.reads.filter(label => label.startsWith('users/'))).toHaveLength(self ? 3 : 6);
+  expect(context.reads.filter(label => label.startsWith('teams/'))).toHaveLength(5);
+  expect(context.reads.some(label => /U-creator|rolePermissions|userPermissionGrants/.test(label))).toBe(false);
+  Object.values(context.obsoleteReaders).forEach(reader => expect(reader).not.toHaveBeenCalled());
+}
+
+describe('T-090b Q7 createdVia definition', () => {
+  test.each([
+    [undefined, false], [null, false], [{}, false],
+    [{ createdVia: 'user_capability' }, true],
+    ...[null, '', 'admin', ' user_capability', 'user_capability ', 'USER_CAPABILITY', 123, ['user_capability']]
+      .map(createdVia => [{ createdVia }, false]),
+  ])('shared helper uses the exact marker: %j', (team, expected) => {
+    expect(isUserCreatedTeam(team)).toBe(expected);
+  });
+
+  test.each(['user', 'coach', 'admin', 'super_admin', null])(
+    'user-created blocks team-local promotion regardless of creator role %s or deletion', async role => {
+      const ctx = q7Setup({ creator: role ? { role } : null, teamExtra: { createdVia: 'user_capability' } });
+      await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
+      expect(ctx.fake.state.writes).toHaveLength(0);
+      expect(ctx.setRoleClaimMerged).not.toHaveBeenCalled();
+      expectNoQ7Reads(ctx);
+    },
+  );
+
+  test.each([false, true])('user-created blocks captain and known-member routes (knownMember=%s)', async knownMember => {
+    const ctx = q7Setup({ knownMember, teamExtra: {
+      createdVia: 'user_capability', ...(knownMember ? { captainUid: 'U-other' } : {}),
+    } });
+    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(ctx.fake.state.writes).toHaveLength(0);
+    expectNoQ7Reads(ctx);
+  });
+
+  test.each(['role', 'grant'])('creator team.create from %s never overrides the user-created marker', async source => {
+    const extraDocs = source === 'role'
+      ? { 'rolePermissions/coach': { permissions: ['team.create'] } }
+      : { 'userPermissionGrants/U-creator': { permissions: ['team.create'], enabled: true } };
+    const ctx = q7Setup({ creator: { role: 'coach' }, extraDocs, teamExtra: { createdVia: 'user_capability' } });
+    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(ctx.fake.state.writes).toHaveLength(0);
+    expectNoQ7Reads(ctx);
+  });
+
+  test('blocked contextRole cannot turn coach-to-captain promotion into demotion or claim sync', async () => {
+    const ctx = q7Setup({ teamExtra: { createdVia: 'user_capability', captainUid: 'U-staff' }, knownMember: true,
+      extraDocs: { 'users/U-staff': { uid: 'U-staff', role: 'coach', manualRole: 'user' } } });
+    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(ctx.fake.get('users/U-staff').role).toBe('coach');
+    expect(ctx.fake.state.writes).toHaveLength(0);
+    expect(ctx.setRoleClaimMerged).not.toHaveBeenCalled();
+    expectNoQ7Reads(ctx);
+  });
+
+  test('user-created manual-role floor cannot bypass the promotion guard', async () => {
+    const ctx = q7Setup({ teamExtra: { createdVia: 'user_capability' },
+      extraDocs: { 'users/U-staff': { uid: 'U-staff', role: 'user', manualRole: 'coach' } } });
+    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(ctx.fake.state.writes).toHaveLength(0);
+    expectNoQ7Reads(ctx);
+  });
+
+  test('general user still fails the coach entry gate before any Q7 reads', async () => {
+    const ctx = q7Setup({ callerRole: 'user', teamExtra: { createdVia: 'user_capability', creatorUid: 'U-captain' } });
+    await expect(ctx.call({ targetUid: 'U-captain' })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(ctx.reads).toHaveLength(0);
+    expect(ctx.fake.state.writes).toHaveLength(0);
+  });
+
+  test.each(['user', 'coach', 'admin', 'super_admin', null])(
+    'legacy without createdVia stays management-created regardless of creator role %s or deletion', async role => {
+      const ctx = q7Setup({ creator: role ? { role } : null });
+      await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
+      expect(ctx.fake.state.writes).toHaveLength(1);
+      expectNoQ7Reads(ctx);
+    },
+  );
+
+  test.each([undefined, null, '', ' ', 123, 'bad/path'])('legacy creatorUid=%j does not affect classification', async creatorUid => {
+    const ctx = q7Setup({ teamExtra: { creatorUid } });
+    await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
+    expectNoQ7Reads(ctx);
+  });
+
+  test.each([{}, { createdVia: 'admin' }])('known-member route remains available for management-created %j', async teamExtra => {
+    const ctx = q7Setup({ knownMember: true, teamExtra: { ...teamExtra, captainUid: 'U-other' } });
+    await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
+    expectNoQ7Reads(ctx);
+  });
+
+  test.each([
+    ['super_admin', []], ['captain', ['team.manage_all']], ['captain', ['team.create']],
+  ])('privileged %s/%j can still promote within a user-created team', async (callerRole, callerPermissions) => {
+    const ctx = q7Setup({ callerRole, callerPermissions, teamExtra: { createdVia: 'user_capability' } });
+    await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
+    expect(ctx.fake.state.writes).toHaveLength(1);
+    expect(ctx.setRoleClaimMerged).toHaveBeenCalledWith('U-staff', 'coach');
+    expectNoQ7Reads(ctx);
+  });
+
+  test.each([{}, { createdVia: 'user_capability' }])('self-demotion remains unchanged for %j', async teamExtra => {
+    const ctx = q7Setup({ teamExtra: { ...teamExtra, captainUid: 'U-other', coachUids: ['U-captain'] } });
+    await expect(ctx.call({ targetUid: 'U-captain' })).resolves.toMatchObject({ oldRole: 'captain', newRole: 'coach' });
+    expect(ctx.fake.state.writes).toHaveLength(1);
+    expectNoQ7Reads(ctx, true);
+  });
+
+  test('a forged user-created assignment cannot increase the management-created context role', async () => {
+    const ctx = q7Setup({ extraDocs: { 'teams/tm-forged': { createdVia: 'user_capability', captainUid: 'U-staff' } } });
+    await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
+    expectNoQ7Reads(ctx);
+  });
+
+  test.each([false, true])('context recalculation preserves self-demotion or no_change despite another captain assignment (coach=%s)', async remainsCoach => {
+    const ctx = q7Setup({ callerRole: 'coach', teamExtra: {
+      createdVia: 'user_capability', captainUid: 'U-other', coachUids: remainsCoach ? ['U-captain'] : [],
+    }, extraDocs: { 'teams/tm-other': { captainUid: 'U-captain' } } });
+    if (remainsCoach) {
+      await expect(ctx.call({ targetUid: 'U-captain' })).resolves.toMatchObject({ skipped: true, reason: 'no_change' });
+      expect(ctx.fake.state.writes).toHaveLength(0);
+    } else {
+      await expect(ctx.call({ targetUid: 'U-captain' })).resolves.toMatchObject({ oldRole: 'coach', newRole: 'user' });
+      expect(ctx.fake.state.writes).toHaveLength(1);
+    }
+    expect(ctx.setRoleClaimMerged).toHaveBeenCalledWith('U-captain', remainsCoach ? 'coach' : 'user');
+    expectNoQ7Reads(ctx, true);
+  });
+
+  test('production callable wiring no longer injects creator readers', () => {
+    const ast = parse(indexSource, { sourceType: 'script' });
+    const binding = ast.program.body.find(node => node.type === 'ExpressionStatement'
+      && node.expression.type === 'AssignmentExpression'
+      && indexSource.slice(node.expression.left.start, node.expression.left.end) === 'exports.autoPromoteTeamRole');
+    const captured = jest.fn();
+    vm.runInNewContext(indexSource.slice(binding.start, binding.end), {
+      exports: {}, createAutoPromoteTeamRoleCallable: captured, onCall: () => {},
+      HttpsError: FakeHttpsError, db: {}, FieldValue: {}, ROLE_LEVELS,
+      normalizeRole: () => {}, getCallerAccessContext: () => {}, ensureAuthUser: () => {}, setRoleClaimMerged: () => {},
+    });
+    for (const name of ['findUserDocByUidOrLineUserId', 'getRolePermissionsFromFirestore', 'getUserPermissionGrantsFromFirestore']) {
+      expect(captured.mock.calls[0][0]).not.toHaveProperty(name);
+    }
+  });
+});

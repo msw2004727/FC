@@ -22,12 +22,15 @@ const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
-const { maskId: maskRosterId } = require("./team-membership-core");
+const { maskId: maskRosterId, normalizeId: normalizeTeamId, resolveTeamSnapshot, isUserCreatedTeam, isUserCreatedTeamOwner } = require("./team-membership-core");
 
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
+const { createReviewTeamJoinCallable } = require("./team-join-review");
+const { createUserTeamCallable } = require("./user-team-create");
 const { createDeleteTeamCallable } = require("./team-deletion");
+const { createDeleteEventCallable } = require("./event-deletion");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
 const { createRelationQueries } = require("./notification-relation-queries");
@@ -247,6 +250,7 @@ const ROLE_ACTIVITY_CAPABILITY_CODES = new Set([
   "user.activity.site_operate",
   "user.activity.delegate_assign",
   "user.activity.addons_use",
+  "user.activity.team_create",
 ]);
 const DEFAULT_USER_ACTIVITY_CAPABILITIES = Object.freeze([
   "user.activity.basic_create",
@@ -256,6 +260,7 @@ const DEFAULT_USER_ACTIVITY_CAPABILITIES = Object.freeze([
   "user.activity.own_cancel",
   "user.activity.site_operate",
   "user.activity.delegate_assign",
+  "user.activity.team_create",
 ]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",
@@ -975,39 +980,19 @@ async function getTeamByShareId(teamId) {
   return querySnap.docs[0].data() || {};
 }
 
+// T-090f：非字串直接當查無；"/"、"."／".."、__x__、過長由 resolveTeamSnapshot 以 F1 同一個 normalizeId 擋下。
 async function getTeamDocByTeamId(teamId) {
-  const safeTeamId = String(teamId || "").trim();
+  const safeTeamId = typeof teamId === "string" ? teamId.trim() : "";
   if (!safeTeamId) return null;
-
-  const directRef = db.collection("teams").doc(safeTeamId);
-  const directSnap = await directRef.get();
-  if (directSnap.exists) {
-    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
-  }
-
-  const querySnap = await db.collection("teams")
-    .where("id", "==", safeTeamId)
-    .limit(1)
-    .get();
-  if (querySnap.empty) return null;
-  const doc = querySnap.docs[0];
-  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+  const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError);
+  return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;
 }
 
 async function getTeamDocByTeamIdInTransaction(tx, teamId) {
-  const safeTeamId = String(teamId || "").trim();
+  const safeTeamId = typeof teamId === "string" ? teamId.trim() : "";
   if (!safeTeamId) return null;
-
-  const directRef = db.collection("teams").doc(safeTeamId);
-  const directSnap = await tx.get(directRef);
-  if (directSnap.exists) {
-    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
-  }
-
-  const querySnap = await tx.get(db.collection("teams").where("id", "==", safeTeamId).limit(1));
-  if (querySnap.empty) return null;
-  const doc = querySnap.docs[0];
-  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+  const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError, (ref) => tx.get(ref));
+  return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;
 }
 
 function isRoleAdminOrAbove(role) {
@@ -2271,6 +2256,9 @@ exports.createFriendlyTournament = onCall(
     const teamDoc = hostTeamId ? await getTeamDocByTeamId(hostTeamId) : null;
     if (hostTeamId && !teamDoc) {
       throw new HttpsError("not-found", "主辦俱樂部不存在");
+    }
+    if (isUserCreatedTeam(teamDoc?.data)) {
+      throw new HttpsError("permission-denied", "USER_CREATED_TEAM_CANNOT_HOST_TOURNAMENT");
     }
     const isHostTeamOfficer = !!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, callerUid);
     if (hostTeamId && !isAdmin && !isHostTeamOfficer) {
@@ -3896,7 +3884,7 @@ exports.recountTeamMembers = createRecountTeamMembersCallable({
   getCallerAccessContext,
 });
 
-// 剔除俱樂部一般隊員：取代舊站前端直寫被剔者 users 文件（權限＝前端准入 ∧ coach 以上，見 team-member-removal.js）。
+// 剔除俱樂部一般隊員：擁有者本人，或既有隊內幹部且 coach 以上（見 team-member-removal.js）。
 exports.removeTeamMember = createRemoveTeamMemberCallable({
   onCall,
   HttpsError,
@@ -3906,6 +3894,15 @@ exports.removeTeamMember = createRemoveTeamMemberCallable({
   getCallerAccessContext,
   buildOperationLogPayload,
 });
+
+// T-090g：原子入隊審核（見 team-join-review.js）；A 維持直寫，供 B T-090d 接線。
+// 交易成功後由伺服器通知申請者（站內信＋LINE，best-effort）；LINE 走 enqueueLineFromServer。
+exports.reviewTeamJoin = createReviewTeamJoinCallable({
+  onCall, HttpsError, db, FieldValue, isTeamStaffForData, normalizeRole, logger, enqueueLineFromServer,
+});
+
+// T-090i：一般用戶建立俱樂部的唯一寫入路徑（見 user-team-create.js）。
+exports.createUserTeam = createUserTeamCallable({ onCall, HttpsError, db, FieldValue, logger });
 
 // 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
 exports.deleteTeam = createDeleteTeamCallable({
@@ -3921,6 +3918,16 @@ exports.deleteTeam = createDeleteTeamCallable({
   setRoleClaimMerged,
   buildOperationLogPayload,
   defaultNotificationTemplates: DEFAULT_NOTIFICATION_TEMPLATES,
+});
+
+// T-076a: hard-delete only the event parent and atomically retain minimal audit data.
+exports.deleteEvent = createDeleteEventCallable({
+  onCall,
+  HttpsError,
+  db,
+  courseLinkedEventManagedByCourseError,
+  buildOperationLogPayload,
+  logger,
 });
 
 
@@ -4036,36 +4043,12 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
     notificationGuards.logUnknownSource({ callerUid: request.auth.uid, source, category });
 
-    const found = await findUserDocByUidOrLineUserId(uid);
-    if (!found) {
-      return { queued: false, skipped: true, reason: "target_not_found" };
+    // 找收件者、綁定與個人設定、通知開關（與伺服器內部路徑 enqueueLineFromServer 共用，見下方）
+    const recipient = await resolveLineNotificationRecipient({ uid, category, source });
+    if (recipient.skipped) {
+      return { queued: false, skipped: true, reason: recipient.skipped };
     }
-
-    const lineNotify = (found.data && typeof found.data.lineNotify === "object")
-      ? found.data.lineNotify
-      : {};
-    const settings = {
-      activity: true,
-      system: true,
-      tournament: false,
-      ...((lineNotify.settings && typeof lineNotify.settings === "object")
-        ? lineNotify.settings
-        : {}),
-    };
-    const settingsKey = getLineNotificationSettingsKey(category);
-    if (!lineNotify.bound) {
-      return { queued: false, skipped: true, reason: "not_bound" };
-    }
-    if (!settings[settingsKey]) {
-      return { queued: false, skipped: true, reason: "category_disabled" };
-    }
-
-    const notificationToggles = await getNotificationTogglesWithFallback(source);
-    if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
-      return { queued: false, skipped: true, reason: "notification_toggle_disabled" };
-    }
-
-    const targetUid = getLineRecipientUidFromUserDoc(found, uid);
+    const { found, targetUid } = recipient;
     // 防護：呼叫者與收件者的關係檢查（deny 不入列、不扣每日額度與全域池；強制與否只由伺服器常數決定）
     const relation = await notificationRelation.check({
       kind: "enqueue",
@@ -4076,6 +4059,7 @@ exports.enqueuePrivilegedLineNotification = onCall(
       recipientUid: uid,
       recipientFound: found,
     });
+    if (relation.outcome === "skip") return { queued: false, skipped: true, reason: "notification_skipped" };
     if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
     // 池別只由伺服器決定，不讀 request.data.pool
     const pool = selectEnqueuePool({
@@ -4084,40 +4068,127 @@ exports.enqueuePrivilegedLineNotification = onCall(
       limits: NOTIFICATION_GUARD_LIMITS,
       mode: relationMode("R1"),
     });
-    const queuePayload = {
-      uid: targetUid,
-      targetDocId: found.docId,
+    const queueId = await queueLineNotificationForRecipient({
+      found,
+      targetUid,
       title,
       body,
       category,
-      status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
       source,
+      dedupeKey,
       requestedByUid: request.auth.uid,
       requestedByRole: callerRole,
       pool,
-    };
-    if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
-
-    // 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）
-    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source, pool });
-    const ref = await db.collection("linePushQueue").add(queuePayload);
-    console.log("[enqueuePrivilegedLineNotification] queued", {
-      queueId: ref.id,
-      source,
-      requestedByUid: maskUid(request.auth.uid),
-      requestedByRole: callerRole,
-      targetUid: maskUid(targetUid),
-      category,
+      logLabel: "[enqueuePrivilegedLineNotification]",
     });
 
     return {
       queued: true,
       skipped: false,
-      queueId: ref.id,
+      queueId,
     };
   }
 );
+
+// T-090g 顧問裁定（方案 A）：自 enqueuePrivilegedLineNotification 等價抽出「找收件者、綁定與個人設定、通知開關」
+// 與「每日上限、入列」，供 Callable 與伺服器內部路徑共用；Callable 的守門順序與回傳不變。
+// 回傳 { skipped: reason } 或 { found, targetUid }。
+async function resolveLineNotificationRecipient({ uid, category, source }) {
+  const found = await findUserDocByUidOrLineUserId(uid);
+  if (!found) return { skipped: "target_not_found" };
+
+  const lineNotify = (found.data && typeof found.data.lineNotify === "object")
+    ? found.data.lineNotify
+    : {};
+  const settings = {
+    activity: true,
+    system: true,
+    tournament: false,
+    ...((lineNotify.settings && typeof lineNotify.settings === "object")
+      ? lineNotify.settings
+      : {}),
+  };
+  const settingsKey = getLineNotificationSettingsKey(category);
+  if (!lineNotify.bound) return { skipped: "not_bound" };
+  if (!settings[settingsKey]) return { skipped: "category_disabled" };
+
+  const notificationToggles = await getNotificationTogglesWithFallback(source);
+  if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
+    return { skipped: "notification_toggle_disabled" };
+  }
+  return { found, targetUid: getLineRecipientUidFromUserDoc(found, uid) };
+}
+
+// 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）後寫入 linePushQueue；回傳 queueId。
+async function queueLineNotificationForRecipient({
+  found, targetUid, title, body, category, source, dedupeKey, requestedByUid, requestedByRole, pool, logLabel,
+}) {
+  const queuePayload = {
+    uid: targetUid,
+    targetDocId: found.docId,
+    title,
+    body,
+    category,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    source,
+    requestedByUid,
+    requestedByRole,
+    pool,
+  };
+  if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
+
+  await notificationGuards.enforceDailyLimits({ callerUid: requestedByUid, callerRole: requestedByRole, targetUid, source, pool });
+  const ref = await db.collection("linePushQueue").add(queuePayload);
+  console.log(`${logLabel} queued`, {
+    queueId: ref.id,
+    source,
+    requestedByUid: maskUid(requestedByUid),
+    requestedByRole,
+    targetUid: maskUid(targetUid),
+    category,
+  });
+  return ref.id;
+}
+
+// 伺服器內部路徑（例如 reviewTeamJoin 交易成功後通知申請者）：收件人由呼叫端在伺服器端核對，
+// 不經 notificationRelation（該守門只在兩個客戶端 Callable 內，request.data 無法觸發本函式）。
+// 綁定、個人設定、通知開關與每日上限照常；requestedByUid／requestedByRole 為觸發通知的使用者，
+// 每日上限與客戶端路徑相同以其身分計入，pool 依其角色決定（同 Callable：非 R1 時 staff／user）。
+async function enqueueLineFromServer({ uid, title, body, category, source, dedupeKey, requestedByUid, requestedByRole }) {
+  const safeUid = normalizeLineNotificationText(uid, 128);
+  const safeTitle = normalizeLineNotificationText(notificationGuards.stripControlChars(title), 200);
+  const safeBody = normalizeLineNotificationText(notificationGuards.stripControlChars(body), 2000);
+  const safeCategory = normalizeLineNotificationCategory(category);
+  const safeSource = normalizeLineNotificationText(source, 120);
+  const safeDedupeKey = normalizeLineNotificationText(dedupeKey, 160);
+  if (!safeUid || !safeTitle || !safeBody || !safeCategory || !notificationGuards.isValidSourceFormat(safeSource)
+    || typeof requestedByUid !== "string" || !requestedByUid) {
+    throw new Error("INVALID_SERVER_LINE_NOTIFICATION");
+  }
+  const recipient = await resolveLineNotificationRecipient({ uid: safeUid, category: safeCategory, source: safeSource });
+  if (recipient.skipped) return { queued: false, skipped: true, reason: recipient.skipped };
+  const pool = selectEnqueuePool({
+    staff: notificationGuards.isStaffRole(requestedByRole),
+    relationId: null,
+    limits: NOTIFICATION_GUARD_LIMITS,
+    mode: relationMode("R1"),
+  });
+  const queueId = await queueLineNotificationForRecipient({
+    found: recipient.found,
+    targetUid: recipient.targetUid,
+    title: safeTitle,
+    body: safeBody,
+    category: safeCategory,
+    source: safeSource,
+    dedupeKey: safeDedupeKey,
+    requestedByUid,
+    requestedByRole,
+    pool,
+    logLabel: "[enqueueLineFromServer]",
+  });
+  return { queued: true, skipped: false, queueId };
+}
 
 /**
  * processLinePushQueue
@@ -4556,6 +4627,7 @@ function buildCourseLessonSessionEventLinkPatch({ eventId, courseLinkId, teamId,
 }
 
 function hasEduCourseStaffAccess(teamData, callerUid, access) {
+  if (isUserCreatedTeam(teamData)) return false;
   return isTeamStaffForData(teamData, callerUid)
     || access.isSuperAdmin
     || access.hasPermission("team.manage_all");
@@ -14886,7 +14958,9 @@ exports.adjustTeamReservation = onCall(
       const teamInfo = await getTeamDocByTeamIdInTransaction(transaction, safeTeamId);
       if (!teamInfo) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
       const isAdmin = isRoleAdminOrAbove(callerRole);
-      if (!isAdmin && !isTeamStaffForData(teamInfo.data, callerUid)) {
+      if (!isAdmin && (!isTeamStaffForData(teamInfo.data, callerUid)
+        || (isUserCreatedTeam(teamInfo.data)
+          && !isEventOwnerForUid(ed, callerUid) && !isEventDelegateForUid(ed, callerUid)))) {
         throw new HttpsError("permission-denied", "PERMISSION_DENIED");
       }
       const teamName = String(teamInfo.data?.name || teamInfo.data?.teamName || safeTeamId).trim();
@@ -15693,8 +15767,8 @@ exports.eduCheckin = onCall(
     const { teamId, records } = request.data || {};
 
     // 2. 參數驗證
-    if (typeof teamId !== "string" || !teamId.trim()) {
-      throw new HttpsError("invalid-argument", "teamId 為必填");
+    if (!normalizeTeamId(teamId) || normalizeTeamId(teamId) !== teamId) {
+      throw new HttpsError("invalid-argument", "teamId 必須為有效的單一文件 ID");
     }
     if (!Array.isArray(records) || records.length === 0) {
       throw new HttpsError("invalid-argument", "records 必須為非空陣列");
@@ -15704,12 +15778,12 @@ exports.eduCheckin = onCall(
     }
 
     // 3. 驗證呼叫者是否為該俱樂部幹部
-    //    前端傳入的 teamId 是資料的 id 欄位（自訂 ID），非 Firestore 文件 ID
-    const teamSnap = await db.collection("teams").where("id", "==", teamId).limit(1).get();
-    if (teamSnap.empty) {
+    //    F1：文件 id 優先；查無時只接受唯一的舊 id 欄位，重複命中拒絕。
+    const teamSnap = await resolveTeamSnapshot(db, teamId, HttpsError);
+    if (!teamSnap) {
       throw new HttpsError("not-found", "俱樂部不存在");
     }
-    const team = teamSnap.docs[0].data();
+    const team = teamSnap.data();
 
     const isStaff =
       team.captainUid === callerUid ||
@@ -15823,6 +15897,9 @@ const DELIVER_INBOX_SAFE_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
 const DELIVER_INBOX_TEAM_JOIN_GROUP_RE = /^tjr_\d{10,16}_[a-z0-9]{1,8}$/;
 const DELIVER_INBOX_TOURNAMENT_REG_GROUP_RE = /^trg_\d{10,16}_[a-z0-9]{1,8}$/;
 const DELIVER_INBOX_REVIEW_GROUP_PREFIX_RE = /^(tjr|trg|tfa)_/i;
+// 保留 id：reviewTeamJoin 伺服器端審核結果通知 msg_<groupId>_review（team-join-review.js buildReviewNoticeMessageId）。
+// 客戶端不得使用，否則可先種同 id 假訊息讓真通知被當重複、或用廣播 set 覆寫（終驗 P3）。
+const DELIVER_INBOX_RESERVED_ID_RE = /^msg_tjr_[A-Za-z0-9_-]*_review$/i;
 
 async function getDeliverInboxTournament(tournamentId) {
   const directSnap = await db.collection("tournaments").doc(tournamentId).get();
@@ -15882,6 +15959,7 @@ async function sanitizeDeliverToInboxMessage(request, message, { targetUid, isBr
   };
 
   requireSafeId(message.id, "INVALID_MESSAGE_ID");
+  if (DELIVER_INBOX_RESERVED_ID_RE.test(message.id)) invalid("RESERVED_MESSAGE_ID");
   if (!isBroadcast) requireSafeId(targetUid, "INVALID_TARGET_UID");
 
   if (actionType === undefined || actionType === null || actionType === "") {
@@ -16109,6 +16187,10 @@ exports.deliverToInbox = onCall(
     const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
     await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "minute" });
 
+    // T-090f 顧問改裁：站內信缺 source（或格式不合）一律視為 client:unknown 走既有路徑，不略過
+    // （取代原「缺 source 一律成功略過」：A message-notify 與 FC-B inbox-delivery 現行請求都不帶 source）。
+    const relationSource = notificationGuards.logSafeSource(message.source) || "client:unknown";
+
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
 
@@ -16158,9 +16240,8 @@ exports.deliverToInbox = onCall(
       ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
       : null;
 
-    // 防護：帶 source 且無 actionType 的訊息才做關係檢查（deny 不寫任何 inbox、不扣每日額度）；每日上限排在檢查之後
-    const relationSource = notificationGuards.logSafeSource(message.source);
-    if (relationSource && !sanitized.actionType) {
+    // 防護：未分類訊息一律做關係檢查（缺 source 以 client:unknown 判）；每日額度排在檢查之後。
+    if (!sanitized.actionType) {
       const relation = await notificationRelation.check({
         kind: "inbox",
         callerUid,
@@ -16170,6 +16251,7 @@ exports.deliverToInbox = onCall(
         recipientUid: targetUid,
         extra: { targetType, targetTeamId, targetRoles },
       });
+      if (relation.outcome === "skip") return { success: true, delivered: 0, skipped: true };
       if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
     }
     await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "day" });
@@ -16334,15 +16416,17 @@ async function assertCallerCanReviewGroupActionDocs(request, docs, groupId) {
       if (!SAFE_ID_RE.test(teamId)) {
         deny("TEAM_ID_MISSING", actionType);
       }
+      const teamDoc = await getTeamDocCached(teamId);
+      if (!teamDoc) {
+        deny("TEAM_NOT_FOUND", actionType);
+      }
+      // OWNER_FIELDS 僅以 resolver 解出的本隊文件，嚴格比對原始 auth.uid。
+      if (isUserCreatedTeamOwner(teamDoc.data, request.auth.uid)) continue;
       const accessCtx = await getAccess();
       const hasPerm = accessCtx.hasPermission("team.review_join")
         || accessCtx.hasPermission("team.manage.entry");
       if (!hasPerm) {
         deny("TEAM_REVIEW_PERMISSION_REQUIRED", actionType);
-      }
-      const teamDoc = await getTeamDocCached(teamId);
-      if (!teamDoc) {
-        deny("TEAM_NOT_FOUND", actionType);
       }
       const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
         || isRoleAdminOrAbove(accessCtx.role);
