@@ -236,7 +236,74 @@ describe('錯誤邊界', () => {
     expect(thrown).toBeInstanceOf(HttpsError);
     expect(thrown.code).toBe('internal');
     expect(thrown.message).toBe('INTERNAL');
-    expect(log.error).toHaveBeenCalledWith('[registrationCallable] failed', { function: 'registerForEvent', code: '10', errorType: 'Error' });
+    expect(log.error).toHaveBeenCalledWith('[registrationCallable] failed', {
+      function: 'registerForEvent', stage: 'register', code: '10', firestoreCode: 'ABORTED', errorType: 'Error', hint: 'OTHER',
+    });
     expect(JSON.stringify(log.error.mock.calls)).not.toContain('leak');
+  });
+
+  test('log 區分 register／cancel、記 Firestore 錯誤代碼；undefined 欄位只記遮罩後的欄位路徑，不含 UID、requestId、teamId、文件路徑', async () => {
+    // 修正前：log 只有 function／code／errorType，沒有 stage、firestoreCode、hint、field。
+    const requestId = 'req-secret-7788';
+    const teamId = 'tm_secret_team_42';
+    const realSdkMessage = `Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value `
+      + `(found in field "result.cancelled.\`0\`.id"). If you want to ignore undefined values, enable \`ignoreUndefinedProperties\`. `
+      + `path _regDedupe/cancel_${UID}_${requestId} team ${teamId}`;
+    const log = logger();
+    const handler = guards.withRegistrationErrorBoundary({ fn: 'cancelRegistration', HttpsError, logger: log }, async () => {
+      throw new Error(realSdkMessage);
+    });
+    await expect(handler({ auth: { uid: UID }, data: { requestId, teamId } })).rejects.toMatchObject({ code: 'internal', message: 'INTERNAL' });
+    expect(log.error.mock.calls[0][1]).toEqual({
+      function: 'cancelRegistration', stage: 'cancel', code: 'unknown', firestoreCode: 'none',
+      errorType: 'Error', hint: 'UNDEFINED_VALUE', field: 'result.cancelled.0.id',
+    });
+
+    // 欄位路徑段若是 map key（例如 UID、teamId）一律遮罩
+    const log2 = logger();
+    const handler2 = guards.withRegistrationErrorBoundary({ fn: 'registerForEvent', HttpsError, logger: log2 }, async () => {
+      const error = new Error(`Cannot use "undefined" as a Firestore value (found in field "teams.${teamId}.${UID}.name")`);
+      error.code = 3;
+      throw error;
+    });
+    await expect(handler2({ auth: { uid: UID }, data: { requestId, teamId } })).rejects.toMatchObject({ code: 'internal' });
+    expect(log2.error.mock.calls[0][1]).toMatchObject({ stage: 'register', code: '3', firestoreCode: 'INVALID_ARGUMENT', field: 'teams.<key>.<key>.name' });
+
+    const logged = JSON.stringify([...log.error.mock.calls, ...log2.error.mock.calls]);
+    [UID, requestId, teamId, '_regDedupe/', 'secret'].forEach((needle) => expect(logged).not.toContain(needle));
+  });
+});
+
+describe('去重文件不含 undefined（T-087 審查 P1）', () => {
+  test('取消結果每個元素的缺欄位存 null；原陣列不被改動', () => {
+    const cancelled = [{ id: undefined, docId: 'r1', userId: UID, courseLinked: false }];
+    const promoted = [{ id: 'reg_2', docId: 'r2', userId: OTHER, userName: undefined, courseLinked: false }];
+    const picked = guards.pickCancelDedupeResult({ cancelled, alreadyCancelled: [{ docId: 'r3', id: undefined }], promoted });
+    expect(picked).toStrictEqual({
+      cancelled: [{ id: null, docId: 'r1', userId: UID, courseLinked: false }],
+      alreadyCancelled: [{ docId: 'r3', id: null }],
+      promoted: [{ id: 'reg_2', docId: 'r2', userId: OTHER, userName: null, courseLinked: false }],
+    });
+    expect(cancelled[0]).toHaveProperty('id', undefined);
+  });
+
+  test('報名結果每個欄位（含巢狀 identitySnapshot 與陣列）缺值存 null，Timestamp 類物件原樣保留', () => {
+    class Ts { constructor(ms) { this.ms = ms; } }
+    const ts = new Ts(5);
+    const picked = guards.pickRegisterDedupeResult({
+      registrations: [{
+        id: 'reg_1', docId: undefined, status: 'confirmed', userId: UID, participantType: undefined,
+        identitySnapshot: { identityId: 'main', displayName: undefined, tags: [undefined, 'a'] },
+        at: ts,
+      }],
+      confirmed: 1,
+    });
+    expect(picked.registrations).toStrictEqual([{
+      id: 'reg_1', docId: null, status: 'confirmed', userId: UID, participantType: null,
+      identitySnapshot: { identityId: 'main', displayName: null, tags: [null, 'a'] },
+      at: ts,
+    }]);
+    expect(picked.registrations[0].at).toBe(ts);
+    expect(JSON.stringify(picked)).not.toContain('undefined');
   });
 });

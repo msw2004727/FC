@@ -9,6 +9,7 @@
  *  - transaction：讀必須在寫之前；commit 時以樂觀並發檢查「本次讀過的文件版本與查詢結果」，
  *    有變動就丟 ABORTED（code 10）並重跑 callback（最多 5 次，與 SDK 預設相同）；
  *    create 撞到既有文件丟 ALREADY_EXISTS（code 6）。
+ *  - 寫入值含 undefined 時在 create／set／update／add 呼叫當下就丟錯（同真實 SDK 未設 ignoreUndefinedProperties）。
  *  - FieldValue.serverTimestamp／increment／delete／arrayUnion／arrayRemove；Timestamp.now／fromDate。
  * 限制：查詢沒有索引概念、不支援 orderBy 排序（回傳依文件 id）；collectionGroup 不支援。
  */
@@ -65,6 +66,23 @@ function clone(value) {
     return out;
   }
   return value;
+}
+
+// 同真實 SDK（未設 ignoreUndefinedProperties）：呼叫 create／set／update／add 當下就檢查 undefined 並同步丟錯，
+// 而不是等到 commit；陣列元素與巢狀物件也查。
+function assertNoUndefined(value, fieldPath = "") {
+  if (value === undefined) {
+    throw new Error(`Cannot use "undefined" as a Firestore value (found in field "${fieldPath}")`);
+  }
+  if (value === null || value instanceof FakeTimestamp || value instanceof Sentinel) return;
+  if (Object.prototype.toString.call(value) === "[object Date]") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, idx) => assertNoUndefined(item, `${fieldPath}.\`${idx}\``));
+    return;
+  }
+  if (typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) assertNoUndefined(item, fieldPath ? `${fieldPath}.${key}` : key);
+  }
 }
 
 function applyFieldValue(previous, next) {
@@ -202,9 +220,9 @@ function createFakeFirestore(seed = {}) {
         state.reads.direct += 1;
         return snapshot(p);
       },
-      set: async (data, options) => applyOps([{ op: "set", path: p, data, merge: !!options?.merge }], "direct"),
-      update: async (data) => applyOps([{ op: "update", path: p, data }], "direct"),
-      create: async (data) => applyOps([{ op: "create", path: p, data }], "direct"),
+      set: async (data, options) => { assertNoUndefined(data); return applyOps([{ op: "set", path: p, data, merge: !!options?.merge }], "direct"); },
+      update: async (data) => { assertNoUndefined(data); return applyOps([{ op: "update", path: p, data }], "direct"); },
+      create: async (data) => { assertNoUndefined(data); return applyOps([{ op: "create", path: p, data }], "direct"); },
       delete: async () => applyOps([{ op: "delete", path: p }], "direct"),
       collection: (name) => collectionRef(`${p}/${name}`),
     };
@@ -217,6 +235,7 @@ function createFakeFirestore(seed = {}) {
       id: p.split("/").pop(),
       doc: (id) => docRef(`${p}/${id || nextId()}`),
       add: async (data) => {
+        assertNoUndefined(data);
         const ref = docRef(`${p}/${nextId()}`);
         applyOps([{ op: "create", path: ref.path, data }], "direct");
         return ref;
@@ -226,9 +245,9 @@ function createFakeFirestore(seed = {}) {
 
   function writer(ops, onWrite) {
     return {
-      update(ref, data) { onWrite(); ops.push({ op: "update", path: ref.path, data }); return this; },
-      set(ref, data, options) { onWrite(); ops.push({ op: "set", path: ref.path, data, merge: !!options?.merge }); return this; },
-      create(ref, data) { onWrite(); ops.push({ op: "create", path: ref.path, data }); return this; },
+      update(ref, data) { assertNoUndefined(data); onWrite(); ops.push({ op: "update", path: ref.path, data }); return this; },
+      set(ref, data, options) { assertNoUndefined(data); onWrite(); ops.push({ op: "set", path: ref.path, data, merge: !!options?.merge }); return this; },
+      create(ref, data) { assertNoUndefined(data); onWrite(); ops.push({ op: "create", path: ref.path, data }); return this; },
       delete(ref) { onWrite(); ops.push({ op: "delete", path: ref.path }); return this; },
     };
   }

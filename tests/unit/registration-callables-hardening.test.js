@@ -395,6 +395,81 @@ describe('cancelRegistration 交易內去重', () => {
   });
 });
 
+describe('cancelRegistration 去重文件遇到舊格式報名（缺欄位）', () => {
+  // 修正前：去重精簡結果直接存報名原始欄位，缺 id／userName 時 transaction.create 丟
+  // Cannot use "undefined"，整個取消交易回滾成 internal／INTERNAL（取消與遞補都卡死）。
+  // 假 DB 在 create 呼叫當下檢查 undefined（同真實 SDK），所以修正前這幾個案例會失敗。
+  function legacyReg(data) {
+    const { id, ...rest } = reg('legacy', data);
+    return rest; // 舊報名沒有 id 欄位
+  }
+
+  function seedLegacy() {
+    return setup({
+      [`events/${EVENT_ID}`]: event({ max: 1 }),
+      [`events/${EVENT_ID}/registrations/r1`]: legacyReg({ userId: U_SELF, userName: 'self', status: 'confirmed', registeredAt: new FakeTimestamp(1000) }),
+      // 候補沒有 userName
+      [`events/${EVENT_ID}/registrations/r2`]: reg('r2', { userId: U_OTHER, status: 'waitlisted', registeredAt: new FakeTimestamp(2000) }),
+    });
+  }
+
+  test('舊報名沒有 id、本人用 docId 取消且帶 requestId → 成功；重送拿到一致的精簡結果（缺欄位為 null）', async () => {
+    seedLegacy();
+    const first = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-1' });
+    expect(first.cancelled).toEqual([{ id: undefined, docId: 'r1', userId: U_SELF, courseLinked: false }]);
+    expect(fake.get(`events/${EVENT_ID}/registrations/r1`).status).toBe('cancelled');
+    expect(dedupeDocs()).toEqual([`cancel_${U_SELF}_legacy-1`]);
+    const stored = fake.get(`_regDedupe/cancel_${U_SELF}_legacy-1`).result;
+    expect(stored.cancelled).toEqual([{ id: null, docId: 'r1', userId: U_SELF, courseLinked: false }]);
+
+    const writesBefore = fake.state.writes.length;
+    const replay = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-1' });
+    expect(replay).toEqual({ success: true, deduplicated: true, ...stored });
+    expect(fake.state.writes.length).toBe(writesBefore);
+  });
+
+  test('正取取消後要遞補的候補沒有 userName → 成功遞補；重送一致（userName 為 null）', async () => {
+    seedLegacy();
+    const first = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-2' });
+    expect(first.promoted.map((r) => r.docId)).toEqual(['r2']);
+    expect(first.promoted[0].userName).toBeUndefined();
+    expect(fake.get(`events/${EVENT_ID}/registrations/r2`).status).toBe('confirmed');
+    const stored = fake.get(`_regDedupe/cancel_${U_SELF}_legacy-2`).result;
+    expect(stored.promoted).toEqual([{ id: 'reg_r2', docId: 'r2', userId: U_OTHER, userName: null, courseLinked: false }]);
+
+    const replay = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-2' });
+    expect(replay).toEqual({ success: true, deduplicated: true, ...stored });
+  });
+
+  test('管理員帶 requestId 移除（manager_remove）舊格式報名 → 成功並遞補；重送一致', async () => {
+    seedLegacy();
+    const first = await cancel(U_ADMIN, { eventId: EVENT_ID, registrationIds: ['r1'], reason: 'manager_remove', requestId: 'legacy-3' });
+    expect(first.cancelled.map((r) => r.docId)).toEqual(['r1']);
+    expect(first.promoted.map((r) => r.docId)).toEqual(['r2']);
+    expect(fake.get(`events/${EVENT_ID}/registrations/r1`).status).toBe('removed');
+    const stored = fake.get(`_regDedupe/cancel_${U_ADMIN}_legacy-3`).result;
+    expect(stored.cancelled[0].id).toBeNull();
+    expect(stored.promoted[0].userName).toBeNull();
+
+    const writesBefore = fake.state.writes.length;
+    const replay = await cancel(U_ADMIN, { eventId: EVENT_ID, registrationIds: ['r1'], reason: 'manager_remove', requestId: 'legacy-3' });
+    expect(replay).toEqual({ success: true, deduplicated: true, ...stored });
+    expect(fake.state.writes.length).toBe(writesBefore);
+  });
+
+  test('全部已取消（alreadyCancelled 路徑）的舊報名沒有 id、帶 requestId → 成功；重送一致', async () => {
+    seedLegacy();
+    fake.put(`events/${EVENT_ID}/registrations/r1`, { ...fake.get(`events/${EVENT_ID}/registrations/r1`), status: 'cancelled' });
+    const first = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-4' });
+    expect(first.alreadyCancelled.map((r) => r.docId)).toEqual(['r1']);
+    const stored = fake.get(`_regDedupe/cancel_${U_SELF}_legacy-4`).result;
+    expect(stored.alreadyCancelled).toEqual([{ id: null, docId: 'r1', userId: U_SELF, courseLinked: false }]);
+
+    const replay = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ['r1'], requestId: 'legacy-4' });
+    expect(replay).toEqual({ success: true, deduplicated: true, ...stored });
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 //  黑名單（R-EVT-011／013／014）
 // ═══════════════════════════════════════════════════════════════

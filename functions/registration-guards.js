@@ -80,10 +80,27 @@ function buildRegistrationDedupeDoc({ fn, callerUid, eventId, result, nowMs, Fie
   };
 }
 
-// 只存精簡結果，不存活動名單投影（event）。
+// 去重文件專用：把陣列與純物件裡的 undefined 遞迴換成 null。
+// 專案未設 ignoreUndefinedProperties，舊格式報名缺 id、候補缺 userName 時 transaction.create 會丟錯、整個交易回滾。
+// 取代原本直接存報名原始欄位（T-087 審查 P1）。Timestamp、Date 等非純物件原樣保留。
+function toFirestoreSafe(value) {
+  if (value === undefined) return null;
+  if (Array.isArray(value)) return value.map(toFirestoreSafe);
+  if (value && typeof value === "object") {
+    // 純物件＝原型是 null 或 Object.prototype（以「原型的原型是 null」判斷，跨 realm 也成立）
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== null && Object.getPrototypeOf(proto) !== null) return value;
+    const out = {};
+    for (const [key, item] of Object.entries(value)) out[key] = toFirestoreSafe(item);
+    return out;
+  }
+  return value;
+}
+
+// 只存精簡結果，不存活動名單投影（event）；每個元素都經 toFirestoreSafe（缺欄位存 null）。
 function pickRegisterDedupeResult(txResult = {}) {
   return {
-    registrations: Array.isArray(txResult.registrations) ? txResult.registrations : [],
+    registrations: Array.isArray(txResult.registrations) ? txResult.registrations.map(toFirestoreSafe) : [],
     confirmed: Number(txResult.confirmed || 0) || 0,
     waitlisted: Number(txResult.waitlisted || 0) || 0,
     earlyBirdCharged: txResult.earlyBirdCharged === true,
@@ -93,9 +110,9 @@ function pickRegisterDedupeResult(txResult = {}) {
 
 function pickCancelDedupeResult(txResult = {}) {
   return {
-    cancelled: Array.isArray(txResult.cancelled) ? txResult.cancelled : [],
-    alreadyCancelled: Array.isArray(txResult.alreadyCancelled) ? txResult.alreadyCancelled : [],
-    promoted: Array.isArray(txResult.promoted) ? txResult.promoted : [],
+    cancelled: Array.isArray(txResult.cancelled) ? txResult.cancelled.map(toFirestoreSafe) : [],
+    alreadyCancelled: Array.isArray(txResult.alreadyCancelled) ? txResult.alreadyCancelled.map(toFirestoreSafe) : [],
+    promoted: Array.isArray(txResult.promoted) ? txResult.promoted.map(toFirestoreSafe) : [],
   };
 }
 
@@ -242,16 +259,57 @@ function withRegistrationErrorBoundary({ fn, HttpsError, logger = console }, han
         throw error;
       }
       const rawCode = error?.code;
+      // T-087 審查 P2-2：原本只記 errorType，無法分辨哪支、哪類 Firestore 錯誤；
+      // 加固定 stage、gRPC 狀態名與固定分類（undefined 欄位另記遮罩後的欄位路徑），仍不記原始訊息。
       logger.error("[registrationCallable] failed", {
         function: fn,
+        stage: STAGE_BY_FUNCTION[fn] || "unknown",
         code: typeof rawCode === "number" || (typeof rawCode === "string" && rawCode.length <= 40)
           ? String(rawCode)
           : "unknown",
+        firestoreCode: firestoreCodeOf(rawCode),
         errorType: sanitizeErrorType(error),
+        ...classifyErrorMessage(error?.message),
       });
       throw new HttpsError("internal", REGISTRATION_GUARD_MESSAGES.INTERNAL);
     }
   };
+}
+
+const STAGE_BY_FUNCTION = Object.freeze({ registerForEvent: "register", cancelRegistration: "cancel" });
+
+const GRPC_STATUS_NAMES = Object.freeze([
+  "OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", "DEADLINE_EXCEEDED", "NOT_FOUND", "ALREADY_EXISTS",
+  "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION", "ABORTED", "OUT_OF_RANGE",
+  "UNIMPLEMENTED", "INTERNAL", "UNAVAILABLE", "DATA_LOSS", "UNAUTHENTICATED",
+]);
+
+// 數字 gRPC 狀態（Firestore Admin SDK）→ 名稱；字串代碼只收固定形狀；其他一律 "none"。
+function firestoreCodeOf(rawCode) {
+  if (Number.isInteger(rawCode) && rawCode >= 0 && rawCode < GRPC_STATUS_NAMES.length) return GRPC_STATUS_NAMES[rawCode];
+  if (typeof rawCode === "string" && /^[A-Za-z][A-Za-z_-]{1,39}$/.test(rawCode)) {
+    return rawCode.replace(/-/g, "_").toUpperCase();
+  }
+  return "none";
+}
+
+// 不記原始訊息（可能含文件路徑、UID、requestId、teamId），只回固定分類；
+// undefined 欄位錯誤另回欄位路徑，每段只保留純小寫開頭英文欄位名或陣列索引，其餘換成 <key>。
+function classifyErrorMessage(message) {
+  const text = typeof message === "string" ? message : "";
+  if (/Cannot use "undefined" as a Firestore value/.test(text)) {
+    const match = text.match(/found in field "?([^"\s)]{1,200})"?\)?/);
+    const field = match
+      ? match[1].split(".").slice(0, 8).map((seg) => {
+        const clean = seg.replace(/`/g, "");
+        return /^[a-z][A-Za-z]{0,39}$/.test(clean) || /^\d{1,4}$/.test(clean) ? clean : "<key>";
+      }).join(".")
+      : "";
+    return { hint: "UNDEFINED_VALUE", field };
+  }
+  if (/is not a valid Firestore document|Value for argument/.test(text)) return { hint: "INVALID_DATA" };
+  if (/reads? must|after (a )?write/i.test(text)) return { hint: "READ_AFTER_WRITE" };
+  return { hint: "OTHER" };
 }
 
 function sanitizeErrorType(error) {
