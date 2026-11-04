@@ -1205,26 +1205,21 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       expect(relationWarns(env.consoleImpl)).toHaveLength(0);
     });
 
-    test.each([undefined, null, '', '   ', 7, {}])('缺／無效 source %j：成功略過，不寫 inbox 或每日額度', async (source) => {
+    // 2026-11-04 顧問改裁取代原「缺 source 一律略過」：A／FC-B 現行站內信都不帶 source，視為 client:unknown 照常投遞。
+    test.each([undefined, null, '', '   ', 7, {}])('缺／無效 source %j：視為 client:unknown 照常投遞', async (source) => {
       const env = load({ users: baseUsers() });
       await expect(env.call({ message: msg({ source }), targetUid: TARGET, source: 'team_role_assignment:coach' }))
-        .resolves.toEqual({ success: true, delivered: 0, skipped: true });
-      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(0);
-      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
-      expect(dayInboxPaths(env.db)).toHaveLength(0);
-      expect(minuteInboxPaths(env.db)).toHaveLength(1);
+        .resolves.toEqual({ success: true, delivered: 1 });
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(1);
     });
 
-    test('source 格式不合格（logSafeSource 為 null）視同沒有 source', async () => {
+    test('source 格式不合格（logSafeSource 為 null）視同沒有 source，照常投遞', async () => {
       const env = load({ users: baseUsers() });
       await expect(env.call({ message: msg({ source: 'bad source!' }), targetUid: TARGET })).resolves.toEqual({
         success: true,
-        delivered: 0,
-        skipped: true,
+        delivered: 1,
       });
-      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(0);
-      expect(dayInboxPaths(env.db)).toHaveLength(0);
-      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(1);
     });
 
     test.each([undefined, 'template:welcome'])('有 actionType 的審核類訊息走原授權，source %j 不套一般關係檢查', async (source) => {
