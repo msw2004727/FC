@@ -25,13 +25,7 @@ function maskId(value) {
   return id.length <= 8 ? `${id.slice(0, 2)}***` : `${id.slice(0, 4)}...${id.slice(-3)}`;
 }
 
-// 以「文件 id」解析 team（審查 P3-1，FC 顧問裁示）：成員歸屬、隊名讀取、「目前在該隊」判斷一律以 team 文件的 ref／文件 id 為準，
-// 不使用 team 文件的 id 欄位——owner 可以改寫自己隊伍文件的 id 欄位（firestore.rules teams update 不限欄位），
-// 若用它比對就能把別隊的邏輯 id 當成自己的，讓 deleteTeam／removeTeamMember 去動別隊成員。
-//  - 以文件 id 命中、但 id 欄位存在且不等於文件 id → TEAM_ID_MISMATCH（不處理）。
-//  - 文件 id 查無、但另有文件的 id 欄位等於輸入（舊資料：文件 id ≠ id 欄位）→ 同樣 TEAM_ID_MISMATCH：
-//    users.teamIds 存的是邏輯 id，以文件 id 為準就清不到那些成員，與其誤報「查無」，不如明確拒絕（這類舊資料不在本 Callable 支援範圍）。
-// team-member-count.js 的 resolveTeamDoc（會退回 where('id','==',…)）沒有 export，這裡不照抄那個退回。
+// 保留舊的一致性檢查 export；刪隊／剔除改由 resolver 與安全別名檢查處理舊格式。
 function assertTeamDocIdConsistent(teamSnap, HttpsError) {
   const fieldId = teamSnap.data()?.id;
   if (fieldId !== undefined && fieldId !== null && fieldId !== "" && String(fieldId) !== teamSnap.id) {
@@ -39,17 +33,33 @@ function assertTeamDocIdConsistent(teamSnap, HttpsError) {
   }
 }
 
+// 文件 id 優先；查無時才接受唯一的舊邏輯 id，避免任選同名文件。
 async function resolveTeamSnapshot(db, teamId, HttpsError) {
   const direct = await db.collection("teams").doc(teamId).get();
   if (direct && direct.exists) {
-    assertTeamDocIdConsistent(direct, HttpsError);
     return direct;
   }
-  const legacy = await db.collection("teams").where("id", "==", teamId).limit(1).get();
-  if (Array.isArray(legacy?.docs) && legacy.docs.length > 0) {
-    throw new HttpsError("failed-precondition", "TEAM_ID_MISMATCH");
+  const legacy = await db.collection("teams").where("id", "==", teamId).limit(2).get();
+  if (legacy.docs.length > 1) {
+    throw new HttpsError("failed-precondition", "TEAM_ID_AMBIGUOUS");
   }
-  return null;
+  return legacy.docs[0] || null;
+}
+
+// owner 可改寫 id 欄位；只有沒有其他隊伍占用的舊 id 才能用於清理成員。
+// readSnapshot 可傳 tx.get，讓剔除的別名檢查與 users 更新處於同一交易。
+async function resolveMembershipTeamIds(db, teamSnap, readSnapshot = (ref) => ref.get()) {
+  const ids = [teamSnap.id];
+  const fieldId = teamSnap.data()?.id;
+  // 不把不合法或帶空白的欄位轉成另一個有效 id，避免擴大清理範圍。
+  if (!fieldId || normalizeId(fieldId) !== fieldId || fieldId === teamSnap.id) return ids;
+  const teams = db.collection("teams");
+  const direct = await readSnapshot(teams.doc(fieldId));
+  if (direct.exists) return ids;
+  const aliases = await readSnapshot(teams.where("id", "==", fieldId).limit(2));
+  if (aliases.docs.some((doc) => doc.id !== teamSnap.id)) return ids;
+  ids.push(fieldId);
+  return ids;
 }
 
 // Firestore 衝突類錯誤（gRPC 數字碼、字串碼或訊息皆可能出現）。
@@ -145,20 +155,24 @@ async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
   // 成員歸屬以文件 id 為準（見 resolveTeamSnapshot）；覆寫 id 欄位，countTeamMembers 才不會用被竄改的值比對。
   const teamData = { ...(teamSnap.data() || {}), id: teamRef.id };
   const teamDocId = teamRef.id;
+  const membershipTeamIds = await resolveMembershipTeamIds(db, teamSnap);
 
-  const [byTeamIds, byTeamId, studentsSnap] = await Promise.all([
-    db.collection("users").where("teamIds", "array-contains", teamDocId).get(),
-    db.collection("users").where("teamId", "==", teamDocId).get(),
+  const [userSnapshots, studentsSnap] = await Promise.all([
+    Promise.all(membershipTeamIds.flatMap((id) => [
+      db.collection("users").where("teamIds", "array-contains", id).get(),
+      db.collection("users").where("teamId", "==", id).get(),
+    ])),
     teamRef.collection("students").get(),
   ]);
   const userByDocId = new Map();
   const collectUser = (doc) => {
     if (!doc || doc.exists === false) return;
     const data = doc.data() || {};
-    userByDocId.set(doc.id, { ...data, _docId: doc.id, uid: data.uid || doc.id });
+    // 只在計數副本中把安全別名對齊文件 id，保留 countTeamMembers 的文件 id 比對語意。
+    const teamIds = getUserTeamIds(data).map((id) => membershipTeamIds.includes(id) ? teamDocId : id);
+    userByDocId.set(doc.id, { ...data, teamIds, _docId: doc.id, uid: data.uid || doc.id });
   };
-  (byTeamIds?.docs || []).forEach(collectUser);
-  (byTeamId?.docs || []).forEach(collectUser);
+  userSnapshots.forEach((snapshot) => (snapshot?.docs || []).forEach(collectUser));
 
   const known = new Set();
   userByDocId.forEach((user) => {
@@ -193,5 +207,6 @@ module.exports = {
   readAllDocs,
   readTeamNames,
   recountAndWriteTeamMembers,
+  resolveMembershipTeamIds,
   resolveTeamSnapshot,
 };
