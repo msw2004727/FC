@@ -15,6 +15,7 @@ const QUERY_NAMES = [
   "callerMayAssignTeamRole", "recipientMatchesAssignment", "callerHasBroadcastPermission",
   "recipientRoleIsAdmin", "callerMatchesTournamentSource", "recipientInTournamentAudience",
   "callerBroadcastPermissionGap", "recipientMayReceiveTeamAssignment", "teamScopedDeliveryAllowed",
+  "teamIsNotUserCreated",
 ];
 
 // 預設：除了 gap 以外全部成立；overrides 以 true／false／Error 指定。
@@ -365,12 +366,47 @@ describe("decideRelation R5", () => {
     expect(result).toMatchObject({ outcome: "deny", gate: "relation_denied" });
   });
 
-  test("R5 呼叫者不是幹部：兩種 mode 都 deny（不是欄位不合）；查詢丟錯 deny", async () => {
-    for (const inject of [{}, { modeOf: enforceAll }]) {
-      const result = await decide(SOURCES[0], keys, makeQueries({ callerMayAssignTeamRole: false }), { inject });
+  // 測試同步更新（T-090b 審查 P1，取代「R5 呼叫者不是幹部：兩種 mode 都 deny」）：
+  // log 模式下非自建俱樂部改 record（與 field_mismatch 一致）；自建俱樂部、enforce、查詢缺失仍 deny。
+  test("R5 呼叫者不是幹部：enforce 一律 deny；log 自建俱樂部 deny、非自建 record（callerNotAllowed）；查詢丟錯 deny", async () => {
+    for (const legacy of [true, false]) {
+      const result = await decide(SOURCES[0], keys,
+        makeQueries({ callerMayAssignTeamRole: false, teamIsNotUserCreated: legacy }), { inject: { modeOf: enforceAll } });
       expect(result).toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
     }
+    const enforced = makeQueries({ callerMayAssignTeamRole: false });
+    await decide(SOURCES[0], keys, enforced, { inject: { modeOf: enforceAll } });
+    expect(enforced.teamIsNotUserCreated).not.toHaveBeenCalled();
+    for (const source of SOURCES) {
+      const own = makeQueries({ callerMayAssignTeamRole: false, teamIsNotUserCreated: false });
+      expect(await decide(source, keys, own)).toMatchObject({ outcome: "deny", gate: "relation_denied", reason: "caller_not_allowed" });
+      const legacy = makeQueries({ callerMayAssignTeamRole: false });
+      const result = await decide(source, keys, legacy);
+      expect(result).toMatchObject({ outcome: "record", relationId: "R5", gate: "relation_missing_key", reason: "caller_not_allowed" });
+      expect(result.flags.callerNotAllowed).toBe(true);
+      expect(legacy.recipientMatchesAssignment).not.toHaveBeenCalled();
+    }
     expect(await decide(SOURCES[1], keys, makeQueries({ recipientMatchesAssignment: boom() }))).toMatchObject({ outcome: "deny", reason: "query_error" });
+  });
+
+  test("R5 log 呼叫者不合：非自建判斷丟錯 deny、查詢缺失 fail closed、truthy 非 true 不算", async () => {
+    expect(await decide(SOURCES[0], keys, makeQueries({ callerMayAssignTeamRole: false, teamIsNotUserCreated: boom() })))
+      .toMatchObject({ outcome: "deny", reason: "query_error" });
+    const missing = makeQueries({ callerMayAssignTeamRole: false });
+    delete missing.teamIsNotUserCreated;
+    expect(await decide(SOURCES[0], keys, missing)).toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+    expect(await decide(SOURCES[0], keys, makeQueries({ callerMayAssignTeamRole: false, teamIsNotUserCreated: "yes" })))
+      .toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+  });
+
+  test("R3／R4 呼叫者不合不套用非自建 record（只限 R5）", async () => {
+    const r3 = makeQueries({ callerIsApplicant: false });
+    expect(await decide("team_join_request", { teamId: "t1" }, r3)).toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+    const r4 = makeQueries({ callerMayReviewJoin: false });
+    expect(await decide("team_join_review:approve", { teamId: "t1", applicantUid: "uidB" }, r4))
+      .toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+    expect(r3.teamIsNotUserCreated).not.toHaveBeenCalled();
+    expect(r4.teamIsNotUserCreated).not.toHaveBeenCalled();
   });
 
   test("決策把指派角色放進 ctx.assignmentRole 交給查詢", async () => {

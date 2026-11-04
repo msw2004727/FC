@@ -148,7 +148,8 @@ function createTeamQueries({ db, helpers, readAccess }) {
       return identities.some((uid) => helpers.isTeamStaffForData(team.data, uid) === true);
     },
 
-    // 隊伍存在，且呼叫者是幹部，或 Rules 對齊具備 team.manage_all。
+    // 隊伍存在，且呼叫者是幹部，或 Rules 對齊具備 team.manage_all／team.create（與 canManageTeamRoles 同碼）。
+    // （T-090b 審查 P1：取代原「只認 team.manage_all」，team.create 持有者在 A 建立自己不在職員欄位的俱樂部時會被拒。）
     async callerMayAssignTeamRole(ctx) {
       const caller = str(ctx?.callerUid);
       if (!caller) return false;
@@ -156,7 +157,13 @@ function createTeamQueries({ db, helpers, readAccess }) {
       if (!team) return false;
       if (helpers.isTeamStaffForData(team.data, caller) === true) return true;
       const access = await readAccess(ctx);
-      return access.hasPermission("team.manage_all");
+      return access.hasPermission("team.manage_all") || access.hasPermission("team.create");
+    },
+
+    // 隊伍存在且不是自建俱樂部（管理端／legacy）。重用同一次決策已讀的隊伍文件，不多讀。
+    async teamIsNotUserCreated(ctx) {
+      const team = await loadTeam(ctx);
+      return !!team && !isUserCreatedTeam(team.data);
     },
 
     // 與指派欄位檢查分開，讓決策層在 R5 log 模式也能靜默略過非成員。

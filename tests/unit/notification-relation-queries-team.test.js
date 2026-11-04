@@ -6,6 +6,7 @@
  */
 
 const { createRelationQueries } = require("../../functions/notification-relation-queries");
+const { decideRelation } = require("../../functions/notification-relation-decide");
 const { createMemoryDb, createHelpers, makeCtx } = require("./notification-relation-test-kit");
 
 const boom = () => Object.assign(new Error("14 UNAVAILABLE"), { code: 14 });
@@ -188,6 +189,16 @@ describe("callerMayAssignTeamRole", () => {
     expect(await noDoc.queries.callerMayAssignTeamRole(ctxFor("uidX", { callerRole: "admin" }))).toBe(false);
   });
 
+  // T-090b 審查 P1：與 canManageTeamRoles 對齊，team.create 也通過。
+  test("非幹部：Rules 對齊有 team.create（無 team.manage_all）通過；其他權限碼不通過", async () => {
+    const { queries } = setup({ "userPermissionGrants/uidX": { permissions: ["team.create"] } });
+    expect(await queries.callerMayAssignTeamRole(ctxFor("uidX", { callerRole: "coach" }))).toBe(true);
+    const other = setup({ "userPermissionGrants/uidX": { permissions: ["team.create_event", "team.review_join"] } });
+    expect(await other.queries.callerMayAssignTeamRole(ctxFor("uidX", { callerRole: "coach" }))).toBe(false);
+    const missingTeam = setup({ "userPermissionGrants/uidX": { permissions: ["team.create"] } });
+    expect(await missingTeam.queries.callerMayAssignTeamRole(makeCtx({ keys: { teamId: "t404" }, callerUid: "uidX" }))).toBe(false);
+  });
+
   test("隊伍不存在：即使有 team.manage_all 也拒絕", async () => {
     const { queries } = setup({ "rolePermissions/admin": { permissions: ["team.manage_all"] } });
     expect(await queries.callerMayAssignTeamRole(makeCtx({ keys: { teamId: "t404" }, callerUid: "uidX", callerRole: "admin" }))).toBe(false);
@@ -196,6 +207,84 @@ describe("callerMayAssignTeamRole", () => {
   test("讀權限文件丟錯：往外丟", async () => {
     const { queries } = setup({}, { get: (path) => (path.startsWith("rolePermissions/") ? boom() : null) });
     await expect(queries.callerMayAssignTeamRole(ctxFor("uidX", { callerRole: "admin" }))).rejects.toThrow("UNAVAILABLE");
+  });
+});
+
+describe("teamIsNotUserCreated", () => {
+  test("管理端／legacy true；自建 false；查無 false；讀取丟錯往外丟", async () => {
+    for (const createdVia of [undefined, "admin"]) {
+      const { queries } = setup({ "teams/t1": { ...TEAM, createdVia } });
+      expect(await queries.teamIsNotUserCreated(makeCtx({ keys: { teamId: "t1" } }))).toBe(true);
+    }
+    const own = setup({ "teams/t1": { ...TEAM, createdVia: "user_capability" } });
+    expect(await own.queries.teamIsNotUserCreated(makeCtx({ keys: { teamId: "t1" } }))).toBe(false);
+    const { queries } = setup();
+    expect(await queries.teamIsNotUserCreated(makeCtx({ keys: { teamId: "t404" } }))).toBe(false);
+    expect(await queries.teamIsNotUserCreated(makeCtx({ keys: {} }))).toBe(false);
+    const broken = setup({}, { get: (path) => (path === "teams/t1" ? boom() : null) });
+    await expect(broken.queries.teamIsNotUserCreated(makeCtx({ keys: { teamId: "t1" } }))).rejects.toThrow("UNAVAILABLE");
+  });
+});
+
+// T-090b 審查 P1：前端補帶 teamId 後的 legacy 情境，以真的查詢＋決策跑（R5 常數為 log）。
+describe("T-090b 補帶 teamId 後的指派通知（真查詢＋決策）", () => {
+  const ASSIGN = ["captain", "leader", "coach"];
+  const run = (queries, source, keys, ctx, inject = {}) => decideRelation({
+    source, keys, ctx: makeCtx({ ...ctx }), queries, ...inject,
+  });
+
+  test("經理本人轉移經理後（legacy）：送給新經理的 captain 指派與 role_upgrade 為 record 放行，隊伍只讀一次", async () => {
+    const { queries, db } = setup({ "teams/t1": { ...TEAM, captainUid: "uidNewCap" } });
+    const ctx = { callerUid: "uidCap", callerRole: "captain", recipientUid: "uidNewCap" };
+    const assign = await run(queries, "team_role_assignment:captain", { teamId: "t1" }, ctx);
+    expect(assign).toMatchObject({ outcome: "record", relationId: "R5", reason: "caller_not_allowed" });
+    expect(assign.flags.callerNotAllowed).toBe(true);
+    expect(db.readsOf("teams/")).toHaveLength(1);
+    const upgrade = await run(queries, "template:role_upgrade", { teamId: "t1", assignmentRole: "captain" }, ctx);
+    expect(upgrade).toMatchObject({ outcome: "record", relationId: "R5", reason: "caller_not_allowed" });
+  });
+
+  test("同一情境 enforce：deny（enforce 行為不變）", async () => {
+    const { queries } = setup({ "teams/t1": { ...TEAM, captainUid: "uidNewCap" } });
+    const ctx = { callerUid: "uidCap", callerRole: "captain", recipientUid: "uidNewCap" };
+    expect(await run(queries, "team_role_assignment:captain", { teamId: "t1" }, ctx, { modeOf: () => "enforce" }))
+      .toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+  });
+
+  test("team.create（無 team.manage_all）建立自己不在職員欄位的 legacy 俱樂部：三種指派與 role_upgrade 皆 allow", async () => {
+    const recipients = { captain: "uidCap", leader: "uidLead", coach: "uidCoach" };
+    for (const role of ASSIGN) {
+      const { queries } = setup({ "userPermissionGrants/uidX": { permissions: ["team.create"] } });
+      const ctx = { callerUid: "uidX", callerRole: "coach", recipientUid: recipients[role] };
+      expect(await run(queries, `team_role_assignment:${role}`, { teamId: "t1" }, ctx))
+        .toMatchObject({ outcome: "allow", relationId: "R5" });
+      expect(await run(queries, "template:role_upgrade", { teamId: "t1", assignmentRole: role }, ctx))
+        .toMatchObject({ outcome: "allow", relationId: "R5" });
+    }
+  });
+
+  test("自建俱樂部：team.create 持有者送給非成員仍略過；非職員送給成員略過；呼叫者不合仍 deny（log 也不放寬）", async () => {
+    const OWN = { createdVia: "user_capability", ownerUid: "uidA", coachUids: ["uidCoach"] };
+    const outsider = setup({ "teams/t1": OWN, "userPermissionGrants/uidX": { permissions: ["team.create"] }, "users/uidCoach": { teamIds: [] } });
+    expect(await run(outsider.queries, "team_role_assignment:coach", { teamId: "t1" },
+      { callerUid: "uidX", callerRole: "coach", recipientUid: "uidCoach" }))
+      .toMatchObject({ outcome: "skip", reason: "recipient_not_team_member" });
+    const nonStaff = setup({ "teams/t1": OWN, "users/uidCoach": { teamIds: ["t1"] } });
+    expect(await run(nonStaff.queries, "team_role_assignment:coach", { teamId: "t1" },
+      { callerUid: "uidY", callerRole: "coach", recipientUid: "uidCoach" }))
+      .toMatchObject({ outcome: "skip", reason: "team_scope_not_member" });
+    // callerRole admin 但無 rolePermissions 文件：範圍收斂放行、指派權限不成立 → 自建俱樂部仍 deny。
+    const adminNoDoc = setup({ "teams/t1": OWN, "users/uidCoach": { teamIds: ["t1"] } });
+    expect(await run(adminNoDoc.queries, "team_role_assignment:coach", { teamId: "t1" },
+      { callerUid: "uidZ", callerRole: "admin", recipientUid: "uidCoach" }))
+      .toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
+  });
+
+  test("legacy 隊伍不存在（帶了 teamId 但查無）：呼叫者不合仍 deny，不改 record", async () => {
+    const { queries } = setup();
+    expect(await run(queries, "team_role_assignment:captain", { teamId: "t404" },
+      { callerUid: "uidCap", callerRole: "captain", recipientUid: "uidCap" }))
+      .toMatchObject({ outcome: "deny", reason: "caller_not_allowed" });
   });
 });
 

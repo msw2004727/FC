@@ -180,7 +180,17 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
     const callerFn = queryFn(queries, rel.callerCheck);
     const recipientFn = queryFn(queries, rel.recipientQuery);
     if (!callerFn || !recipientFn) return outcomeOf("deny", rel.id, "query_missing", flags);
-    if (await callerFn(ctx2) !== true) return outcomeOf("deny", rel.id, "caller_not_allowed", flags);
+    if (await callerFn(ctx2) !== true) {
+      // T-090b 審查 P1：R5 log 模式下，非自建俱樂部（管理端／legacy）的呼叫者不合只記錄、放行，與 field_mismatch 一致
+      // （經理轉移後原經理已不在欄位）。自建俱樂部已由上方範圍收斂把關，仍拒；查詢缺失照舊拒。enforce 不變。
+      if (rel.id === "R5" && mode !== "enforce") {
+        const legacyFn = queryFn(queries, "teamIsNotUserCreated");
+        if (legacyFn && await legacyFn(ctx2) === true) {
+          return outcomeOf("record", rel.id, "caller_not_allowed", { ...flags, callerNotAllowed: true });
+        }
+      }
+      return outcomeOf("deny", rel.id, "caller_not_allowed", flags);
+    }
     // 自建俱樂部的非成員不能因 R5 log 模式繼續送出；兩個 Callable 都以成功略過回應。
     if (rel.id === "R5") {
       const memberFn = queryFn(queries, "recipientMayReceiveTeamAssignment");
