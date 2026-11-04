@@ -15882,6 +15882,9 @@ const DELIVER_INBOX_SAFE_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
 const DELIVER_INBOX_TEAM_JOIN_GROUP_RE = /^tjr_\d{10,16}_[a-z0-9]{1,8}$/;
 const DELIVER_INBOX_TOURNAMENT_REG_GROUP_RE = /^trg_\d{10,16}_[a-z0-9]{1,8}$/;
 const DELIVER_INBOX_REVIEW_GROUP_PREFIX_RE = /^(tjr|trg|tfa)_/i;
+// 保留 id：reviewTeamJoin 伺服器端審核結果通知 msg_<groupId>_review（team-join-review.js buildReviewNoticeMessageId）。
+// 客戶端不得使用，否則可先種同 id 假訊息讓真通知被當重複、或用廣播 set 覆寫（終驗 P3）。
+const DELIVER_INBOX_RESERVED_ID_RE = /^msg_tjr_[A-Za-z0-9_-]*_review$/i;
 
 async function getDeliverInboxTournament(tournamentId) {
   const directSnap = await db.collection("tournaments").doc(tournamentId).get();
@@ -15941,6 +15944,7 @@ async function sanitizeDeliverToInboxMessage(request, message, { targetUid, isBr
   };
 
   requireSafeId(message.id, "INVALID_MESSAGE_ID");
+  if (DELIVER_INBOX_RESERVED_ID_RE.test(message.id)) invalid("RESERVED_MESSAGE_ID");
   if (!isBroadcast) requireSafeId(targetUid, "INVALID_TARGET_UID");
 
   if (actionType === undefined || actionType === null || actionType === "") {

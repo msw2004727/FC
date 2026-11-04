@@ -838,6 +838,43 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       .resolves.toEqual({ success: true, delivered: 2 });
   });
 
+  // 終驗 P3：reviewTeamJoin 審核結果通知 id（msg_<groupId>_review）只能由伺服器寫入。
+  // 修正前 deliverToInbox 直接採用客戶端 message.id，可先種同 id 假訊息（真通知 create 變 duplicate）或用俱樂部廣播 set 覆寫。
+  describe('保留 id：reviewTeamJoin 審核結果通知', () => {
+    const RESERVED = 'msg_tjr_1700000000000_test_review';
+    const realNotice = { id: RESERVED, title: '俱樂部申請通過', body: '真通知', fromUid: 'reviewer' };
+
+    test('點對點偽造保留 id 被拒，不寫入、不佔每日額度；同請求換一般 id 仍照常投遞', async () => {
+      for (const id of [RESERVED, RESERVED.toUpperCase(), 'msg_tjr_x_review']) {
+        const env = load({ users: baseUsers() });
+        await expect(env.call({ message: msg({ id, title: '俱樂部申請通過', body: '假通知' }), targetUid: TARGET }))
+          .rejects.toMatchObject({ code: 'invalid-argument', message: 'RESERVED_MESSAGE_ID' });
+        expect(env.db.paths('users/' + TARGET + '/inbox/')).toHaveLength(0);
+        expect(counterPaths(env.db).filter((p) => p.includes('caller_day'))).toHaveLength(0);
+      }
+      const control = load({ users: baseUsers() });
+      await expect(control.call({ message: msg({ id: 'msg_tjr_1700000000000_test_reviewed' }), targetUid: TARGET }))
+        .resolves.toEqual({ success: true, delivered: 1 });
+    });
+
+    test('俱樂部廣播與 admin 全體廣播都不能用保留 id 覆寫已存在的真通知', async () => {
+      const users = {
+        [CALLER]: { role: 'user', displayName: '王小明', teamIds: ['t1'] },
+        [TARGET]: { role: 'user', teamIds: ['t1'] },
+      };
+      const seed = { [`users/${TARGET}/inbox/${RESERVED}`]: realNotice, 'teams/t1': { id: 't1', captainUid: OTHER } };
+      const member = load({ users, extraSeed: seed });
+      await expect(member.call({ message: msg({ id: RESERVED, body: '假通知' }), targetTeamId: 't1' }))
+        .rejects.toMatchObject({ code: 'invalid-argument', message: 'RESERVED_MESSAGE_ID' });
+      expect(member.inbox(TARGET, RESERVED)).toEqual(realNotice);
+
+      const admin = load({ users: { ...users, [CALLER]: { role: 'admin', displayName: '管理員' } }, extraSeed: seed });
+      await expect(admin.call({ message: msg({ id: RESERVED, body: '假通知' }), targetType: 'all' }))
+        .rejects.toMatchObject({ code: 'invalid-argument', message: 'RESERVED_MESSAGE_ID' });
+      expect(admin.inbox(TARGET, RESERVED)).toEqual(realNotice);
+    });
+  });
+
   describe('T-090f B3 inbox 俱樂部範圍收斂', () => {
     const B3_CASES = [
       ['member 保留 teamId', 'team_role_assignment:member', { teamId: 't1' }],

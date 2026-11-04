@@ -89,13 +89,18 @@ function buildReviewNotice({ actionStatus, membershipAdded, teamName, reviewerNa
   return null;
 }
 
+// 保留 id：deliverToInbox 以 DELIVER_INBOX_RESERVED_ID_RE 拒絕客戶端使用此形狀，只有本伺服器路徑能寫（終驗 P3）。
+function buildReviewNoticeMessageId(groupId) {
+  return `msg_${groupId}_review`;
+}
+
 const LINE_SKIP_REASONS = new Set(["target_not_found", "not_bound", "category_disabled", "notification_toggle_disabled"]);
 
 // 交易成功後執行；任何失敗只記錄並反映在回傳摘要，不拋出（R-CF-003）。回傳摘要不含 UID。
 async function sendReviewNotice({ db, FieldValue, enqueueLineFromServer, logger, now }, notice) {
   const { kind, title, body, recipientUid, groupId, requestedByUid, requestedByRole } = notice;
   // 每個申請群組只會有一則審核結果通知：固定 id＋create()，重送不會出現第二則。
-  const messageId = `msg_${groupId}_review`;
+  const messageId = buildReviewNoticeMessageId(groupId);
   const source = `team_join_review:${kind}`;
   const [inbox, line] = await Promise.allSettled([
     (async () => {
@@ -316,4 +321,6 @@ function createReviewTeamJoinCallable({ onCall, ...dependencies }) {
   return onCall({ region: "asia-east1" }, createReviewTeamJoinHandler(dependencies));
 }
 
-module.exports = { createReviewTeamJoinCallable, createReviewTeamJoinHandler, buildJoinedMembership, MAX_GROUP_MESSAGES };
+module.exports = {
+  createReviewTeamJoinCallable, createReviewTeamJoinHandler, buildJoinedMembership, buildReviewNoticeMessageId, MAX_GROUP_MESSAGES,
+};

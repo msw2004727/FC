@@ -3,7 +3,9 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
-const { createReviewTeamJoinCallable, createReviewTeamJoinHandler, MAX_GROUP_MESSAGES } = require("../../functions/team-join-review");
+const {
+  createReviewTeamJoinCallable, createReviewTeamJoinHandler, buildReviewNoticeMessageId, MAX_GROUP_MESSAGES,
+} = require("../../functions/team-join-review");
 
 // Exercise the real production staff/role helpers, including legacy staff fields.
 const indexSource = fs.readFileSync(path.join(__dirname, "../../functions/index.js"), "utf8");
@@ -614,5 +616,18 @@ describe("reviewTeamJoin post-commit applicant notification", () => {
   test("notification summary carries no UID", async () => {
     const h = harness(); const result = await h.handler(request());
     expect(JSON.stringify(result.notification)).not.toMatch(/applicant|owner/);
+  });
+  // 終驗 P3：通知 id 是 deliverToInbox 的保留 id，客戶端無法先種或覆寫；兩邊形狀須同步。
+  // 修正前 index.js 沒有 DELIVER_INBOX_RESERVED_ID_RE、本模組沒有 buildReviewNoticeMessageId，此測試失敗。
+  test("notice id is reserved by deliverToInbox; current client id shapes are not", () => {
+    const start = indexSource.indexOf("const DELIVER_INBOX_RESERVED_ID_RE");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const reserved = vm.runInNewContext(indexSource.slice(start, indexSource.indexOf("\n", start)) + "\nDELIVER_INBOX_RESERVED_ID_RE");
+    const id = buildReviewNoticeMessageId(GROUP);
+    expect(id).toBe("msg_" + GROUP + "_review");
+    expect(reserved.test(id)).toBe(true);
+    expect(reserved.test(buildReviewNoticeMessageId("tjr_1730000000000_ab12cd34"))).toBe(true);
+    // A message-notify.js／FC-B inbox-delivery.ts 產生 msg_<ms>_<4 碼>。
+    expect(reserved.test("msg_1730000000000_ab12")).toBe(false);
   });
 });
