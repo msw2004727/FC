@@ -5,7 +5,8 @@
  * - buildCreateTeamPayload／buildUpdateTeamPatch：
  *   依附件逐欄固定 payload，不 import B 的實作或驗證前端表單邏輯。
  *   serverTimestamp 與 null eduSettings → deleteField 由寫入層處理。
- * - create：isAuth()、hasString('name')，以及 team.create 或全隊管理授權。
+ * - create：isAuth()、hasString('name')，以及全隊管理授權，或 team.create
+ *   加上 id＝文件 ID、tm_ 格式與 ±3 天時間新鮮度（T-090a F3）。
  *   hasString 明定字串 size() > 0，故空字串會被拒絕；此處不是 trim 驗證。
  * - update：isTeamOwner() 依既有文件的 captainUid／creatorUid／ownerUid 判斷；
  *   擁有者或 canManageAnyTeam() 可更新任意欄位。
@@ -55,7 +56,9 @@ jest.setTimeout(20000);
 let testEnv;
 
 const TEAM_MAIN = "tm_t1";
-const TEAM_CREATE = "tm_1792713600000_abc123";
+// T-090a F3：非全隊管理者建立須 id＝文件 ID、tm_ 格式且時間 ±3 天內；
+// 取代原固定時間 tm_1792713600000_abc123（過期後會讓建立案例改因時間被拒，弱化名稱等斷言）。
+const TEAM_CREATE = `tm_${Date.now()}_abc123`;
 const TEAM_NAME = "原俱樂部";
 
 const CAP = "cap_uid_001";

@@ -3802,7 +3802,14 @@ describe("/teams/{teamId}", () => {
       captainUid: "uidUser",
     }));
     await seedUserPermissionGrant("uidUser", ["team.create"]);
-    await assertSucceeds(setDoc(doc(user(), "teams", "team_granted_create"), {
+    // T-090a F3: team.create without team.manage_all now requires id == doc id in fresh tm_ format.
+    await assertFails(setDoc(doc(user(), "teams", "team_granted_create"), {
+      name: "Granted Team",
+      captainUid: "uidUser",
+    }));
+    const grantedTeamId = `tm_${Date.now()}_granted`;
+    await assertSucceeds(setDoc(doc(user(), "teams", grantedTeamId), {
+      id: grantedTeamId,
       name: "Granted Team",
       captainUid: "uidUser",
     }));
