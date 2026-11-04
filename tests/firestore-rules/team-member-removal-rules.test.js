@@ -280,7 +280,8 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertFails(write(CAP, EMPTY_USER, membership([TEAM_MAIN, TEAM_OTHER])));
     });
 
-    test("29. teamIds 不變、只把 teamId 換成別隊 → 拒", async () => {
+    // 被拒的原因是「多出來的隊伍鍵 team_other 不是 CAP 當職員的隊」，不是規則禁止只換 teamId（換成自己的隊見 40）。
+    test("29. teamIds 不變、把 teamId 換成自己不是職員的別隊 → 拒", async () => {
       await assertFails(write(CAP, MEMBER_LOW, {
         teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["team_low-name"],
       }));
@@ -330,6 +331,57 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
 
     test("35. 別隊的隊主不能把他人加入這隊", async () => {
       await assertFails(write(OWNER_ONLY, EMPTY_USER, membership(["team_creator_only"])));
+    });
+  });
+
+  // T-090k 審查補強（Opus／Grok）：職員判斷只回布林、不產生錯誤值。
+  describe("審查補強：錯誤值與髒資料", () => {
+    const REPAIR_COACH = "repair_coach";   // users.role=coach，非 admin，持 admin.repair.team_join_repair 個別授權
+    const NULL_LEADERS_COACH = "null_leaders_coach";
+    const MEMBER_DELETED_TEAM = "member_deleted_team"; // teamId／teamIds 指向已刪除的隊
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "users", REPAIR_COACH), { uid: REPAIR_COACH, role: "coach", ...membership([]) });
+        await setDoc(doc(db, "userPermissionGrants", REPAIR_COACH), {
+          permissions: ["admin.repair.team_join_repair"],
+          enabled: true,
+        });
+        await setDoc(doc(db, "users", MEMBER_DELETED_TEAM), { uid: MEMBER_DELETED_TEAM, role: "user", ...membership(["team_deleted"]) });
+        await setDoc(doc(db, "teams", "team_null_leaders"), {
+          id: "team_null_leaders", name: "NullLeaders", leaderUids: null, coachUids: [NULL_LEADERS_COACH],
+        });
+        await setDoc(doc(db, "users", NULL_LEADERS_COACH), { uid: NULL_LEADERS_COACH, role: "coach", ...membership([]) });
+      });
+    });
+
+    // coach 分支先評估：移除的隊不存在 → 該分支為 false（不是錯誤值），再由入隊修復分支放行。
+    test("36. 持入隊修復授權的 coach（非 admin）清掉單一已刪除隊伍 → 通過", async () => {
+      await assertSucceeds(write(REPAIR_COACH, MEMBER_DELETED_TEAM, CLEARED));
+    });
+
+    // 只有那一個壞元素是新增的鍵，所以拒絕原因是型別，不是「一次加兩隊」。
+    test("37. 新增的隊伍鍵是數字或 map → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { teamId: null, teamName: null, teamIds: [42], teamNames: ["x"] }));
+      await assertFails(write(CAP, EMPTY_USER, { teamId: null, teamName: null, teamIds: [{ id: TEAM_MAIN }], teamNames: ["Main"] }));
+    });
+
+    test("38. 新增的 teamId 含 '/' → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { teamId: `${TEAM_MAIN}/x`, teamName: "Main", teamIds: [], teamNames: [] }));
+      await assertFails(write(CAP, EMPTY_USER, { teamId: `x/${TEAM_MAIN}`, teamName: "Main", teamIds: [], teamNames: [] }));
+    });
+
+    test("39. 隊伍 leaderUids 為 null、本人只在 coachUids → 可把他人加入該隊", async () => {
+      await assertSucceeds(write(NULL_LEADERS_COACH, EMPTY_USER, membership(["team_null_leaders"])));
+    });
+
+    // 現況鎖定（依規則推演）：舊鍵 [team_low, team_low] → 新鍵 [team_low, team_main]，多出的只有 team_main，
+    // 且 CAP 是 team_main 隊長，所以通過；結果是 teamId 指向 team_main、teamIds 仍只有 team_low（與 A 的寫法不同，屬髒資料形狀）。
+    test("40. 現況：teamIds 不變、把 teamId 換成自己是職員的那隊 → 通過", async () => {
+      await assertSucceeds(write(CAP, MEMBER_LOW, {
+        teamId: TEAM_MAIN, teamName: "Main", teamIds: ["team_low"], teamNames: ["team_low-name"],
+      }));
     });
   });
 });

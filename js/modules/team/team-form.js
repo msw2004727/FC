@@ -81,29 +81,28 @@ Object.assign(App, {
   },
 
   // T-090k：對應 firestore.rules isUserCreatedStaffChangeSafe（自建俱樂部新增職員，本人除外，一次一位、
-  // 放在教練或領隊名單最後、且須是本隊成員）；非自建俱樂部或沒有新增職員時回傳空字串。
-  _getUserCreatedTeamStaffBlockMessage(team, vals) {
-    if (String(team?.createdVia || '') !== 'user_capability') return '';
+  // 放在教練或領隊名單最後、且須是本隊成員）。block＝儲存前就擋的訊息，failHint＝Rules 拒絕時改顯示的原因。
+  // 成員資格只當失敗提示、不在前端擋（審查修正：adminUsers 快取可能過期，誤判非成員會擋掉合法儲存）。
+  // 可管理全部俱樂部者（super_admin／team.manage_all，對應 Rules canManageAnyTeam）不受這條限制，直接跳過。
+  _checkUserCreatedTeamStaff(team, vals) {
+    const none = { block: '', failHint: '' };
+    if (String(team?.createdVia || '') !== 'user_capability') return none;
+    const me = ApiService.getCurrentUser?.() || null;
+    if (me?.role === 'super_admin' || this._hasRolePermission?.('team.manage_all')) return none;
     const clean = list => (Array.isArray(list) ? list : []).map(v => String(v || '').trim()).filter(Boolean);
     const coachUids = clean(vals.newCoachUids);
     const leaderUids = clean(vals.realLeaderUids);
     const oldStaff = new Set([...clean(vals.oldCoachUids), ...clean(vals.oldLeaderUids), ...clean([team.leaderUid])]);
-    const myUid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    const myUid = String(me?.uid || '').trim();
     const added = Array.from(new Set([...coachUids, ...leaderUids]))
       .filter(uid => !oldStaff.has(uid) && uid !== myUid);
-    if (added.length === 0) return '';
-    if (added.length > 1) return '自建俱樂部一次只能新增一位教練或領隊';
+    if (added.length === 0) return none;
+    if (added.length > 1) return { block: '自建俱樂部一次只能新增一位教練或領隊', failHint: '' };
     const uid = added[0];
     if (coachUids[coachUids.length - 1] !== uid && leaderUids[leaderUids.length - 1] !== uid) {
-      return '新增的教練或領隊請排在名單最後';
+      return { block: '新增的教練或領隊請排在名單最後', failHint: '' };
     }
-    // 使用者目錄不帶隊伍欄位，只用 adminUsers 判斷；查不到就交給 Rules，不在前端誤擋
-    const user = (ApiService.getAdminUsers?.() || []).find(u => u && (u.uid === uid || u._docId === uid));
-    const teamKey = String(team._docId || team.id || '').trim();
-    if (user && !this._isUserInTeam?.(user, teamKey)) {
-      return '自建俱樂部的教練或領隊須先是本隊成員';
-    }
-    return '';
+    return { block: '', failHint: '儲存失敗：自建俱樂部的教練或領隊須先是本隊成員' };
   },
 
   async handleSaveTeam() {
@@ -118,16 +117,17 @@ Object.assign(App, {
             realLeaderUids, leaderNames, captain, captainUidForSave,
             coaches, newCoachUids, users } = vals;
 
+    let staffCheck = { block: '', failHint: '' };
     if (this._teamFormState.editId) {
       const targetTeam = ApiService.getTeam?.(this._teamFormState.editId);
       if (!targetTeam || !this._canEditTeamByRoleOrCaptain?.(targetTeam)) {
         this.showToast('\u6b0a\u9650\u4e0d\u8db3');
         return;
       }
-      // T-090k\uff1a\u81ea\u5efa\u4ff1\u6a02\u90e8\u7684\u8077\u54e1\u898f\u5247\u5148\u5728\u524d\u7aef\u8aaa\u660e\uff0c\u907f\u514d\u6574\u7b46\u7de8\u8f2f\u88ab Rules \u62d2\u7d55\u53ea\u770b\u5230\u300c\u66f4\u65b0\u5931\u6557\u300d
-      const staffBlockMessage = this._getUserCreatedTeamStaffBlockMessage(targetTeam, vals);
-      if (staffBlockMessage) {
-        this.showToast(staffBlockMessage);
+      // T-090k：自建俱樂部的職員規則先在前端說明，避免整筆編輯被 Rules 拒絕只看到「更新失敗」
+      staffCheck = this._checkUserCreatedTeamStaff(targetTeam, vals);
+      if (staffCheck.block) {
+        this.showToast(staffCheck.block);
         return;
       }
     }
@@ -270,8 +270,10 @@ Object.assign(App, {
           await ApiService.updateTeamAwait(submitContext.editId, updates);
           staleAfterWrite = !this._isTeamFormSubmitSessionCurrent(submitContext);
         } catch (err) {
-          if (this._isTeamFormSubmitSessionCurrent(submitContext) && !err?._toasted) {
-            this.showToast('俱樂部更新失敗，請重試');
+          // T-090k：自建俱樂部新增職員被 Rules 拒絕時，多半是對方還不是本隊成員；改用具體原因蓋過通用的「權限不足」提示
+          const staffDenied = !!staffCheck.failHint && String(err?.code || '').toLowerCase() === 'permission-denied';
+          if (this._isTeamFormSubmitSessionCurrent(submitContext) && (staffDenied || !err?._toasted)) {
+            this.showToast(staffDenied ? staffCheck.failHint : '俱樂部更新失敗，請重試');
           }
           ApiService._writeErrorLog({ fn: 'handleSaveTeam.updateTeamAwait', teamId: submitContext.editId, mode: 'edit' }, err);
           return;

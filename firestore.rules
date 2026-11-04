@@ -1650,17 +1650,30 @@ service cloud.firestore {
           .concat(data.get('teamId', null) is string ? [data.teamId] : []);
       }
 
-      // T-090k（精簡版）：與 isCurrentUserTeamStaff 同一組職員欄位，但隊伍文件只 get 一次、欄位用 .get() 取，
-      // 取代原本呼叫 isCurrentUserTeamStaff（exists＋每欄 keys().hasAny 各自 get）以省運算式。
-      // 隊伍不存在或 teamKey 不是字串時 get 產生錯誤值→拒，與原寫法一致；只用在 && 正向語境。
+      // T-090k（審查修正）：與 isCurrentUserTeamStaff 同一組職員欄位，隊伍文件 exists＋get 各一次、欄位用 .get() 取。
+      // 只回 true／false、不產生錯誤值：teamKey 不是字串、不是合法單段文件 id（空字串、含 '/'、'.'、'..'、__x__）
+      // 或隊伍文件不存在時直接 false；leaderUids／coachUids 先驗 is list 再比對，型別壞的欄位只讓該項為 false。
+      // （取代前一版「get 錯誤值→拒」：錯誤值在 || 裡可能被下一個分支的 true 蓋過，也可能讓整條式子變錯誤值而誤擋其他分支。）
       function isTeamStaffOfTeamKey(teamKey) {
-        let teamData = get(/databases/$(database)/documents/teams/$(teamKey)).data;
+        return teamKey is string
+          && teamKey.matches('^[^/]+$')
+          && !teamKey.matches('^[.]{1,2}$|^__.*__$')
+          && isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey));
+      }
+
+      function isTeamStaffAtPath(teamPath) {
+        return exists(teamPath) && isTeamStaffData(get(teamPath).data);
+      }
+
+      function isTeamStaffData(teamData) {
+        let leaders = teamData.get('leaderUids', null);
+        let coaches = teamData.get('coachUids', null);
         return teamData.get('captainUid', null) == request.auth.uid
           || teamData.get('creatorUid', null) == request.auth.uid
           || teamData.get('ownerUid', null) == request.auth.uid
           || teamData.get('leaderUid', null) == request.auth.uid
-          || request.auth.uid in teamData.get('leaderUids', [])
-          || request.auth.uid in teamData.get('coachUids', []);
+          || (leaders is list && request.auth.uid in leaders)
+          || (coaches is list && request.auth.uid in coaches);
       }
 
       // T-090k：非 admin 的 coach 以上改他人隊伍欄位時，一次只能新增或移除「一支」隊，且自己必須是那支隊的職員
@@ -1755,7 +1768,8 @@ service cloud.firestore {
         || (isOwner(userId) && isSafeLoginUpdate())
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
         // T-090k：admin／super_admin 維持原樣（A 入隊審核允許 admin、資料同步清無效隊伍）；其餘 coach 以上限自己當職員的那一隊。
-        // 精簡版把這條移到 super_admin／入隊修復之前（|| 各分支互不依賴，順序不影響結果），省掉 coach 路徑先算的兩次權限判斷。
+        // 這條排在 super_admin／入隊修復之前，省掉 coach 路徑先算的兩次權限判斷。它只回 true／false（職員判斷不產生錯誤值），
+        // 為 false 時照常往下評估後面的分支，所以不會擋掉 super_admin、入隊修復或個別授權原本允許的寫入。
         || isCoachPlusTeamMembershipUpdate(authRole())
         || (isSuperAdmin() && isSafeSuperAdminUserUpdate())
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
