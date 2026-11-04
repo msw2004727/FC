@@ -2,6 +2,7 @@
 
 const { hasEffectivePermission } = require("./team-permission");
 const { maskUid } = require("./notification-fields");
+const { ROLE_LABELS } = require("./team-membership-core");
 
 const TRANSACTION_MAX_ATTEMPTS = 5;
 const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
@@ -15,14 +16,18 @@ async function readDeleteAccess(db, transaction, request) {
   // Rules direct field access fails on an existing document without role.
   // Return no access so the caller uses its sanitized permission-denied path.
   if (userSnap.exists && !Object.prototype.hasOwnProperty.call(userData || {}, "role")) {
-    return { isAdmin: false, hasPermission: () => false };
+    return { isAdmin: false, hasPermission: () => false, operator: "" };
   }
   const docRole = userData?.role;
   const tokenRole = request.auth.token?.role;
   const role = typeof docRole === "string" && docRole !== ""
     ? docRole : (typeof tokenRole === "string" ? tokenRole : "user");
+  // Same operator formula as deleteTeam's readActorNames (A _writeOpLog), from the
+  // users/{uid} read above, so no extra read. Own-property lookup: role is raw input.
+  const operator = String(userData?.displayName || "").trim()
+    || (Object.prototype.hasOwnProperty.call(ROLE_LABELS, role) ? ROLE_LABELS[role] : "") || "系統";
   const isAdmin = role === "admin" || role === "super_admin";
-  if (isAdmin) return { isAdmin, hasPermission: () => true };
+  if (isAdmin) return { isAdmin, hasPermission: () => true, operator };
 
   // Invalid path components must never resolve to an unrelated permission doc.
   const validRoleId = role && !role.includes("/") && role !== "." && role !== ".."
@@ -35,7 +40,7 @@ async function readDeleteAccess(db, transaction, request) {
     roleDoc: roleSnap?.exists ? roleSnap.data() : null,
     grantDoc: grantSnap.exists ? grantSnap.data() : null,
   };
-  return { isAdmin, hasPermission: (code) => hasEffectivePermission(sources, code) };
+  return { isAdmin, hasPermission: (code) => hasEffectivePermission(sources, code), operator };
 }
 
 // Match A's lifecycle guard, including partially populated legacy course links.
@@ -50,7 +55,7 @@ function isAborted(error) {
 }
 
 function createDeleteEventHandler({
-  db, HttpsError, FieldValue, courseLinkedEventManagedByCourseError, logger = console,
+  db, HttpsError, courseLinkedEventManagedByCourseError, buildOperationLogPayload, logger = console,
 }) {
   return async function deleteEventHandler(request) {
     const uid = request?.auth?.uid;
@@ -113,16 +118,25 @@ function createDeleteEventHandler({
           }
 
           phase = "commit";
-          // Consultant's minimal audit contract supersedes the brief's generic
-          // opLog payload: exactly these seven fields, no names or event snapshot.
+          // P3-b (consultant 6.3.9) supersedes the seven-field-only audit: A's log page
+          // needs type/typeName/operator, so use deleteTeam's shared payload (which also
+          // supplies createdAt) and keep the original seven fields. No other event data.
+          const title = typeof event.title === "string" ? event.title : "";
           transaction.set(db.collection("operationLogs").doc(), {
-            title: typeof event.title === "string" ? event.title : "",
+            ...buildOperationLogPayload({
+              operator: access.operator,
+              type: "event_delete",
+              typeName: "刪除活動",
+              content: `刪除「${title}」`,
+              now: new Date(),
+            }),
+            title,
             date: typeof event.date === "string" ? event.date : "",
             eventId,
             docId: eventSnap.id,
             creatorUid: typeof event.creatorUid === "string" ? event.creatorUid : "",
             actorUid: uid,
-            createdAt: FieldValue.serverTimestamp(),
+            source: "callable",
           });
           transaction.delete(eventSnap.ref, { exists: true });
           return { ok: true, alreadyDeleted: false };

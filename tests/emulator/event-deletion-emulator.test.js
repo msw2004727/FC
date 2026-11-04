@@ -3,7 +3,7 @@
 // deleteEvent Callable 對真 Firestore Emulator 的實測（T-076a 終驗部署前條件）。
 // 補 tests/unit/event-deletion.test.js 的 fakeDb 無法證明的部分：transaction 內查詢、
 // delete(ref, { exists: true }) 前置條件的真實錯誤碼、SDK maxAttempts／ABORTED 重試、
-// 主文件刪除後子集合仍在、operationLogs 恰一筆七欄、並發只產生一筆稽核。
+// 主文件刪除後子集合仍在、operationLogs 恰一筆（共用 opLog 欄位＋原七欄）、並發只產生一筆稽核。
 //
 // 只能在 Firestore Emulator 內執行（不在 tests/unit/，所以 `npm run test:unit` 不會收進來）：
 //   npm run test:functions:emulator
@@ -30,12 +30,20 @@ const indexSource = fs.readFileSync(path.join(FUNCTIONS_DIR, "index.js"), "utf8"
 const courseError = vm.runInNewContext(
   "(" + indexSource.match(/function courseLinkedEventManagedByCourseError\(\) \{[\s\S]*?\n\}/)[0] + ")", { HttpsError },
 );
+// 同理取 index.js 實際的共用稽核 payload（deleteTeam 用的同一個），搭配真 FieldValue。
+const buildOperationLogPayload = vm.runInNewContext(
+  ["getTaipeiAuditDateInfo", "normalizeAuditText", "formatOperationLogTime", "buildOperationLogPayload"]
+    .map((name) => indexSource.match(new RegExp("\\nfunction " + name + "\\([\\s\\S]*?\\n\\}(?=\\r?\\n)"))[0]).join("\n")
+    + "\nbuildOperationLogPayload", { Date, FieldValue },
+);
+const taipeiTime = (ms) => new Date(ms + 8 * 3600 * 1000).toISOString().replace(/^\d{4}-(\d{2})-(\d{2})T(\d{2}:\d{2}).*$/, "$1/$2 $3");
 
 const ADMIN = "U_emu_admin", OWNER = "U_emu_owner", OTHER = "U_emu_other", DELEGATE = "U_emu_delegate";
 const ID = "ce_emu_delete_001", PATH = "events/" + ID;
 const EVENT = { id: ID, title: "模擬器刪除測試", date: "2026/11/04", creatorUid: OWNER, delegateUids: [DELEGATE] };
 const CHILDREN = ["registrations/r1", "attendanceRecords/a1", "activityRecords/a1", "comments/c1", "comments/c1/replies/r1"];
-const AUDIT_FIELDS = ["actorUid", "createdAt", "creatorUid", "date", "docId", "eventId", "title"];
+const AUDIT_FIELDS = ["actorUid", "content", "createdAt", "creatorUid", "date", "docId", "eventId", "operator", "source",
+  "time", "title", "type", "typeName"];
 
 jest.setTimeout(60000);
 
@@ -54,7 +62,7 @@ beforeEach(async () => {
   const res = await fetch(`http://${EMULATOR_HOST}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`, { method: "DELETE" });
   if (!res.ok) throw new Error("清空 emulator 失敗：" + res.status);
   await seed({
-    ["users/" + ADMIN]: { role: "admin" },
+    ["users/" + ADMIN]: { role: "admin", displayName: "模擬管理員" },
     ["users/" + OWNER]: { role: "coach" },
     ["users/" + OTHER]: { role: "coach" },
     ["users/" + DELEGATE]: { role: "user" },
@@ -91,7 +99,7 @@ function makeHandler({ onAttempt, txProxy } = {}) {
   };
   const logger = { warn: jest.fn(), error: jest.fn() };
   const handler = createDeleteEventHandler({
-    db: wrapped, HttpsError, FieldValue, courseLinkedEventManagedByCourseError: courseError, logger,
+    db: wrapped, HttpsError, buildOperationLogPayload, courseLinkedEventManagedByCourseError: courseError, logger,
   });
   const call = (uid, eventId = ID) => handler({ data: { eventId }, auth: { uid, token: {} } });
   return { call, calls, logger };
@@ -108,9 +116,11 @@ async function expectChildrenKept(parent = PATH) {
   expect(names).toEqual(["activityRecords", "attendanceRecords", "comments", "registrations"]);
 }
 
-test("admin 刪除成功：主文件刪除、子集合保留、operationLogs 恰一筆且只有七欄", async () => {
+test("admin 刪除成功：主文件刪除、子集合保留、operationLogs 恰一筆且欄位剛好十三個", async () => {
   const h = makeHandler();
+  const before = Date.now();
   await expect(h.call(ADMIN)).resolves.toEqual({ ok: true, alreadyDeleted: false });
+  const after = Date.now();
   expect(h.calls.options).toEqual([{ maxAttempts: 5 }]);
   expect(h.calls.attempts).toBe(1);
   expect(await data(PATH)).toBeUndefined();
@@ -120,8 +130,10 @@ test("admin 刪除成功：主文件刪除、子集合保留、operationLogs 恰
   const audit = logs[0].data();
   expect(Object.keys(audit).sort()).toEqual(AUDIT_FIELDS);
   expect(audit.createdAt).toBeInstanceOf(Timestamp);
+  expect([taipeiTime(before), taipeiTime(after)]).toContain(audit.time);
   expect({ ...audit, createdAt: null }).toEqual({
-    title: EVENT.title, date: EVENT.date, eventId: ID, docId: ID, creatorUid: OWNER, actorUid: ADMIN, createdAt: null,
+    time: audit.time, operator: "模擬管理員", type: "event_delete", typeName: "刪除活動", content: "刪除「" + EVENT.title + "」",
+    title: EVENT.title, date: EVENT.date, eventId: ID, docId: ID, creatorUid: OWNER, actorUid: ADMIN, source: "callable", createdAt: null,
   });
 });
 
@@ -130,6 +142,8 @@ test("擁有者＋event.delete_self 可刪除", async () => {
   await expect(h.call(OWNER)).resolves.toEqual({ ok: true, alreadyDeleted: false });
   expect(await data(PATH)).toBeUndefined();
   expect((await auditDocs()).map((d) => d.get("actorUid"))).toEqual([OWNER]);
+  // 沒有 displayName：沿用 deleteTeam 的角色標籤後備。
+  expect((await auditDocs()).map((d) => d.get("operator"))).toEqual(["教練"]);
 });
 
 test("非擁有者只有 delete_self：拒絕且零寫入", async () => {

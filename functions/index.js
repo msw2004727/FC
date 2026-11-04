@@ -3925,8 +3925,8 @@ exports.deleteEvent = createDeleteEventCallable({
   onCall,
   HttpsError,
   db,
-  FieldValue,
   courseLinkedEventManagedByCourseError,
+  buildOperationLogPayload,
   logger,
 });
 

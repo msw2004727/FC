@@ -10,6 +10,14 @@ class HttpsError extends Error {
 const courseError = vm.runInNewContext(
   "(" + indexSource.match(/function courseLinkedEventManagedByCourseError\(\) \{[\s\S]*?\n\}/)[0] + ")", { HttpsError },
 );
+// The real shared audit builder from functions/index.js (and its helpers), not a copy.
+const buildOperationLogPayload = vm.runInNewContext(
+  ["getTaipeiAuditDateInfo", "normalizeAuditText", "formatOperationLogTime", "buildOperationLogPayload"]
+    .map((name) => indexSource.match(new RegExp("\\nfunction " + name + "\\([\\s\\S]*?\\n\\}(?=\\r?\\n)"))[0]).join("\n")
+    + "\nbuildOperationLogPayload", { Date, FieldValue: { serverTimestamp: () => "SERVER_TIMESTAMP" } },
+);
+// Independent Taipei MM/DD HH:mm (UTC+8, no DST) for the audit time field.
+const taipeiTime = (ms) => new Date(ms + 8 * 3600 * 1000).toISOString().replace(/^\d{4}-(\d{2})-(\d{2})T(\d{2}:\d{2}).*$/, "$1/$2 $3");
 const UID = "U_test_actor_001", ID = "ce_delete_test_001", PATH = "events/" + ID;
 const EVENT = { id: ID, title: "測試活動", date: "2026/11/04", creatorUid: "U_original_creator" };
 const clone = (x) => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
@@ -81,7 +89,7 @@ function setup({ role = "coach", permissions = [], grant, event = {}, extra = {}
   const fake = fakeDb({ [PATH]: { ...EVENT, ...event }, ["users/" + UID]: { role },
     ["rolePermissions/" + role]: { permissions }, ...(grant ? { ["userPermissionGrants/" + UID]: grant } : {}), ...extra });
   const logger = { warn: jest.fn(), error: jest.fn() };
-  const deps = { db: fake.db, HttpsError, FieldValue: { serverTimestamp: () => "SERVER_TIMESTAMP" },
+  const deps = { db: fake.db, HttpsError, buildOperationLogPayload,
     courseLinkedEventManagedByCourseError: jest.fn(courseError), logger };
   const handler = createDeleteEventHandler(deps);
   const call = (data = { eventId: ID }, auth = { uid: UID, token: { role: tokenRole } }) => handler({ data, auth });
@@ -277,15 +285,24 @@ test("public-id fallback never deletes a colliding direct doc; ambiguous legacy 
   const ambiguous = setup({ event: { id: "other" }, extra: { "events/legacy1": EVENT, "events/legacy2": EVENT } });
   await denied(ambiguous, "failed-precondition");
 });
-test("audit has exactly seven server-derived fields; only one parent deletion, all other data untouched", async () => {
+test("audit is the shared opLog payload plus the seven server-derived fields; only one parent deletion, all other data untouched", async () => {
   const retained = Object.fromEntries(["registrations/r", "attendanceRecords/a", "activityRecords/a", "comments/c",
     "comments/c/replies/r", "teamReservations/t", "registrationLocks/l", "management/m"].map((p) => [PATH + "/" + p, { secret: "preserve" }]));
   Object.assign(retained, { "registrations/legacy": { eventId: ID }, "users/stats": { count: 1 }, "expLogs/e": { eventId: ID } });
   const f = setup({ role: "admin", extra: retained, event: { secret: "never audit", delegates: [UID] } });
-  await f.call({ eventId: " " + ID + " ", actorUid: "forged", title: "forged", docId: "forged", creatorUid: "forged" });
+  f.put("users/" + UID, { role: "admin", displayName: " 管理者小明 ", name: "never", email: "private@example.com" });
+  const before = Date.now();
+  await f.call({ eventId: " " + ID + " ", actorUid: "forged", title: "forged", docId: "forged", creatorUid: "forged",
+    operator: "forged", type: "forged", typeName: "forged", content: "forged", source: "forged", time: "forged" });
+  const after = Date.now();
   expect(f.state.writes).toHaveLength(2); expect(f.docs.has(PATH)).toBe(false);
-  expect(logs(f)[0].data).toEqual({ title: EVENT.title, date: EVENT.date, creatorUid: EVENT.creatorUid, eventId: ID, docId: ID, actorUid: UID, createdAt: "SERVER_TIMESTAMP" });
-  expect(Object.keys(logs(f)[0].data).sort()).toEqual(["title", "date", "eventId", "docId", "creatorUid", "actorUid", "createdAt"].sort());
+  const audit = logs(f)[0].data;
+  expect([taipeiTime(before), taipeiTime(after)]).toContain(audit.time);
+  expect(audit).toEqual({ time: audit.time, operator: "管理者小明", type: "event_delete", typeName: "刪除活動",
+    content: "刪除「" + EVENT.title + "」", title: EVENT.title, date: EVENT.date, creatorUid: EVENT.creatorUid,
+    eventId: ID, docId: ID, actorUid: UID, source: "callable", createdAt: "SERVER_TIMESTAMP" });
+  expect(Object.keys(audit).sort()).toEqual(["time", "operator", "type", "typeName", "content", "title", "date", "eventId",
+    "docId", "creatorUid", "actorUid", "source", "createdAt"].sort());
   expect(f.state.writes[1]).toMatchObject({ op: "delete", path: PATH, precondition: { exists: true }, commit: f.state.writes[0].commit });
   for (const [p, data] of Object.entries(retained)) expect(f.docs.get(p)).toEqual(data);
 });
@@ -369,5 +386,28 @@ test.each([{}, { permissions: "event.delete" }, { permissions: ["event.edit_all"
 });
 test("audit never stores malformed nested title/date/creator fields", async () => {
   const f = setup({ role: "admin", event: { title: { secret: "private" }, date: ["private"], creatorUid: 42 } });
-  await f.call(); expect(logs(f)[0].data).toMatchObject({ title: "", date: "", creatorUid: "" });
+  await f.call(); expect(logs(f)[0].data).toMatchObject({ title: "", date: "", creatorUid: "", content: "刪除「」" });
+});
+// Operator follows deleteTeam's readActorNames formula (displayName || role label || 系統),
+// read from the same in-transaction users/{uid} snapshot (no extra read).
+test.each([
+  ["trimmed displayName wins over name and role label", { role: "admin", displayName: "  站長  ", name: "本名" }, undefined, "站長"],
+  ["blank displayName falls back to built-in role label", { role: "coach", displayName: "   ", name: "本名" }, undefined, "教練"],
+  ["non-string displayName is coerced like readActorNames", { role: "admin", displayName: 42 }, undefined, "42"],
+  ["custom role has no label", { role: "custom_ops" }, undefined, "系統"],
+  ["inherited Object property is not a role label", { role: "constructor" }, undefined, "系統"],
+  ["absent user document uses the token role label", undefined, "super_admin", "總管"],
+])("audit operator: %s", async (label, userDoc, tokenRole, operator) => {
+  const f = setup({ role: userDoc?.role || "user", tokenRole, grant: { permissions: ["event.delete"] } });
+  f.put("users/" + UID, userDoc);
+  const reads = f.state.reads;
+  await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: false });
+  expect(logs(f)).toHaveLength(1); expect(logs(f)[0].data).toMatchObject({ operator, actorUid: UID, type: "event_delete" });
+  expect(f.state.reads - reads).toBeLessThanOrEqual(4);
+});
+test("missing audit builder fails closed with no writes", async () => {
+  const f = setup({ role: "admin" });
+  const handler = createDeleteEventHandler({ ...f.deps, buildOperationLogPayload: undefined });
+  await expect(handler({ data: { eventId: ID }, auth: { uid: UID, token: {} } })).rejects.toMatchObject({ code: "internal", message: "EVENT_DELETE_FAILED" });
+  expect(f.state.writes).toEqual([]); expect(f.docs.has(PATH)).toBe(true);
 });
