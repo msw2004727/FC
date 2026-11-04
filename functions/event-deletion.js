@@ -88,6 +88,7 @@ function createDeleteEventHandler({
             const legacy = await transaction.get(events.where("id", "==", eventId).limit(2));
             if (legacy.docs.length > 1) reject("failed-precondition", "EVENT_ID_AMBIGUOUS");
             eventSnap = legacy.docs[0] || null;
+            if (!eventSnap && direct.exists) reject("failed-precondition", "EVENT_ID_MISMATCH");
           }
           if (!eventSnap) return { ok: true, alreadyDeleted: true };
           lastEventRef = eventSnap.ref;

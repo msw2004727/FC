@@ -246,10 +246,29 @@ test.each([{ courseLinked: true }, { courseLinkId: "legacy_course" }, { courseLi
     message: "COURSE_LINKED_EVENT_MANAGED_BY_COURSE", details: { code: "COURSE_LINKED_EVENT_MANAGED_BY_COURSE" } });
   expect(f.state.writes).toEqual([]); expect(f.deps.courseLinkedEventManagedByCourseError).toHaveBeenCalledTimes(1);
 });
-test("missing event and repeated deletion are idempotent with warn logs", async () => {
-  const f = setup({ role: "admin" }); await f.call(); await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
-  await expect(f.call({ eventId: "ce_never_existed" })).resolves.toEqual({ ok: true, alreadyDeleted: true });
-  expect(logs(f)).toHaveLength(1); expect(f.logger.warn).toHaveBeenCalledTimes(2);
+test("missing direct and legacy event is alreadyDeleted with no writes", async () => {
+  const f = setup({ role: "admin" }); f.put(PATH, undefined);
+  await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+  expect(f.state.writes).toEqual([]); expect(f.docs.has(PATH)).toBe(false);
+  expect(f.logger.warn).toHaveBeenCalledTimes(1); expect(f.logger.error).not.toHaveBeenCalled();
+});
+test("repeated deletion remains idempotent with exactly one audit and parent delete", async () => {
+  const f = setup({ role: "admin" });
+  await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: false });
+  await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+  await expect(f.call()).resolves.toEqual({ ok: true, alreadyDeleted: true });
+  expect(logs(f)).toHaveLength(1); expect(f.state.writes).toHaveLength(2); expect(f.docs.has(PATH)).toBe(false);
+  expect(f.logger.warn).toHaveBeenCalledTimes(2); expect(f.logger.error).not.toHaveBeenCalled();
+});
+test("direct doc id mismatch without a legacy match fails closed and is sanitized", async () => {
+  const mismatchedId = "different_public_id";
+  const f = setup({ role: "admin", event: { id: mismatchedId } });
+  await expect(f.call()).rejects.toMatchObject({ code: "failed-precondition", message: "EVENT_ID_MISMATCH", details: undefined });
+  expect(f.state.writes).toEqual([]); expect(f.docs.get(PATH)).toEqual({ ...EVENT, id: mismatchedId });
+  expect(f.logger.warn).not.toHaveBeenCalled();
+  expect(f.logger.error).toHaveBeenCalledWith("[deleteEvent] failed", expect.objectContaining({ phase: "resolve", code: "failed-precondition" }));
+  const serialized = JSON.stringify(f.logger.error.mock.calls);
+  for (const secret of [UID, ID, mismatchedId, EVENT.title]) expect(serialized).not.toContain(secret);
 });
 test("public-id fallback never deletes a colliding direct doc; ambiguous legacy ids fail closed", async () => {
   const f = setup({ role: "admin", event: { id: "different_public_id" }, extra: { "events/legacy_doc": EVENT } });
