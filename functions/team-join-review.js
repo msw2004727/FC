@@ -37,19 +37,29 @@ async function readUser(tx, db, uid, HttpsError) {
   return doc;
 }
 
-// 舊清單取法同 Rules isSafeGrantedTeamReviewJoinUpdate：非空 list 優先，否則回退單值欄位。
-function legacyList(list, scalar) {
-  if (Array.isArray(list) && list.length > 0) return list.slice();
-  return scalar == null ? [] : [scalar];
+// 同 A message-actions-team.js normalizeMembership：teamIds（依序）∪ teamId 去重，空值／null 略過，
+// teamNames 依原索引對齊。取代先前「非空 teamIds 優先、忽略單值 teamId」的取法：那會讓
+// {teamIds:['A'],teamId:'B'} 核准後遺失 B（T-090g 審查 P2-1、P3-6）。
+function normalizeMembership(userData) {
+  const ids = [];
+  const names = [];
+  const push = (id, name) => {
+    const tid = typeof id === "string" || typeof id === "number" ? String(id).trim() : "";
+    if (!tid || ids.includes(tid)) return;
+    ids.push(tid);
+    names.push(typeof name === "string" ? name.trim() : "");
+  };
+  if (Array.isArray(userData.teamIds)) {
+    userData.teamIds.forEach((id, index) => push(id, Array.isArray(userData.teamNames) ? userData.teamNames[index] : ""));
+  }
+  push(userData.teamId, userData.teamName);
+  return { ids, names };
 }
 
-// 追加後的形狀同 Rules isSafeGrantedTeamReviewJoinUpdate：舊 teamIds 原樣保留（不去重不重排）、
-// teamNames 與 teamIds 等長且舊名稱前綴不變、teamId／teamName 為第 0 筆。
-function buildJoinedMembership(userData, teamDocId, teamName) {
-  const teamIds = legacyList(userData.teamIds, userData.teamId);
-  const oldNames = legacyList(userData.teamNames, userData.teamName);
-  const teamNames = teamIds.map((_, index) => (index < oldNames.length ? oldNames[index] : ""));
-  teamIds.push(teamDocId);
+// 新俱樂部追加在最後；teamId／teamName 為第 0 筆、teamNames 與 teamIds 等長。
+function buildJoinedMembership(userData, joinTeamId, teamName) {
+  const { ids: teamIds, names: teamNames } = normalizeMembership(userData);
+  teamIds.push(joinTeamId);
   teamNames.push(teamName);
   return { teamId: teamIds[0], teamName: teamNames[0], teamIds, teamNames };
 }
@@ -87,13 +97,27 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
         stage = "team";
         const team = await resolveTeamSnapshot(db, teamId, HttpsError, ref => tx.get(ref));
         if (!team) fail("not-found", "TEAM_NOT_FOUND");
+        // 文件 ID 直接命中時，若另有文件的公開 id 也等於 teamId（舊格式俱樂部 data.id ≠ 文件 ID），
+        // 無法判定申請指的是哪一隊，fail-closed，避免新建同名文件 ID 搶走舊隊申請（審查 P1-1）。
+        // 經舊別名解析者 resolveTeamSnapshot 已確認唯一，不重查。
+        if (team.id === teamId) {
+          const aliases = await tx.get(db.collection("teams").where("id", "==", teamId).limit(2));
+          if (aliases.docs.some(doc => doc.id !== team.id)) fail("failed-precondition", "TEAM_ID_AMBIGUOUS");
+        }
         const teamData = team.data() || {};
         stage = "authorization";
         const caller = await readUser(tx, db, callerUid, HttpsError);
         const callerData = caller?.data() || {};
         const role = normalizeRole(callerData.role);
+        const isAdmin = ["admin", "super_admin"].includes(role);
+        // 對齊 Rules !isOwner(userId)：非管理員不得核准自己的申請（審查 P3-1）。
+        if (!isAdmin && applicantUid === callerUid) fail("permission-denied", "TEAM_JOIN_SELF_REVIEW_DENIED");
+        // 擁有者與 review_join 職員路徑須是這筆申請的收件人（審查 P2-3）；管理員與 team.manage_all 不要求。
+        let requireRecipient = false;
         // 自建俱樂部擁有者（OWNER_FIELDS 嚴格等於 auth.uid）或管理員免權限碼；其餘照 Rules 語意讀角色權限與個別授權。
-        if (!isUserCreatedTeamOwner(teamData, callerUid) && !["admin", "super_admin"].includes(role)) {
+        if (!isAdmin && isUserCreatedTeamOwner(teamData, callerUid)) {
+          requireRecipient = true;
+        } else if (!isAdmin) {
           const roleId = normalizeId(role);
           const roleDoc = roleId && role !== "user" ? await tx.get(db.collection("rolePermissions").doc(roleId)) : null;
           const grant = await tx.get(db.collection("userPermissionGrants").doc(callerUid));
@@ -102,9 +126,11 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
             roleDoc: roleDoc?.exists ? roleDoc.data() || {} : null,
             grantDoc: grant.exists ? grant.data() || {} : null,
           };
-          if (!hasEffectivePermission(sources, "team.manage_all")
-            && !(hasEffectivePermission(sources, "team.review_join") && isTeamStaffForData(teamData, callerUid))) {
-            fail("permission-denied", "TEAM_JOIN_REVIEW_DENIED");
+          if (!hasEffectivePermission(sources, "team.manage_all")) {
+            if (!(hasEffectivePermission(sources, "team.review_join") && isTeamStaffForData(teamData, callerUid))) {
+              fail("permission-denied", "TEAM_JOIN_REVIEW_DENIED");
+            }
+            requireRecipient = true;
           }
         }
         stage = "application";
@@ -125,6 +151,10 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
             fail("failed-precondition", "TEAM_JOIN_REQUEST_NOT_PENDING");
           }
         }
+        // 上面已驗證每份副本都是 users/{uid}/inbox/{id}，callerUid 不含 "/"，前綴比對即精確。
+        if (requireRecipient && !group.docs.some(doc => doc.ref.path.startsWith("users/" + callerUid + "/inbox/"))) {
+          fail("permission-denied", "TEAM_JOIN_REVIEW_DENIED");
+        }
         const reviewed = group.docs.filter(doc => FINAL_STATUSES.includes(doc.data().actionStatus));
         const finalStatuses = new Set(reviewed.map(doc => doc.data().actionStatus));
         if (finalStatuses.size > 1) fail("failed-precondition", "TEAM_JOIN_REVIEW_CONFLICT");
@@ -144,12 +174,14 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
           if (data.teamIds != null && !Array.isArray(data.teamIds)) fail("failed-precondition", "INVALID_MEMBERSHIP");
           if (data.teamNames != null && !Array.isArray(data.teamNames)) fail("failed-precondition", "INVALID_MEMBERSHIP");
           // 已加入判斷同 getUserTeamIds（teamIds ∪ teamId）；別名只接受 F1 解析到本文件的輸入值。
-          const currentIds = [...(Array.isArray(data.teamIds) ? data.teamIds : []), data.teamId];
+          const currentIds = normalizeMembership(data).ids;
           alreadyMember = currentIds.includes(team.id) || currentIds.includes(teamId);
           membershipAdded = !alreadyMember;
           if (membershipAdded) {
-            const name = typeof teamData.name === "string" && teamData.name.trim() ? teamData.name.trim() : team.id;
-            membership = buildJoinedMembership(data, team.id, name);
+            // 寫入申請 meta.teamId（＝已驗證的 teamId；舊格式俱樂部為公開 id），與 A 寫入值及前端 item.id 比對一致。
+            // 取代先前寫文件 ID（審查 P1-1）；名稱仍取俱樂部文件 name。
+            const name = typeof teamData.name === "string" && teamData.name.trim() ? teamData.name.trim() : teamId;
+            membership = buildJoinedMembership(data, teamId, name);
           }
         }
         const update = { actionStatus, reviewerName };

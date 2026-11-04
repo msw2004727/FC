@@ -198,6 +198,31 @@ describe("reviewTeamJoin authorization and scope", () => {
     h.change("userPermissionGrants/owner", grant);
     await denied(h, request(), "permission-denied");
   });
+  // P2-3：擁有者與 review_join 職員必須是這筆申請的收件人；修正前兩者皆可核准成功。
+  test.each(["owner", "review_join staff"])("%s who is not a recipient of the application is denied", async kind => {
+    const h = harness(); h.remove(INBOX);
+    if (kind !== "owner") {
+      h.change("teams/tm_test", { createdVia: "admin", ownerUid: null, leaderUid: "owner" });
+      h.change("userPermissionGrants/owner", { permissions: ["team.review_join"] });
+    }
+    await denied(h, request(), "permission-denied", "TEAM_JOIN_REVIEW_DENIED");
+  });
+  test.each(["admin", "manage_all"])("%s path does not require being a recipient", async kind => {
+    const h = harness(); h.remove(INBOX); h.change("teams/tm_test", { createdVia: "admin", ownerUid: "other" });
+    if (kind === "admin") h.change("users/owner", { role: "admin" });
+    else h.change("userPermissionGrants/owner", { permissions: ["team.manage_all"] });
+    await expect(h.handler(request())).resolves.toMatchObject({ membershipAdded: true, updatedMessages: 1 });
+  });
+  // P3-1：對齊 Rules !isOwner(userId)，申請者本人（即使是擁有者且是收件人）不得自核准；修正前會成功。
+  test("applicant cannot approve their own application", async () => {
+    const h = harness(); h.change("teams/tm_test", { ownerUid: "applicant" });
+    h.change("users/applicant/inbox/self", message());
+    await denied(h, request({}, "applicant"), "permission-denied", "TEAM_JOIN_SELF_REVIEW_DENIED");
+  });
+  test("admin applicant keeps the self-review exception", async () => {
+    const h = harness(); h.change(USER, { role: "admin" });
+    await expect(h.handler(request({}, "applicant"))).resolves.toMatchObject({ membershipAdded: true });
+  });
   test("review grant alone cannot review another team's application", async () => {
     const h = harness(); h.change("teams/tm_test", { ownerUid: "other" });
     h.change("userPermissionGrants/owner", { permissions: ["team.review_join"] });
@@ -210,15 +235,27 @@ describe("reviewTeamJoin authorization and scope", () => {
   test("F1 normalizes surrounding whitespace", async () => {
     await expect(harness().handler(request({ teamId: " tm_test " }))).resolves.toMatchObject({ teamId: "tm_test" });
   });
-  test("F1 direct document wins over a forged id field elsewhere", async () => {
+  test("forged id field on another document makes a direct hit ambiguous (fail closed)", async () => {
     const h = harness(); h.change("teams/evil", { id: "tm_test", ownerUid: "owner", createdVia: "user_capability" });
     h.change("teams/tm_test", { ownerUid: "other" });
-    await denied(h, request(), "permission-denied");
+    await denied(h, request(), "failed-precondition", "TEAM_ID_AMBIGUOUS");
   });
-  test("F1 unique legacy alias appends only resolved document ID", async () => {
+  // P1-1：舊格式俱樂部（文件 ID ≠ 公開 id）可被新建「文件 ID＝公開 id」的隊伍搶註。
+  // 修正前：文件 ID 優先 → 導到攻擊者隊伍，擁有者路徑核准成功並寫入 users。
+  test.each(["L_public", "anything_else"])("squatting doc teams/L (data.id=%s) cannot hijack legacy team L", async squatId => {
+    const seed = base(); delete seed["teams/tm_test"];
+    seed["teams/legacy_doc"] = { id: "L_public", name: "Legacy FC", createdVia: "admin", ownerUid: "victim_owner" };
+    seed["teams/L_public"] = { id: squatId, name: "Evil", createdVia: "user_capability", ownerUid: "owner" };
+    const meta = { teamId: "L_public", applicantUid: "applicant", groupId: GROUP };
+    seed[INBOX] = message({ meta }); seed[SECOND] = message({ meta });
+    await denied(harness(seed), request({ teamId: "L_public" }), "failed-precondition", "TEAM_ID_AMBIGUOUS");
+  });
+  // P1-1：users 寫入申請 meta.teamId（公開 id），與 A 寫入值、前端 item.id 比對一致；名稱取文件 name。
+  // 修正前寫文件 ID legacy_doc，此測試失敗。
+  test("unique legacy alias writes the application teamId (public id) like A", async () => {
     const seed = base(); seed["teams/legacy_doc"] = seed["teams/tm_test"]; delete seed["teams/tm_test"];
     const h = harness(seed); await expect(h.handler(request())).resolves.toMatchObject({ teamId: "legacy_doc" });
-    expect(h.get(USER).teamIds).toEqual(["tm_old", "legacy_doc"]);
+    expect(h.get(USER)).toMatchObject({ teamIds: ["tm_old", "tm_test"], teamNames: ["Old", "Test FC"] });
   });
   test("ambiguous legacy team IDs fail closed", async () => {
     const seed = base(); seed["teams/a"] = seed["teams/tm_test"]; seed["teams/b"] = seed["teams/tm_test"]; delete seed["teams/tm_test"];
@@ -304,10 +341,26 @@ describe("reviewTeamJoin request authenticity and lifecycle", () => {
     await expect(h.handler(request())).resolves.toMatchObject({ alreadyMember: true, membershipAdded: false });
     expect(h.get(USER)).toEqual(before);
   });
-  test("old list including duplicates and unrelated fields remains intact", async () => {
+  test("old list is de-duplicated like A normalizeMembership; unrelated fields remain intact", async () => {
     const h = harness(); h.change(USER, { teamIds: ["tm_old", "tm_old", "tm_other"], exp: 999 });
     const before = h.get(USER); await h.handler(request());
-    expect(h.get(USER)).toEqual(joined(before, "tm_test", "Test FC", ["Old", "", ""]));
+    expect(h.get(USER)).toEqual({ ...before, teamId: "tm_old", teamName: "Old",
+      teamIds: ["tm_old", "tm_other", "tm_test"], teamNames: ["Old", "", "Test FC"] });
+  });
+  // P2-1：teamIds 非空但單值 teamId 不在清單時要聯集保留；修正前 B 會遺失（結果為 ['A','tm_test']）。
+  test("scalar teamId missing from teamIds is kept (union, old order first)", async () => {
+    const h = harness(); h.change(USER, { teamIds: ["A"], teamNames: ["A FC"], teamId: "B", teamName: "B FC" });
+    await h.handler(request());
+    expect(h.get(USER)).toMatchObject({ teamId: "A", teamName: "A FC",
+      teamIds: ["A", "B", "tm_test"], teamNames: ["A FC", "B FC", "Test FC"] });
+  });
+  // P3-6：teamIds 含 null 時不得寫出 teamId:null；修正前 teamIds[0] 為 null。
+  test.each([
+    [{ teamIds: [null, "tm_old"], teamNames: ["", "Old"], teamId: null }, ["tm_old", "tm_test"], ["Old", "Test FC"]],
+    [{ teamIds: [null], teamNames: [], teamId: null }, ["tm_test"], ["Test FC"]],
+  ])("invalid teamIds entries are dropped: %j", async (patch, ids, names) => {
+    const h = harness(); h.change(USER, patch); await h.handler(request());
+    expect(h.get(USER)).toMatchObject({ teamId: ids[0], teamName: names[0], teamIds: ids, teamNames: names });
   });
   test.each([
     ["missing", seed => { delete seed[USER].teamIds; delete seed[USER].teamNames; seed[USER].teamName = "Old"; }],
@@ -413,7 +466,8 @@ describe("reviewTeamJoin retries, budgets and boundary", () => {
     for (let i = 0; i < MAX_GROUP_MESSAGES; i++) seed["users/staff" + i + "/inbox/request"] = message();
     const h = harness(seed); await h.handler(request());
     expect(h.state.writes).toHaveLength(451);
-    expect(h.state.reads.reduce((n, r) => n + r.documents, 0)).toBe(453);
+    // team 1 + 公開 id 別名查詢 1 + caller 1 + group 450 + applicant 1。
+    expect(h.state.reads.reduce((n, r) => n + r.documents, 0)).toBe(454);
   });
   test("overflow fails closed without truncating group", async () => {
     const seed = base(); delete seed[INBOX]; delete seed[SECOND];
