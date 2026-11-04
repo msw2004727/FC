@@ -88,9 +88,13 @@ async function resolveStrictUserIdentity({ db, targetUid, HttpsError }) {
 // Firestore 無法用 != 篩選（legacy 無 createdVia 會一起被濾掉），改分頁讀回後在記憶體排除；
 // 分頁到底是為了不讓大量自建隊的掛名把同一人的 legacy 隊擠出結果而誤降級。
 const TEAM_ASSIGNMENT_PAGE_SIZE = 10;
+// 明示依文件 id 排序再以 startAfter 分頁（Grok P3-2）。"__name__" 即 FieldPath.documentId()；
+// 用字串是因為本模組不載入 firebase-admin（根目錄單元測試的 CI 沒裝 functions 依賴）。
+const DOCUMENT_ID_FIELD = "__name__";
 
 async function hasManagedTeamAssignment(teamCollection, field, operator, uid, excludeTeamDocId = "") {
-  let query = teamCollection.where(field, operator, uid).limit(TEAM_ASSIGNMENT_PAGE_SIZE);
+  const ordered = () => teamCollection.where(field, operator, uid).orderBy(DOCUMENT_ID_FIELD);
+  let query = ordered().limit(TEAM_ASSIGNMENT_PAGE_SIZE);
   // 取捨：迴圈不設頁數上限；四個欄位合計最壞讀取＝命中的自建隊數＋4 次（每個查詢至少計 1 次）。
   // 設上限會讓「大量自建隊掛名」把 legacy 隊擠出結果而誤降級（穩定優先於省讀取）；正常人只掛少數隊，多半第一頁就結束。
   for (;;) {
@@ -98,7 +102,7 @@ async function hasManagedTeamAssignment(teamCollection, field, operator, uid, ex
     const docs = snapshot.docs || [];
     if (docs.some(doc => doc.id !== excludeTeamDocId && !isUserCreatedTeam(doc.data()))) return true;
     if (docs.length < TEAM_ASSIGNMENT_PAGE_SIZE) return false;
-    query = teamCollection.where(field, operator, uid)
+    query = ordered()
       .startAfter(docs[docs.length - 1])
       .limit(TEAM_ASSIGNMENT_PAGE_SIZE);
   }
@@ -237,9 +241,14 @@ function createAutoPromoteTeamRoleHandler({
       let decision = getRoleDecision({ targetData: targetUser.data, savedTeamRole, roleLevels, normalizeRole });
       if (!decision.skipped
         && roleLevels[decision.newRole] > roleLevels[decision.currentRole]) {
-        const contextRole = teamData && normalizeUid(teamData.captainUid) === targetUser.uid
+        let contextRole = teamData && normalizeUid(teamData.captainUid) === targetUser.uid
           ? "captain"
           : (teamSupportsTargetRole(teamData, targetUser.uid, "coach") ? "coach" : "user");
+        // T-090i（Grok 交叉審查 P2）：自建隊的職員欄位由擁有者自填，不得把結果抬高到掃描結果（savedTeamRole）之上；
+        // 否則管理權限呼叫者傳自建隊 teamId 就能把 legacy 教練升成全域 captain。legacy／managed 隊不變。
+        if (isUserCreatedTeam(teamData) && roleLevels[contextRole] > roleLevels[savedTeamRole]) {
+          contextRole = savedTeamRole;
+        }
         decision = getRoleDecision({
           targetData: targetUser.data,
           savedTeamRole: contextRole,
