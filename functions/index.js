@@ -31,6 +31,7 @@ const { createReviewTeamJoinCallable } = require("./team-join-review");
 const { createUserTeamCallable } = require("./user-team-create");
 const { createDeleteTeamCallable } = require("./team-deletion");
 const { createDeleteEventCallable } = require("./event-deletion");
+const registrationGuards = require("./registration-guards");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
 const { createRelationQueries } = require("./notification-relation-queries");
@@ -13125,7 +13126,7 @@ function normalizeBinaryGenderForRegistration(value) {
 exports.registerForEvent = onCall(
   // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650 / 用戶體感從 3-5 秒 → < 1 秒）
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
-  async (request) => {
+  registrationGuards.withRegistrationErrorBoundary({ fn: "registerForEvent", HttpsError }, async (request) => {
     // ── 身份驗證 ──
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -13152,31 +13153,26 @@ exports.registerForEvent = onCall(
       throw new HttpsError("invalid-argument", "participants must be an array (1-10)");
     }
 
-    // ── 冪等性保護 ──
-    const safeRequestId = typeof requestId === "string" && requestId.length > 0
-      ? requestId.slice(0, 100)
-      : `${callerUid}_${eventId}_${Date.now()}`;
-    const dedupRef = db.collection("_regDedupe").doc(safeRequestId);
-    try {
-      // expiresAt 供 Firestore TTL Policy 自動清理（設定 TTL 於 _regDedupe 集合的 expiresAt 欄位）
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 分鐘後過期
-      await dedupRef.create({
-        callerUid,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromDate(expiresAt),
-      });
-    } catch (e) {
-      if (e.code === 6 || e.code === "already-exists") {
-        return { success: true, deduplicated: true };
-      }
-      // 非 already-exists 錯誤：記錄但不中斷流程（dedupe 為保護性機制，非必要條件）
-      console.warn("[registerForEvent] dedupe create failed:", e.message);
+    // ── 冪等性保護（T-087：去重文件改在交易內讀寫，與報名同生共死；鍵含函式名與呼叫者 UID）──
+    // 取代原交易外 dedupRef.create()：交易失敗時去重文件仍在，同 requestId 重送會回假成功。
+    // 沒帶或不合法的 requestId 不建去重文件，只靠交易內的重複報名檢查。
+    const dedupRef = registrationGuards.buildRegistrationDedupeRef(db, "register", callerUid, requestId);
+    if (!dedupRef) {
+      console.warn("[registerForEvent] dedupe skipped", { function: "registerForEvent", reason: "REQUEST_ID_MISSING_OR_INVALID" });
     }
 
     // ── 強制 participants[0].userId === callerUid ──
     const firstParticipant = participants[0];
     if (!firstParticipant || firstParticipant.userId !== callerUid) {
       throw new HttpsError("permission-denied", "First participant must be the caller");
+    }
+    // ── T-087（Q3）：所有參與者都必須是呼叫者本人，第 2 位起必須帶 companionId ──
+    if (!registrationGuards.areParticipantsOwnedByCaller(participants, callerUid)) {
+      throw new HttpsError(
+        "permission-denied",
+        registrationGuards.REGISTRATION_GUARD_MESSAGES.PARTICIPANT_NOT_ALLOWED,
+        "PARTICIPANT_NOT_ALLOWED"
+      );
     }
 
     // ── sanitize 所有參與者 ──
@@ -13199,6 +13195,24 @@ exports.registerForEvent = onCall(
 
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
+      // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西、不扣早鳥點數
+      const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
+      const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "register", callerUid, eventId });
+      if (dedupe.status === "hit") {
+        return { deduplicated: true, stored: dedupe.result };
+      }
+      if (dedupe.status === "conflict") {
+        throw new HttpsError(
+          "failed-precondition",
+          registrationGuards.REGISTRATION_GUARD_MESSAGES.REQUEST_ID_CONFLICT,
+          "REQUEST_ID_CONFLICT"
+        );
+      }
+      if (dedupe.status === "foreign") {
+        console.warn("[registerForEvent] dedupe skipped", { function: "registerForEvent", reason: "DEDUPE_DOC_FOREIGN" });
+      }
+      const shouldCreateDedupe = dedupe.status === "miss" && !!dedupRef;
+
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
       const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
       if (!eventDoc) {
@@ -13276,6 +13290,15 @@ exports.registerForEvent = onCall(
           registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
         };
       });
+
+      // T2（T-087）：黑名單四態，只擋 operator（被擋但曾有任何報名紀錄仍可報名；管理員不豁免）
+      if (registrationGuards.isEventBlockedForCaller(ed, callerUid, allEventRegs)) {
+        throw new HttpsError(
+          "failed-precondition",
+          registrationGuards.REGISTRATION_GUARD_MESSAGES.EVENT_UNAVAILABLE,
+          "EVENT_UNAVAILABLE"
+        );
+      }
       const lockDocs = await Promise.all(regLockRefs.map((ref) => transaction.get(ref)));
 
       // T3: 重複報名檢查
@@ -13304,6 +13327,19 @@ exports.registerForEvent = onCall(
           if (!normalizedGender || normalizedGender !== allowedGender) {
             throw new HttpsError("failed-precondition", "GENDER_RESTRICTED");
           }
+        }
+      }
+
+      // T3（T-087）：年齡限制，只檢查本人；基準日＝活動開始日（台北時區），解析失敗用現在
+      if (participantsIncludeSelf) {
+        const ageRejection = registrationGuards.evaluateMinAgeRestriction({
+          minAge: ed.minAge,
+          userData: callerUserDoc?.data || null,
+          eventStart: parseEventStartDateInTaipei(ed.date),
+          now,
+        });
+        if (ageRejection) {
+          throw new HttpsError("failed-precondition", ageRejection.message, ageRejection.code);
         }
       }
 
@@ -13539,7 +13575,7 @@ exports.registerForEvent = onCall(
         status: eventProjection.status,
       });
 
-      return {
+      const txResult = {
         registrations: registrations.map((r) => ({
           id: r.id,
           docId: r._docId,
@@ -13562,9 +13598,27 @@ exports.registerForEvent = onCall(
         earlyBirdCharged,
         earlyBirdCost: earlyBirdChargedCost,
       };
+      // T8（T-087）：同交易建立去重文件（最後一個寫入、之後沒有讀取），只存精簡結果
+      if (shouldCreateDedupe) {
+        transaction.create(dedupRef, registrationGuards.buildRegistrationDedupeDoc({
+          fn: "register",
+          callerUid,
+          eventId,
+          result: registrationGuards.pickRegisterDedupeResult(txResult),
+          nowMs: Date.now(),
+          FieldValue,
+          Timestamp,
+        }));
+      }
+      return txResult;
     });
 
-    // ── Transaction 成功：後置操作（fire-and-forget） ──
+    // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複加 EXP、不重寫 audit）
+    if (result.deduplicated === true) {
+      return { success: true, deduplicated: true, ...result.stored };
+    }
+
+    // ── Transaction 成功：交易成功後的 best-effort 後置操作（等待完成、失敗只記錄） ──
     const postOps = [];
 
     // P1: auditLog
@@ -13633,7 +13687,7 @@ exports.registerForEvent = onCall(
       earlyBirdCharged: result.earlyBirdCharged === true,
       earlyBirdCost: result.earlyBirdCost || 0,
     };
-  }
+  })
 );
 
 // ═══════════════════════════════════════════════════════════════
@@ -14421,7 +14475,7 @@ exports.manageCourseLinkedRegistrationStatus = onCall(
 exports.cancelRegistration = onCall(
   // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650）
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
-  async (request) => {
+  registrationGuards.withRegistrationErrorBoundary({ fn: "cancelRegistration", HttpsError }, async (request) => {
     // ── 身份驗證 ──
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -14440,23 +14494,11 @@ exports.cancelRegistration = onCall(
     const validReasons = ["user_cancel", "manager_remove", "capacity_change"];
     const cancelReason = validReasons.includes(reason) ? reason : "user_cancel";
 
-    // ── 冪等性保護 ──
-    const safeRequestId = typeof requestId === "string" && requestId.length > 0
-      ? requestId.slice(0, 100)
-      : `cancel_${callerUid}_${eventId}_${Date.now()}`;
-    const dedupRef = db.collection("_regDedupe").doc(safeRequestId);
-    try {
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      await dedupRef.create({
-        callerUid,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromDate(expiresAt),
-      });
-    } catch (e) {
-      if (e.code === 6 || e.code === "already-exists") {
-        return { success: true, deduplicated: true };
-      }
-      console.warn("[cancelRegistration] dedupe create failed:", e.message);
+    // ── 冪等性保護（T-087：去重文件改在交易內讀寫；鍵含函式名與呼叫者 UID）──
+    // 取代原交易外 dedupRef.create()：交易失敗時去重文件仍在，同 requestId 重送會回假成功。
+    const dedupRef = registrationGuards.buildRegistrationDedupeRef(db, "cancel", callerUid, requestId);
+    if (!dedupRef) {
+      console.warn("[cancelRegistration] dedupe skipped", { function: "cancelRegistration", reason: "REQUEST_ID_MISSING_OR_INVALID" });
     }
 
     // ── 預先查詢呼叫者角色（在 Transaction 外，避免 Transaction 內非交易讀取）──
@@ -14467,6 +14509,24 @@ exports.cancelRegistration = onCall(
 
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
+      // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西
+      const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
+      const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "cancel", callerUid, eventId });
+      if (dedupe.status === "hit") {
+        return { deduplicated: true, stored: dedupe.result };
+      }
+      if (dedupe.status === "conflict") {
+        throw new HttpsError(
+          "failed-precondition",
+          registrationGuards.REGISTRATION_GUARD_MESSAGES.REQUEST_ID_CONFLICT,
+          "REQUEST_ID_CONFLICT"
+        );
+      }
+      if (dedupe.status === "foreign") {
+        console.warn("[cancelRegistration] dedupe skipped", { function: "cancelRegistration", reason: "DEDUPE_DOC_FOREIGN" });
+      }
+      const shouldCreateDedupe = dedupe.status === "miss" && !!dedupRef;
+
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
       const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
       if (!eventDoc) {
@@ -14539,6 +14599,19 @@ exports.cancelRegistration = onCall(
         }
       );
 
+      // T3（T-087）：取消時限，只套 user_cancel（含 companion_toggle）且本次確實有要取消的報名；
+      // 放在第一個寫入之前，擋下時零寫入（不取消、不遞補、不改 occupancy）。全部已取消的冪等重送不套。
+      if (cancelReason === "user_cancel" && targetRegs.length > 0) {
+        const deadlineRejection = registrationGuards.evaluateUserCancelDeadline({
+          eventData: ed,
+          eventStart: parseEventStartDateInTaipei(ed.date),
+          now: new Date(),
+        });
+        if (deadlineRejection) {
+          throw new HttpsError("failed-precondition", deadlineRejection.message, deadlineRejection.code);
+        }
+      }
+
       // Firestore transactions require every read before the first write.
       const arSnap = await transaction.get(
         eventDoc.ref.collection("activityRecords")
@@ -14554,7 +14627,7 @@ exports.cancelRegistration = onCall(
           ed,
           rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive)
         );
-        return {
+        const alreadyCancelledResult = {
           cancelled: [],
           alreadyCancelled: alreadyCancelledRegs.map((r) => ({
             id: r.id,
@@ -14566,6 +14639,19 @@ exports.cancelRegistration = onCall(
           event: occupancy,
           eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
         };
+        // T-087：同交易建立去重文件（最後一個寫入），只存精簡結果
+        if (shouldCreateDedupe) {
+          transaction.create(dedupRef, registrationGuards.buildRegistrationDedupeDoc({
+            fn: "cancel",
+            callerUid,
+            eventId,
+            result: registrationGuards.pickCancelDedupeResult(alreadyCancelledResult),
+            nowMs: Date.now(),
+            FieldValue,
+            Timestamp,
+          }));
+        }
+        return alreadyCancelledResult;
       }
 
       // T4: 標記取消/移除
@@ -14675,7 +14761,7 @@ exports.cancelRegistration = onCall(
         status: occupancy.status,
       });
 
-      return {
+      const txResult = {
         cancelled: targetRegs.map((r) => ({
           id: r.id,
           docId: r._docId,
@@ -14698,9 +14784,27 @@ exports.cancelRegistration = onCall(
         event: occupancy,
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
       };
+      // T8（T-087）：同交易建立去重文件（最後一個寫入、之後沒有讀取），只存精簡結果
+      if (shouldCreateDedupe) {
+        transaction.create(dedupRef, registrationGuards.buildRegistrationDedupeDoc({
+          fn: "cancel",
+          callerUid,
+          eventId,
+          result: registrationGuards.pickCancelDedupeResult(txResult),
+          nowMs: Date.now(),
+          FieldValue,
+          Timestamp,
+        }));
+      }
+      return txResult;
     });
 
-    // ── Transaction 成功：後置操作（fire-and-forget） ──
+    // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複扣／加 EXP、不重寫 audit）
+    if (result.deduplicated === true) {
+      return { success: true, deduplicated: true, ...result.stored };
+    }
+
+    // ── Transaction 成功：交易成功後的 best-effort 後置操作（等待完成、失敗只記錄） ──
     const postOps = [];
 
     // P1: 通知取消者
@@ -14812,7 +14916,7 @@ exports.cancelRegistration = onCall(
       promoted: result.promoted,
       event: result.event,
     };
-  }
+  })
 );
 
 // ═══════════════════════════════════════════════════════════════

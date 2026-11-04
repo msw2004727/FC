@@ -1486,7 +1486,13 @@ describe('registration callable source contracts', () => {
     const source = readCloudFunctionSource('registerForEvent');
     expect(source).toContain('if (!request.auth)');
     expect(source).toContain('firstParticipant.userId !== callerUid');
-    expect(source).toContain('db.collection("_regDedupe").doc(safeRequestId)');
+    // 測試同步更新（T-087）：去重從交易外 db.collection("_regDedupe").doc(safeRequestId).create() 改為
+    // 交易內讀寫，鍵改含函式名與呼叫者 UID（registration-guards.js#buildRegistrationDedupeDocId）。
+    expect(source).toContain('registrationGuards.buildRegistrationDedupeRef(db, "register", callerUid, requestId)');
+    expect(source).toContain('await transaction.get(dedupRef)');
+    expect(source).toContain('transaction.create(dedupRef');
+    expect(source).not.toContain('await dedupRef.create(');
+    expect(source).toContain('registrationGuards.areParticipantsOwnedByCaller(participants, callerUid)');
     expect(source).toContain('const result = await db.runTransaction');
     expect(source).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
     expect(source).toContain('const selfParticipantKeys = new Set(');
@@ -1818,6 +1824,56 @@ describe('game leaderboard display name source contracts', () => {
   });
 });
 
+describe('registerForEvent CF transaction ordering (T-087)', () => {
+  // 簡報 §4：報名段比照取消段補「讀完才寫」自動檢查。
+  function readRegisterTransactionSource() {
+    const fnSource = readCloudFunctionSource('registerForEvent');
+    const txStart = fnSource.indexOf('const result = await db.runTransaction');
+    expect(txStart).toBeGreaterThanOrEqual(0);
+    const txEnd = fnSource.indexOf('\n    });', txStart);
+    expect(txEnd).toBeGreaterThan(txStart);
+    return fnSource.slice(txStart, txEnd);
+  }
+
+  test('performs transaction reads before writes, dedupe read first and dedupe create last', () => {
+    const txSource = readRegisterTransactionSource();
+    const writeIndexes = [
+      ...findAllIndexes(txSource, 'transaction.update('),
+      ...findAllIndexes(txSource, 'transaction.delete('),
+      ...findAllIndexes(txSource, 'transaction.set('),
+      ...findAllIndexes(txSource, 'transaction.create('),
+    ];
+    const readIndexes = [
+      ...findAllIndexes(txSource, 'transaction.get('),
+      ...findAllIndexes(txSource, 'loadTeamReservationTeamsForTransaction('),
+      ...findAllIndexes(txSource, 'getEventDocByPublicIdInTransaction('),
+    ];
+    // 早鳥扣點的 users 讀取在報名寫入迴圈內、但在該迴圈任何寫入之前（既有設計，一次最多一位本人）。
+    const earlyBirdReadIndex = txSource.indexOf('await transaction.get(callerUserRef)');
+    const firstWriteIndex = Math.min(...writeIndexes);
+    const lateReads = readIndexes.filter((index) => index > firstWriteIndex);
+    expect(earlyBirdReadIndex).toBeGreaterThan(0);
+    expect(earlyBirdReadIndex).toBeLessThan(firstWriteIndex);
+    expect(lateReads).toEqual([]);
+    expect(txSource.indexOf('transaction.get(dedupRef)')).toBe(Math.min(...findAllIndexes(txSource, 'transaction.get(')));
+    expect(txSource.lastIndexOf('transaction.create(dedupRef')).toBe(Math.max(...writeIndexes));
+  });
+
+  test('new guards run before the first write', () => {
+    const txSource = readRegisterTransactionSource();
+    const firstWriteIndex = Math.min(
+      ...findAllIndexes(txSource, 'transaction.update('),
+      ...findAllIndexes(txSource, 'transaction.set('),
+      ...findAllIndexes(txSource, 'transaction.create('),
+    );
+    for (const needle of ['registrationGuards.isEventBlockedForCaller(', 'registrationGuards.evaluateMinAgeRestriction(']) {
+      const index = txSource.indexOf(needle);
+      expect(index).toBeGreaterThan(0);
+      expect(index).toBeLessThan(firstWriteIndex);
+    }
+  });
+});
+
 describe('cancelRegistration CF transaction ordering', () => {
   test('performs transaction reads before writes', () => {
     const txSource = readCancelRegistrationTransactionSource();
@@ -1847,6 +1903,26 @@ describe('cancelRegistration CF transaction ordering', () => {
     expect(source).not.toContain('CONFIRMED_MANAGER_RESTRICTED');
     expect(source).toContain('callerAccess');
     expect(source).toContain('callerUid');
+  });
+
+  test('T-087: dedupe is read first and created last inside the transaction; no out-of-transaction dedupe write', () => {
+    const fnSource = readCloudFunctionSource('cancelRegistration');
+    const txSource = readCancelRegistrationTransactionSource();
+    expect(fnSource).toContain('registrationGuards.buildRegistrationDedupeRef(db, "cancel", callerUid, requestId)');
+    expect(fnSource).not.toContain('await dedupRef.create(');
+    const readIndexes = findAllIndexes(txSource, 'transaction.get(');
+    expect(txSource.indexOf('transaction.get(dedupRef)')).toBe(Math.min(...readIndexes));
+    const deadlineIndex = txSource.indexOf('registrationGuards.evaluateUserCancelDeadline(');
+    const firstWriteIndex = Math.min(
+      ...findAllIndexes(txSource, 'transaction.update('),
+      ...findAllIndexes(txSource, 'transaction.set('),
+      ...findAllIndexes(txSource, 'transaction.delete('),
+      ...findAllIndexes(txSource, 'transaction.create('),
+      txSource.indexOf('writeCourseCancellationAttendanceInTransaction(')
+    );
+    expect(deadlineIndex).toBeGreaterThan(0);
+    expect(deadlineIndex).toBeLessThan(firstWriteIndex);
+    expect(txSource).toContain('cancelReason === "user_cancel" && targetRegs.length > 0');
   });
 
   test('treats already-cancelled targets as idempotent no-ops', () => {
