@@ -322,11 +322,16 @@ describe("decideRelation R5", () => {
   const SOURCES = ["captain", "leader", "coach"].map((role) => `team_role_assignment:${role}`);
   const keys = { teamId: "t1" };
 
-  test.each(SOURCES)("%s 缺 teamId、常數 log：missing_key，不查詢", async (source) => {
-    const queries = makeQueries();
-    const result = await decide(source, {}, queries);
-    expect(result).toMatchObject({ outcome: "missing_key", relationId: "R5" });
-    expect(calledNames(queries)).toEqual([]);
+  // 測試同步更新（T-090f 補裁）：R5 缺鍵不再放行，亦不向呼叫者丟錯。
+  test.each(SOURCES)("%s 缺 teamId：log／enforce 均 skip，不查詢", async (source) => {
+    for (const inject of [{}, { modeOf: enforceAll }]) {
+      for (const teamId of [undefined, null, "", "  ", 7, {}]) {
+        const queries = makeQueries();
+        const result = await decide(source, { teamId }, queries, { inject });
+        expect(result).toMatchObject({ outcome: "skip", relationId: "R5", reason: "missing_key" });
+        expect(calledNames(queries)).toEqual([]);
+      }
+    }
   });
 
   test.each(SOURCES)("%s 鍵齊、收件者在欄位：allow", async (source) => {
@@ -359,13 +364,15 @@ describe("decideRelation R5", () => {
     expect(queries.recipientMatchesAssignment.mock.calls[0][0].assignmentRole).toBe("leader");
   });
 
-  test("member：固定 record，不查詢、有無 teamId 都一樣，注入 enforce 也不拒", async () => {
+  test("member：缺 teamId 略過，鍵齊保留 record；兩種模式均不查詢", async () => {
     for (const k of [{}, keys]) {
       for (const inject of [{}, { modeOf: enforceAll }]) {
         const queries = makeQueries({ callerMayAssignTeamRole: false, recipientMatchesAssignment: false });
         const result = await decide("team_role_assignment:member", k, queries, { inject });
-        expect(result).toMatchObject({ outcome: "record", relationId: "R5", gate: "relation_missing_key" });
-        expect(result.flags.memberQuery).toBe("unverified");
+        expect(result).toMatchObject(k.teamId
+          ? { outcome: "record", relationId: "R5", gate: "relation_missing_key" }
+          : { outcome: "skip", relationId: "R5", reason: "missing_key" });
+        if (k.teamId) expect(result.flags.memberQuery).toBe("unverified");
         expect(calledNames(queries)).toEqual([]);
       }
     }
@@ -373,9 +380,9 @@ describe("decideRelation R5", () => {
 
   test("template:role_upgrade 有 teamId 走 R5；assignmentRole 缺或無效當缺鍵；member 為 record", async () => {
     const source = "template:role_upgrade";
-    expect(await decide(source, { teamId: "t1" }, makeQueries())).toMatchObject({ outcome: "missing_key", relationId: "R5" });
+    expect(await decide(source, { teamId: "t1" }, makeQueries())).toMatchObject({ outcome: "skip", relationId: "R5" });
     expect((await decide(source, { teamId: "t1" }, makeQueries())).flags).toEqual({ hasTeamId: true, hasAssignmentRole: false });
-    expect(await decide(source, { teamId: "t1", assignmentRole: "king" }, makeQueries())).toMatchObject({ outcome: "missing_key" });
+    expect(await decide(source, { teamId: "t1", assignmentRole: "king" }, makeQueries())).toMatchObject({ outcome: "skip" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "captain" }, makeQueries())).toMatchObject({ outcome: "allow", relationId: "R5" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "coach" }, makeQueries({ recipientMatchesAssignment: false }))).toMatchObject({ outcome: "record" });
     expect(await decide(source, { teamId: "t1", assignmentRole: "member" }, makeQueries())).toMatchObject({ outcome: "record" });

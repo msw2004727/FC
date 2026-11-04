@@ -16097,6 +16097,13 @@ exports.deliverToInbox = onCall(
     const callerData = callerDoc.exists ? (callerDoc.data() || {}) : {};
     await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "minute" });
 
+    // T-090f 補裁：無 actionType 的站內信缺 source 一律成功略過，含廣播。
+    // 與 sanitizeDeliverToInboxMessage 的未分類判定相同；typed 訊息仍走原授權。
+    const relationSource = notificationGuards.logSafeSource(message.source);
+    if (!relationSource && (message.actionType === undefined || message.actionType === null || message.actionType === "")) {
+      return { success: true, delivered: 0, skipped: true };
+    }
+
     // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
     const safeMessage = { ...message, fromUid: callerUid };
 
@@ -16146,9 +16153,8 @@ exports.deliverToInbox = onCall(
       ? notificationGuards.resolveInboxDisplayFields(safeMessage, { callerData, nowMs: notificationGuards.now() })
       : null;
 
-    // 防護：帶 source 且無 actionType 的訊息才做關係檢查（deny 不寫任何 inbox、不扣每日額度）；每日上限排在檢查之後
-    const relationSource = notificationGuards.logSafeSource(message.source);
-    if (relationSource && !sanitized.actionType) {
+    // 防護：未分類訊息有 source 才做關係檢查；每日額度排在檢查之後。
+    if (!sanitized.actionType) {
       const relation = await notificationRelation.check({
         kind: "inbox",
         callerUid,
@@ -16327,7 +16333,8 @@ async function assertCallerCanReviewGroupActionDocs(request, docs, groupId) {
       if (!teamDoc) {
         deny("TEAM_NOT_FOUND", actionType);
       }
-      if (isUserCreatedTeamOwner(teamDoc.data, callerUid)) continue;
+      // OWNER_FIELDS 僅以 resolver 解出的本隊文件，嚴格比對原始 auth.uid。
+      if (isUserCreatedTeamOwner(teamDoc.data, request.auth.uid)) continue;
       const accessCtx = await getAccess();
       const hasPerm = accessCtx.hasPermission("team.review_join")
         || accessCtx.hasPermission("team.manage.entry");

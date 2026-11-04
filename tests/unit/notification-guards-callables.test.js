@@ -142,6 +142,20 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     }
   });
 
+  test.each(['captain', 'leader', 'coach', 'member'])('T-090f LINE %s 缺 teamId：成功略過，不查隊伍或扣每日額度', async (role) => {
+    for (const teamId of [undefined, null, '', '  ', 7, {}]) {
+      const reads = [];
+      const env = load({ faults: { read: ({ path }) => { reads.push(path); return null; } } });
+      await expect(env.call(payload({ source: 'team_role_assignment:' + role, teamId })))
+        .resolves.toEqual({ queued: false, skipped: true, reason: 'notification_skipped' });
+      expect(queued(env.db)).toHaveLength(0);
+      expect(reads.some((path) => path.startsWith('teams/'))).toBe(false);
+      expect(counterPaths(env.db)).toHaveLength(1);
+      expect(counterPaths(env.db)[0]).toContain('_caller_enqueue_');
+      expect(env.db.state.writes).toHaveLength(1);
+    }
+  });
+
   const queued = (db) => db.paths('linePushQueue/');
   const userCounters = (db) => counterPaths(db).filter((p) => p.includes(`${DAY}_target_`) || p.includes('_global_'));
 
@@ -674,6 +688,8 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
     typeName: '系統',
     senderName: '系統',
     time: '2026/10/23 12:00',
+    // 顯示／節流案例給明確來源；缺來源另以專案案例驗證成功略過。
+    source: 'client:unknown',
     ...extra,
   });
 
@@ -695,6 +711,38 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
     expect(result).toEqual(sent ? { success: true, delivered: 1 } : { success: true, delivered: 0, skipped: true });
     expect(env.db.paths("users/" + TARGET + "/inbox/")).toHaveLength(sent ? 1 : 0);
     if (!sent) expect(counterPaths(env.db).filter((p) => p.includes("caller_day"))).toHaveLength(0);
+  });
+
+  test.each(['user', 'admin', 'super_admin'])('T-090f inbox 缺 source 對 %s 亦略過，不能以管理權限繞過', async (role) => {
+    const env = load({ users: { ...baseUsers(), [CALLER]: { role } } });
+    await expect(env.call({ message: msg({ source: undefined }), targetUid: TARGET }))
+      .resolves.toEqual({ success: true, delivered: 0, skipped: true });
+    expect(env.db.state.writes).toHaveLength(1);
+    expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
+  });
+
+  test.each([
+    { targetType: 'all' },
+    { targetTeamId: 'other-team' },
+    { targetRoles: ['coach'], targetType: 'role' },
+  ])('T-090f 無來源廣播 %j：缺鍵優先成功略過，不展開收件人', async (target) => {
+    for (const actionType of [undefined, null, '']) {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg({ source: undefined, actionType }), ...target }))
+        .resolves.toEqual({ success: true, delivered: 0, skipped: true });
+      expect(env.db.state.writes).toHaveLength(1);
+      expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
+      expect(env.consoleImpl.out.warns).toHaveLength(0);
+      expect(env.consoleImpl.out.errors).toHaveLength(0);
+    }
+  });
+
+  test.each(['captain', 'leader', 'coach', 'member'])('T-090f inbox %s 有 source 缺 teamId 亦成功略過', async (role) => {
+    const env = load({ users: baseUsers() });
+    await expect(env.call({ message: msg({ source: 'team_role_assignment:' + role }), targetUid: TARGET }))
+      .resolves.toEqual({ success: true, delivered: 0, skipped: true });
+    expect(env.db.state.writes).toHaveLength(1);
+    expect(env.db.state.writes[0].path).toContain('_caller_inbox_');
   });
 
   const adminRoles = { targetRoles: ['admin', 'super_admin'], targetType: 'role' };
@@ -965,23 +1013,29 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       expect(relationWarns(env.consoleImpl)).toHaveLength(0);
     });
 
-    test('沒有 source 的訊息（現行前端）：不歸類、不記 relation log、不拒絕，仍計入 caller_day_inbox', async () => {
+    test.each([undefined, null, '', '   ', 7, {}])('缺／無效 source %j：成功略過，不寫 inbox 或每日額度', async (source) => {
       const env = load({ users: baseUsers() });
-      await expect(env.call({ message: msg(), targetUid: TARGET })).resolves.toEqual({ success: true, delivered: 1 });
+      await expect(env.call({ message: msg({ source }), targetUid: TARGET, source: 'team_role_assignment:coach' }))
+        .resolves.toEqual({ success: true, delivered: 0, skipped: true });
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(0);
       expect(relationWarns(env.consoleImpl)).toHaveLength(0);
-      expect(dayInboxCount(env.db)).toBe(1);
+      expect(dayInboxPaths(env.db)).toHaveLength(0);
+      expect(minuteInboxPaths(env.db)).toHaveLength(1);
     });
 
     test('source 格式不合格（logSafeSource 為 null）視同沒有 source', async () => {
       const env = load({ users: baseUsers() });
       await expect(env.call({ message: msg({ source: 'bad source!' }), targetUid: TARGET })).resolves.toEqual({
         success: true,
-        delivered: 1,
+        delivered: 0,
+        skipped: true,
       });
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(0);
+      expect(dayInboxPaths(env.db)).toHaveLength(0);
       expect(relationWarns(env.consoleImpl)).toHaveLength(0);
     });
 
-    test('有 actionType 的審核類訊息不套關係檢查（即使帶了會被 R0 拒絕的 source）', async () => {
+    test.each([undefined, 'template:welcome'])('有 actionType 的審核類訊息走原授權，source %j 不套一般關係檢查', async (source) => {
       const CAPTAIN = `U${'k'.repeat(32)}`;
       const env = load({
         users: {
@@ -993,7 +1047,7 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       await expect(env.call({
         message: msg({
           id: 'msg_join',
-          source: 'template:welcome',
+          source,
           actionType: 'team_join_request',
           actionStatus: 'pending',
           meta: { teamId: 'tJoin', teamName: '北區俱樂部', applicantUid: CALLER, applicantName: '王小明', groupId: 'tjr_1729650000000_ab3d' },

@@ -292,12 +292,14 @@ describe("B8 createFriendlyTournament 真實 callback", () => {
 
 describe("入隊審核同步 OWNER_FIELDS 例外", () => {
   const docs = (...ids) => ids.map((teamId) => ({ data: () => ({ actionType: "team_join_request", meta: { teamId } }) }));
-  function setup(teams, permissions = []) {
+  function setup(teams, permissions = [], callerUid = "uidCaller") {
     const store = createStore(Object.fromEntries(Object.entries(teams).map(([id, data]) => ["teams/" + id, data])));
     const getCallerAccessContext = jest.fn(async () => access(permissions));
     const ctx = load(store, ["assertCallerCanReviewGroupActionDocs"], { getCallerAccessContext });
     return { store, getCallerAccessContext, call: (...ids) =>
-      ctx.assertCallerCanReviewGroupActionDocs(request({ createdVia: "user_capability", ownerUid: "uidCaller" }), docs(...ids), "group") };
+      ctx.assertCallerCanReviewGroupActionDocs({
+        ...request({ createdVia: "user_capability", ownerUid: "uidCaller" }), auth: { uid: callerUid },
+      }, docs(...ids), "group") };
   }
   test.each(["captainUid", "creatorUid", "ownerUid"])("%s 本人可審同隊且重用文件，零權限讀取", async (field) => {
     const env = setup({ tm_test: { createdVia: "user_capability", [field]: "uidCaller", id: "forged" } });
@@ -317,6 +319,32 @@ describe("入隊審核同步 OWNER_FIELDS 例外", () => {
     { createdVia: "user_capability", ownerUid: "uidOther" },
   ])("非 OWNER_FIELDS 本人無例外：%j", async (team) => {
     await expect(setup({ tm_test: team }).call("tm_test")).rejects.toMatchObject({ code: "permission-denied" });
+  });
+  test.each(["captainUid", "creatorUid", "ownerUid"])("%s 擁有者不能審別隊，也不能從 auth.uid 去空白借用本人例外", async (field) => {
+    const teams = {
+      tm_test: { createdVia: "user_capability", [field]: "uidCaller" },
+      tm_other: { createdVia: "user_capability", [field]: "uidOther" },
+    };
+    const other = setup(teams);
+    await expect(other.call("tm_other")).rejects.toMatchObject({ code: "permission-denied" });
+    expect(other.store.reads.map((r) => r.path)).toEqual(["teams/tm_other"]);
+    expect(other.store.writes).toHaveLength(0);
+    const padded = setup(teams, [], " uidCaller ");
+    await expect(padded.call("tm_test")).rejects.toMatchObject({ code: "permission-denied" });
+    expect(padded.store.writes).toHaveLength(0);
+  });
+  test("直接文件優先；別隊偽造相同邏輯 id 的擁有者不授權", async () => {
+    const env = setup({
+      tm_test: { createdVia: "user_capability", ownerUid: "uidOther" },
+      attacker: { id: "tm_test", createdVia: "user_capability", ownerUid: "uidCaller" },
+    });
+    await expect(env.call("tm_test")).rejects.toMatchObject({ code: "permission-denied" });
+    expect(env.store.reads.map((r) => r.path)).toEqual(["teams/tm_test"]);
+    expect(env.store.writes).toHaveLength(0);
+  });
+  test("非擁有者有既有審核權限及本隊職員身分仍照舊可審", async () => {
+    await expect(setup({ tm_test: { createdVia: "user_capability", coachUids: ["uidCaller"] } },
+      ["team.review_join"]).call("tm_test")).resolves.toBeUndefined();
   });
   test("混入別隊一律整批拒絕；相同邏輯 id 多筆拒絕", async () => {
     const env = setup({ tm_test: { createdVia: "user_capability", ownerUid: "uidCaller" },

@@ -139,19 +139,21 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
     }
     if (rel.id === "R6") return await decideBroadcastPermission(rel, ctx2, queries, mode);
 
-    // R5 member 子項：固定 record，不查詢、不拒（成員查詢的 id 是否同值尚未核實）。
+    // T-090f 補裁：R5 缺鍵不受信，log／enforce 都成功略過，不查詢。
+    const flags = keyFlags(rel, safeKeys, assignmentRole);
+    if (missingKeyNames(rel, safeKeys, assignmentRole).length > 0) {
+      if (rel.id === "R5") return outcomeOf("skip", rel.id, "missing_key", flags);
+      return mode === "enforce"
+        ? outcomeOf("deny", rel.id, "missing_key", flags)
+        : outcomeOf("missing_key", rel.id, "missing_key", flags);
+    }
+
+    // R5 member 子項：鍵齊才 record，不查詢（成員查詢的 id 是否同值尚未核實）。
     if (rel.id === "R5" && assignmentRole === "member") {
       return outcomeOf("record", rel.id, "member_unverified", {
         memberQuery: "unverified",
         hasTeamId: !!safeKeys.teamId,
       });
-    }
-
-    const flags = keyFlags(rel, safeKeys, assignmentRole);
-    if (missingKeyNames(rel, safeKeys, assignmentRole).length > 0) {
-      return mode === "enforce"
-        ? outcomeOf("deny", rel.id, "missing_key", flags)
-        : outcomeOf("missing_key", rel.id, "missing_key", flags);
     }
 
     const callerFn = queryFn(queries, rel.callerCheck);
