@@ -294,4 +294,42 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertFails(write(CAP, EMPTY_USER, { ...membership([TEAM_MAIN]), role: "coach" }));
     });
   });
+
+  // T-090k 精簡版：職員判斷改成單次 get＋.get()，逐一鎖住 isCurrentUserTeamStaff 原本涵蓋的欄位與「隊伍不存在」。
+  describe("精簡版職員欄位逐一對照", () => {
+    const OWNER_ONLY = "owner_only";       // team_owner_only 只有 ownerUid
+    const CREATOR_ONLY = "creator_only";   // team_creator_only 只有 creatorUid
+    const LEGACY_LEADER = "legacy_leader"; // team_legacy_leader 只有舊欄位 leaderUid
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", "team_owner_only"), { id: "team_owner_only", name: "OwnerOnly", ownerUid: OWNER_ONLY });
+        await setDoc(doc(db, "teams", "team_creator_only"), { id: "team_creator_only", name: "CreatorOnly", creatorUid: CREATOR_ONLY });
+        await setDoc(doc(db, "teams", "team_legacy_leader"), { id: "team_legacy_leader", name: "LegacyLeader", leaderUid: LEGACY_LEADER });
+        for (const uid of [OWNER_ONLY, CREATOR_ONLY, LEGACY_LEADER]) {
+          await setDoc(doc(db, "users", uid), { uid, role: "coach", ...membership([]) });
+        }
+        await setDoc(doc(db, "users", "member_legacy_leader"), { uid: "member_legacy_leader", role: "user", ...membership(["team_legacy_leader", TEAM_OTHER]) });
+      });
+    });
+
+    test("32. 只有 ownerUid／creatorUid 的隊主（coach 以上）可把他人加入自己那隊", async () => {
+      await assertSucceeds(write(OWNER_ONLY, EMPTY_USER, membership(["team_owner_only"])));
+      await assertSucceeds(write(CREATOR_ONLY, MEMBER_ONE, membership([TEAM_MAIN, "team_creator_only"])));
+    });
+
+    test("33. 舊欄位 leaderUid 的領隊（coach 以上）可移除自己那隊、不能移除別隊", async () => {
+      await assertFails(write(LEGACY_LEADER, "member_legacy_leader", membership(["team_legacy_leader"])));
+      await assertSucceeds(write(LEGACY_LEADER, "member_legacy_leader", membership([TEAM_OTHER])));
+    });
+
+    test("34. 加入不存在的隊 → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, membership(["team_missing"])));
+    });
+
+    test("35. 別隊的隊主不能把他人加入這隊", async () => {
+      await assertFails(write(OWNER_ONLY, EMPTY_USER, membership(["team_creator_only"])));
+    });
+  });
 });
