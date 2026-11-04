@@ -3810,9 +3810,6 @@ exports.autoPromoteTeamRole = createAutoPromoteTeamRoleCallable({
   roleLevels: ROLE_LEVELS,
   normalizeRole,
   getCallerAccessContext,
-  findUserDocByUidOrLineUserId,
-  getRolePermissionsFromFirestore,
-  getUserPermissionGrantsFromFirestore,
   ensureAuthUser,
   setRoleClaimMerged,
 });
@@ -3901,7 +3898,7 @@ exports.recountTeamMembers = createRecountTeamMembersCallable({
   getCallerAccessContext,
 });
 
-// 剔除俱樂部一般隊員：取代舊站前端直寫被剔者 users 文件（權限＝前端准入 ∧ coach 以上，見 team-member-removal.js）。
+// 剔除俱樂部一般隊員：擁有者本人，或既有隊內幹部且 coach 以上（見 team-member-removal.js）。
 exports.removeTeamMember = createRemoveTeamMemberCallable({
   onCall,
   HttpsError,

@@ -1,5 +1,7 @@
 "use strict";
 
+const { isUserCreatedTeam } = require("./team-membership-core");
+
 const MAX_UID_LENGTH = 128;
 const MAX_IDENTITY_MATCHES = 5;
 const IDENTITY_QUERY_LIMIT = MAX_IDENTITY_MATCHES + 1;
@@ -138,18 +140,20 @@ function teamSupportsTargetRole(teamData, targetUid, role) {
     || leaderUids.map(normalizeUid).includes(targetUid);
 }
 
-async function canCallerRecalculateRole({
+function canManageTeamRoles(access) {
+  return access.isSuperAdmin
+    || access.hasPermission("team.manage_all")
+    || access.hasPermission("team.create");
+}
+
+function canCallerRecalculateRole({
   access, callerUser, targetUser, decision, roleLevels, teamId, teamData,
-  normalizeRole, findUserDocByUidOrLineUserId,
-  getRolePermissionsFromFirestore, getUserPermissionGrantsFromFirestore,
 }) {
   const currentLevel = roleLevels[decision.currentRole];
   const newLevel = roleLevels[decision.newRole];
   if (newLevel > currentLevel
     && !teamSupportsTargetRole(teamData, targetUser.uid, decision.newRole)) return false;
-  if (access.isSuperAdmin
-    || access.hasPermission("team.manage_all")
-    || access.hasPermission("team.create")) return true;
+  if (canManageTeamRoles(access)) return true;
   if (callerUser.uid === targetUser.uid && newLevel < currentLevel) return true;
   if (!teamId || !teamData || roleLevels[access.role] < roleLevels.captain) return false;
   const isKnownMember = getTeamIdsFromUser(callerUser.data).has(teamId);
@@ -157,19 +161,8 @@ async function canCallerRecalculateRole({
   if (!isKnownMember && !isSavedCaptain) return false;
   if (newLevel <= currentLevel) return true;
 
-  // T-090b Q7：只有管理端建立的俱樂部能透過隊內職位升級；缺欄位保留 legacy。
-  if (!Object.prototype.hasOwnProperty.call(teamData, "creatorUid")) return true;
-  const creatorUid = normalizeUid(teamData.creatorUid);
-  if (!creatorUid) return false;
-  const creator = await findUserDocByUidOrLineUserId(creatorUid);
-  if (!creator) return false;
-  const creatorRole = normalizeRole(creator.data?.role);
-  if ((roleLevels[creatorRole] ?? -1) >= roleLevels.admin) return true;
-  const [creatorPermissions, creatorGrants] = await Promise.all([
-    getRolePermissionsFromFirestore(creatorRole),
-    getUserPermissionGrantsFromFirestore(creatorUid),
-  ]);
-  return creatorPermissions.includes("team.create") || creatorGrants.includes("team.create");
+  // Q7：只看已讀取的建立來源標記；自降與管理權限路徑維持原判斷。
+  return !isUserCreatedTeam(teamData);
 }
 
 function getRoleDecision({ targetData, savedTeamRole, roleLevels, normalizeRole }) {
@@ -205,9 +198,6 @@ function createAutoPromoteTeamRoleHandler({
   roleLevels,
   normalizeRole,
   getCallerAccessContext,
-  findUserDocByUidOrLineUserId,
-  getRolePermissionsFromFirestore,
-  getUserPermissionGrantsFromFirestore,
   ensureAuthUser,
   setRoleClaimMerged,
   logger = console,
@@ -246,6 +236,12 @@ function createAutoPromoteTeamRoleHandler({
           roleLevels,
           normalizeRole,
         });
+        // 只阻擋 contextRole 的實際升級；不把職位強制降成 user，也不攔既有自降／no_change。
+        if (!decision.skipped
+          && roleLevels[decision.newRole] > roleLevels[decision.currentRole]
+          && isUserCreatedTeam(teamData) && !canManageTeamRoles(access)) {
+          throw new HttpsError("permission-denied", "Not allowed to recalculate this team role");
+        }
       }
       if (decision.skipped) {
         if (decision.reason === "no_change") {
@@ -256,7 +252,7 @@ function createAutoPromoteTeamRoleHandler({
         return { success: true, skipped: true, ...decision };
       }
 
-      const authorized = await canCallerRecalculateRole({
+      const authorized = canCallerRecalculateRole({
         access,
         callerUser,
         targetUser,
@@ -264,10 +260,6 @@ function createAutoPromoteTeamRoleHandler({
         roleLevels,
         teamId,
         teamData,
-        normalizeRole,
-        findUserDocByUidOrLineUserId,
-        getRolePermissionsFromFirestore,
-        getUserPermissionGrantsFromFirestore,
       });
       if (!authorized) {
         throw new HttpsError("permission-denied", "Not allowed to recalculate this team role");

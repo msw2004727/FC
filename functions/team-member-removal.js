@@ -3,7 +3,8 @@
 /**
  * removeTeamMember — 剔除俱樂部一般隊員（取代舊站 A 前端直寫被剔者 users 文件的路徑，T-027 7b(A)）。
  *
- * 權限＝A 前端准入 ∧ 呼叫者 coach 以上（對應 Rules users 的 1711／1712／1713）：
+ * 權限＝OWNER_FIELDS 本人，或 A 前端准入 ∧ 呼叫者 coach 以上：
+ *  - OWNER_FIELDS 對齊 deleteTeam：captainUid／creatorUid／ownerUid 嚴格等於 auth.uid，免 coach+。
  *  - 前端准入刻意不用 index.js 的 isTeamStaffForData（它多認 creatorUid／ownerUid／舊 leaderUid 並 trim，
  *    比 A 的 _canManageTeamMembers 寬）；這裡逐字照 A：captainUid 嚴格 ===、leaderUids／coachUids 嚴格 includes。
  *  - coach 以上用 ROLE_LEVELS（固定表）；自訂角色等級查不到＝0，視為不足而被拒（已知限制）；
@@ -31,6 +32,13 @@ const {
 } = require("./team-membership-core");
 
 const TEAM_JOIN_REPAIR_PERMISSION = "admin.repair.team_join_repair";
+const OWNER_FIELDS = ["captainUid", "creatorUid", "ownerUid"];
+
+// 與 deleteTeam 相同的嚴格比較；只採 resolver／transaction 讀到的文件資料。
+function isTeamOwner(team, uid) {
+  return !!team && typeof uid === "string" && !!uid
+    && OWNER_FIELDS.some((field) => typeof team[field] === "string" && team[field] === uid);
+}
 
 // Rules isCoachPlus()＋canRunTeamJoinRepair() 的 Functions 版（super_admin、等級 >= coach、入隊修復權限）。
 function isCoachPlusAccess(access, roleLevels) {
@@ -91,7 +99,7 @@ function createRemoveTeamMemberHandler({
       const teamData = teamSnap.data() || {};
 
       // 權限（失敗不寫任何東西）
-      if (!isFrontendTeamMemberManager(teamData, callerUid)) {
+      if (!isTeamOwner(teamData, callerUid) && !isFrontendTeamMemberManager(teamData, callerUid)) {
         throw new HttpsError("permission-denied", "TEAM_MANAGE_DENIED");
       }
       const access = await createRulesAlignedAccess({
@@ -99,7 +107,7 @@ function createRemoveTeamMemberHandler({
         access: await getCallerAccessContext(request),
         uid: callerUid,
       });
-      if (!isCoachPlusAccess(access, roleLevels)) {
+      if (!isTeamOwner(teamData, callerUid) && !isCoachPlusAccess(access, roleLevels)) {
         throw new HttpsError("permission-denied", "COACH_PLUS_REQUIRED");
       }
 
@@ -116,8 +124,13 @@ function createRemoveTeamMemberHandler({
         const freshTeamSnap = await tx.get(teamRef);
         if (!freshTeamSnap.exists) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
         const freshTeam = freshTeamSnap.data() || {};
-        if (!isFrontendTeamMemberManager(freshTeam, callerUid)) {
-          throw new HttpsError("permission-denied", "TEAM_MANAGE_DENIED");
+        if (!isTeamOwner(freshTeam, callerUid)) {
+          if (!isFrontendTeamMemberManager(freshTeam, callerUid)) {
+            throw new HttpsError("permission-denied", "TEAM_MANAGE_DENIED");
+          }
+          if (!isCoachPlusAccess(access, roleLevels)) {
+            throw new HttpsError("permission-denied", "COACH_PLUS_REQUIRED");
+          }
         }
         const staffUids = collectStaffUids(freshTeam);
         if ([...targetIds].some((id) => staffUids.has(id))) {

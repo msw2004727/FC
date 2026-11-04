@@ -1,8 +1,8 @@
 "use strict";
 
 /**
- * removeTeamMember / deleteTeam 共用的純函式與 Firestore 讀取 helper（T-027 7b(A)）。
- * 只放兩個 Callable 都會用到的東西，權限判斷各自留在 team-member-removal.js / team-deletion.js。
+ * 俱樂部 Callable 共用的純函式與 Firestore 讀取 helper。
+ * 各 Callable 的動作權限判斷留在各自模組。
  */
 
 const { countTeamMembers, getUserTeamIds } = require("./team-member-count");
@@ -10,6 +10,11 @@ const { countTeamMembers, getUserTeamIds } = require("./team-member-count");
 const MAX_ID_LENGTH = 128;
 const PAGE_SIZE = 500;
 const TEAM_NAME_READ_CHUNK = 50;
+
+// T-090 共用標記定義；legacy 無欄位視為管理端建立，不查創建者目前資格。
+function isUserCreatedTeam(teamData) {
+  return teamData?.createdVia === "user_capability";
+}
 
 // 同時擋掉 Firestore 不允許的文件 id（"."、".."、"__x__"），否則 .doc(id) 會同步拋非 HttpsError 而變成 internal。
 function normalizeId(value) {
@@ -201,6 +206,7 @@ module.exports = {
   collectStaffUids,
   formatTaipeiDateTime,
   isFirestoreError,
+  isUserCreatedTeam,
   maskId,
   normalizeId,
   readActorNames,
