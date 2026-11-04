@@ -3894,7 +3894,10 @@ exports.removeTeamMember = createRemoveTeamMemberCallable({
 });
 
 // T-090g：原子入隊審核（見 team-join-review.js）；A 維持直寫，供 B T-090d 接線。
-exports.reviewTeamJoin = createReviewTeamJoinCallable({ onCall, HttpsError, db, isTeamStaffForData, normalizeRole, logger });
+// 交易成功後由伺服器通知申請者（站內信＋LINE，best-effort）；LINE 走 enqueueLineFromServer。
+exports.reviewTeamJoin = createReviewTeamJoinCallable({
+  onCall, HttpsError, db, FieldValue, isTeamStaffForData, normalizeRole, logger, enqueueLineFromServer,
+});
 
 // 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
 exports.deleteTeam = createDeleteTeamCallable({
@@ -4025,36 +4028,12 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
     notificationGuards.logUnknownSource({ callerUid: request.auth.uid, source, category });
 
-    const found = await findUserDocByUidOrLineUserId(uid);
-    if (!found) {
-      return { queued: false, skipped: true, reason: "target_not_found" };
+    // 找收件者、綁定與個人設定、通知開關（與伺服器內部路徑 enqueueLineFromServer 共用，見下方）
+    const recipient = await resolveLineNotificationRecipient({ uid, category, source });
+    if (recipient.skipped) {
+      return { queued: false, skipped: true, reason: recipient.skipped };
     }
-
-    const lineNotify = (found.data && typeof found.data.lineNotify === "object")
-      ? found.data.lineNotify
-      : {};
-    const settings = {
-      activity: true,
-      system: true,
-      tournament: false,
-      ...((lineNotify.settings && typeof lineNotify.settings === "object")
-        ? lineNotify.settings
-        : {}),
-    };
-    const settingsKey = getLineNotificationSettingsKey(category);
-    if (!lineNotify.bound) {
-      return { queued: false, skipped: true, reason: "not_bound" };
-    }
-    if (!settings[settingsKey]) {
-      return { queued: false, skipped: true, reason: "category_disabled" };
-    }
-
-    const notificationToggles = await getNotificationTogglesWithFallback(source);
-    if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
-      return { queued: false, skipped: true, reason: "notification_toggle_disabled" };
-    }
-
-    const targetUid = getLineRecipientUidFromUserDoc(found, uid);
+    const { found, targetUid } = recipient;
     // 防護：呼叫者與收件者的關係檢查（deny 不入列、不扣每日額度與全域池；強制與否只由伺服器常數決定）
     const relation = await notificationRelation.check({
       kind: "enqueue",
@@ -4074,40 +4053,127 @@ exports.enqueuePrivilegedLineNotification = onCall(
       limits: NOTIFICATION_GUARD_LIMITS,
       mode: relationMode("R1"),
     });
-    const queuePayload = {
-      uid: targetUid,
-      targetDocId: found.docId,
+    const queueId = await queueLineNotificationForRecipient({
+      found,
+      targetUid,
       title,
       body,
       category,
-      status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
       source,
+      dedupeKey,
       requestedByUid: request.auth.uid,
       requestedByRole: callerRole,
       pool,
-    };
-    if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
-
-    // 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）
-    await notificationGuards.enforceDailyLimits({ callerUid: request.auth.uid, callerRole, targetUid, source, pool });
-    const ref = await db.collection("linePushQueue").add(queuePayload);
-    console.log("[enqueuePrivilegedLineNotification] queued", {
-      queueId: ref.id,
-      source,
-      requestedByUid: maskUid(request.auth.uid),
-      requestedByRole: callerRole,
-      targetUid: maskUid(targetUid),
-      category,
+      logLabel: "[enqueuePrivilegedLineNotification]",
     });
 
     return {
       queued: true,
       skipped: false,
-      queueId: ref.id,
+      queueId,
     };
   }
 );
+
+// T-090g 顧問裁定（方案 A）：自 enqueuePrivilegedLineNotification 等價抽出「找收件者、綁定與個人設定、通知開關」
+// 與「每日上限、入列」，供 Callable 與伺服器內部路徑共用；Callable 的守門順序與回傳不變。
+// 回傳 { skipped: reason } 或 { found, targetUid }。
+async function resolveLineNotificationRecipient({ uid, category, source }) {
+  const found = await findUserDocByUidOrLineUserId(uid);
+  if (!found) return { skipped: "target_not_found" };
+
+  const lineNotify = (found.data && typeof found.data.lineNotify === "object")
+    ? found.data.lineNotify
+    : {};
+  const settings = {
+    activity: true,
+    system: true,
+    tournament: false,
+    ...((lineNotify.settings && typeof lineNotify.settings === "object")
+      ? lineNotify.settings
+      : {}),
+  };
+  const settingsKey = getLineNotificationSettingsKey(category);
+  if (!lineNotify.bound) return { skipped: "not_bound" };
+  if (!settings[settingsKey]) return { skipped: "category_disabled" };
+
+  const notificationToggles = await getNotificationTogglesWithFallback(source);
+  if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
+    return { skipped: "notification_toggle_disabled" };
+  }
+  return { found, targetUid: getLineRecipientUidFromUserDoc(found, uid) };
+}
+
+// 防護：每日上限（呼叫者／目標／全域池，僅計實際入列）後寫入 linePushQueue；回傳 queueId。
+async function queueLineNotificationForRecipient({
+  found, targetUid, title, body, category, source, dedupeKey, requestedByUid, requestedByRole, pool, logLabel,
+}) {
+  const queuePayload = {
+    uid: targetUid,
+    targetDocId: found.docId,
+    title,
+    body,
+    category,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    source,
+    requestedByUid,
+    requestedByRole,
+    pool,
+  };
+  if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
+
+  await notificationGuards.enforceDailyLimits({ callerUid: requestedByUid, callerRole: requestedByRole, targetUid, source, pool });
+  const ref = await db.collection("linePushQueue").add(queuePayload);
+  console.log(`${logLabel} queued`, {
+    queueId: ref.id,
+    source,
+    requestedByUid: maskUid(requestedByUid),
+    requestedByRole,
+    targetUid: maskUid(targetUid),
+    category,
+  });
+  return ref.id;
+}
+
+// 伺服器內部路徑（例如 reviewTeamJoin 交易成功後通知申請者）：收件人由呼叫端在伺服器端核對，
+// 不經 notificationRelation（該守門只在兩個客戶端 Callable 內，request.data 無法觸發本函式）。
+// 綁定、個人設定、通知開關與每日上限照常；requestedByUid／requestedByRole 為觸發通知的使用者，
+// 每日上限與客戶端路徑相同以其身分計入，pool 依其角色決定（同 Callable：非 R1 時 staff／user）。
+async function enqueueLineFromServer({ uid, title, body, category, source, dedupeKey, requestedByUid, requestedByRole }) {
+  const safeUid = normalizeLineNotificationText(uid, 128);
+  const safeTitle = normalizeLineNotificationText(notificationGuards.stripControlChars(title), 200);
+  const safeBody = normalizeLineNotificationText(notificationGuards.stripControlChars(body), 2000);
+  const safeCategory = normalizeLineNotificationCategory(category);
+  const safeSource = normalizeLineNotificationText(source, 120);
+  const safeDedupeKey = normalizeLineNotificationText(dedupeKey, 160);
+  if (!safeUid || !safeTitle || !safeBody || !safeCategory || !notificationGuards.isValidSourceFormat(safeSource)
+    || typeof requestedByUid !== "string" || !requestedByUid) {
+    throw new Error("INVALID_SERVER_LINE_NOTIFICATION");
+  }
+  const recipient = await resolveLineNotificationRecipient({ uid: safeUid, category: safeCategory, source: safeSource });
+  if (recipient.skipped) return { queued: false, skipped: true, reason: recipient.skipped };
+  const pool = selectEnqueuePool({
+    staff: notificationGuards.isStaffRole(requestedByRole),
+    relationId: null,
+    limits: NOTIFICATION_GUARD_LIMITS,
+    mode: relationMode("R1"),
+  });
+  const queueId = await queueLineNotificationForRecipient({
+    found: recipient.found,
+    targetUid: recipient.targetUid,
+    title: safeTitle,
+    body: safeBody,
+    category: safeCategory,
+    source: safeSource,
+    dedupeKey: safeDedupeKey,
+    requestedByUid,
+    requestedByRole,
+    pool,
+    logLabel: "[enqueueLineFromServer]",
+  });
+  return { queued: true, skipped: false, queueId };
+}
 
 /**
  * processLinePushQueue

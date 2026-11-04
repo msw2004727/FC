@@ -5,11 +5,15 @@
  * 語意對齊 A js/modules/message/message-actions-team.js#handleTeamJoinAction 與
  * syncGroupActionStatus：同 groupId 的所有 inbox 副本「第一個決定生效」、已加入者不重複追加；
  * 差別是授權、申請核對、users 成員欄位與 inbox 狀態在同一個 transaction 內完成。
- * 通知／LINE、teams.members 重算、成就、audit log 不在交易內，由呼叫端照 A 既有順序另行處理。
+ * teams.members 重算、成就、audit log 不在交易內，由呼叫端照 A 既有順序另行處理。
+ * 申請者的核准／拒絕通知（站內信＋LINE）改由本 Callable 在交易成功後於伺服器端發出（顧問裁定；
+ * 取代原「通知由呼叫端處理」）：收件人以申請文件 meta.applicantUid 為準，best-effort，不影響審核結果。
  */
 
 const { normalizeId, resolveTeamSnapshot, isUserCreatedTeamOwner } = require("./team-membership-core");
 const { hasEffectivePermission } = require("./team-permission");
+const { buildInboxMessageDoc } = require("./inbox-message-doc");
+const { formatTaipeiDateTime } = require("./notification-fields");
 
 // 1 筆申請者寫入＋最多 450 筆 inbox 更新，低於 transaction 500 筆寫入上限。
 const MAX_GROUP_MESSAGES = 450;
@@ -64,11 +68,98 @@ function buildJoinedMembership(userData, joinTeamId, teamName) {
   return { teamId: teamIds[0], teamName: teamNames[0], teamIds, teamNames };
 }
 
-function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, normalizeRole, logger = console, now = Date.now }) {
+// 文案與 source 照 A message-actions-team.js：核准只在實際加入時通知、拒絕一律通知、忽略不通知。
+// A 的 team_join_review:broadcast:* 依 inbox 副本的 targetUid 找其他職員，但 users/{uid}/inbox 文件不存 targetUid，
+// 實際上不會發出，故伺服器不代發。
+function buildReviewNotice({ actionStatus, membershipAdded, teamName, reviewerName }) {
+  if (actionStatus === "approved" && membershipAdded) {
+    return {
+      kind: "approve",
+      title: "俱樂部申請通過",
+      body: `恭喜！您已成功加入「${teamName}」俱樂部，審核人：${reviewerName}。`,
+    };
+  }
+  if (actionStatus === "rejected") {
+    return {
+      kind: "reject",
+      title: "俱樂部申請結果",
+      body: `很抱歉，您申請加入「${teamName}」俱樂部未獲通過。如有疑問，請聯繫俱樂部職員。`,
+    };
+  }
+  return null;
+}
+
+const LINE_SKIP_REASONS = new Set(["target_not_found", "not_bound", "category_disabled", "notification_toggle_disabled"]);
+
+// 交易成功後執行；任何失敗只記錄並反映在回傳摘要，不拋出（R-CF-003）。回傳摘要不含 UID。
+async function sendReviewNotice({ db, FieldValue, enqueueLineFromServer, logger, now }, notice) {
+  const { kind, title, body, recipientUid, groupId, requestedByUid, requestedByRole } = notice;
+  // 每個申請群組只會有一則審核結果通知：固定 id＋create()，重送不會出現第二則。
+  const messageId = `msg_${groupId}_review`;
+  const source = `team_join_review:${kind}`;
+  const [inbox, line] = await Promise.allSettled([
+    (async () => {
+      const doc = buildInboxMessageDoc({
+        id: messageId,
+        title,
+        body,
+        preview: body.length > 40 ? body.slice(0, 40) + "..." : body,
+        type: "system",
+        typeName: "系統",
+        time: formatTaipeiDateTime(now()),
+        senderName: "系統",
+        // 同 A deliverToInbox：fromUid 為審核人。
+        fromUid: requestedByUid,
+      }, { createdAt: FieldValue.serverTimestamp() });
+      try {
+        await db.collection("users").doc(recipientUid).collection("inbox").doc(messageId).create(doc);
+      } catch (error) {
+        if (error?.code === 6 || error?.code === "already-exists" || /ALREADY_EXISTS/.test(String(error?.message))) return "duplicate";
+        throw error;
+      }
+      return "written";
+    })(),
+    (async () => {
+      if (typeof enqueueLineFromServer !== "function") throw new Error("LINE_ENQUEUE_UNAVAILABLE");
+      return enqueueLineFromServer({
+        uid: recipientUid,
+        category: "system",
+        title,
+        body,
+        source,
+        dedupeKey: `team_join_review:${groupId}`,
+        requestedByUid,
+        requestedByRole,
+      });
+    })(),
+  ]);
+  const summary = { kind, inbox: inbox.status === "fulfilled" ? inbox.value : "failed" };
+  if (line.status === "fulfilled") {
+    summary.line = line.value?.queued ? "queued" : "skipped";
+    if (!line.value?.queued) summary.lineReason = LINE_SKIP_REASONS.has(line.value?.reason) ? line.value.reason : "other";
+  } else {
+    summary.line = "failed";
+  }
+  [["inbox", inbox], ["line", line]].forEach(([channel, outcome]) => {
+    if (outcome.status !== "rejected") return;
+    const code = outcome.reason?.code;
+    logger.error("[reviewTeamJoin] notification failed", {
+      function: "reviewTeamJoin", stage: "notify", channel, kind,
+      code: typeof code === "string" || typeof code === "number" ? code : null,
+    });
+  });
+  return summary;
+}
+
+function createReviewTeamJoinHandler({
+  db, HttpsError, isTeamStaffForData, normalizeRole, logger = console, now = Date.now,
+  FieldValue = null, enqueueLineFromServer = null,
+}) {
   return async function reviewTeamJoinHandler(request) {
     let stage = "input";
     let action = "invalid";
     let attempts = 0;
+    let committed = null;
     // 只有本模組固定的原因碼可以回給前端；SDK／底層錯誤一律不外洩。
     const safeErrors = new Set();
     const fail = (code, reason) => {
@@ -92,7 +183,7 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
       }
       action = input.action;
       // 保留 SDK retry：交易內不得把 ABORTED 轉成 HttpsError。
-      return await db.runTransaction(async tx => {
+      committed = await db.runTransaction(async tx => {
         attempts += 1;
         stage = "team";
         const team = await resolveTeamSnapshot(db, teamId, HttpsError, ref => tx.get(ref));
@@ -190,8 +281,17 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
         if (membershipAdded) tx.update(applicant.ref, membership);
         const pending = group.docs.filter(doc => doc.data().actionStatus === "pending");
         pending.forEach(doc => tx.update(doc.ref, update));
-        return { ok: true, teamId: team.id, groupId, applicantUid, actionStatus,
-          alreadyReviewed, membershipAdded, alreadyMember, updatedMessages: pending.length };
+        // 只有本次交易做出決定（非 alreadyReviewed）才通知；收件人取自已驗證的申請文件，不取請求內容。
+        const notice = alreadyReviewed ? null : buildReviewNotice({
+          actionStatus, membershipAdded, reviewerName,
+          teamName: typeof teamData.name === "string" && teamData.name.trim() ? teamData.name.trim() : teamId,
+        });
+        return {
+          response: { ok: true, teamId: team.id, groupId, applicantUid, actionStatus,
+            alreadyReviewed, membershipAdded, alreadyMember, updatedMessages: pending.length },
+          notice: notice && { ...notice, recipientUid: group.docs[0].data().meta.applicantUid, groupId,
+            requestedByUid: callerUid, requestedByRole: role },
+        };
       });
     } catch (error) {
       const aborted = error?.code === 10 || error?.code === "aborted" || error?.code === "ABORTED";
@@ -204,6 +304,11 @@ function createReviewTeamJoinHandler({ db, HttpsError, isTeamStaffForData, norma
       logger.error("[reviewTeamJoin] failed", { function: "reviewTeamJoin", stage, action, attempts, code, reason });
       throw new HttpsError(code, reason);
     }
+    // 交易已提交：通知在 try 之外，失敗不會變成審核失敗。
+    const notification = committed.notice
+      ? await sendReviewNotice({ db, FieldValue, enqueueLineFromServer, logger, now }, committed.notice)
+      : null;
+    return { ...committed.response, notification };
   };
 }
 

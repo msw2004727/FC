@@ -46,7 +46,8 @@ function harness(seed = base()) {
   const store = new Map(Object.entries(clone(seed)));
   const versions = new Map([...store.keys()].map(key => [key, 1]));
   let serial = 1;
-  const state = { attempts: 0, writes: [], reads: [], beforeCommit: null, readError: null, commitError: null };
+  const state = { attempts: 0, writes: [], reads: [], beforeCommit: null, readError: null, commitError: null,
+    created: [], createError: null };
   const change = (key, patch) => {
     store.set(key, { ...(store.get(key) || {}), ...clone(patch) });
     versions.set(key, ++serial);
@@ -54,7 +55,16 @@ function harness(seed = base()) {
   const remove = key => { store.delete(key); versions.delete(key); };
   const field = (data, key) => key.split(".").reduce((value, part) => value?.[part], data);
   const snap = key => ({ id: key.split("/").pop(), ref: doc(key), exists: store.has(key), data: () => clone(store.get(key)) });
-  const doc = key => ({ path: key, kind: "doc", collection: name => collection(key + "/" + name) });
+  // create() 只用於交易外的通知站內信（Admin SDK 語意：已存在即 ALREADY_EXISTS）。
+  const doc = key => ({
+    path: key, kind: "doc", collection: name => collection(key + "/" + name),
+    create: async data => {
+      const failure = state.createError?.(key);
+      if (failure) throw failure;
+      if (store.has(key)) throw Object.assign(new Error("ALREADY_EXISTS"), { code: 6 });
+      change(key, data); state.created.push({ path: key, data: clone(data) });
+    },
+  });
   function query(source, filters = [], ordered = null, cap = Infinity) {
     return {
       kind: "query", source, filters, ordered, cap,
@@ -118,7 +128,9 @@ function harness(seed = base()) {
     }),
   };
   const logger = { error: jest.fn() };
-  const dependencies = { db, HttpsError, ...context, logger, now: () => 1700000000100 };
+  const FieldValue = { serverTimestamp: () => "SERVER_TS" };
+  const enqueueLineFromServer = jest.fn(async () => ({ queued: true, skipped: false, queueId: "q1" }));
+  const dependencies = { db, HttpsError, ...context, logger, now: () => 1700000000100, FieldValue, enqueueLineFromServer };
   const handler = createReviewTeamJoinHandler(dependencies);
   return { handler, dependencies, db, logger, state, change, remove, get: key => clone(store.get(key)) };
 }
@@ -488,6 +500,119 @@ describe("reviewTeamJoin retries, budgets and boundary", () => {
     expect(scope.exports.reviewTeamJoin).toBe("callable");
     expect(scope.createReviewTeamJoinCallable).toHaveBeenCalledWith(expect.objectContaining({
       db: h.db, isTeamStaffForData: context.isTeamStaffForData, normalizeRole: context.normalizeRole, logger: h.logger,
+      FieldValue: h.dependencies.FieldValue, enqueueLineFromServer: h.dependencies.enqueueLineFromServer,
     }));
+  });
+});
+
+// 顧問裁定：核准／拒絕通知由本 Callable 在交易成功後於伺服器端發出（文案與 source 照 A message-actions-team.js）。
+// 修正前 handler 不發任何通知：created 為空、enqueueLineFromServer 未被呼叫、回傳沒有 notification，下列測試皆失敗。
+describe("reviewTeamJoin post-commit applicant notification", () => {
+  const NOTICE = "users/applicant/inbox/msg_" + GROUP + "_review";
+  const lineCalls = h => h.dependencies.enqueueLineFromServer.mock.calls.map(([input]) => input);
+
+  test("approve notifies the applicant once (inbox + LINE) with A's text and source", async () => {
+    const h = harness(); const result = await h.handler(request());
+    expect(result.notification).toEqual({ kind: "approve", inbox: "written", line: "queued" });
+    expect(h.state.created).toHaveLength(1);
+    expect(h.get(NOTICE)).toMatchObject({
+      id: "msg_" + GROUP + "_review", title: "俱樂部申請通過",
+      body: "恭喜！您已成功加入「Test FC」俱樂部，審核人：Reviewer。",
+      type: "system", typeName: "系統", senderName: "系統", fromUid: "owner",
+      actionType: null, actionStatus: null, meta: null, read: false, createdAt: "SERVER_TS",
+      time: expect.stringMatching(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/),
+    });
+    expect(lineCalls(h)).toEqual([{
+      uid: "applicant", category: "system", title: "俱樂部申請通過",
+      body: "恭喜！您已成功加入「Test FC」俱樂部，審核人：Reviewer。", source: "team_join_review:approve",
+      dedupeKey: "team_join_review:" + GROUP, requestedByUid: "owner", requestedByRole: "user",
+    }]);
+  });
+  test("reject notifies the applicant once with A's text and source", async () => {
+    const h = harness(); const result = await h.handler(request({ action: "reject" }));
+    expect(result.notification).toEqual({ kind: "reject", inbox: "written", line: "queued" });
+    const body = "很抱歉，您申請加入「Test FC」俱樂部未獲通過。如有疑問，請聯繫俱樂部職員。";
+    expect(h.get(NOTICE)).toMatchObject({ title: "俱樂部申請結果", body });
+    expect(lineCalls(h)).toEqual([expect.objectContaining({ uid: "applicant", title: "俱樂部申請結果", body, source: "team_join_review:reject" })]);
+  });
+  test("ignore sends nothing", async () => {
+    const h = harness(); await expect(h.handler(request({ action: "ignore" }))).resolves.toMatchObject({ notification: null });
+    expect(h.state.created).toEqual([]); expect(lineCalls(h)).toEqual([]);
+  });
+  test("approve of an existing member sends nothing, like A (notification only when membership is written)", async () => {
+    const h = harness(); h.change(USER, { teamIds: ["tm_old", "tm_test"] });
+    await expect(h.handler(request())).resolves.toMatchObject({ alreadyMember: true, notification: null });
+    expect(h.state.created).toEqual([]); expect(lineCalls(h)).toEqual([]);
+  });
+  test.each(["approve", "reject"])("replayed or opposite review after %s never notifies again", async action => {
+    const h = harness(); await h.handler(request({ action }));
+    for (const next of ["approve", "reject", "ignore", action]) {
+      await expect(h.handler(request({ action: next }))).resolves.toMatchObject({ alreadyReviewed: true, notification: null });
+    }
+    expect(h.state.created).toHaveLength(1); expect(lineCalls(h)).toHaveLength(1);
+  });
+  test("losing a contention retry to another reviewer sends nothing", async () => {
+    const h = harness(); h.state.beforeCommit = ({ attempt }) => {
+      if (attempt === 1) { h.change(INBOX, { actionStatus: "rejected", reviewerName: "Other" }); h.change(SECOND, { actionStatus: "rejected", reviewerName: "Other" }); }
+    };
+    await expect(h.handler(request())).resolves.toMatchObject({ alreadyReviewed: true, notification: null });
+    expect(h.state.created).toEqual([]); expect(lineCalls(h)).toEqual([]);
+  });
+  test("a winning retry notifies exactly once", async () => {
+    const h = harness(); h.state.beforeCommit = ({ attempt }) => { if (attempt === 1) h.change(USER, { exp: 1 }); };
+    await h.handler(request()); expect(h.state.attempts).toBe(2);
+    expect(h.state.created).toHaveLength(1); expect(lineCalls(h)).toHaveLength(1);
+  });
+  test("recipient comes from the application document; extra request fields cannot redirect it", async () => {
+    const h = harness();
+    await h.handler(request({ recipientUid: "victim", targetUid: "victim", uid: "victim", notifyUid: "victim" }));
+    expect(h.state.created.map(c => c.path)).toEqual([NOTICE]);
+    expect(lineCalls(h).map(c => c.uid)).toEqual(["applicant"]);
+  });
+  test("forged applicantUid is rejected before any notification", async () => {
+    const h = harness(); h.change("users/victim", { teamIds: [] });
+    await denied(h, request({ applicantUid: "victim" }), "failed-precondition", "TEAM_JOIN_REQUEST_MISMATCH");
+    expect(h.state.created).toEqual([]); expect(lineCalls(h)).toEqual([]);
+  });
+  test.each([
+    ["LINE throws", h => { h.dependencies.enqueueLineFromServer.mockRejectedValueOnce(Object.assign(new Error("secret applicant"), { code: "resource-exhausted" })); },
+      { inbox: "written", line: "failed" }, ["line"]],
+    ["inbox create throws", h => { h.state.createError = () => Object.assign(new Error("secret applicant"), { code: 14 }); },
+      { inbox: "failed", line: "queued" }, ["inbox"]],
+    ["both throw", h => {
+      h.state.createError = () => new Error("secret applicant");
+      h.dependencies.enqueueLineFromServer.mockRejectedValueOnce(new Error("secret applicant"));
+    }, { inbox: "failed", line: "failed" }, ["inbox", "line"]],
+  ])("%s: review still succeeds and failure is logged without identifiers", async (_name, arrange, summary, channels) => {
+    const h = harness(); arrange(h);
+    const result = await h.handler(request());
+    expect(result).toMatchObject({ ok: true, actionStatus: "approved", membershipAdded: true, notification: { kind: "approve", ...summary } });
+    expect(h.get(USER).teamIds).toEqual(["tm_old", "tm_test"]);
+    expect(h.get(INBOX).actionStatus).toBe("approved");
+    expect(h.logger.error.mock.calls.map(([msg, data]) => [msg, data.channel])).toEqual(
+      channels.map(channel => ["[reviewTeamJoin] notification failed", channel]));
+    expect(h.logger.error.mock.calls.every(([, data]) => data.function === "reviewTeamJoin" && data.stage === "notify")).toBe(true);
+    expect(JSON.stringify(h.logger.error.mock.calls)).not.toMatch(/secret|applicant|owner|tm_test|tjr_/);
+  });
+  test.each([
+    [{ queued: false, skipped: true, reason: "not_bound" }, "not_bound"],
+    [{ queued: false, skipped: true, reason: "category_disabled" }, "category_disabled"],
+    [{ queued: false, skipped: true, reason: "notification_toggle_disabled" }, "notification_toggle_disabled"],
+    [{ queued: false, skipped: true, reason: "private raw reason" }, "other"],
+  ])("LINE skip (%j) is reported as a fixed reason, inbox still written", async (lineResult, reason) => {
+    const h = harness(); h.dependencies.enqueueLineFromServer.mockResolvedValueOnce(lineResult);
+    await expect(h.handler(request({ action: "reject" }))).resolves.toMatchObject({
+      notification: { kind: "reject", inbox: "written", line: "skipped", lineReason: reason },
+    });
+    expect(h.logger.error).not.toHaveBeenCalled();
+  });
+  test("an existing review notice is not overwritten (duplicate)", async () => {
+    const h = harness(); h.change(NOTICE, { title: "earlier" });
+    await expect(h.handler(request())).resolves.toMatchObject({ notification: { inbox: "duplicate" } });
+    expect(h.get(NOTICE).title).toBe("earlier");
+  });
+  test("notification summary carries no UID", async () => {
+    const h = harness(); const result = await h.handler(request());
+    expect(JSON.stringify(result.notification)).not.toMatch(/applicant|owner/);
   });
 });
