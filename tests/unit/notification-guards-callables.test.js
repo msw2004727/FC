@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const fields = require('../../functions/notification-fields');
+const { resolveTeamSnapshot } = require('../../functions/team-membership-core');
 const { createNotificationGuards } = require('../../functions/notification-guards');
 const { createFakeDb, FieldValue, FakeError } = require('./notification-guards-fake-db');
 const {
@@ -117,6 +118,30 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     dedupeKey: 'event_changed:e1:u1:h',
     ...extra,
   });
+
+  test.each([
+    ["user-created outsider", "user_capability", [], false],
+    ["user-created member", "user_capability", ["t1"], true],
+    ["management outsider", "admin", [], true],
+    ["legacy outsider", undefined, [], true],
+  ])("T-090f LINE %s：採伺服器標記，忽略請求偽造", async (_name, createdVia, teamIds, sent) => {
+    const env = load({
+      users: { [TARGET]: boundUser({ teamIds }) },
+      extraSeed: { "teams/t1": { id: "t1", captainUid: CALLER, coachUids: [TARGET], createdVia } },
+    });
+    const result = await env.call(payload({
+      source: "team_role_assignment:coach", teamId: "t1",
+      createdVia: createdVia === "user_capability" ? "admin" : "user_capability",
+      teamIds: ["t1"], recipientFound: { data: { teamIds: ["t1"] } },
+    }));
+    expect(result).toMatchObject(sent ? { queued: true } : { queued: false, skipped: true });
+    expect(queued(env.db)).toHaveLength(sent ? 1 : 0);
+    if (!sent) {
+      expect(userCounters(env.db)).toHaveLength(0);
+      expect(counterPaths(env.db).filter((p) => p.includes("caller_day") || p.includes("caller_target"))).toHaveLength(0);
+    }
+  });
+
   const queued = (db) => db.paths('linePushQueue/');
   const userCounters = (db) => counterPaths(db).filter((p) => p.includes(`${DAY}_target_`) || p.includes('_global_'));
 
@@ -625,6 +650,7 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       exports: {},
       console: env.consoleImpl,
       notificationGuards: env.guards,
+      resolveTeamSnapshot,
       ...createRelationSandbox({ db: env.db, guards: env.guards }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-guards.vm.js' });
@@ -650,6 +676,27 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
     time: '2026/10/23 12:00',
     ...extra,
   });
+
+  test.each([
+    ["user-created outsider", "user_capability", [], false],
+    ["user-created member", "user_capability", ["t1"], true],
+    ["management outsider", "admin", [], true],
+    ["legacy outsider", undefined, [], true],
+  ])("T-090f inbox %s：非成員成功略過，無 inbox／每日額度寫入", async (_name, createdVia, teamIds, sent) => {
+    const env = load({
+      users: { ...baseUsers(), [TARGET]: { role: "user", teamIds } },
+      extraSeed: { "teams/t1": { id: "t1", captainUid: CALLER, coachUids: [TARGET], createdVia } },
+    });
+    const result = await env.call({
+      message: msg({ source: "team_role_assignment:coach" }), targetUid: TARGET, teamId: "t1",
+      createdVia: createdVia === "user_capability" ? "admin" : "user_capability",
+      teamIds: ["t1"], recipientFound: { data: { teamIds: ["t1"] } },
+    });
+    expect(result).toEqual(sent ? { success: true, delivered: 1 } : { success: true, delivered: 0, skipped: true });
+    expect(env.db.paths("users/" + TARGET + "/inbox/")).toHaveLength(sent ? 1 : 0);
+    if (!sent) expect(counterPaths(env.db).filter((p) => p.includes("caller_day"))).toHaveLength(0);
+  });
+
   const adminRoles = { targetRoles: ['admin', 'super_admin'], targetType: 'role' };
 
   test('客戶端傳入的 senderName／type／typeName／time 一律由伺服器值取代', async () => {

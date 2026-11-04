@@ -6,6 +6,7 @@
  * 每個函式 async (ctx) => boolean；讀取失敗直接丟出，由決策層轉 deny。
  */
 
+const { isUserCreatedTeam, isUserCreatedTeamOwner, normalizeId } = require("./team-membership-core");
 const { str, memoByCtx, recipientIdentities, readTeamByDocId } = require("./notification-relation-queries-shared");
 
 const ASSIGNMENT_SOURCE_RE = /^team_role_assignment:(captain|leader|coach|member)$/;
@@ -28,6 +29,20 @@ function trimmedList(value) {
 
 function createTeamQueries({ db, helpers, readAccess }) {
   const loadTeam = memoByCtx((ctx) => readTeamByDocId(db, ctx?.keys?.teamId));
+  // LINE 重用伺服器已讀的 recipientFound；站內信至多多讀一份 users 文件。
+  const mayReceiveAssignment = memoByCtx(async (ctx) => {
+    const team = await loadTeam(ctx);
+    if (!team) return false;
+    if (!isUserCreatedTeam(team.data)) return true;
+    let userData = ctx?.recipientFound?.data;
+    if (!ctx?.recipientFound) {
+      const uid = normalizeId(ctx?.recipientUid);
+      if (!uid) return false;
+      const snap = await db.collection("users").doc(uid).get();
+      userData = snap?.exists ? snap.data() : null;
+    }
+    return Array.isArray(userData?.teamIds) && userData.teamIds.includes(team.docId);
+  });
 
   return {
     // 申請人必須是呼叫者本人。請求（extra／keys）有帶申請人 uid 時必須等於呼叫者；
@@ -54,6 +69,7 @@ function createTeamQueries({ db, helpers, readAccess }) {
       if (!caller) return false;
       const team = await loadTeam(ctx);
       if (!team) return false;
+      if (isUserCreatedTeamOwner(team.data, caller)) return true;
       const role = str(ctx?.callerRole);
       if (role === "admin" || role === "super_admin") return true;
       if (helpers.isTeamStaffForData(team.data, caller) !== true) return false;
@@ -87,6 +103,9 @@ function createTeamQueries({ db, helpers, readAccess }) {
       return access.hasPermission("team.manage_all");
     },
 
+    // 與指派欄位檢查分開，讓決策層在 R5 log 模式也能靜默略過非成員。
+    recipientMayReceiveTeamAssignment: mayReceiveAssignment,
+
     // captain 對 captainUid；leader 對 leaderUids 或 leaderUid；coach 對 coachUids。member 不在此查（回 false）。
     async recipientMatchesAssignment(ctx) {
       const identities = recipientIdentities(ctx);
@@ -95,6 +114,7 @@ function createTeamQueries({ db, helpers, readAccess }) {
       if (role !== "captain" && role !== "leader" && role !== "coach") return false;
       const team = await loadTeam(ctx);
       if (!team) return false;
+      if (!await mayReceiveAssignment(ctx)) return false;
       const data = team.data;
       let field = [];
       if (role === "captain") field = [str(data.captainUid)];

@@ -14,7 +14,7 @@ const QUERY_NAMES = [
   "callerIsApplicant", "recipientIsTeamStaff", "callerMayReviewJoin", "recipientIsReviewTarget",
   "callerMayAssignTeamRole", "recipientMatchesAssignment", "callerHasBroadcastPermission",
   "recipientRoleIsAdmin", "callerMatchesTournamentSource", "recipientInTournamentAudience",
-  "callerBroadcastPermissionGap",
+  "callerBroadcastPermissionGap", "recipientMayReceiveTeamAssignment",
 ];
 
 // 預設：除了 gap 以外全部成立；overrides 以 true／false／Error 指定。
@@ -522,5 +522,27 @@ describe("decideRelation fail-closed 邊界", () => {
     const queries = makeQueries({ callerIsAuthenticated: false });
     const result = await decideRelation({ source: "template:welcome", keys: undefined, ctx: undefined, queries });
     expect(result.outcome).toBe("deny");
+  });
+});
+
+describe("T-090f R5 非成員靜默略過", () => {
+  test.each(["log", "enforce"])("模式 %s 都略過，不走 log-only 放行", async (mode) => {
+    const queries = makeQueries({ recipientMayReceiveTeamAssignment: false });
+    expect(await decide("team_role_assignment:coach", { teamId: "t1" }, queries,
+      { inject: { modeOf: () => mode } })).toMatchObject({
+      outcome: "skip", reason: "recipient_not_team_member", relationId: "R5",
+    });
+    expect(queries.recipientMatchesAssignment).not.toHaveBeenCalled();
+  });
+  test("成員查詢失敗仍 deny；查詢缺失 fail closed", async () => {
+    expect(await decide("team_role_assignment:captain", { teamId: "t1" },
+      makeQueries({ recipientMayReceiveTeamAssignment: boom() }))).toMatchObject({
+      outcome: "deny", reason: "query_error",
+    });
+    const queries = makeQueries();
+    delete queries.recipientMayReceiveTeamAssignment;
+    expect(await decide("team_role_assignment:captain", { teamId: "t1" }, queries)).toMatchObject({
+      outcome: "deny", reason: "query_missing",
+    });
   });
 });

@@ -4,7 +4,7 @@
  * 通知發送授權強化（第 2 批）：關係決策（事實進來，結果出去；本檔不讀 Firestore、不記 log、不讀 request）。
  *
  * decideRelation 回 { outcome, relationId, gate, reason, flags }：
- *   outcome  allow | missing_key | deny | gap | record
+ *   outcome  allow | missing_key | deny | skip | gap | record
  *   gate     null | relation_missing_key | relation_denied | relation_permission_gap（allow 為 null）
  *   reason   內部短碼，不含使用者資料、不給客戶端
  *   flags    只放布林或固定字串（hasEventId 這類只記「有沒有鍵」，不放鍵的值）
@@ -37,6 +37,7 @@ function outcomeOf(outcome, relationId, reason, flags = {}) {
     missing_key: GATE_MISSING_KEY,
     record: GATE_MISSING_KEY,
     deny: GATE_DENIED,
+    skip: GATE_DENIED,
     gap: GATE_PERMISSION_GAP,
   };
   return { outcome, relationId, gate: gates[outcome], reason, flags };
@@ -157,6 +158,14 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
     const recipientFn = queryFn(queries, rel.recipientQuery);
     if (!callerFn || !recipientFn) return outcomeOf("deny", rel.id, "query_missing", flags);
     if (await callerFn(ctx2) !== true) return outcomeOf("deny", rel.id, "caller_not_allowed", flags);
+    // 自建俱樂部的非成員不能因 R5 log 模式繼續送出；兩個 Callable 都以成功略過回應。
+    if (rel.id === "R5") {
+      const memberFn = queryFn(queries, "recipientMayReceiveTeamAssignment");
+      if (!memberFn) return outcomeOf("deny", rel.id, "query_missing", flags);
+      if (await memberFn(ctx2) !== true) {
+        return outcomeOf("skip", rel.id, "recipient_not_team_member", flags);
+      }
+    }
     if (await recipientFn(ctx2) === true) return outcomeOf("allow", rel.id, "ok", flags);
 
     // R5 captain／leader／coach：鍵齊但收件者不在對應欄位。log 只記錄，enforce 才拒。

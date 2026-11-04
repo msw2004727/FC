@@ -16,6 +16,12 @@ function isUserCreatedTeam(teamData) {
   return teamData?.createdVia === "user_capability";
 }
 
+// OWNER_FIELDS 與 deleteTeam／removeTeamMember 相同；只接受文件內的本人 UID。
+function isUserCreatedTeamOwner(teamData, uid) {
+  return isUserCreatedTeam(teamData) && typeof uid === "string" && uid.length > 0
+    && ["captainUid", "creatorUid", "ownerUid"].some((field) => teamData[field] === uid);
+}
+
 // 同時擋掉 Firestore 不允許的文件 id（"."、".."、"__x__"），否則 .doc(id) 會同步拋非 HttpsError 而變成 internal。
 function normalizeId(value) {
   if (typeof value !== "string") return "";
@@ -39,12 +45,12 @@ function assertTeamDocIdConsistent(teamSnap, HttpsError) {
 }
 
 // 文件 id 優先；查無時才接受唯一的舊邏輯 id，避免任選同名文件。
-async function resolveTeamSnapshot(db, teamId, HttpsError) {
-  const direct = await db.collection("teams").doc(teamId).get();
+async function resolveTeamSnapshot(db, teamId, HttpsError, readSnapshot = (ref) => ref.get()) {
+  const direct = await readSnapshot(db.collection("teams").doc(teamId));
   if (direct && direct.exists) {
     return direct;
   }
-  const legacy = await db.collection("teams").where("id", "==", teamId).limit(2).get();
+  const legacy = await readSnapshot(db.collection("teams").where("id", "==", teamId).limit(2));
   if (legacy.docs.length > 1) {
     throw new HttpsError("failed-precondition", "TEAM_ID_AMBIGUOUS");
   }
@@ -207,6 +213,7 @@ module.exports = {
   formatTaipeiDateTime,
   isFirestoreError,
   isUserCreatedTeam,
+  isUserCreatedTeamOwner,
   maskId,
   normalizeId,
   readActorNames,

@@ -17,6 +17,7 @@ const {
 } = require('../../functions/scoreboard-sportsapipro');
 const { createNotificationGuards } = require('../../functions/notification-guards');
 const { createRelationSandbox } = require('./notification-guards-test-helpers');
+const { resolveTeamSnapshot, isUserCreatedTeamOwner } = require('../../functions/team-membership-core');
 
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
@@ -3894,6 +3895,8 @@ describe('syncGroupActionStatus caller authorization', () => {
       HttpsError: TestHttpsError,
       onCall: (options, handler) => ({ options, handler }),
       getCallerAccessContext,
+      resolveTeamSnapshot,
+      isUserCreatedTeamOwner,
       exports: {},
       console: consoleImpl,
     };
@@ -4681,6 +4684,7 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
       exports: {},
       console: consoleImpl,
       notificationGuards,
+      resolveTeamSnapshot,
       ...createRelationSandbox({ db, guards: notificationGuards }),
     };
     vm.runInNewContext(sourceParts.join('\n'), sandbox, { filename: 'deliver-to-inbox-t022.vm.js' });

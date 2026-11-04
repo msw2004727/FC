@@ -235,3 +235,80 @@ describe("recipientMatchesAssignment", () => {
     await expect(broken.queries.recipientMatchesAssignment(ctxFor("captain", "uidCap"))).rejects.toThrow("UNAVAILABLE");
   });
 });
+
+describe("T-090f 自建俱樂部通知成員守門", () => {
+  const assignment = (extra = {}) => makeCtx({
+    callerUid: "uidCap", recipientUid: "uidCoach", source: "team_role_assignment:coach",
+    keys: { teamId: "t1" }, ...extra,
+  });
+
+  test.each([
+    ["user-created", "user_capability", false],
+    ["management", "admin", true],
+    ["legacy", undefined, true],
+  ])("%s：非成員幹部通知 %s", async (_name, createdVia, allowed) => {
+    const { queries, db } = setup({
+      "teams/t1": { ...TEAM, createdVia },
+      "users/uidCoach": { teamIds: [] },
+    });
+    const ctx = assignment({ extra: { createdVia: "admin", teamIds: ["t1"] } });
+    expect(await queries.recipientMayReceiveTeamAssignment(ctx)).toBe(allowed);
+    expect(await queries.recipientMatchesAssignment(ctx)).toBe(allowed);
+    expect(db.readsOf("teams/")).toHaveLength(1);
+    expect(db.readsOf("users/")).toHaveLength(createdVia === "user_capability" ? 1 : 0);
+  });
+
+  test.each([
+    ["empty", { teamIds: [] }, false],
+    ["primary only", { teamId: "t1" }, false],
+    ["wrong team", { teamIds: ["t2"] }, false],
+    ["string instead of list", { teamIds: "t1" }, false],
+    ["whitespace", { teamIds: [" t1 "] }, false],
+    ["member", { teamIds: ["t1"] }, true],
+  ])("只認文件 id 的 teamIds：%s", async (_name, member, allowed) => {
+    const { queries } = setup({
+      "teams/t1": { ...TEAM, createdVia: "user_capability" },
+      "users/uidCoach": member,
+    });
+    expect(await queries.recipientMatchesAssignment(assignment())).toBe(allowed);
+  });
+
+  test.each([true, false])("LINE recipientFound 重用伺服器資料：成員 %s，零新增 users 讀取", async (member) => {
+    const { queries, db } = setup({
+      "teams/t1": { ...TEAM, createdVia: "user_capability" },
+      "users/uidCoach": { teamIds: member ? [] : ["t1"] },
+    });
+    const ctx = assignment({ recipientUid: "Uline",
+      recipientFound: { docId: "uidCoach", data: { uid: "uidCoach", teamIds: member ? ["t1"] : [] } } });
+    expect(await queries.recipientMayReceiveTeamAssignment(ctx)).toBe(member);
+    expect(await queries.recipientMatchesAssignment(ctx)).toBe(member);
+    expect(db.readsOf("users/")).toHaveLength(0);
+  });
+
+  test("缺 users 文件靜默拒收；讀取錯誤仍往外丟，不能當通過", async () => {
+    const seed = { "teams/t1": { ...TEAM, createdVia: "user_capability" } };
+    expect(await setup(seed).queries.recipientMayReceiveTeamAssignment(assignment())).toBe(false);
+    const broken = setup(seed, { get: (path) => path === "users/uidCoach" ? boom() : null });
+    await expect(broken.queries.recipientMayReceiveTeamAssignment(assignment())).rejects.toThrow("UNAVAILABLE");
+  });
+
+  test.each(["captainUid", "creatorUid", "ownerUid"])("入隊審核通知：%s 本人免權限讀取", async (field) => {
+    const { queries, db } = setup({ "teams/t1": { createdVia: "user_capability", [field]: "uidA" } });
+    expect(await queries.callerMayReviewJoin(makeCtx({ keys: { teamId: "t1" } }))).toBe(true);
+    expect(db.reads).toEqual(["get:teams/t1"]);
+  });
+
+  test.each([
+    ["非本隊", { createdVia: "user_capability", ownerUid: "uidOther" }],
+    ["僅教練", { createdVia: "user_capability", coachUids: ["uidA"] }],
+    ["管理端", { createdVia: "admin", ownerUid: "uidA" }],
+    ["legacy", { ownerUid: "uidA" }],
+    ["空白 UID", { createdVia: "user_capability", ownerUid: " uidA " }],
+  ])("入隊審核通知：%s 無權限仍拒絕，請求偽造 owner 無效", async (_name, team) => {
+    const { queries } = setup({ "teams/t1": team });
+    expect(await queries.callerMayReviewJoin(makeCtx({
+      keys: { teamId: "t1", ownerUid: "uidA", createdVia: "user_capability" },
+      extra: { ownerUid: "uidA", createdVia: "user_capability" },
+    }))).toBe(false);
+  });
+});

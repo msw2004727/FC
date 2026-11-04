@@ -22,7 +22,7 @@ const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
-const { maskId: maskRosterId, normalizeId: normalizeTeamId, resolveTeamSnapshot } = require("./team-membership-core");
+const { maskId: maskRosterId, normalizeId: normalizeTeamId, resolveTeamSnapshot, isUserCreatedTeam, isUserCreatedTeamOwner } = require("./team-membership-core");
 
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
@@ -980,36 +980,15 @@ async function getTeamByShareId(teamId) {
 async function getTeamDocByTeamId(teamId) {
   const safeTeamId = String(teamId || "").trim();
   if (!safeTeamId) return null;
-
-  const directRef = db.collection("teams").doc(safeTeamId);
-  const directSnap = await directRef.get();
-  if (directSnap.exists) {
-    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
-  }
-
-  const querySnap = await db.collection("teams")
-    .where("id", "==", safeTeamId)
-    .limit(1)
-    .get();
-  if (querySnap.empty) return null;
-  const doc = querySnap.docs[0];
-  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+  const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError);
+  return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;
 }
 
 async function getTeamDocByTeamIdInTransaction(tx, teamId) {
   const safeTeamId = String(teamId || "").trim();
   if (!safeTeamId) return null;
-
-  const directRef = db.collection("teams").doc(safeTeamId);
-  const directSnap = await tx.get(directRef);
-  if (directSnap.exists) {
-    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
-  }
-
-  const querySnap = await tx.get(db.collection("teams").where("id", "==", safeTeamId).limit(1));
-  if (querySnap.empty) return null;
-  const doc = querySnap.docs[0];
-  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+  const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError, (ref) => tx.get(ref));
+  return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;
 }
 
 function isRoleAdminOrAbove(role) {
@@ -2273,6 +2252,9 @@ exports.createFriendlyTournament = onCall(
     const teamDoc = hostTeamId ? await getTeamDocByTeamId(hostTeamId) : null;
     if (hostTeamId && !teamDoc) {
       throw new HttpsError("not-found", "主辦俱樂部不存在");
+    }
+    if (isUserCreatedTeam(teamDoc?.data)) {
+      throw new HttpsError("permission-denied", "USER_CREATED_TEAM_CANNOT_HOST_TOURNAMENT");
     }
     const isHostTeamOfficer = !!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, callerUid);
     if (hostTeamId && !isAdmin && !isHostTeamOfficer) {
@@ -4078,6 +4060,7 @@ exports.enqueuePrivilegedLineNotification = onCall(
       recipientUid: uid,
       recipientFound: found,
     });
+    if (relation.outcome === "skip") return { queued: false, skipped: true, reason: "notification_skipped" };
     if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
     // 池別只由伺服器決定，不讀 request.data.pool
     const pool = selectEnqueuePool({
@@ -4558,6 +4541,7 @@ function buildCourseLessonSessionEventLinkPatch({ eventId, courseLinkId, teamId,
 }
 
 function hasEduCourseStaffAccess(teamData, callerUid, access) {
+  if (isUserCreatedTeam(teamData)) return false;
   return isTeamStaffForData(teamData, callerUid)
     || access.isSuperAdmin
     || access.hasPermission("team.manage_all");
@@ -14888,7 +14872,9 @@ exports.adjustTeamReservation = onCall(
       const teamInfo = await getTeamDocByTeamIdInTransaction(transaction, safeTeamId);
       if (!teamInfo) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
       const isAdmin = isRoleAdminOrAbove(callerRole);
-      if (!isAdmin && !isTeamStaffForData(teamInfo.data, callerUid)) {
+      if (!isAdmin && (!isTeamStaffForData(teamInfo.data, callerUid)
+        || (isUserCreatedTeam(teamInfo.data)
+          && !isEventOwnerForUid(ed, callerUid) && !isEventDelegateForUid(ed, callerUid)))) {
         throw new HttpsError("permission-denied", "PERMISSION_DENIED");
       }
       const teamName = String(teamInfo.data?.name || teamInfo.data?.teamName || safeTeamId).trim();
@@ -16172,6 +16158,7 @@ exports.deliverToInbox = onCall(
         recipientUid: targetUid,
         extra: { targetType, targetTeamId, targetRoles },
       });
+      if (relation.outcome === "skip") return { success: true, delivered: 0, skipped: true };
       if (relation.outcome === "deny") throw new HttpsError("permission-denied", "NOT_ALLOWED");
     }
     await notificationGuards.enforceCallerLimit({ kind: "inbox", callerUid, callerRole: callerData.role, parts: "day" });
@@ -16336,15 +16323,16 @@ async function assertCallerCanReviewGroupActionDocs(request, docs, groupId) {
       if (!SAFE_ID_RE.test(teamId)) {
         deny("TEAM_ID_MISSING", actionType);
       }
+      const teamDoc = await getTeamDocCached(teamId);
+      if (!teamDoc) {
+        deny("TEAM_NOT_FOUND", actionType);
+      }
+      if (isUserCreatedTeamOwner(teamDoc.data, callerUid)) continue;
       const accessCtx = await getAccess();
       const hasPerm = accessCtx.hasPermission("team.review_join")
         || accessCtx.hasPermission("team.manage.entry");
       if (!hasPerm) {
         deny("TEAM_REVIEW_PERMISSION_REQUIRED", actionType);
-      }
-      const teamDoc = await getTeamDocCached(teamId);
-      if (!teamDoc) {
-        deny("TEAM_NOT_FOUND", actionType);
       }
       const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
         || isRoleAdminOrAbove(accessCtx.role);
