@@ -374,15 +374,18 @@ Object.assign(App, {
 
   // ── 從 team-form-join.js 搬入 ──
 
-  _applyRoleChange(result) {
+  _applyRoleChange(result, { teamId = '', assignmentRole = '' } = {}) {
     if (!result) return;
     const { uid, oldRole, newRole, userName } = result;
     const isUpgrade = (ROLE_LEVEL_MAP[newRole] || 0) > (ROLE_LEVEL_MAP[oldRole] || 0);
     const roleName = ROLES[newRole]?.label || newRole;
     const action = isUpgrade ? '晉升' : '調整';
+    const lineOptions = {};
+    if (teamId) lineOptions.teamId = teamId;
+    if (teamId && assignmentRole) lineOptions.assignmentRole = assignmentRole;
     this._sendNotifFromTemplate('role_upgrade', {
       userName, roleName,
-    }, uid, 'private', '私訊');
+    }, uid, 'private', '私訊', null, { lineOptions });
     ApiService._writeOpLog('role', '角色變更', `${userName} 自動${action}為「${roleName}」（原：${ROLES[oldRole]?.label || oldRole}）`);
   },
 

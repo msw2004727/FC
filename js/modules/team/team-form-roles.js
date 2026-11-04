@@ -136,10 +136,21 @@ Object.assign(App, {
     const findUserByUid = uid => allUsers.find(user => (
       String(user?.uid || user?.lineUserId || '').trim() === String(uid || '').trim()
     ));
+    // T-090c：一般用戶自建的俱樂部（createdVia === 'user_capability'）幹部欄位不參與自動升降級，不呼叫 Functions
+    const savedTeam = ApiService.getTeam?.(editId || teamId) || null;
+    const skipRoleRecalculation = String(savedTeam?.createdVia || '') === 'user_capability';
+    const notifyLineOptions = (source) => (teamId ? { source, teamId } : { source });
+    const assignmentRoleOf = (uid) => {
+      if (uid === captainUid) return 'captain';
+      if (realLeaderUids.includes(uid)) return 'leader';
+      if (coachUids.includes(uid)) return 'coach';
+      return '';
+    };
     const requestedRoleRecalculations = new Set();
     const roleRecalculationRequests = [];
     const requestRoleRecalculation = (uid) => {
       const safeUid = String(uid || '').trim();
+      if (skipRoleRecalculation) return;
       if (!safeUid || requestedRoleRecalculations.has(safeUid)) return;
       requestedRoleRecalculations.add(safeUid);
       roleRecalculationRequests.push(
@@ -173,7 +184,7 @@ Object.assign(App, {
           '俱樂部職位指派',
           `您已被設為「${teamName}」的俱樂部經理。`,
           'system', '系統', captainUid, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:captain' } }
+          { lineOptions: notifyLineOptions('team_role_assignment:captain') }
         );
       }
     }
@@ -183,7 +194,7 @@ Object.assign(App, {
           '俱樂部職位指派',
           `您已被設為「${teamName}」的領隊。`,
           'system', '系統', uid, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:leader' } }
+          { lineOptions: notifyLineOptions('team_role_assignment:leader') }
         );
       }
     });
@@ -193,7 +204,7 @@ Object.assign(App, {
           '俱樂部職位指派',
           `您已被設為「${teamName}」的教練。`,
           'system', '系統', uid, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:coach' } }
+          { lineOptions: notifyLineOptions('team_role_assignment:coach') }
         );
       }
     });
@@ -227,9 +238,12 @@ Object.assign(App, {
       const user = findUserByUid(uid);
       if (!user) return;
       const roleName = ROLES[result.newRole]?.label || result.newRole;
+      const assignmentRole = assignmentRoleOf(uid);
+      const roleUpgradeLineOptions = teamId ? { teamId } : {};
+      if (teamId && assignmentRole) roleUpgradeLineOptions.assignmentRole = assignmentRole;
       this._sendNotifFromTemplate('role_upgrade', {
         userName: user.name, roleName,
-      }, uid, 'private', '私訊');
+      }, uid, 'private', '私訊', null, { lineOptions: roleUpgradeLineOptions });
       ApiService._writeOpLog(
         'role',
         '角色變更',

@@ -57,6 +57,11 @@ Object.assign(App, {
     }
 
     const reviewerName = curUser?.displayName || '審核人';
+    // T-090c：入隊審核通知帶俱樂部文件 id 與申請人 uid，供伺服器核對通知關係
+    const reviewNotifyKeys = {
+      teamId: String(team._docId || team.id || teamId || '').trim(),
+      applicantUid: String(applicantUid || '').trim(),
+    };
 
     if (action === 'approve') {
       const users = ApiService.getAdminUsers();
@@ -170,7 +175,7 @@ Object.assign(App, {
           '俱樂部申請通過',
           `恭喜！您已成功加入「${finalTeamName}」俱樂部，審核人：${reviewerName}。`,
           'system', '系統', applicantUid, '系統', null,
-          { lineOptions: { source: 'team_join_review:approve' } }
+          { lineOptions: { source: 'team_join_review:approve', ...reviewNotifyKeys } }
         );
         void ApiService.writeAuditLog({
           action: 'team_join_approve',
@@ -192,7 +197,7 @@ Object.assign(App, {
         '俱樂部申請結果',
         `很抱歉，您申請加入「${teamName}」俱樂部未獲通過。如有疑問，請聯繫俱樂部職員。`,
         'system', '系統', applicantUid, '系統', null,
-        { lineOptions: { source: 'team_join_review:reject' } }
+        { lineOptions: { source: 'team_join_review:reject', ...reviewNotifyKeys } }
       );
       void ApiService.writeAuditLog({
         action: 'team_join_reject',
@@ -238,7 +243,7 @@ Object.assign(App, {
             '入隊申請審核通知',
             `「${reviewerName}」已${actionLabel}「${applicantName}」加入「${teamName}」的申請。`,
             'system', '系統', uid, '系統', null,
-            { lineOptions: { source: `team_join_review:broadcast:${action}` } }
+            { lineOptions: { source: `team_join_review:broadcast:${action}`, ...reviewNotifyKeys } }
           );
         });
       }
