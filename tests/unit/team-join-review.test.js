@@ -463,7 +463,9 @@ describe("reviewTeamJoin retries, budgets and boundary", () => {
   });
   test("maximum group writes 451 documents in one transaction", async () => {
     const seed = base(); delete seed[INBOX]; delete seed[SECOND];
-    for (let i = 0; i < MAX_GROUP_MESSAGES; i++) seed["users/staff" + i + "/inbox/request"] = message();
+    // 呼叫者（owner）本人的副本要在群組內（收件人綁定），其餘 449 份為其他職員。
+    seed[INBOX] = message();
+    for (let i = 0; i < MAX_GROUP_MESSAGES - 1; i++) seed["users/staff" + i + "/inbox/request"] = message();
     const h = harness(seed); await h.handler(request());
     expect(h.state.writes).toHaveLength(451);
     // team 1 + 公開 id 別名查詢 1 + caller 1 + group 450 + applicant 1。
