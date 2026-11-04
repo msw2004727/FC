@@ -977,15 +977,16 @@ async function getTeamByShareId(teamId) {
   return querySnap.docs[0].data() || {};
 }
 
+// T-090f：非字串直接當查無；"/"、"."／".."、__x__、過長由 resolveTeamSnapshot 以 F1 同一個 normalizeId 擋下。
 async function getTeamDocByTeamId(teamId) {
-  const safeTeamId = String(teamId || "").trim();
+  const safeTeamId = typeof teamId === "string" ? teamId.trim() : "";
   if (!safeTeamId) return null;
   const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError);
   return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;
 }
 
 async function getTeamDocByTeamIdInTransaction(tx, teamId) {
-  const safeTeamId = String(teamId || "").trim();
+  const safeTeamId = typeof teamId === "string" ? teamId.trim() : "";
   if (!safeTeamId) return null;
   const doc = await resolveTeamSnapshot(db, safeTeamId, HttpsError, (ref) => tx.get(ref));
   return doc ? { ref: doc.ref, docId: doc.id, data: doc.data() || {} } : null;

@@ -180,6 +180,118 @@ describe("B4 全部呼叫端的 resolver 表達式契約", () => {
   });
 });
 
+// T-090f P1-1：巢狀路徑 teamId 會讓 teams.doc() 指到子集合文件（缺 createdVia 被當管理端俱樂部）。
+const NESTED_IDS = ["tm_owner/students/forged", "tm_owner/students", "..", ".", "__x__", "a".repeat(129), " tm_owner/x "];
+const nestedSeed = () => ({
+  "teams/tm_owner": { captainUid: "uidOther", createdVia: "user_capability" },
+  "teams/tm_owner/students/forged": { captainUid: "uidCaller", ownerUid: "uidCaller", coachUids: ["uidCaller"] },
+});
+
+describe("P1-1 共用 resolver 邊界拒絕巢狀路徑", () => {
+  test.each(NESTED_IDS)("resolveTeamSnapshot(%j)：查無、零讀取", async (teamId) => {
+    const store = createStore(nestedSeed());
+    await expect(core.resolveTeamSnapshot(store.db, teamId, HttpsError)).resolves.toBeNull();
+    expect(store.reads).toHaveLength(0);
+  });
+  test.each([null, undefined, 7, {}, ["tm_owner"], ""])("非字串或空 %j：查無、零讀取", async (teamId) => {
+    const store = createStore({ "teams/tm_owner": {} });
+    await expect(core.resolveTeamSnapshot(store.db, teamId, HttpsError)).resolves.toBeNull();
+    const ctx = load(store);
+    await expect(ctx.getTeamDocByTeamId(teamId)).resolves.toBeNull();
+    await expect(ctx.getTeamDocByTeamIdInTransaction({ get: (r) => r.get() }, teamId)).resolves.toBeNull();
+    expect(store.reads).toHaveLength(0);
+  });
+  test.each(["tm_test", "tm test", "TM-1_x", "a".repeat(128)])("F1 既有合法 id %j 不退化：直接文件命中", async (teamId) => {
+    const store = createStore({ ["teams/" + teamId]: { captainUid: "uidCaller" } });
+    const snap = await core.resolveTeamSnapshot(store.db, teamId, HttpsError);
+    expect(snap.id).toBe(teamId);
+    expect(core.normalizeId(teamId)).toBe(teamId);
+  });
+  test("wrapper 仍 trim 頭尾空白（既有行為），單一路徑段照常解析", async () => {
+    const store = createStore({ "teams/tm_test": { captainUid: "uidCaller" } });
+    const ctx = load(store);
+    await expect(ctx.getTeamDocByTeamId("  tm_test ")).resolves.toMatchObject({ docId: "tm_test" });
+  });
+  describe.each(resolverCalls.map((c) => [c.label, c]))("%s 巢狀路徑", (_label, call) => {
+    test("查無、零讀取、零寫入", async () => {
+      const store = createStore(nestedSeed());
+      const ctx = load(store);
+      const txGet = jest.fn(async (ref) => ref.get());
+      const nested = NESTED_IDS[0];
+      Object.assign(ctx, {
+        tx: { get: txGet }, transaction: { get: txGet },
+        teamId: nested, safeTeamId: nested, hostTeamId: nested, applicationTeamId: nested,
+        tournament: { hostTeamId: nested },
+      });
+      await expect(vm.runInNewContext("(async () => " + call.text + ")()", ctx)).resolves.toBeNull();
+      expect(store.reads).toHaveLength(0);
+      expect(store.writes).toHaveLength(0);
+    });
+  });
+});
+
+describe("P1-1 巢狀路徑攻擊在各入口被拒", () => {
+  test("B1 adjustTeamReservation：不改他人活動名額，只留 dedupe", async () => {
+    const store = createStore({
+      ...nestedSeed(),
+      "events/ev_test": { id: "ev_test", max: 10, status: "open", creatorUid: "uidOther", current: 0 },
+    });
+    const ctx = load(store, ["adjustTeamReservation"], {
+      FieldValue: { serverTimestamp: () => "SERVER_TS" }, Timestamp: { fromDate: (v) => v },
+      getUserRoleFromFirestore: async () => "user",
+      findUserDocByUidOrLineUserId: async () => ({ data: { displayName: "test" } }),
+      getEventDocByPublicIdInTransaction: (tx, id) => tx.get(store.db.collection("events").doc(id)),
+      isCourseLinkedEventData: () => false,
+    });
+    await expect(ctx.exports.adjustTeamReservation(request({
+      eventId: "ev_test", teamId: NESTED_IDS[0], reservedSlots: 10, requestId: "request_nested",
+    }))).rejects.toMatchObject({ code: "not-found", message: "TEAM_NOT_FOUND" });
+    expect(store.reads.map((r) => r.path)).toEqual(["events/ev_test"]);
+    expect(store.writes.map((w) => w.path)).toEqual(["_regDedupe/request_nested"]);
+    expect(store.data.get("events/ev_test")).toMatchObject({ current: 0, status: "open" });
+  });
+
+  test.each(["user", "admin"])("B8 createFriendlyTournament（%s）：主辦隊巢狀路徑查無，零賽事寫入", async (role) => {
+    const store = createStore(nestedSeed());
+    const ctx = load(store, ["createFriendlyTournament"], {
+      getTournamentSportTagFromData: () => "football",
+      getTimestampMillis: (v) => Date.parse(v), validateClientTournamentId: (v) => v,
+      findUserDocByUidOrLineUserId: async () => ({ data: { displayName: "test" } }),
+      getCallerRoleWithFallback: async () => role,
+      buildTournamentRootForCreate: ({ tournamentId, hostTeamId }) => ({ id: tournamentId, hostTeamId }),
+      buildServerHostEntry: ({ teamId }) => ({ teamId }),
+    });
+    await expect(ctx.exports.createFriendlyTournament(request({
+      tournament: { id: "ct_test", name: "test", hostTeamId: NESTED_IDS[0], regStart: "2030-01-01", regEnd: "2030-01-02" },
+    }))).rejects.toMatchObject({ code: "not-found" });
+    expect(store.reads).toHaveLength(0);
+    expect(store.writes).toHaveLength(0);
+  });
+
+  test.each(NESTED_IDS)("eduCheckin %j：入口拒絕，零讀寫", async (teamId) => {
+    const store = createStore(nestedSeed());
+    // index.js 以 normalizeTeamId 別名匯入 F1 同一個 normalizeId。
+    const ctx = load(store, ["eduCheckin"], { normalizeTeamId: core.normalizeId });
+    await expect(ctx.exports.eduCheckin(request({ teamId, records: [{ studentId: "s1" }] })))
+      .rejects.toMatchObject({ code: "invalid-argument" });
+    expect(store.reads).toHaveLength(0);
+    expect(store.writes).toHaveLength(0);
+  });
+
+  const { createDeleteTeamHandler } = require("../../functions/team-deletion");
+  const { createRemoveTeamMemberHandler } = require("../../functions/team-member-removal");
+  test.each(NESTED_IDS)("deleteTeam／removeTeamMember %j：入口拒絕，零讀寫", async (teamId) => {
+    const store = createStore(nestedSeed());
+    const deps = { db: store.db, HttpsError, FieldValue: {}, roleLevels: {}, logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn() } };
+    await expect(createDeleteTeamHandler(deps)({ auth: { uid: "uidCaller" }, data: { teamId } }))
+      .rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(createRemoveTeamMemberHandler(deps)({ auth: { uid: "uidCaller" }, data: { teamId, memberUid: "uidX" } }))
+      .rejects.toMatchObject({ code: "invalid-argument" });
+    expect(store.reads).toHaveLength(0);
+    expect(store.writes).toHaveLength(0);
+  });
+});
+
 describe("B4 賽事管理真實授權 helper", () => {
   test("重複別名不任選攻擊者；直接文件優先不借用另一隊職員", async () => {
     const store = createStore({

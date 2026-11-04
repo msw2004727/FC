@@ -27,24 +27,60 @@ function trimmedList(value) {
   return Array.isArray(value) ? value.map(str).filter(Boolean) : [];
 }
 
+// 教練以上（與 notification-guards isStaffRole、autoPromoteTeamRole 的 coach+ 門檻一致；自訂角色視為一般層）。
+const STAFF_ROLES = new Set(["coach", "captain", "venue_owner", "admin", "super_admin"]);
+
 function createTeamQueries({ db, helpers, readAccess }) {
   const loadTeam = memoByCtx((ctx) => readTeamByDocId(db, ctx?.keys?.teamId));
-  // LINE 重用伺服器已讀的 recipientFound；站內信至多多讀一份 users 文件。
+  // LINE 重用伺服器已讀的 recipientFound；站內信至多多讀一份 users 文件（同一次決策內共用）。
+  const loadRecipientData = memoByCtx(async (ctx) => {
+    if (ctx?.recipientFound) return ctx.recipientFound.data || null;
+    const uid = normalizeId(ctx?.recipientUid);
+    if (!uid) return null;
+    const snap = await db.collection("users").doc(uid).get();
+    return snap?.exists ? snap.data() : null;
+  });
+  const recipientInTeamDoc = async (ctx, team) => {
+    const userData = await loadRecipientData(ctx);
+    return Array.isArray(userData?.teamIds) && userData.teamIds.includes(team.docId);
+  };
   const mayReceiveAssignment = memoByCtx(async (ctx) => {
     const team = await loadTeam(ctx);
     if (!team) return false;
     if (!isUserCreatedTeam(team.data)) return true;
-    let userData = ctx?.recipientFound?.data;
-    if (!ctx?.recipientFound) {
-      const uid = normalizeId(ctx?.recipientUid);
-      if (!uid) return false;
-      const snap = await db.collection("users").doc(uid).get();
-      userData = snap?.exists ? snap.data() : null;
-    }
-    return Array.isArray(userData?.teamIds) && userData.teamIds.includes(team.docId);
+    return recipientInTeamDoc(ctx, team);
+  });
+  // 全站授權：admin／super_admin，或 Rules 對齊的 team.manage_all／team.create（與 canManageTeamRoles 同碼）。
+  const callerHasGlobalTeamAuthority = memoByCtx(async (ctx) => {
+    const role = str(ctx?.callerRole);
+    if (role === "admin" || role === "super_admin") return true;
+    if (!str(ctx?.callerUid)) return false;
+    const access = await readAccess(ctx);
+    return access.hasPermission("team.manage_all") || access.hasPermission("team.create");
   });
 
   return {
+    // T-090f B3：不看 source／template 分類，只用伺服器讀到的隊伍標記、呼叫者角色與收件者 teamIds。
+    // 管理端／legacy 隊伍與全站授權者維持既有流程（true）；自建隊伍且無全站授權時，
+    // 呼叫者必須是該隊擁有者或職員、收件者必須已是該隊成員，否則略過。
+    // teamId 缺或解不出隊伍：無法確認呼叫者不是只憑自建俱樂部職員身分，教練以上與全站授權者照舊，其餘略過。
+    async teamScopedDeliveryAllowed(ctx) {
+      const team = await loadTeam(ctx);
+      if (!team) {
+        if (STAFF_ROLES.has(str(ctx?.callerRole))) return true;
+        return callerHasGlobalTeamAuthority(ctx);
+      }
+      if (!isUserCreatedTeam(team.data)) return true;
+      if (await callerHasGlobalTeamAuthority(ctx)) return true;
+      const caller = str(ctx?.callerUid);
+      if (!caller) return false;
+      if (!isUserCreatedTeamOwner(team.data, caller) && helpers.isTeamStaffForData(team.data, caller) !== true) {
+        return false;
+      }
+      return recipientInTeamDoc(ctx, team);
+    },
+
+
     // 申請人必須是呼叫者本人。請求（extra／keys）有帶申請人 uid 時必須等於呼叫者；
     // 沒帶則視為呼叫者本人發起（沒有申請文件可驗，見回報）。
     async callerIsApplicant(ctx) {

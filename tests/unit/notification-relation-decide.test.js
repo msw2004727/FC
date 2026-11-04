@@ -14,7 +14,7 @@ const QUERY_NAMES = [
   "callerIsApplicant", "recipientIsTeamStaff", "callerMayReviewJoin", "recipientIsReviewTarget",
   "callerMayAssignTeamRole", "recipientMatchesAssignment", "callerHasBroadcastPermission",
   "recipientRoleIsAdmin", "callerMatchesTournamentSource", "recipientInTournamentAudience",
-  "callerBroadcastPermissionGap", "recipientMayReceiveTeamAssignment",
+  "callerBroadcastPermissionGap", "recipientMayReceiveTeamAssignment", "teamScopedDeliveryAllowed",
 ];
 
 // 預設：除了 gap 以外全部成立；overrides 以 true／false／Error 指定。
@@ -364,16 +364,23 @@ describe("decideRelation R5", () => {
     expect(queries.recipientMatchesAssignment.mock.calls[0][0].assignmentRole).toBe("leader");
   });
 
-  test("member：缺 teamId 略過，鍵齊保留 record；兩種模式均不查詢", async () => {
-    for (const k of [{}, keys]) {
-      for (const inject of [{}, { modeOf: enforceAll }]) {
-        const queries = makeQueries({ callerMayAssignTeamRole: false, recipientMatchesAssignment: false });
-        const result = await decide("team_role_assignment:member", k, queries, { inject });
-        expect(result).toMatchObject(k.teamId
+  // T-090f B3：取代「鍵齊即 record、不查詢」；member 鍵齊也要先過俱樂部範圍收斂，不查指派欄位。
+  test("member：缺 teamId 略過不查詢；鍵齊只查俱樂部範圍收斂，通過 record、不通過 skip", async () => {
+    for (const inject of [{}, { modeOf: enforceAll }]) {
+      const missing = makeQueries();
+      expect(await decide("team_role_assignment:member", {}, missing, { inject }))
+        .toMatchObject({ outcome: "skip", relationId: "R5", reason: "missing_key" });
+      expect(calledNames(missing)).toEqual([]);
+      for (const scoped of [true, false]) {
+        const queries = makeQueries({
+          callerMayAssignTeamRole: false, recipientMatchesAssignment: false, teamScopedDeliveryAllowed: scoped,
+        });
+        const result = await decide("team_role_assignment:member", keys, queries, { inject });
+        expect(result).toMatchObject(scoped
           ? { outcome: "record", relationId: "R5", gate: "relation_missing_key" }
-          : { outcome: "skip", relationId: "R5", reason: "missing_key" });
-        if (k.teamId) expect(result.flags.memberQuery).toBe("unverified");
-        expect(calledNames(queries)).toEqual([]);
+          : { outcome: "skip", relationId: "R5", reason: "team_scope_not_member" });
+        if (scoped) expect(result.flags.memberQuery).toBe("unverified");
+        expect(calledNames(queries)).toEqual(["teamScopedDeliveryAllowed"]);
       }
     }
   });
@@ -551,5 +558,53 @@ describe("T-090f R5 非成員靜默略過", () => {
     expect(await decide("team_role_assignment:captain", { teamId: "t1" }, queries)).toMatchObject({
       outcome: "deny", reason: "query_missing",
     });
+  });
+});
+
+describe("T-090f B3 俱樂部範圍收斂（不信 source／template 分類）", () => {
+  const notScoped = () => makeQueries({ teamScopedDeliveryAllowed: false });
+  test.each([
+    ["team_role_assignment:member", { teamId: "t1" }],
+    ["team_role_assignment:coach", { teamId: "t1" }],
+    ["template:role_upgrade", { teamId: "t1", assignmentRole: "member" }],
+    ["team_join_review:approve", { teamId: "t1", applicantUid: "uidB" }],
+    ["team_join_review:reject", { teamId: "t1", applicantUid: "uidB" }],
+    ["team_join_review:broadcast:approve", { teamId: "t1", applicantUid: "uidB" }],
+    ["team_join_review:approve", {}],
+    ["team_join_review:approve", { teamId: "t1" }],
+  ])("%s %j 收斂不通過：成功略過，不查原關係", async (source, keys) => {
+    const queries = notScoped();
+    expect(await decide(source, keys, queries)).toMatchObject({ outcome: "skip", reason: "team_scope_not_member" });
+    expect(calledNames(queries)).toEqual(["teamScopedDeliveryAllowed"]);
+  });
+  test("template:role_upgrade 省略 teamId、無 change_role：收斂不通過略過；通過照舊 record", async () => {
+    const skipped = makeQueries({ callerHasBroadcastPermission: false, teamScopedDeliveryAllowed: false });
+    expect(await decide("template:role_upgrade", {}, skipped))
+      .toMatchObject({ outcome: "skip", relationId: "R6", reason: "team_scope_unconfirmed" });
+    const legacy = makeQueries({ callerHasBroadcastPermission: false });
+    expect(await decide("template:role_upgrade", {}, legacy))
+      .toMatchObject({ outcome: "record", relationId: "R6", reason: "role_upgrade_no_permission" });
+    expect(await decide("template:role_upgrade", {}, makeQueries({ teamScopedDeliveryAllowed: false })))
+      .toMatchObject({ outcome: "allow", relationId: "R6" });
+  });
+  test("收斂通過時 R4／R5 結果與原本一致", async () => {
+    expect(await decide("team_join_review:approve", { teamId: "t1", applicantUid: "uidB" }, makeQueries()))
+      .toMatchObject({ outcome: "allow", relationId: "R4" });
+    expect(await decide("team_join_review:approve", {}, makeQueries()))
+      .toMatchObject({ outcome: "missing_key", relationId: "R4" });
+    expect(await decide("team_role_assignment:coach", { teamId: "t1" }, makeQueries()))
+      .toMatchObject({ outcome: "allow", relationId: "R5" });
+  });
+  test("收斂查詢丟錯 deny；查詢缺失 fail closed；R3 不套用", async () => {
+    expect(await decide("team_join_review:approve", { teamId: "t1", applicantUid: "uidB" },
+      makeQueries({ teamScopedDeliveryAllowed: boom() }))).toMatchObject({ outcome: "deny", reason: "query_error" });
+    for (const [source, keys] of [["team_role_assignment:member", { teamId: "t1" }], ["template:role_upgrade", {}]]) {
+      const queries = makeQueries({ callerHasBroadcastPermission: false });
+      delete queries.teamScopedDeliveryAllowed;
+      expect(await decide(source, keys, queries)).toMatchObject({ outcome: "deny", reason: "query_missing" });
+    }
+    const r3 = notScoped();
+    expect(await decide("team_join_request", { teamId: "t1" }, r3)).toMatchObject({ outcome: "allow", relationId: "R3" });
+    expect(r3.teamScopedDeliveryAllowed).not.toHaveBeenCalled();
   });
 });

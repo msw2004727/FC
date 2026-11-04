@@ -83,6 +83,13 @@ function queryFn(queries, name) {
   return typeof queries[name] === "function" ? queries[name] : null;
 }
 
+// T-090f B3：俱樂部範圍的伺服器端收斂（不信 source／template／teamId 分類）；查詢缺失＝null，由呼叫端轉 deny。
+async function teamScopeAllows(ctx, queries) {
+  const fn = queryFn(queries, "teamScopedDeliveryAllowed");
+  if (!fn) return null;
+  return await fn(ctx) === true;
+}
+
 // R6：權限答案以 Rules 對齊為準；對齊不成立但舊路徑成立＝差距。
 async function decideBroadcastPermission(rel, ctx, queries, mode) {
   const aligned = queryFn(queries, rel.callerCheck);
@@ -90,9 +97,12 @@ async function decideBroadcastPermission(rel, ctx, queries, mode) {
   if (await aligned(ctx) === true) return outcomeOf("allow", rel.id, "aligned");
   if (rel.roleUpgradeWithoutTeam) {
     // 無 teamId 且 admin.users.change_role 不成立：不是差距，也不是 R5。常數改 enforce 才拒。
-    return mode === "enforce"
-      ? outcomeOf("deny", rel.id, "role_upgrade_no_permission")
-      : outcomeOf("record", rel.id, "role_upgrade_no_permission");
+    if (mode === "enforce") return outcomeOf("deny", rel.id, "role_upgrade_no_permission");
+    // 一般層且無全站授權者無法確認不是只憑自建俱樂部職員身分：略過（教練以上舊路徑照舊記錄）。
+    const scoped = await teamScopeAllows(ctx, queries);
+    if (scoped === null) return outcomeOf("deny", rel.id, "query_missing");
+    if (!scoped) return outcomeOf("skip", rel.id, "team_scope_unconfirmed");
+    return outcomeOf("record", rel.id, "role_upgrade_no_permission");
   }
   const gapFn = queryFn(queries, "callerBroadcastPermissionGap");
   if (!gapFn) return outcomeOf("deny", rel.id, "query_missing");
@@ -141,14 +151,23 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
 
     // T-090f 補裁：R5 缺鍵不受信，log／enforce 都成功略過，不查詢。
     const flags = keyFlags(rel, safeKeys, assignmentRole);
-    if (missingKeyNames(rel, safeKeys, assignmentRole).length > 0) {
-      if (rel.id === "R5") return outcomeOf("skip", rel.id, "missing_key", flags);
+    const missingKey = missingKeyNames(rel, safeKeys, assignmentRole).length > 0;
+    if (missingKey && rel.id === "R5") return outcomeOf("skip", rel.id, "missing_key", flags);
+
+    // T-090f B3：R4／R5（含 member）先過俱樂部範圍收斂，再走原本的鍵與關係判斷。
+    if (rel.id === "R4" || rel.id === "R5") {
+      const scoped = await teamScopeAllows(ctx2, queries);
+      if (scoped === null) return outcomeOf("deny", rel.id, "query_missing", flags);
+      if (!scoped) return outcomeOf("skip", rel.id, "team_scope_not_member", flags);
+    }
+
+    if (missingKey) {
       return mode === "enforce"
         ? outcomeOf("deny", rel.id, "missing_key", flags)
         : outcomeOf("missing_key", rel.id, "missing_key", flags);
     }
 
-    // R5 member 子項：鍵齊才 record，不查詢（成員查詢的 id 是否同值尚未核實）。
+    // R5 member 子項：鍵齊且已過上面的俱樂部範圍收斂才 record，不再查指派欄位。
     if (rel.id === "R5" && assignmentRole === "member") {
       return outcomeOf("record", rel.id, "member_unverified", {
         memberQuery: "unverified",

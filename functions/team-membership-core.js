@@ -46,6 +46,9 @@ function assertTeamDocIdConsistent(teamSnap, HttpsError) {
 
 // 文件 id 優先；查無時才接受唯一的舊邏輯 id，避免任選同名文件。
 async function resolveTeamSnapshot(db, teamId, HttpsError, readSnapshot = (ref) => ref.get()) {
+  // T-090f：共用邊界只收 normalizeId 原樣通過的單一路徑段；巢狀路徑（tm/students/x）會把子集合文件當俱樂部。
+  // 不合格視為查無、零讀取；F1 入口已先 normalizeId，合法 id 行為不變。
+  if (typeof teamId !== "string" || !teamId || normalizeId(teamId) !== teamId) return null;
   const direct = await readSnapshot(db.collection("teams").doc(teamId));
   if (direct && direct.exists) {
     return direct;

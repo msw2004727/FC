@@ -312,3 +312,92 @@ describe("T-090f 自建俱樂部通知成員守門", () => {
     }))).toBe(false);
   });
 });
+
+describe("T-090f B3 teamScopedDeliveryAllowed（伺服器端俱樂部範圍收斂）", () => {
+  const OWN = { createdVia: "user_capability", ownerUid: "uidA", coachUids: ["uidCoach"] };
+  const ctxOf = (extra = {}) => makeCtx({ source: "team_join_review:approve", keys: { teamId: "t1" }, ...extra });
+
+  test.each([
+    ["擁有者→成員", {}, { teamIds: ["t1"] }, true],
+    ["擁有者→外人", {}, { teamIds: [] }, false],
+    ["擁有者→別隊成員", {}, { teamIds: ["t2"] }, false],
+    ["擁有者→查無使用者", {}, null, false],
+    ["教練職員→成員", { callerUid: "uidCoach" }, { teamIds: ["t1"] }, true],
+    ["非職員非擁有者→成員", { callerUid: "uidX" }, { teamIds: ["t1"] }, false],
+  ])("自建俱樂部、一般層：%s", async (_name, extra, user, allowed) => {
+    const seed = { "teams/t1": OWN };
+    if (user) seed["users/uidB"] = user;
+    const { queries, db } = setup(seed);
+    expect(await queries.teamScopedDeliveryAllowed(ctxOf({ ...extra, extra: { createdVia: "admin" } }))).toBe(allowed);
+    expect(db.readsOf("teams/")).toHaveLength(1);
+  });
+
+  test("請求帶的 source／applicantUid／createdVia 不影響：外人一律 false", async () => {
+    const { queries } = setup({ "teams/t1": OWN, "users/uidOut": { teamIds: [] } });
+    for (const source of ["team_role_assignment:member", "template:role_upgrade", "team_join_review:approve"]) {
+      expect(await queries.teamScopedDeliveryAllowed(makeCtx({
+        source, recipientUid: "uidOut",
+        keys: { teamId: "t1", applicantUid: "uidOut", assignmentRole: "member" },
+        extra: { createdVia: "admin", applicantUid: "uidOut" },
+      }))).toBe(false);
+    }
+  });
+
+  test("LINE recipientFound 重用，零 users 讀取；站內信至多 1 次 users 讀取且與成員查詢共用", async () => {
+    const line = setup({ "teams/t1": OWN });
+    expect(await line.queries.teamScopedDeliveryAllowed(ctxOf({
+      recipientUid: "Uline", recipientFound: { docId: "uidB", data: { uid: "uidB", teamIds: ["t1"] } },
+    }))).toBe(true);
+    expect(line.db.readsOf("users/")).toHaveLength(0);
+    const inbox = setup({ "teams/t1": OWN, "users/uidB": { teamIds: ["t1"] } });
+    const ctx = ctxOf({ source: "team_role_assignment:coach" });
+    expect(await inbox.queries.teamScopedDeliveryAllowed(ctx)).toBe(true);
+    expect(await inbox.queries.recipientMayReceiveTeamAssignment(ctx)).toBe(true);
+    expect(inbox.db.readsOf("users/")).toHaveLength(1);
+  });
+
+  test.each([
+    ["管理端", "admin"],
+    ["legacy", undefined],
+  ])("%s 俱樂部：維持既有流程（true），零 users／權限讀取", async (_name, createdVia) => {
+    const { queries, db } = setup({ "teams/t1": { ...OWN, createdVia } });
+    expect(await queries.teamScopedDeliveryAllowed(ctxOf({ callerUid: "uidX", recipientUid: "uidOut" }))).toBe(true);
+    expect(db.readsOf("users/")).toHaveLength(0);
+    expect(db.readsOf("Permission")).toHaveLength(0);
+  });
+
+  test("全站授權者對自建俱樂部維持既有流程：admin／super_admin、team.manage_all、team.create", async () => {
+    for (const role of ["admin", "super_admin"]) {
+      const { queries } = setup({ "teams/t1": OWN });
+      expect(await queries.teamScopedDeliveryAllowed(ctxOf({ callerUid: "uidX", callerRole: role, recipientUid: "uidOut" }))).toBe(true);
+    }
+    for (const code of ["team.manage_all", "team.create"]) {
+      const { queries } = setup({ "teams/t1": OWN, "userPermissionGrants/uidX": { permissions: [code] } });
+      expect(await queries.teamScopedDeliveryAllowed(ctxOf({ callerUid: "uidX", recipientUid: "uidOut" }))).toBe(true);
+    }
+  });
+
+  test("缺 teamId 或解不出隊伍（含巢狀路徑）：一般層略過；教練以上與全站授權者照舊", async () => {
+    for (const keys of [{}, { teamId: "t404" }, { teamId: "t1/students/forged" }, { teamId: ".." }]) {
+      const { queries, db } = setup({
+        "teams/t1": OWN, "teams/t1/students/forged": { ownerUid: "uidA" },
+        "userPermissionGrants/uidG": { permissions: ["team.manage_all"] },
+      });
+      expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys }))).toBe(false);
+      expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerUid: "uidG" }))).toBe(true);
+      for (const role of ["coach", "captain", "venue_owner", "admin"]) {
+        expect(await queries.teamScopedDeliveryAllowed(makeCtx({ keys, callerRole: role }))).toBe(true);
+      }
+      expect(db.reads.some((item) => item.includes("students"))).toBe(false);
+    }
+  });
+
+  test("讀取失敗往外丟（由決策層轉 deny）", async () => {
+    const team = setup({ "teams/t1": OWN }, { get: (path) => (path === "teams/t1" ? boom() : null) });
+    await expect(team.queries.teamScopedDeliveryAllowed(ctxOf())).rejects.toThrow("UNAVAILABLE");
+    const user = setup({ "teams/t1": OWN }, { get: (path) => (path === "users/uidB" ? boom() : null) });
+    await expect(user.queries.teamScopedDeliveryAllowed(ctxOf())).rejects.toThrow("UNAVAILABLE");
+    const grants = setup({ "teams/t1": OWN }, { get: (path) => (path.startsWith("userPermissionGrants/") ? boom() : null) });
+    await expect(grants.queries.teamScopedDeliveryAllowed(ctxOf())).rejects.toThrow("UNAVAILABLE");
+  });
+});
