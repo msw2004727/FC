@@ -3,7 +3,7 @@
  *
  * 函式與 Rules 依據：
  * - saveTeamAvatar、saveTeamCover、saveTeamSettingsPatch：
- *   isTeamOwner() 或 canManageAnyTeam() 可更新任意欄位；
+ *   owner 依 T-090a M2 保留基本欄位編輯；canManageAnyTeam() 保留全隊管理。
  *   領隊／教練的 isTeamStaffFieldsOnly() 不包含頭像、封面、設定欄位。
  * - saveTeamRoleChange／saveTeamRoleUpdates：
  *   驗證八個職務欄位的寫入 payload，不驗證交易或前端職務計算。
@@ -375,14 +375,16 @@ describe("升降職務：八個欄位的直寫契約", () => {
     }
   );
 
-  test("現行規則觀察：隊長可在職務更新中一併改成員數", async () => {
-    // 僅記錄 owner 無欄位白名單的 Rules 行為；FC-B 刻意不寫 members，此例不是 B payload 契約。
-    await assertSucceeds(
-      updateDoc(doc(authAs(CAP), "teams", TEAM_MAIN), {
-        ...rolePayload(),
-        members: 4,
-      })
+  test.each(["legacy", "managed", "user_capability"])("T-090a M2：%s 職務與成員數混寫依建立來源判斷", async (marker) => {
+    // 測試同步更新：新裁定只限制 user-created；legacy／管理端 owner 保留既有混寫。
+    if (marker !== "legacy") {
+      await testEnv.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "teams", TEAM_MAIN), { createdVia: marker }));
+    }
+    await (marker === "user_capability" ? assertFails : assertSucceeds)(
+      updateDoc(doc(authAs(CAP), "teams", TEAM_MAIN), { ...rolePayload(), members: 4 })
     );
+    await assertSucceeds(updateDoc(doc(authAs(CAP), "teams", TEAM_MAIN), rolePayload()));
+    await assertSucceeds(updateDoc(doc(authAs(CAP), "teams", TEAM_MAIN), { members: 4, updatedAt: serverTimestamp() }));
   });
 });
 

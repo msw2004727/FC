@@ -489,6 +489,11 @@ service cloud.firestore {
         && resource.data[field] == request.auth.uid;
     }
 
+    // T-090: immutable provenance, shared with Functions; legacy missing marker is managed-created.
+    function isUserCreatedTeam(teamData) {
+      return teamData.get('createdVia', '') == 'user_capability';
+    }
+
     function isTeamOwner() {
       return isResourceOwnerByField('captainUid')
         || isResourceOwnerByField('creatorUid')
@@ -1355,9 +1360,9 @@ service cloud.firestore {
           && (!('birthday' in request.resource.data) || request.resource.data.birthday == null || request.resource.data.birthday is string)
           && (!('region' in request.resource.data) || request.resource.data.region == null || request.resource.data.region is string)
           && (!('sports' in request.resource.data) || request.resource.data.sports == null || request.resource.data.sports is string)
-          && (!('teamId' in request.resource.data) || request.resource.data.teamId == null || request.resource.data.teamId is string)
+          && request.resource.data.teamId == null
           && (!('teamName' in request.resource.data) || request.resource.data.teamName == null || request.resource.data.teamName is string)
-          && (!('teamIds' in request.resource.data) || request.resource.data.teamIds == null || request.resource.data.teamIds is list)
+          && (!('teamIds' in request.resource.data) || request.resource.data.teamIds == [])
           && (!('teamNames' in request.resource.data) || request.resource.data.teamNames == null || request.resource.data.teamNames is list)
           && (!('titleBig' in request.resource.data) || request.resource.data.titleBig == null || request.resource.data.titleBig is string)
           && (!('titleNormal' in request.resource.data) || request.resource.data.titleNormal == null || request.resource.data.titleNormal is string)
@@ -1937,23 +1942,54 @@ service cloud.firestore {
         return isSuperAdmin() || hasPerm('team.manage_all') || hasUserPermissionGrant('team.manage_all');
       }
 
+      // Existing signed-in +1-only path; user-created scoped edits cannot change viewCount.
       function isTeamViewCountIncrementOnly() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly(['viewCount'])
           && request.resource.data.viewCount == resource.data.get('viewCount', 0) + 1;
       }
 
+      // T-090a F3: every non-canManageAnyTeam() create (team.create holders included) needs a fresh tm_ id.
+      // T-090a 顧問裁定（2026-11-04）：取代 isUserCapabilityTeamCreate 自建分支；一般用戶建俱樂部只走 Callable createUserTeam（Admin SDK），Rules 不再放行能力碼直寫。
+      function isFreshTeamCreateId() {
+        return request.resource.data.get('id', '') == teamId
+          && teamId.matches('^tm_[0-9]{13}_[a-z0-9]{1,8}$')
+          && math.abs(int(teamId.split('_')[1]) - request.time.toMillis()) < 3 * 86400000;
+      }
+
+      function isScopedTeamUpdateSafe() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return !changed.hasAny(['id', 'creatorUid', 'ownerUid', 'createdVia'])
+          // Legacy/managed owners retain origin/main updates except immutable identity/provenance.
+          && (!isUserCreatedTeam(resource.data) || (
+            !changed.hasAny([
+              'captainUid', 'active', 'pinned', 'pinOrder', 'attentionEffectEnabled', 'attentionEffectColor',
+              'teamExp', 'viewCount', 'views', 'wins', 'draws', 'losses', 'gf', 'ga', 'history'
+            ])
+            // Only user-created teams require count changes to use the count-only shape.
+            && (!changed.hasAny(['members']) || isTeamMemberCountOnly())
+          ));
+      }
+
       allow read: if true;
+      // T-090a P2-1（2026-11-04 顧問方向）：非 canManageAnyTeam() 建立不得帶 createdVia == 'user_capability'（此標記只由 Admin SDK createUserTeam 寫入），
+      // creatorUid 若出現須等於本人；取代原本只檢查 id 新鮮度，堵住持有者替他人佔滿 createUserTeam 每人 3 個自建名額。
       allow create: if isAuth()
         && hasString('name')
-        && (hasEffectivePerm('team.create') || canManageAnyTeam());
+        && (canManageAnyTeam()
+          || (isFreshTeamCreateId()
+            && request.resource.data.get('createdVia', '') != 'user_capability'
+            && requestFieldEqualsAuthOrAbsent('creatorUid')
+            && hasEffectivePerm('team.create')));
       allow update: if isAuth()
-        && (isTeamOwner()
-          || canManageAnyTeam()
-          || (isCurrentUserTeamStaff(teamId) && isTeamStaffFieldsOnly())
-          || (isCurrentUserInTeam(teamId) && isTeamMemberCountOnly())
+        && (canManageAnyTeam()
+          || (isScopedTeamUpdateSafe()
+            && (isTeamOwner()
+              || (isCurrentUserTeamStaff(teamId) && isTeamStaffFieldsOnly())
+              || (isCurrentUserInTeam(teamId) && isTeamMemberCountOnly())))
           || isTeamViewCountIncrementOnly());
-      allow delete: if canManageAnyTeam() || isTeamOwner();
+      // T-090a P2：自建俱樂部（createdVia == 'user_capability'）擁有者不得直刪，改走 deleteTeam Callable；legacy 擁有者直刪維持。
+      allow delete: if canManageAnyTeam() || (!isUserCreatedTeam(resource.data) && isTeamOwner());
 
       // ── Feed（留言板）──
       // Phase 3: create 收緊為成員才可發文；update/delete 限作者本人或幹部（含教練）
@@ -1979,7 +2015,10 @@ service cloud.firestore {
       // 公開可讀；俱樂部幹部（含教練）或管理員可 CUD
       match /coursePlans/{planId} {
         allow read: if true;
-        allow create, update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
+        // B2: reuse the same parent team path already read by the staff check.
+        allow create: if (isCurrentUserTeamStaff(teamId) || canManageAnyTeam())
+          && !isUserCreatedTeam(get(/databases/$(database)/documents/teams/$(teamId)).data);
+        allow update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
 
         // ── 堂數制課堂卡片（每一堂課）──
         function forbiddenCourseSessionLinkFields() {
@@ -2440,6 +2479,66 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isAdmin() || hasEffectivePerm('admin.banners.entry');
       allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  新站賽事卡片（T-089，新站 FC-B 專屬；與舊站 tournaments 集合完全分開）
+    //  公開可讀；總管或持有 admin.tournaments.manage_all（預設 admin 起跳、可個別授權）可新增／編輯／刪除。
+    //  （T-089 終驗：站長選「管理員以上管理」；不用 admin.tournaments.entry，R-IAM-010 禁止拿 .entry 當動作授權。）
+    //  卡片 ID 為 generateId('tc_')（R-ID-006）。
+    //  欄位白名單：name, type, startDate, endDate, url, image, imagePath, createdBy, createdAt, updatedAt
+    //  沒有圖片時 image／imagePath 不寫；圖片放 Storage images/tournamentCards/{cardId}/{檔名}（沿用 images/** 規則，不可刪）。
+    // ═══════════════════════════════════════════
+    function isTournamentCardManager() {
+      return isSuperAdmin() || hasEffectivePerm('admin.tournaments.manage_all');
+    }
+
+    function isTournamentCardDate(value) {
+      return value is string && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+
+    // cardId 已由呼叫端限定 tc_[A-Za-z0-9_]+，可直接接進 imagePath 的正規式。
+    function isValidTournamentCard(data, cardId) {
+      return data.keys().hasOnly(['name', 'type', 'startDate', 'endDate', 'url', 'image', 'imagePath', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['name', 'type', 'startDate', 'endDate', 'url', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 80
+        && data.name.matches('(?s).*\\S.*')
+        && data.type in ['league', 'cup', 'friendly']
+        && isTournamentCardDate(data.startDate)
+        && isTournamentCardDate(data.endDate)
+        && data.startDate <= data.endDate
+        && data.url is string
+        && data.url.size() <= 500
+        && data.url.matches('https://[!-~]+')
+        && (!('image' in data)
+          || (data.image is string && data.image.size() <= 1200 && data.image.matches('https://[!-~]+')))
+        && (!('imagePath' in data)
+          || (data.imagePath is string && data.imagePath.size() <= 300
+            && data.imagePath.matches('images/tournamentCards/' + cardId + '/[^/]+')))
+        && data.createdBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    match /tournamentCards/{cardId} {
+      allow read: if true;
+      // 先驗欄位（不花讀取），最後才查權限（users／rolePermissions／userPermissionGrants 文件讀取）。
+      // 用已存在的 id 再 setDoc 會被當成 update 評估：createdAt／createdBy 須與原文件相同，新建式 payload 會被拒，不另查 exists。
+      allow create: if isAuth()
+        && cardId.matches('tc_[A-Za-z0-9_]+')
+        && isValidTournamentCard(request.resource.data, cardId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && isTournamentCardManager();
+      allow update: if isAuth()
+        && cardId.matches('tc_[A-Za-z0-9_]+')
+        && isValidTournamentCard(request.resource.data, cardId)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isTournamentCardManager();
+      allow delete: if isAuth() && isTournamentCardManager();
     }
 
     // ═══════════════════════════════════════════
