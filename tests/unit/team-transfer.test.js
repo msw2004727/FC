@@ -6,6 +6,7 @@ const vm = require("vm");
 const {
   createTransferUserTeamCallable, createTransferUserTeamHandler, buildStaffRemoval, buildDedupeId,
 } = require("../../functions/team-transfer");
+const { MAX_USER_CREATED_TEAMS } = require("../../functions/user-team-create");
 
 // T-090h transferUserTeam：記憶體版交易模型（同 user-team-create.test.js，非 emulator／真 SDK 驗收）。
 // 修正前 functions/team-transfer.js 不存在、index.js 無 transferUserTeam 匯出，本檔全部失敗。
@@ -48,9 +49,16 @@ function harness(seed = base()) {
       change(key, data); state.inboxWrites.push({ path: key, data: clone(data) });
     },
   });
-  const fingerprint = t => versions.get(t.path) || 0;
+  const query = (name, filters = [], cap = Infinity) => ({
+    kind: "query", name, filters, cap,
+    where: (field, op, value) => { if (op !== "==") throw new Error("op"); return query(name, [...filters, { field, value }], cap); },
+    limit: value => query(name, filters, value),
+  });
+  const keysFor = q => [...store.keys()].filter(key => key.split("/").slice(0, -1).join("/") === q.name)
+    .filter(key => q.filters.every(f => store.get(key)[f.field] === f.value)).sort().slice(0, q.cap);
+  const fingerprint = t => t.kind === "doc" ? (versions.get(t.path) || 0) : JSON.stringify(keysFor(t).map(k => [k, versions.get(k)]));
   const db = {
-    collection: name => ({ doc: id => doc(name + "/" + id) }),
+    collection: name => ({ ...query(name), doc: id => doc(name + "/" + id) }),
     runTransaction: jest.fn(async callback => {
       for (let attempt = 1; attempt <= 5; attempt++) {
         state.attempts++;
@@ -60,7 +68,12 @@ function harness(seed = base()) {
             get: async target => {
               if (writes.length) throw new Error("Read after write");
               reads.push([target, fingerprint(target)]);
-              state.reads.push({ attempt, path: target.path });
+              if (target.kind === "query") {
+                const keys = keysFor(target);
+                state.reads.push({ attempt, path: `query:${target.name}`, documents: Math.max(1, keys.length), cap: target.cap });
+                return { docs: keys.map(snap) };
+              }
+              state.reads.push({ attempt, path: target.path, documents: 1 });
               return snap(target.path);
             },
             create: (ref, data) => writes.push({ op: "create", path: ref.path, data: clone(data) }),
@@ -130,12 +143,48 @@ describe("transferUserTeam 正常轉移", () => {
     expect(h.state.writes.some(w => w.path.startsWith("users/"))).toBe(false);
   });
 
-  test("最壞 4 讀（去重＋俱樂部＋兩位使用者）", async () => {
+  test("讀 5 次（去重＋俱樂部＋兩位使用者＋新經理自建上限查詢），查詢在所有寫入之前", async () => {
     const h = harness();
     await h.handler(call());
     expect(h.state.reads.map(r => r.path)).toEqual([
-      `_regDedupe/${buildDedupeId("owner", "req_000000001")}`, TEAM, OWNER, NEW,
+      `_regDedupe/${buildDedupeId("owner", "req_000000001")}`, TEAM, OWNER, NEW, "query:teams",
     ]);
+    expect(h.state.reads[4].cap).toBe(MAX_USER_CREATED_TEAMS + 1);
+  });
+
+  test("最壞計費讀取：4 份單文件＋上限查詢回傳 MAX-1 份（再多就被拒）", async () => {
+    const h = harness();
+    for (let i = 0; i < MAX_USER_CREATED_TEAMS - 1; i++) h.change(`teams/tm_n${i}`, { creatorUid: "newbie", createdVia: "user_capability" });
+    await h.handler(call());
+    expect(h.state.reads.reduce((s, r) => s + r.documents, 0)).toBe(4 + (MAX_USER_CREATED_TEAMS - 1));
+  });
+
+  test("新經理已有 MAX-1 隊自建俱樂部：可轉移", async () => {
+    const h = harness();
+    for (let i = 0; i < MAX_USER_CREATED_TEAMS - 1; i++) h.change(`teams/tm_n${i}`, { creatorUid: "newbie", createdVia: "user_capability" });
+    await expect(h.handler(call())).resolves.toMatchObject({ ok: true, deduplicated: false });
+    expect(h.get(TEAM).creatorUid).toBe("newbie");
+  });
+
+  test("新經理在教練／領隊名單時也移出，只剩經理身分", async () => {
+    const h = harness();
+    h.change(TEAM, {
+      leader: "Newbie", leaderUid: "newbie", leaders: ["Newbie", "L2"], leaderUids: ["newbie", "l2"], leaderNames: ["Newbie", "L2"],
+      coaches: ["Owner", "Newbie", "C1"], coachUids: ["owner", "newbie", "c1"], coachNames: ["Owner", "Newbie", "C1"],
+    });
+    await h.handler(call());
+    expect(h.get(TEAM)).toMatchObject({
+      captainUid: "newbie", leader: "L2", leaderUid: "l2", leaders: ["L2"], leaderUids: ["l2"], leaderNames: ["L2"],
+      coaches: ["C1"], coachUids: ["c1"], coachNames: ["C1"],
+    });
+  });
+
+  test("舊經理 teamIds 不含本隊時不寫他的 users 文件（即使 teamId 空）", async () => {
+    const h = harness();
+    h.change(OWNER, { teamIds: ["tm_other"], teamNames: ["Other"], teamId: null, teamName: null });
+    await expect(h.handler(call())).resolves.toMatchObject({ ok: true });
+    expect(h.state.writes.some(w => w.path === OWNER)).toBe(false);
+    expect(h.get(OWNER)).toMatchObject({ teamIds: ["tm_other"], teamId: null });
   });
 
   test("舊經理原本也在領隊／教練名單時一併清掉，名字陣列成對移除", async () => {
@@ -253,6 +302,24 @@ describe("transferUserTeam 拒絕條件", () => {
     const h = harness(); h.change(NEW, { uid: "someone" });
     await denied(h, call(), "failed-precondition", "NEW_OWNER_IDENTITY_MISMATCH");
   });
+  test("新經理自建俱樂部已達上限（MAX 隊）拒絕；legacy 與他人的隊不計", async () => {
+    const seed = base();
+    for (let i = 0; i < MAX_USER_CREATED_TEAMS; i++) seed[`teams/tm_n${i}`] = { creatorUid: "newbie", createdVia: "user_capability" };
+    await denied(harness(seed), call(), "resource-exhausted", "NEW_OWNER_TEAM_LIMIT");
+    delete seed["teams/tm_n0"];
+    seed["teams/tm_legacy"] = { creatorUid: "newbie" };
+    seed["teams/tm_others"] = { creatorUid: "third", createdVia: "user_capability" };
+    await expect(harness(seed).handler(call())).resolves.toMatchObject({ ok: true });
+  });
+  test("新經理在交易期間自建到上限：重試時重讀查詢而拒絕", async () => {
+    const seed = base();
+    for (let i = 0; i < MAX_USER_CREATED_TEAMS - 1; i++) seed[`teams/tm_n${i}`] = { creatorUid: "newbie", createdVia: "user_capability" };
+    const h = harness(seed);
+    h.state.beforeCommit = ({ attempt }) => { if (attempt === 1) h.change("teams/tm_race", { creatorUid: "newbie", createdVia: "user_capability" }); };
+    await expect(h.handler(call())).rejects.toMatchObject({ code: "resource-exhausted", message: "NEW_OWNER_TEAM_LIMIT" });
+    expect(h.state.attempts).toBe(2);
+    expect(h.get(TEAM).captainUid).toBe("owner");
+  });
   test("新經理＝自己", async () => {
     await denied(harness(), call({ newOwnerUid: "owner" }), "invalid-argument", "TRANSFER_TO_SELF");
   });
@@ -331,6 +398,14 @@ describe("transferUserTeam 冪等與並發", () => {
   test("去重 key 含 callerUid：他人同 requestId 不會撞到", () => {
     expect(buildDedupeId("a", "req_000000001")).not.toBe(buildDedupeId("b", "req_000000001"));
   });
+  test("報名路徑刻意以同 id 種的去重文件（無 kind、callerUid 為他人）不會被當成已轉移", async () => {
+    const h = harness();
+    // registerForEvent 的 _regDedupe 文件形狀：{ callerUid, createdAt, expiresAt }，id＝客戶端 requestId。
+    h.change(`_regDedupe/${buildDedupeId("owner", "req_000000001")}`, { callerUid: "attacker", createdAt: "x" });
+    await denied(h, call(), "failed-precondition", "TRANSFER_REQUEST_ID_CONFLICT");
+    h.change(`_regDedupe/${buildDedupeId("owner", "req_000000001")}`, { callerUid: "owner", teamId: TEAM_ID, newOwnerUid: "newbie" });
+    await expect(h.handler(call())).rejects.toMatchObject({ message: "TRANSFER_REQUEST_ID_CONFLICT" });
+  });
   test("並發兩次轉移（不同 requestId、不同新經理）只成功一次", async () => {
     const h = harness();
     h.change("users/third", { uid: "third", displayName: "Third", teamIds: [TEAM_ID] });
@@ -350,7 +425,7 @@ describe("transferUserTeam 冪等與並發", () => {
     const h = harness();
     const dedupeKey = `_regDedupe/${buildDedupeId("owner", "req_000000001")}`;
     h.state.beforeCommit = ({ attempt }) => {
-      if (attempt === 1) h.change(dedupeKey, { callerUid: "owner", teamId: TEAM_ID, newOwnerUid: "newbie" });
+      if (attempt === 1) h.change(dedupeKey, { callerUid: "owner", kind: "team_transfer", teamId: TEAM_ID, newOwnerUid: "newbie" });
     };
     await expect(h.handler(call())).resolves.toMatchObject({ deduplicated: true, notification: null });
     expect(h.state.writes).toEqual([]);

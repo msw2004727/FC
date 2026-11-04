@@ -12,11 +12,14 @@
 const { normalizeId, isUserCreatedTeam, isUserCreatedTeamOwner, ROLE_LABELS } = require("./team-membership-core");
 const { buildInboxMessageDoc } = require("./inbox-message-doc");
 const { formatTaipeiDateTime } = require("./notification-fields");
+const { MAX_USER_CREATED_TEAMS } = require("./user-team-create");
 
 // 與 team-member-removal.js／deleteTeam 的 OWNER_FIELDS 相同；轉移後三欄都改為新經理，舊經理才真正失去擁有者身分。
 const OWNER_FIELDS = Object.freeze(["captainUid", "creatorUid", "ownerUid"]);
 const REQUEST_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 // 沿用 _regDedupe（已有 expiresAt TTL）；文件 id 含 callerUid，不同使用者同一 requestId 互不影響。
+// 報名類 key 是客戶端給的任意 requestId，理論上可刻意填成 team_transfer_ 開頭；讀到時以 kind／callerUid／參數比對，
+// 不符一律回 TRANSFER_REQUEST_ID_CONFLICT（fail-closed，不會誤判成已轉移）。
 const DEDUPE_COLLECTION = "_regDedupe";
 const DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -132,6 +135,7 @@ async function sendTransferNotices({ db, FieldValue, logger, now }, notices) {
 
 function createTransferUserTeamHandler({
   db, HttpsError, FieldValue, buildOperationLogPayload, logger = console, now = Date.now,
+  maxUserCreatedTeams = MAX_USER_CREATED_TEAMS,
 }) {
   return async function transferUserTeamHandler(request) {
     let stage = "input";
@@ -176,13 +180,14 @@ function createTransferUserTeamHandler({
       // 保留 SDK retry：交易內不得把 ABORTED 轉成 HttpsError。
       committed = await db.runTransaction(async tx => {
         attempts += 1;
-        // 先全部讀（固定 4 讀），再寫。
+        // 先全部讀（4 次單文件讀＋1 次上限查詢，查詢最多回 maxUserCreatedTeams+1 份），再寫。
         stage = "dedupe";
         const dedupe = await tx.get(dedupeRef);
         // 冪等先於權限：已成功的請求重送時呼叫者已不是擁有者，仍回同一結果、不重寫、不重發通知。
         if (dedupe.exists) {
           const prior = dedupe.data() || {};
-          if (prior.callerUid !== callerUid || prior.teamId !== teamId || prior.newOwnerUid !== newOwnerUid) {
+          if (prior.kind !== "team_transfer" || prior.callerUid !== callerUid
+            || prior.teamId !== teamId || prior.newOwnerUid !== newOwnerUid) {
             fail("failed-precondition", "TRANSFER_REQUEST_ID_CONFLICT");
           }
           return { response: { ok: true, teamId, newOwnerUid, deduplicated: true }, notices: null };
@@ -208,6 +213,11 @@ function createTransferUserTeamHandler({
         if (!Array.isArray(newOwnerData.teamIds) || !newOwnerData.teamIds.includes(teamSnap.id)) {
           fail("failed-precondition", "NEW_OWNER_NOT_MEMBER");
         }
+        // 審查 P2：轉移不得繞過 createUserTeam 的每人自建上限；同一查詢、交易內、所有寫入之前。
+        stage = "quota";
+        const newOwnerOwned = await tx.get(db.collection("teams").where("creatorUid", "==", newOwnerUid)
+          .where("createdVia", "==", "user_capability").limit(maxUserCreatedTeams + 1));
+        if (newOwnerOwned.docs.length >= maxUserCreatedTeams) fail("resource-exhausted", "NEW_OWNER_TEAM_LIMIT");
 
         const teamName = typeof team.name === "string" && team.name.trim() ? team.name.trim() : teamSnap.id;
         const newName = displayNameOf(newOwnerData);
@@ -215,9 +225,12 @@ function createTransferUserTeamHandler({
         const role = typeof callerData.role === "string" ? callerData.role.trim() : "";
         const operator = String(callerData.displayName || "").trim() || ROLE_LABELS[role] || "系統";
 
-        // 舊經理降為一般成員：三個擁有者欄位與經理名字改為新經理，舊經理若在領隊／教練名單一併移除。
+        // 舊經理降為一般成員：三個擁有者欄位與經理名字改為新經理；舊經理與新經理若在領隊／教練名單一併移除
+        // （新經理只剩經理身分，審查 P3）。
+        const afterOld = { ...team, ...buildStaffRemoval(team, callerUid) };
         const teamUpdate = {
           ...buildStaffRemoval(team, callerUid),
+          ...buildStaffRemoval(afterOld, newOwnerUid),
           ...Object.fromEntries(OWNER_FIELDS.map(field => [field, newOwnerUid])),
           captain: newName,
           captainName: newName,
