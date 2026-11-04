@@ -27,6 +27,7 @@ const { maskId: maskRosterId, normalizeId: normalizeTeamId, resolveTeamSnapshot,
 const { createConfirmEventAttendanceCallable } = require("./event-attendance-confirm");
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
+const { createReviewTeamJoinCallable } = require("./team-join-review");
 const { createDeleteTeamCallable } = require("./team-deletion");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
@@ -3891,6 +3892,9 @@ exports.removeTeamMember = createRemoveTeamMemberCallable({
   getCallerAccessContext,
   buildOperationLogPayload,
 });
+
+// T-090g：原子入隊審核（見 team-join-review.js）；A 維持直寫，供 B T-090d 接線。
+exports.reviewTeamJoin = createReviewTeamJoinCallable({ onCall, HttpsError, db, isTeamStaffForData, normalizeRole, logger });
 
 // 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
 exports.deleteTeam = createDeleteTeamCallable({
