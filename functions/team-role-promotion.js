@@ -84,18 +84,31 @@ async function resolveStrictUserIdentity({ db, targetUid, HttpsError }) {
   return { uid, docId: selected.doc.id, data: selected.data };
 }
 
-async function hasTeamAssignment(teamCollection, field, operator, uid) {
-  const snapshot = await teamCollection.where(field, operator, uid).limit(1).get();
-  return !snapshot.empty;
+// T-090i：自建俱樂部（createdVia=='user_capability'）的職員欄位由擁有者自填，不算已存職位（取代原本 limit(1)／limit(2) 只看有無一隊）。
+// Firestore 無法用 != 篩選（legacy 無 createdVia 會一起被濾掉），改分頁讀回後在記憶體排除；
+// 分頁到底是為了不讓大量自建隊的掛名把同一人的 legacy 隊擠出結果而誤降級。
+const TEAM_ASSIGNMENT_PAGE_SIZE = 10;
+
+async function hasManagedTeamAssignment(teamCollection, field, operator, uid, excludeTeamDocId = "") {
+  let query = teamCollection.where(field, operator, uid).limit(TEAM_ASSIGNMENT_PAGE_SIZE);
+  for (;;) {
+    const snapshot = await query.get();
+    const docs = snapshot.docs || [];
+    if (docs.some(doc => doc.id !== excludeTeamDocId && !isUserCreatedTeam(doc.data()))) return true;
+    if (docs.length < TEAM_ASSIGNMENT_PAGE_SIZE) return false;
+    query = teamCollection.where(field, operator, uid)
+      .startAfter(docs[docs.length - 1])
+      .limit(TEAM_ASSIGNMENT_PAGE_SIZE);
+  }
 }
 
 async function getSavedTeamRole({ db, uid }) {
   const teams = db.collection("teams");
   const [isCaptain, isCoach, isLegacyLeader, isLeader] = await Promise.all([
-    hasTeamAssignment(teams, "captainUid", "==", uid),
-    hasTeamAssignment(teams, "coachUids", "array-contains", uid),
-    hasTeamAssignment(teams, "leaderUid", "==", uid),
-    hasTeamAssignment(teams, "leaderUids", "array-contains", uid),
+    hasManagedTeamAssignment(teams, "captainUid", "==", uid),
+    hasManagedTeamAssignment(teams, "coachUids", "array-contains", uid),
+    hasManagedTeamAssignment(teams, "leaderUid", "==", uid),
+    hasManagedTeamAssignment(teams, "leaderUids", "array-contains", uid),
   ]);
   if (isCaptain) return "captain";
   if (isCoach || isLegacyLeader || isLeader) return "coach";
@@ -103,19 +116,14 @@ async function getSavedTeamRole({ db, uid }) {
 }
 
 // T-027 7b(A) deleteTeam 專用：與 getSavedTeamRole 相同的四個查詢，但不把即將被刪的那個 team 算進去。
-// 同一個 team 文件在單一查詢最多出現一次，limit(2) 就足以在「排除本隊後」找出是否另有一隊。
-async function hasOtherTeamAssignment(teamCollection, field, operator, uid, excludeTeamDocId) {
-  const snapshot = await teamCollection.where(field, operator, uid).limit(2).get();
-  return snapshot.docs.some(doc => doc.id !== excludeTeamDocId);
-}
-
+// T-090i：同樣排除自建俱樂部（hasManagedTeamAssignment）。
 async function getSavedTeamRoleExcludingTeam({ db, uid, excludeTeamDocId }) {
   const teams = db.collection("teams");
   const [isCaptain, isCoach, isLegacyLeader, isLeader] = await Promise.all([
-    hasOtherTeamAssignment(teams, "captainUid", "==", uid, excludeTeamDocId),
-    hasOtherTeamAssignment(teams, "coachUids", "array-contains", uid, excludeTeamDocId),
-    hasOtherTeamAssignment(teams, "leaderUid", "==", uid, excludeTeamDocId),
-    hasOtherTeamAssignment(teams, "leaderUids", "array-contains", uid, excludeTeamDocId),
+    hasManagedTeamAssignment(teams, "captainUid", "==", uid, excludeTeamDocId),
+    hasManagedTeamAssignment(teams, "coachUids", "array-contains", uid, excludeTeamDocId),
+    hasManagedTeamAssignment(teams, "leaderUid", "==", uid, excludeTeamDocId),
+    hasManagedTeamAssignment(teams, "leaderUids", "array-contains", uid, excludeTeamDocId),
   ]);
   if (isCaptain) return "captain";
   if (isCoach || isLegacyLeader || isLeader) return "coach";

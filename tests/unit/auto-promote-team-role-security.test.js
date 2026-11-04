@@ -401,12 +401,20 @@ describe('T-090b Q7 createdVia definition', () => {
     expect(isUserCreatedTeam(team)).toBe(expected);
   });
 
+  // T-090i：自建俱樂部的職員欄位不再算已存職位，被掛名者的已存職位為 user → 不升級（no_change、無寫入），
+  // 取代原本「算進已存職位後再由 contextRole 守衛 permission-denied」；安全性質（不升級、不寫 role）不變。
+  function expectNoPromotion(ctx, result, role = 'user') {
+    expect(result).toMatchObject({ skipped: true, reason: 'no_change', currentRole: role });
+    expect(ctx.fake.state.writes).toHaveLength(0);
+    expect(ctx.fake.get('users/U-staff').role).toBe(role);
+    // no_change 只會把 claim 對齊成原本角色，不得出現其他角色。
+    ctx.setRoleClaimMerged.mock.calls.forEach(([, claimRole]) => expect(claimRole).toBe(role));
+  }
+
   test.each(['user', 'coach', 'admin', 'super_admin', null])(
     'user-created blocks team-local promotion regardless of creator role %s or deletion', async role => {
       const ctx = q7Setup({ creator: role ? { role } : null, teamExtra: { createdVia: 'user_capability' } });
-      await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
-      expect(ctx.fake.state.writes).toHaveLength(0);
-      expect(ctx.setRoleClaimMerged).not.toHaveBeenCalled();
+      expectNoPromotion(ctx, await ctx.call());
       expectNoQ7Reads(ctx);
     },
   );
@@ -415,8 +423,7 @@ describe('T-090b Q7 createdVia definition', () => {
     const ctx = q7Setup({ knownMember, teamExtra: {
       createdVia: 'user_capability', ...(knownMember ? { captainUid: 'U-other' } : {}),
     } });
-    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
-    expect(ctx.fake.state.writes).toHaveLength(0);
+    expectNoPromotion(ctx, await ctx.call());
     expectNoQ7Reads(ctx);
   });
 
@@ -425,19 +432,37 @@ describe('T-090b Q7 createdVia definition', () => {
       ? { 'rolePermissions/coach': { permissions: ['team.create'] } }
       : { 'userPermissionGrants/U-creator': { permissions: ['team.create'], enabled: true } };
     const ctx = q7Setup({ creator: { role: 'coach' }, extraDocs, teamExtra: { createdVia: 'user_capability' } });
-    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
-    expect(ctx.fake.state.writes).toHaveLength(0);
+    expectNoPromotion(ctx, await ctx.call());
     expectNoQ7Reads(ctx);
   });
 
   test('blocked contextRole cannot turn coach-to-captain promotion into demotion or claim sync', async () => {
+    // T-090i：U-staff 另有 legacy 隊教練職位時，自建隊的 captainUid 掛名不升 captain、也不降級。
+    const ctx = q7Setup({ teamExtra: { createdVia: 'user_capability', captainUid: 'U-staff' }, knownMember: true,
+      extraDocs: {
+        'users/U-staff': { uid: 'U-staff', role: 'coach', manualRole: 'user' },
+        'teams/tm-legacy': { coachUids: ['U-staff'] },
+      } });
+    expectNoPromotion(ctx, await ctx.call(), 'coach');
+    expectNoQ7Reads(ctx);
+  });
+
+  test('T-090i: coach backed only by a user-created assignment is recalculated down to user', async () => {
     const ctx = q7Setup({ teamExtra: { createdVia: 'user_capability', captainUid: 'U-staff' }, knownMember: true,
       extraDocs: { 'users/U-staff': { uid: 'U-staff', role: 'coach', manualRole: 'user' } } });
-    await expect(ctx.call()).rejects.toMatchObject({ code: 'permission-denied' });
-    expect(ctx.fake.get('users/U-staff').role).toBe('coach');
-    expect(ctx.fake.state.writes).toHaveLength(0);
-    expect(ctx.setRoleClaimMerged).not.toHaveBeenCalled();
+    await expect(ctx.call()).resolves.toMatchObject({ oldRole: 'coach', newRole: 'user' });
+    expect(ctx.fake.get('users/U-staff').role).toBe('user');
     expectNoQ7Reads(ctx);
+  });
+
+  test('T-090i: many user-created assignments cannot hide a legacy assignment (paged scan)', async () => {
+    const forged = Object.fromEntries(Array.from({ length: 25 }, (_, i) => [
+      'teams/tm-a' + String(i).padStart(2, '0'), { createdVia: 'user_capability', coachUids: ['U-staff'] },
+    ]));
+    const ctx = q7Setup({ teamExtra: { createdVia: 'user_capability' },
+      extraDocs: { ...forged, 'teams/tm-z-legacy': { captainUid: 'U-captain', coachUids: ['U-staff'] } } });
+    await expect(ctx.call({ teamId: 'tm-z-legacy' })).resolves.toMatchObject({ newRole: 'coach' });
+    expect(ctx.fake.get('users/U-staff').role).toBe('coach');
   });
 
   test('user-created manual-role floor cannot bypass the promotion guard', async () => {
@@ -478,17 +503,20 @@ describe('T-090b Q7 createdVia definition', () => {
 
   test.each([
     ['super_admin', []], ['captain', ['team.manage_all']], ['captain', ['team.create']],
-  ])('privileged %s/%j can still promote within a user-created team', async (callerRole, callerPermissions) => {
+  ])('privileged %s/%j no longer auto-promotes from a user-created assignment (T-090i)', async (callerRole, callerPermissions) => {
+    // T-090i：取代原「管理權限可在自建隊內自動升級」；自建隊不算已存職位，管理端要升級改用手動角色（manualRole）。
     const ctx = q7Setup({ callerRole, callerPermissions, teamExtra: { createdVia: 'user_capability' } });
-    await expect(ctx.call()).resolves.toMatchObject({ newRole: 'coach' });
-    expect(ctx.fake.state.writes).toHaveLength(1);
-    expect(ctx.setRoleClaimMerged).toHaveBeenCalledWith('U-staff', 'coach');
+    expectNoPromotion(ctx, await ctx.call());
     expectNoQ7Reads(ctx);
   });
 
-  test.each([{}, { createdVia: 'user_capability' }])('self-demotion remains unchanged for %j', async teamExtra => {
+  test.each([
+    [{}, 'coach'],
+    // T-090i：自建隊的教練掛名不算已存職位，自降結果為 user（原為 coach）。
+    [{ createdVia: 'user_capability' }, 'user'],
+  ])('self-demotion for %j recalculates to %s', async (teamExtra, expectedRole) => {
     const ctx = q7Setup({ teamExtra: { ...teamExtra, captainUid: 'U-other', coachUids: ['U-captain'] } });
-    await expect(ctx.call({ targetUid: 'U-captain' })).resolves.toMatchObject({ oldRole: 'captain', newRole: 'coach' });
+    await expect(ctx.call({ targetUid: 'U-captain' })).resolves.toMatchObject({ oldRole: 'captain', newRole: expectedRole });
     expect(ctx.fake.state.writes).toHaveLength(1);
     expectNoQ7Reads(ctx, true);
   });
