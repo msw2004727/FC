@@ -28,6 +28,7 @@ const { createConfirmEventAttendanceCallable } = require("./event-attendance-con
 const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
 const { createReviewTeamJoinCallable } = require("./team-join-review");
+const { createUserTeamCallable } = require("./user-team-create");
 const { createDeleteTeamCallable } = require("./team-deletion");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
@@ -3898,6 +3899,9 @@ exports.removeTeamMember = createRemoveTeamMemberCallable({
 exports.reviewTeamJoin = createReviewTeamJoinCallable({
   onCall, HttpsError, db, FieldValue, isTeamStaffForData, normalizeRole, logger, enqueueLineFromServer,
 });
+
+// T-090i：一般用戶建立俱樂部的唯一寫入路徑（見 user-team-create.js）。
+exports.createUserTeam = createUserTeamCallable({ onCall, HttpsError, db, FieldValue, logger });
 
 // 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
 exports.deleteTeam = createDeleteTeamCallable({
