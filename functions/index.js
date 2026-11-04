@@ -29,6 +29,7 @@ const { createRecountTeamMembersCallable } = require("./team-member-count");
 const { createRemoveTeamMemberCallable } = require("./team-member-removal");
 const { createReviewTeamJoinCallable } = require("./team-join-review");
 const { createUserTeamCallable } = require("./user-team-create");
+const { createTransferUserTeamCallable } = require("./team-transfer");
 const { createDeleteTeamCallable } = require("./team-deletion");
 const { createDeleteEventCallable } = require("./event-deletion");
 const registrationGuards = require("./registration-guards");
@@ -3912,6 +3913,11 @@ exports.reviewTeamJoin = createReviewTeamJoinCallable({
 
 // T-090i：一般用戶建立俱樂部的唯一寫入路徑（見 user-team-create.js）。
 exports.createUserTeam = createUserTeamCallable({ onCall, HttpsError, db, FieldValue, logger });
+
+// T-090h：自建俱樂部轉移經理（見 team-transfer.js）；交易後站內信通知新舊經理。
+exports.transferUserTeam = createTransferUserTeamCallable({
+  onCall, HttpsError, db, FieldValue, buildOperationLogPayload, logger,
+});
 
 // 刪除俱樂部：可重入分批清成員 users、幹部角色重算、最後才刪 team 文件（見 team-deletion.js）。
 exports.deleteTeam = createDeleteTeamCallable({
