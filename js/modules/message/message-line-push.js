@@ -107,6 +107,11 @@ Object.assign(App, {
       source: options.source || 'client:line-push',
     };
     if (options.dedupeKey) payload.dedupeKey = options.dedupeKey;
+    // T-090c：俱樂部通知的關聯鍵放在 Callable 頂層（伺服器 relationKeysFromData 讀取處）
+    ['teamId', 'applicantUid', 'assignmentRole'].forEach(key => {
+      const value = typeof options[key] === 'string' ? options[key].trim() : '';
+      if (value) payload[key] = value;
+    });
 
     return (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('enqueuePrivilegedLineNotification')(payload)
       .then(result => {

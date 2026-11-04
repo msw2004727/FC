@@ -1036,6 +1036,12 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
     description: '預設關閉。開啟後一般 user 才能使用收費、隊伍限定、性別限定、私密活動、分隊、社群連結、早鳥報名與 GPS 地圖座標等進階功能（加值服務）開關。',
     defaultEnabled: false,
   },
+  {
+    code: 'user.activity.team_create',
+    name: '建立俱樂部',
+    description: '允許一般 user 建立自己擔任經理的俱樂部。',
+    defaultEnabled: true,
+  },
 ]);
 
 const PROFILE_FEATURE_PERMISSION_CATEGORY = Object.freeze({

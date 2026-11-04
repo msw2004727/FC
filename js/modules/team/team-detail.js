@@ -1331,11 +1331,13 @@ Object.assign(App, {
     if (!uid || typeof this._deliverMessageWithLinePush !== 'function') return;
     const teamName = team?.name || '\u4ff1\u6a02\u90e8';
     const targetRoleName = target?.roleName || target?.label || '\u76ee\u6a19\u5c64\u7d1a';
+    const teamDocId = String(team?._docId || team?.id || '').trim();
+    const lineOptions = teamDocId ? { source: target.lineSource, teamId: teamDocId } : { source: target.lineSource };
     this._deliverMessageWithLinePush(
       '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8abf\u6574',
       `\u60a8\u5728\u300c${teamName}\u300d\u7684\u4ff1\u6a02\u90e8\u5c64\u7d1a\u5df2\u8abf\u6574\u70ba${targetRoleName}\u3002`,
       'system', '\u7cfb\u7d71', uid, '\u7cfb\u7d71', null,
-      { lineOptions: { source: target.lineSource } }
+      { lineOptions }
     );
   },
 
@@ -1497,8 +1499,14 @@ Object.assign(App, {
         const result = updater.call(ApiService, teamId, updates);
         if (result && typeof result.then === 'function') await result;
 
-        const roleChange = ApiService._recalcUserRole?.(currentRow.uid, teamId);
-        this._applyRoleChange?.(roleChange);
+        // T-090c：一般用戶自建的俱樂部不參與自動升降級，不呼叫 Functions
+        if (String(currentTeam?.createdVia || '') !== 'user_capability') {
+          const roleChange = ApiService._recalcUserRole?.(currentRow.uid, teamId);
+          this._applyRoleChange?.(roleChange, {
+            teamId: String(currentTeam?._docId || currentTeam?.id || teamId || ''),
+            assignmentRole: target.key,
+          });
+        }
         this._sendTeamRoleLevelChangeNotice(currentTeam, currentRow, target);
         ApiService._writeOpLog?.(
           actionDirection === 'demote' ? 'team_member_level_demote' : 'team_member_level_promote',

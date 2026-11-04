@@ -61,6 +61,10 @@ Object.assign(App, {
         title: '使用進階功能（加值服務）',
         body: '預設建議關閉。關閉時，一般 user 不能開收費、俱樂部限定、性別限定、私密活動、分隊、社群連結、早鳥報名與 GPS 地圖座標功能。使用者如果嘗試開啟，系統會提示「如需更多功能請聯繫官方Line@」。',
       },
+      'user.activity.team_create': {
+        title: '建立俱樂部',
+        body: '開了之後，一般 user 可以在新版網站建立自己的俱樂部，並成為該俱樂部經理。只對一般 user 有效；教練、隊長、場主要建立俱樂部，仍需開啟後台權限「建立俱樂部」。',
+      },
     }[code];
     if (!info) return;
     var overlay = document.createElement('div');

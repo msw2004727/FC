@@ -2293,7 +2293,8 @@ describe('team detail club activity section', () => {
       coachNames: ['Amy'],
       members: 2,
     }));
-    expect(app._applyRoleChange).toHaveBeenCalledWith(roleChange);
+    // T-090c：快速晉升會把 teamId／assignmentRole 一併傳給 _applyRoleChange，供 role_upgrade 通知帶鍵（測試同步更新）。
+    expect(app._applyRoleChange).toHaveBeenCalledWith(roleChange, { teamId: 'teamA', assignmentRole: 'coach' });
     expect(app._deliverMessageWithLinePush).toHaveBeenCalledWith(
       '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8abf\u6574',
       expect.stringContaining('Club A'),
@@ -2302,7 +2303,7 @@ describe('team detail club activity section', () => {
       'member',
       '\u7cfb\u7d71',
       null,
-      { lineOptions: { source: 'team_role_assignment:coach' } }
+      { lineOptions: { source: 'team_role_assignment:coach', teamId: 'teamA' } }
     );
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
