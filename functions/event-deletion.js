@@ -138,6 +138,7 @@ function createDeleteEventHandler({
             actorUid: uid,
             source: "callable",
           });
+          // 刪除活動後的統計重算依賴 user-attendance-stats.js 的 onUserAttendanceEventWrite 處理刪除事件；改動此處要確認該觸發器。
           transaction.delete(eventSnap.ref, { exists: true });
           return { ok: true, alreadyDeleted: false };
         }, { maxAttempts: TRANSACTION_MAX_ATTEMPTS });
