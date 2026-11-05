@@ -1957,6 +1957,36 @@ service cloud.firestore {
           && math.abs(int(teamId.split('_')[1]) - request.time.toMillis()) < 3 * 86400000;
       }
 
+      // T-090i：職員 UID 集合（coachUids／leaderUids／舊 leaderUid）。
+      function teamStaffUidSet(data) {
+        return data.get('coachUids', []).toSet()
+          .union(data.get('leaderUids', []).toSet())
+          .union([data.get('leaderUid', null)].toSet());
+      }
+
+      // T-090i：成員判斷沿用 currentUserHasTeamKey 的方式（users 文件 teamId／teamIds），只是對象換成被指派者；
+      // 只在自建隊新增「非本人」職員時才讀這一份 users 文件。
+      function isTeamMemberUid(uid) {
+        let userData = get(/databases/$(database)/documents/users/$(uid)).data;
+        return userData.get('teamId', null) == teamId
+          || userData.get('teamIds', []).hasAny([teamId]);
+      }
+
+      // T-090i（顧問 §6.4.2）：自建俱樂部擁有者不得把非成員掛成教練／領隊（冒名掛名會觸發指派通知、團隊名額等職員能力）。
+      // 新增的職員只能是本人，或一次一位、放在 coachUids／leaderUids 尾端且是本隊成員（對應 B buildMemberRoleUpdates 一次升一人）；
+      // 保留原值、移除、在既有職員間調整職位不受限。
+      function isUserCreatedStaffChangeSafe() {
+        let added = teamStaffUidSet(request.resource.data)
+          .difference(teamStaffUidSet(resource.data))
+          .difference([request.auth.uid, null].toSet());
+        let coaches = request.resource.data.get('coachUids', []);
+        let leaders = request.resource.data.get('leaderUids', []);
+        return added.size() == 0
+          || (added.size() == 1
+            && ((coaches.size() > 0 && added.hasOnly([coaches[coaches.size() - 1]]) && isTeamMemberUid(coaches[coaches.size() - 1]))
+              || (leaders.size() > 0 && added.hasOnly([leaders[leaders.size() - 1]]) && isTeamMemberUid(leaders[leaders.size() - 1]))));
+      }
+
       function isScopedTeamUpdateSafe() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return !changed.hasAny(['id', 'creatorUid', 'ownerUid', 'createdVia'])
@@ -1964,10 +1994,16 @@ service cloud.firestore {
           && (!isUserCreatedTeam(resource.data) || (
             !changed.hasAny([
               'captainUid', 'active', 'pinned', 'pinOrder', 'attentionEffectEnabled', 'attentionEffectColor',
-              'teamExp', 'viewCount', 'views', 'wins', 'draws', 'losses', 'gf', 'ga', 'history'
+              'teamExp', 'viewCount', 'views', 'wins', 'draws', 'losses', 'gf', 'ga', 'history',
+              // T-090i：教學旗標與 createUserTeam 一致（建立時就拒絕 eduSettings），A 也會把 isTeaching／educationTag 當教學。
+              'eduSettings', 'isTeaching', 'educationTag'
             ])
             // Only user-created teams require count changes to use the count-only shape.
             && (!changed.hasAny(['members']) || isTeamMemberCountOnly())
+            // T-090i：自建俱樂部不得改成教學分類或開啟教學（收 P3 education 半套）。
+            && request.resource.data.get('type', '') != 'education'
+            && request.resource.data.get('teachingEnabled', false) != true
+            && (!changed.hasAny(['coachUids', 'leaderUids', 'leaderUid']) || isUserCreatedStaffChangeSafe())
           ));
       }
 
