@@ -399,6 +399,7 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
     const LEG_COACH = "leg_coach";               // users.role=coach，teams/D 的 coachUids 內
     const SHADOW_CAP = "shadow_cap";             // users.role=captain，只是 teams/L（非 D）文件的隊長
     const MEMBER_LEG = "member_leg";             // teamIds:[L]、teamId:L
+    const MEMBER_LEG_TWO = "member_leg_two";     // 同上，給第二位橋接職員剔除
     const MEMBER_LEG_EMPTY = "member_leg_empty"; // 8 人那種形狀：teamIds:[]、teamId:L
 
     beforeEach(async () => {
@@ -409,6 +410,7 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
         await setDoc(doc(db, "users", LEG_COACH), { uid: LEG_COACH, role: "coach", ...membership([L]) });
         await setDoc(doc(db, "users", SHADOW_CAP), { uid: SHADOW_CAP, role: "captain", ...membership([]) });
         await setDoc(doc(db, "users", MEMBER_LEG), { uid: MEMBER_LEG, role: "user", ...membership([L]) });
+        await setDoc(doc(db, "users", MEMBER_LEG_TWO), { uid: MEMBER_LEG_TWO, role: "user", ...membership([L]) });
         await setDoc(doc(db, "users", MEMBER_LEG_EMPTY), {
           uid: MEMBER_LEG_EMPTY, role: "user", teamId: L, teamName: "Legacy", teamIds: [], teamNames: [],
         });
@@ -430,8 +432,9 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
     });
 
     test("42. 橋接職員（D 的隊長／教練）剔除 teamIds 含 L 的成員 → 通過", async () => {
+      // 兩筆剔除不同成員：同一人第二次清空時隊伍鍵沒有增減（delta 0），本來就會被拒。
       await assertSucceeds(write(LEG_COACH, MEMBER_LEG, CLEARED));
-      await assertSucceeds(write(LEG_CAP, MEMBER_LEG, CLEARED));
+      await assertSucceeds(write(LEG_CAP, MEMBER_LEG_TWO, CLEARED));
     });
 
     test("43. 橋接職員核准他人加入 L（新增鍵 L）→ 通過", async () => {
@@ -474,8 +477,9 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
     });
 
     test("49. 未列在對照表的鍵原樣通過：直接用 D 當鍵仍由 D 的職員判斷", async () => {
-      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([D])));
+      // 先驗拒絕：放行那筆寫入後 EMPTY_USER 已在 D，再寫同樣內容沒有增減，拒絕原因就不是「非職員」。
       await assertFails(write(CAP, EMPTY_USER, membership([D])));
+      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([D])));
     });
   });
 });
