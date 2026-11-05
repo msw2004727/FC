@@ -1065,13 +1065,14 @@ describe("deleteTeam 站內信 origin、截斷與 log 遮罩（T-062-2b）", () 
     expect(fake.get(`users/U-cap/inbox/${INBOX_ID}`).origin).toBe("team_delete_role_change");
   });
 
-  test("呼叫者的信與 delete(team) 在同一 batch", async () => {
+  // T-090h P3：最後一步由 batch 改為交易（交易內重驗擁有者），仍須同一次提交。
+  test("呼叫者的信與 delete(team) 在同一次交易提交", async () => {
     const { call, fake } = setup({ docs: withoutStaffMembership(seedDocs()) });
     await call();
     const inbox = fake.state.writes.find((item) => item.path === `users/U-cap/inbox/${INBOX_ID}`);
     const deletion = fake.state.writes.find((item) => item.op === "delete" && item.path === TEAM_PATH);
-    expect(inbox.via).toBe("batch");
-    expect(deletion.via).toBe("batch");
+    expect(inbox.via).toBe("tx");
+    expect(deletion.via).toBe("tx");
     expect(inbox.commit).toBe(deletion.commit);
   });
 
@@ -1478,5 +1479,94 @@ describe("T-090b owner 放寬與 F1 邊界", () => {
     });
     await expect(call()).rejects.toMatchObject({ code: "failed-precondition", message: "TEAM_ID_AMBIGUOUS" });
     expect(fake.state.writes).toHaveLength(0);
+  });
+});
+
+describe("T-090h P3：刪除途中擁有者被轉移 → 交易內重驗，拒絕且 team 文件仍在", () => {
+  const OWNER_TEAM_CREATE = createAccess({ role: "captain", permissions: ["team.create"] });
+  // 自建俱樂部、三個擁有者欄位都是 U-cap；轉移後三欄改成 U-lead（同 transferUserTeam 的 teamUpdate）。
+  const userCreatedDocs = () => seedDocs({
+    [TEAM_PATH]: {
+      id: TEAM, name: "待刪俱樂部", createdVia: "user_capability",
+      captainUid: "U-cap", creatorUid: "U-cap", ownerUid: "U-cap", leaderUids: ["U-lead"], coachUids: ["U-coach"],
+    },
+  });
+  const transfer = (fake) => fake.touch(TEAM_PATH, { captainUid: "U-lead", creatorUid: "U-lead", ownerUid: "U-lead" });
+
+  test("Phase 2 之後、最後交易之前被轉移 → TEAM_OWNER_CHANGED，team 仍在、呼叫者角色與 claim 未動、無 team_delete", async () => {
+    const logger = createLogger();
+    const { call, fake, ensureAuthUser, setRoleClaimMerged } = setup({ docs: userCreatedDocs(), access: OWNER_TEAM_CREATE, logger });
+    const runTransaction = fake.db.runTransaction;
+    fake.db.runTransaction = async (callback) => {
+      transfer(fake);
+      return runTransaction(callback);
+    };
+    expect(await rejection(call())).toMatchObject({ code: "failed-precondition", message: "TEAM_OWNER_CHANGED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    expect(fake.get(TEAM_PATH).ownerUid).toBe("U-lead");
+    expect(fake.get("users/U-cap").role).toBe("captain");
+    expect(fake.list("users/U-cap/inbox")).toEqual([]);
+    expect(ensureAuthUser).not.toHaveBeenCalledWith("U-cap");
+    expect(setRoleClaimMerged).not.toHaveBeenCalledWith("U-cap", expect.anything());
+    expect(fake.writesTo("operationLogs/").map((item) => item.data.type)).not.toContain("team_delete");
+    expect(fake.writesTo(TEAM_PATH)).toHaveLength(0);
+    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "delete-team", code: "failed-precondition" }));
+  });
+
+  test("Phase 1 期間被轉移 → Phase 2 前預檢就拒絕，不降級任何幹部、team 仍在", async () => {
+    const logger = createLogger();
+    const { call, fake, ensureAuthUser } = setup({ docs: userCreatedDocs(), access: OWNER_TEAM_CREATE, logger });
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) transfer(fake);
+    };
+    expect(await rejection(call())).toMatchObject({ code: "failed-precondition", message: "TEAM_OWNER_CHANGED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
+    STAFF.forEach((uid) => expect(fake.get(`users/${uid}`).role).not.toBe("user"));
+    expect(ensureAuthUser).not.toHaveBeenCalled();
+    expect(fake.writesTo("operationLogs/")).toHaveLength(0);
+    expect(logger.error).toHaveBeenCalledWith("[deleteTeam] failed", expect.objectContaining({ phase: "reauthorize" }));
+  });
+
+  test("未被轉移的自建俱樂部照常刪除，呼叫者降級與 team_delete 同一次交易提交", async () => {
+    const { call, fake } = setup({ docs: userCreatedDocs(), access: OWNER_TEAM_CREATE });
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false, roleChanges: 3 });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+    const last = fake.state.writes[fake.state.writes.length - 1];
+    expect(last).toMatchObject({ op: "delete", path: TEAM_PATH, via: "tx" });
+    const callerRole = fake.writesTo("users/U-cap").find((item) => item.data?.role === "user");
+    expect(callerRole.commit).toBe(last.commit);
+  });
+
+  test("最後交易被 ABORTED 重跑：呼叫者的 claim 只設一次、站內信一封、team_delete 一筆", async () => {
+    const { call, fake, setRoleClaimMerged } = setup({ docs: userCreatedDocs(), access: OWNER_TEAM_CREATE });
+    fake.state.abortTransactions = 1;
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(setRoleClaimMerged.mock.calls.filter(([uid]) => uid === "U-cap")).toHaveLength(1);
+    expect(fake.list("users/U-cap/inbox")).toEqual([INBOX_ID]);
+    expect(fake.writesTo("operationLogs/").filter((item) => item.data.type === "team_delete")).toHaveLength(1);
+  });
+
+  test("legacy 俱樂部、team.manage_all 呼叫者：途中擁有者欄位被改仍可刪（既有准入判斷不變）", async () => {
+    const { call, fake } = setup();
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) fake.touch(TEAM_PATH, { captainUid: "U-someone", creatorUid: "U-someone", ownerUid: "U-someone" });
+    };
+    await expect(call()).resolves.toMatchObject({ ok: true, alreadyDeleted: false });
+    expect(fake.has(TEAM_PATH)).toBe(false);
+  });
+
+  test("legacy 俱樂部的 owner（無管理權限）途中失去擁有者身分 → 同樣拒絕", async () => {
+    const { call, fake } = setup({
+      docs: {
+        [TEAM_PATH]: { id: TEAM, ownerUid: "U-owner" },
+        "users/U-owner": { uid: "U-owner", role: "user", teamIds: [TEAM] },
+      },
+      access: createAccess({ role: "user" }), callerUid: "U-owner",
+    });
+    fake.state.beforeCommit = ({ commitNumber }) => {
+      if (commitNumber === 1) fake.touch(TEAM_PATH, { ownerUid: "U-other" });
+    };
+    expect(await rejection(call())).toMatchObject({ code: "failed-precondition", message: "TEAM_OWNER_CHANGED" });
+    expect(fake.has(TEAM_PATH)).toBe(true);
   });
 });
