@@ -456,7 +456,8 @@ function New-RunScript {
         'Bash(npm*)',
         'Bash(*vite build*)'
     )
-    $grokHomeForChild = Join-Path $script:RealUserProfile '.grok'
+    # 沿用呼叫端已設的 GROK_HOME（未設時第 50 行已退回 USERPROFILE\.grok）；取代原本寫死 USERPROFILE\.grok。
+    $grokHomeForChild = $script:RealGrokHome
     $promptArg = '"' + $PromptText.Replace('"', '\"') + '"'
     $cwdArg = '"' + $Worktree + '"'
     $sb = New-Object System.Text.StringBuilder

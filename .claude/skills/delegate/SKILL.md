@@ -16,7 +16,7 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
 | 一般施工（中等規模、非核心）、退修輪、第一輪審查、文件／規則卡、測試與突變工具、調查對照 | Grok `grok-4.7`（**Grok Build CLI**） | 見下方「Grok 走 CLI」。**不碰金鑰、個資、正式站設定、Rules／Functions 授權核心；不當終審**；>5 項拆卡；交件一律另審 |
-| 主審查、合流疑難、核心施工（Rules、Functions 授權、金流、個資） | Codex GPT-6 Astra | 本機只能純文字，見下方「Codex 純文字派工」；15 分鐘無提交就停 |
+| 主審查、合流疑難、核心施工（Rules、Functions 授權、金流、個資） | Claude Opus 子代理（主審／核心施工）＋Grok 或 Gemini 一家交叉審查 | 第 43 號（2026-11-04）起 Codex 停用，取代原「Codex GPT-6 Astra 主審」；下方「Codex 純文字派工」僅留作歷史參考 |
 | 施工次選、畫面以外的大量施工 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字）；退修到第 4 輪就停派、重寫卡 |
 | 第一輪唯讀審查、審後小修、反例測試、文件對照 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think`；每卡 ≤8 題 |
 | 較難第二審、畫面對照 | Gemini `gemini-4-argon` | 引用的檔名行號常虛構，當線索不當證據 |
@@ -130,6 +130,8 @@ python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py resp.md stage
 
 - 非串流會 `IncompleteRead`；一律使用腳本內建 SSE。
 - Windows 命令列 32K 上限；prompt 一律走檔案。
+- 金鑰換新後，已開著的 session 其程序環境變數仍是舊金鑰（DeepSeek 回 401）；登錄 `HKCU\Environment` 才是新值。同一個 bash 指令內先取新值再呼叫：`export DEEPSEEK_API_KEY="$(powershell.exe -NoProfile -Command "(Get-ItemProperty 'HKCU:\Environment' -Name DEEPSEEK_API_KEY).DEEPSEEK_API_KEY" | tr -d '')" && python -I …/llm-run.py …`（shell 狀態不跨指令保留；不要印出值）。（2026-10-28 DeepSeek 換金鑰後實測）
+- Codex `-s read-only` 在這台 Windows 機器無法建立任何命令程序（回 `helper_unknown_error: setup refresh had errors`），所以讓它自己讀檔會整場落空。唯讀審查／寫草稿要把需要的檔案內容（用 `cat -n` 標行號）內嵌進 prompt 檔，並在開頭寫「你無法執行命令，下面已貼出全部內容」；單次約 25 KB 實測可行（約 1.6 萬 token）。審查結論須註明「僅看到貼出的片段」。（2026-10-28 T-062 閾值審查取代：原以為可直接讓 Codex 讀 worktree）
 - Bash 工具會還原 `\\`；含反斜線的補丁先用 Write 寫成 `.py` 再執行。
 - 模型常省略 `===== END FILE =====`、在檔案外包 Markdown 圍欄、或在結束標記後附說明文字；此時 llm-run.py 的 `--split-dir` 會切不出檔案或切錯（log 沒有「wrote …」行）。改用 `python -I ${CLAUDE_SKILL_DIR}/scripts/split-loose.py <回應檔> <輸出目錄>`：以 FILE 標記為界、在第一個 END 標記截斷、去掉圍欄。Codex 的輸出一律用它切。（2026-10-19 新增）
 - 多張卡平行改同一個大檔（例如 `ActivitiesPage.tsx`）：每張卡在 spec 寫死「只能動哪些區塊」，要求 EDIT 區塊；後套的卡 SEARCH 常因前一張改過而對不上（import 列、加了 ref 的元素），用小 Python 腳本把該區塊的 SEARCH 改錨到新內容再套，不要退回整檔輸出。spec 也要明講「含 JSX 的測試副檔名用 `.tsx`」（DeepSeek 三張卡都寫成 `.ts`，tsc 全紅）。（2026-10-22 T-005a）
