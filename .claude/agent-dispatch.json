@@ -36,5 +36,14 @@
     "app.js"
   ],
   "mimoHome": "C:/t/mimo-claude-home",
-  "encodingRules": "CLAUDE.md R-ENC-001～007（R-ENC-005：終端亂碼不等於檔案損壞）"
+  "encodingRules": "CLAUDE.md R-ENC-001～007（R-ENC-005：終端亂碼不等於檔案損壞）",
+  "handover": {
+    "pm": "docs/specs/lite-convergence/pm-handover.md",
+    "advisor": "docs/specs/lite-convergence/顧問交接-現行.md",
+    "history": "docs/specs/lite-convergence/歷史",
+    "openingPrompt": "docs/specs/lite-convergence/pm-handover.md#開場提示詞",
+    "boardData": ["docs/看板/tasks.json", "docs/看板/meta.json"],
+    "versionUrl": "https://toosterx.com/js/config.js",
+    "memoryDir": "C:/Users/msw74/.claude/projects/D--Users-msw74-Documents-github-FC/memory"
+  }
 }

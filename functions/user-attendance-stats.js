@@ -204,6 +204,7 @@ function createUserAttendanceStatsExports({
     onUserAttendanceEventWrite: onDocumentWritten(
       { ...sourceOptions, document: "events/{eventId}", memory: "256MiB" },
       async (event) => {
+        // 刪除活動（before 存在、after 不存在）依賴此觸發器排入統計重算；改動此處或 event-deletion.js 的刪除主文件處，要確認另一處。
         if (!eventStatsStateChanged(event)) return 0;
         return enqueueUserAttendanceStats({
           db,
