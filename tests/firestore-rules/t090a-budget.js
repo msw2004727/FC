@@ -51,6 +51,12 @@ const specs = [
   // 'missing' key is outside the legacy lookup range, 'missing-inrange' sits inside it (worst case: table built, no hit).
   ['users-update-repair-coach-remove-missing', 'users/{userId}', 'update', 'coach', 'repair-remove-missing'],
   ['users-update-repair-coach-remove-missing-inrange', 'users/{userId}', 'update', 'coach', 'repair-remove-missing-inrange'],
+  // T-090k review P3-1: same repair grant, but the team exists and the coach is not its staff (full staff check fails, then repair allows);
+  // '-legacy' uses key L with teams/D present and id matching (table hit + id check + staff check all evaluated).
+  ['users-update-repair-coach-remove-existing', 'users/{userId}', 'update', 'coach', 'repair-remove-existing'],
+  ...(LEGACY ? [['users-update-repair-coach-remove-legacy', 'users/{userId}', 'update', 'coach', 'repair-remove-legacy']] : []),
+  // T-090k review P3-2: super_admin edits another user's non-team field (coach branch runs first and fails on the field whitelist).
+  ['users-update-super-other-profile', 'users/{userId}', 'update', 'super', 'super-other-profile'],
   ['teams-update-owner-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix'],
   ['teams-update-owner-removal', 'teams/{teamId}', 'update', 'owner', 'team-removal'],
   ['teams-update-managed-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix-managed'],
@@ -87,7 +93,10 @@ async function trial(spec, pads) {
       await setDoc(doc(db, 'users', 'member'), profile('member', { teamId: ID, teamIds: [ID] }));
       if (caps !== 'missing') await setDoc(doc(db, 'roleActivityCapabilities', 'user'), { capabilities: caps === 'closed' ? [] : [...BASE_CAPS, CAP] });
       if (kind === 'join') await setDoc(doc(db, 'userPermissionGrants', 'owner'), { permissions: ['team.review_join'], enabled: true });
-      if (kind.startsWith('repair-')) { await setDoc(doc(db, 'userPermissionGrants', 'coach'), { permissions: ['admin.repair.team_join_repair'], enabled: true }); const gone = kind.endsWith('-inrange') ? 'tm_1773000000000_aaaaaa' : 'tm_1790000000000_zzzzzz'; await setDoc(doc(db, 'users', 'gonemember'), profile('gonemember', { teamId: gone, teamIds: [gone] })); }
+      if (kind.startsWith('repair-')) { await setDoc(doc(db, 'userPermissionGrants', 'coach'), { permissions: ['admin.repair.team_join_repair'], enabled: true }); const gone = kind.endsWith('-inrange') ? 'tm_1773000000000_aaaaaa' : kind.endsWith('-legacy') ? LEGACY.L : kind.endsWith('-existing') ? 'tm_1790000000001_exists' : 'tm_1790000000000_zzzzzz'; await setDoc(doc(db, 'users', 'gonemember'), profile('gonemember', { teamId: gone, teamIds: [gone] }));
+        // existing / legacy: the team document exists but 'coach' is not on it (captain is 'other').
+        if (kind.endsWith('-existing')) await setDoc(doc(db, 'teams', gone), { id: gone, name: 'Other team', captainUid: 'other', coachUids: [], members: 1 });
+        if (kind.endsWith('-legacy')) await setDoc(doc(db, 'teams', LEGACY.D), { id: LEGACY.L, name: 'Other team', captainUid: 'other', coachUids: [], members: 1 }); }
       if (kind.startsWith('legacy-')) { await setDoc(doc(db, 'teams', LEGACY.D), { ...legacy, id: LEGACY.L }); await setDoc(doc(db, 'users', 'legmember'), profile('legmember', { teamId: LEGACY.L, teamIds: [LEGACY.L] })); }
     });
     const db = env.authenticatedContext(uid).firestore();
@@ -110,7 +119,8 @@ async function trial(spec, pads) {
       else if (kind === 'staff-remove') await updateDoc(doc(db, 'users', 'member'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
       else if (kind === 'legacy-join') await updateDoc(doc(db, 'users', 'other'), { teamId: LEGACY.L, teamName: 'Budget team', teamIds: [LEGACY.L], teamNames: ['Budget team'], updatedAt: serverTimestamp() });
       else if (kind === 'legacy-remove') await updateDoc(doc(db, 'users', 'legmember'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
-      else if (kind.startsWith('repair-remove-missing')) await updateDoc(doc(db, 'users', 'gonemember'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
+      else if (kind === 'super-other-profile') await updateDoc(doc(db, 'users', 'other'), { displayName: 'Edited by super' });
+      else if (kind.startsWith('repair-remove-')) await updateDoc(doc(db, 'users', 'gonemember'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
       else if (kind === 'course') await setDoc(doc(db, 'teams', ID, 'coursePlans', 'plan'), { title: 'Course' });
       return { allowed: true };
     } catch (error) {

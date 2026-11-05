@@ -20,6 +20,7 @@ const {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   setLogLevel,
   serverTimestamp,
 } = require("firebase/firestore");
@@ -480,6 +481,26 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       // 先驗拒絕：放行那筆寫入後 EMPTY_USER 已在 D，再寫同樣內容沒有增減，拒絕原因就不是「非職員」。
       await assertFails(write(CAP, EMPTY_USER, membership([D])));
       await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([D])));
+    });
+
+    test("50. 鍵 L 對應的 teams/D 已刪除 → D 原本的職員也拒", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await deleteDoc(doc(ctx.firestore(), "teams", D));
+      });
+      await assertFails(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertFails(write(LEG_CAP, EMPTY_USER, membership([L])));
+    });
+
+    test("51. 查表範圍內、但不在對照表上的鍵（隊伍存在）→ 原樣當文件 id：該隊職員過、非職員拒", async () => {
+      const IN_RANGE = "tm_1773000000000_aaaaaa";
+      const keys = LEGACY_MAP.map((p) => p.L).sort();
+      expect(IN_RANGE > keys[0] && IN_RANGE < keys[keys.length - 1]).toBe(true);
+      expect(keys).not.toContain(IN_RANGE);
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", IN_RANGE), { id: IN_RANGE, name: "InRange", captainUid: CAP, leaderUids: [], coachUids: [] });
+      });
+      await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([IN_RANGE])));
+      await assertSucceeds(write(CAP, EMPTY_USER, membership([IN_RANGE])));
     });
   });
 });
