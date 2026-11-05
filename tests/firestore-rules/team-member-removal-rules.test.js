@@ -494,6 +494,37 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
         await assertSucceeds(write(GRANT_MANAGE_COACH, MEMBER_ONE, CLEARED));
         await assertSucceeds(write(GRANT_MANAGE_COACH, EMPTY_USER, membership([TEAM_OTHER])));
       });
+
+      // Grok 第三輪 P2：manage_all 判斷不得產生錯誤值，否則 allow update 的 OR 停在 coach 分支、後面的入隊修復不被計算。
+      test("67. 角色權限只有入隊修復、沒有個人授權文件的 coach 清掉已刪除隊伍 → 通過（由入隊修復分支放行）", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { permissions: ["admin.repair.team_join_repair"] });
+          await setDoc(doc(db, "users", "member_gone_team"), { uid: "member_gone_team", role: "user", ...membership(["team_gone"]) });
+        });
+        await assertSucceeds(write(COACH_OUTSIDER, "member_gone_team", CLEARED));
+      });
+
+      test("68. 角色權限文件沒有 permissions 欄位、個人授權含 team.manage_all → 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { label: "no permissions field" });
+          await setDoc(doc(db, "users", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, role: "coach", ...membership([]) });
+          await setDoc(doc(db, "userPermissionGrants", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, enabled: true, permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(GRANT_MANAGE_COACH, MEMBER_ONE, CLEARED));
+      });
+
+      test("69. 角色權限與個人授權都沒有 manage_all／入隊修復（含文件缺欄位）→ 拒", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { label: "no permissions field" });
+          await setDoc(doc(db, "userPermissionGrants", COACH_OUTSIDER), { uid: COACH_OUTSIDER, enabled: true });
+          await setDoc(doc(db, "users", "member_gone_team"), { uid: "member_gone_team", role: "user", ...membership(["team_gone"]) });
+        });
+        await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertFails(write(COACH_OUTSIDER, "member_gone_team", CLEARED));
+      });
     });
 
     // Opus 建議：E 的退回寫法（舊 teamIds 為 null／空 list 時改看 teamId）與非法鍵。

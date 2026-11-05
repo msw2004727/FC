@@ -1747,14 +1747,25 @@ service cloud.firestore {
           && (role in ['admin', 'super_admin'] || isTeamStaffMembershipDelta() || hasEffectivePermForRole(role, 'team.manage_all'));
       }
 
-      // 等同 hasEffectivePerm(perm)（hasPerm 的 role 就是 authRole()），角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件的運算式。
+      // 允許結果同 hasEffectivePerm(perm)（角色權限或個別授權；個別授權的 enabled 缺省視為 true，同 hasUserPermissionGrantForUid），
+      // 角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件的運算式。
+      // 只回 true／false：文件不存在、permissions 欄位缺或型別壞都是 false，不產生錯誤值。
+      // （取代 ef29eda52 直接沿用 hasPerm／hasUserPermissionGrant：Grok 第三輪 P2，個人授權文件不存在時讀 {}.permissions 變錯誤值，
+      // 讓 allow update 的 OR 停在 coach 分支，後面的入隊修復分支不被計算。）
       function hasEffectivePermForRole(role, perm) {
         let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
-        return (role != 'user'
-            && exists(rpPath)
-            && get(rpPath).data.permissions is list
-            && perm in get(rpPath).data.permissions)
-          || hasUserPermissionGrant(perm);
+        let grantPath = /databases/$(database)/documents/userPermissionGrants/$(request.auth.uid);
+        return (role != 'user' && exists(rpPath) && isPermInList(get(rpPath).data.get('permissions', null), perm))
+          || (exists(grantPath) && isEnabledGrantWithPerm(get(grantPath).data, perm));
+      }
+
+      function isPermInList(perms, perm) {
+        return perms is list && perm in perms;
+      }
+
+      function isEnabledGrantWithPerm(grantData, perm) {
+        return grantData.get('enabled', true) == true
+          && isPermInList(grantData.get('permissions', null), perm);
       }
 
       function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
