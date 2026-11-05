@@ -674,5 +674,25 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([IN_RANGE])));
       await assertSucceeds(write(CAP, EMPTY_USER, membership([IN_RANGE])));
     });
+
+    // Opus 第三輪 P2：最重的入隊修復形狀（teams/D 職員欄位齊全但不含操作者、剔除 L 後成員仍有他隊）。
+    // 改前 coach 分支失敗後再跑入隊修復分支會超過 1000 運算式而被拒；改後 coach 分支同一次讀權限就放行。
+    test("70. coach＋個人授權入隊修復、teams/D 欄位齊全、剔除 L 後仍有他隊 → 通過", async () => {
+      const REPAIR_GRANT_COACH = "repair_grant_coach";
+      const MEMBER_LEG_MULTI = "member_leg_multi";
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", D), {
+          id: L, name: "Legacy", captainUid: LEG_CAP, creatorUid: LEG_CAP, ownerUid: LEG_CAP,
+          leaderUid: "leg_leader", leaderUids: ["leg_leader"], coachUids: [LEG_COACH, "leg_coach_two"],
+        });
+        await setDoc(doc(db, "users", REPAIR_GRANT_COACH), { uid: REPAIR_GRANT_COACH, role: "coach", ...membership([]) });
+        await setDoc(doc(db, "userPermissionGrants", REPAIR_GRANT_COACH), {
+          uid: REPAIR_GRANT_COACH, enabled: true, permissions: ["admin.repair.team_join_repair"],
+        });
+        await setDoc(doc(db, "users", MEMBER_LEG_MULTI), { uid: MEMBER_LEG_MULTI, role: "user", ...membership([L, TEAM_OTHER]) });
+      });
+      await assertSucceeds(write(REPAIR_GRANT_COACH, MEMBER_LEG_MULTI, membership([TEAM_OTHER])));
+    });
   });
 });

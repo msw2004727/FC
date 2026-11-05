@@ -1739,33 +1739,37 @@ service cloud.firestore {
       // 等同原本 isCoachPlus() && … && (isAdmin() || …)：兩者都是 request.auth != null && authRole() in 清單。
       // 顧問 11-06 §1.14：coach 以上且持 team.manage_all（rolePermissions 或個別授權）與 admin 同樣不受「自己那隊」與正規形狀限制；
       // 放在職員判斷之後，只有職員判斷失敗才多讀權限文件。
+      // 同一次讀權限也收 admin.repair.team_join_repair：這是後面 (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
+      // 的子集（canRunTeamJoinRepair＝isSuperAdmin() || hasEffectivePerm(該權限)，且本分支已含 isSafeTeamMembershipUpdateByStaff），不擴權；
+      // 目的是讓持入隊修復授權的 coach 在職員判斷失敗後就地放行，不必再跑後面分支而超過 1000 運算式（Opus 第三輪 P2）。
       function isCoachPlusTeamMembershipUpdate(role) {
         return request.auth != null
           && role in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin']
           && !isOwner(userId)
           && isSafeTeamMembershipUpdateByStaff()
-          && (role in ['admin', 'super_admin'] || isTeamStaffMembershipDelta() || hasEffectivePermForRole(role, 'team.manage_all'));
+          && (role in ['admin', 'super_admin']
+            || isTeamStaffMembershipDelta()
+            || hasAnyEffectivePermForRole(role, ['team.manage_all', 'admin.repair.team_join_repair']));
       }
 
-      // 允許結果同 hasEffectivePerm(perm)（角色權限或個別授權；個別授權的 enabled 缺省視為 true，同 hasUserPermissionGrantForUid），
-      // 角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件的運算式。
-      // 只回 true／false：文件不存在、permissions 欄位缺或型別壞都是 false，不產生錯誤值。
-      // （取代 ef29eda52 直接沿用 hasPerm／hasUserPermissionGrant：Grok 第三輪 P2，個人授權文件不存在時讀 {}.permissions 變錯誤值，
-      // 讓 allow update 的 OR 停在 coach 分支，後面的入隊修復分支不被計算。）
-      function hasEffectivePermForRole(role, perm) {
+      // 持有 perms 其中任一個：允許結果同 hasEffectivePerm 逐一 OR（角色權限或個別授權；個別授權的 enabled 缺省視為 true，
+      // 同 hasUserPermissionGrantForUid），角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件；兩份權限文件各讀一次。
+      // 只回 true／false：文件不存在、permissions 欄位缺或型別壞都是 false，不產生錯誤值（ed1816bb7 起；Grok 第三輪 P2 經 Opus 判讀
+      // 不構成回歸——錯誤值 || true＝true——但布林化保留，判斷較清楚）。
+      function hasAnyEffectivePermForRole(role, perms) {
         let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
         let grantPath = /databases/$(database)/documents/userPermissionGrants/$(request.auth.uid);
-        return (role != 'user' && exists(rpPath) && isPermInList(get(rpPath).data.get('permissions', null), perm))
-          || (exists(grantPath) && isEnabledGrantWithPerm(get(grantPath).data, perm));
+        return (role != 'user' && exists(rpPath) && isAnyPermInList(get(rpPath).data.get('permissions', null), perms))
+          || (exists(grantPath) && isEnabledGrantWithAnyPerm(get(grantPath).data, perms));
       }
 
-      function isPermInList(perms, perm) {
-        return perms is list && perm in perms;
+      function isAnyPermInList(values, perms) {
+        return values is list && values.hasAny(perms);
       }
 
-      function isEnabledGrantWithPerm(grantData, perm) {
+      function isEnabledGrantWithAnyPerm(grantData, perms) {
         return grantData.get('enabled', true) == true
-          && isPermInList(grantData.get('permissions', null), perm);
+          && isAnyPermInList(grantData.get('permissions', null), perms);
       }
 
       function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
