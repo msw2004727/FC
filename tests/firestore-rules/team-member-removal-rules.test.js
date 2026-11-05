@@ -288,7 +288,8 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertFails(write(CAP, EMPTY_USER, membership([TEAM_MAIN, TEAM_OTHER])));
     });
 
-    // 被拒的原因是「多出來的隊伍鍵 team_other 不是 CAP 當職員的隊」，不是規則禁止只換 teamId（換成自己的隊見 40）。
+    // 有效清單只看非空 teamIds（前後都是 [team_low]，沒有增減），且新 teamId 不在新清單內 → 拒。
+    // 換成自己是職員的隊也一樣拒（見 40，顧問 11-06 §1.13 裁定）。
     test("29. teamIds 不變、把 teamId 換成自己不是職員的別隊 → 拒", async () => {
       await assertFails(write(CAP, MEMBER_LOW, {
         teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["team_low-name"],
@@ -433,6 +434,96 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertFails(write(CAP, MEMBER_TWO, {
         teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN, TEAM_OTHER], teamNames: ["Main", "Other"],
       }));
+    });
+
+    // Grok 第二輪 P2：[A,B]/A 由 B 職員把 teamIds 清成 []／null、teamId 留 A，E 退回 [A] 看似只移除 B，實際 A 從 teamIds 消失。
+    describe("Grok 第二輪 P2：清空 teamIds、留 teamId", () => {
+      const VICTIM_THREE = "victim_three"; // teamIds:[team_other, team_main]、teamId:team_other（CAP 是 team_main 職員）
+
+      beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "users", VICTIM_THREE), { uid: VICTIM_THREE, role: "user", ...membership([TEAM_OTHER, TEAM_MAIN]) });
+        });
+      });
+
+      test("57. [A,B]/A → teamIds:[]、teamId:A → 拒", async () => {
+        await assertFails(write(CAP, VICTIM_THREE, { teamId: TEAM_OTHER, teamName: "Other", teamIds: [], teamNames: [] }));
+      });
+
+      test("58. [A,B]/A → teamIds:null、teamId:A → 拒", async () => {
+        await assertFails(write(CAP, VICTIM_THREE, { teamId: TEAM_OTHER, teamName: "Other", teamIds: null, teamNames: null }));
+      });
+
+      test("59. [A,B]/A → [A]/A（B 職員只移除 B）→ 通過", async () => {
+        await assertSucceeds(write(CAP, VICTIM_THREE, membership([TEAM_OTHER])));
+      });
+
+      // 顧問 11-06 §1.14 正規形狀：teamIds 非空時 teamId 必須是其中之一；空時 teamId 必須是 null。
+      // 允許案例對照：[A]/A→[]/null 見 1；[]/L→[]/null 見 46；[]/L→[L,X]/L 見 47；[A,X]/A→[X]/X 見 22。
+      test("63. [A,X]/A → [X]/null（teamIds 非空卻清掉 teamId）→ 拒", async () => {
+        await assertFails(write(CAP, MEMBER_TWO, { teamId: null, teamName: null, teamIds: [TEAM_OTHER], teamNames: ["Other"] }));
+      });
+    });
+
+    // 顧問 11-06 §1.14：coach 以上持 team.manage_all（rolePermissions 或個別授權）不受「自己那隊」限制。
+    describe("team.manage_all 持有人", () => {
+      const GRANT_MANAGE_COACH = "grant_manage_coach"; // users.role=coach，個別授權 team.manage_all
+
+      test("64. coach 角色＋rolePermissions/coach 含 team.manage_all：剔除／核准非自己職員的隊 → 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "rolePermissions", "coach"), { permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertSucceeds(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+
+      test("65. rolePermissions/coach 不含 team.manage_all → 拒", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "rolePermissions", "coach"), { permissions: ["team.review_join"] });
+        });
+        await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+
+      test("66. coach 角色＋個別授權 userPermissionGrants 含 team.manage_all（enabled:true）→ 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "users", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, role: "coach", ...membership([]) });
+          await setDoc(doc(db, "userPermissionGrants", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, enabled: true, permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(GRANT_MANAGE_COACH, MEMBER_ONE, CLEARED));
+        await assertSucceeds(write(GRANT_MANAGE_COACH, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+    });
+
+    // Opus 建議：E 的退回寫法（舊 teamIds 為 null／空 list 時改看 teamId）與非法鍵。
+    describe("有效清單 E 的退回與非法鍵", () => {
+      const FALLBACK_NULL = "fallback_null";   // teamIds:null、teamId:team_other
+      const FALLBACK_EMPTY = "fallback_empty"; // teamIds:[]、teamId:team_other
+
+      beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "users", FALLBACK_NULL), { uid: FALLBACK_NULL, role: "user", teamId: TEAM_OTHER, teamName: "Other", teamIds: null, teamNames: null });
+          await setDoc(doc(db, "users", FALLBACK_EMPTY), { uid: FALLBACK_EMPTY, role: "user", teamId: TEAM_OTHER, teamName: "Other", teamIds: [], teamNames: [] });
+        });
+      });
+
+      test("60. 舊 teamIds 為 null／[]＋teamId:A，A 不是職員的隊 → 核准成 [A,C]/A 通過（E 舊值＝[A]，只多 C）", async () => {
+        await assertSucceeds(write(CAP, FALLBACK_NULL, membership([TEAM_OTHER, TEAM_MAIN])));
+        await assertSucceeds(write(CAP, FALLBACK_EMPTY, membership([TEAM_OTHER, TEAM_MAIN])));
+      });
+
+      test("61. 舊 teamIds 為 null／[]＋teamId:A，非 A 職員清空 → 拒（E 舊值＝[A]，移除的是 A）", async () => {
+        await assertFails(write(CAP, FALLBACK_NULL, CLEARED));
+        await assertFails(write(CAP, FALLBACK_EMPTY, CLEARED));
+      });
+
+      test("62. 新增的鍵是 '.'、'..'、'__x__'、空字串 → 拒", async () => {
+        for (const key of [".", "..", "__x__", ""]) {
+          await assertFails(write(CAP, EMPTY_USER, { teamId: key, teamName: "Bad", teamIds: [key], teamNames: ["Bad"] }));
+        }
+      });
     });
   });
 

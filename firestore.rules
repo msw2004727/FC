@@ -1725,20 +1725,36 @@ service cloud.firestore {
         let added = newKeys.removeAll(oldKeys);
         let removed = oldKeys.removeAll(newKeys);
         let newPrimary = request.resource.data.get('teamId', null);
-        // 新 teamId 只能是 null／缺，或屬於新的有效清單（主隊指標不得指到清單外的任意隊）。
-        return (newPrimary == null || (newPrimary is string && newPrimary in newKeys))
+        let newIds = request.resource.data.get('teamIds', null);
+        // 顧問 11-06 §1.14：新寫入必須是正規形狀——teamIds 非空時 teamId 是字串且在 teamIds 內；teamIds 空／null／缺時 teamId 必須是 null。
+        // （取代 §1.13 的「teamId 屬於新有效清單」：Grok 第二輪 P2，[A,B]/A 清成 []/A 或 null/A 會讓 E 退回 [A]、看似只移除 B。）
+        return ((newIds is list && newIds.size() > 0)
+            ? (newPrimary is string && newPrimary in newIds)
+            : newPrimary == null)
           && added.toSet().size() + removed.toSet().size() == 1
           && isTeamStaffOfTeamKey(added.size() > 0 ? added[0] : removed[0]);
       }
 
       // T-090k（精簡版）：coach 以上分支的角色只算一次（authRole 每次呼叫都重讀 users 文件），
       // 等同原本 isCoachPlus() && … && (isAdmin() || …)：兩者都是 request.auth != null && authRole() in 清單。
+      // 顧問 11-06 §1.14：coach 以上且持 team.manage_all（rolePermissions 或個別授權）與 admin 同樣不受「自己那隊」與正規形狀限制；
+      // 放在職員判斷之後，只有職員判斷失敗才多讀權限文件。
       function isCoachPlusTeamMembershipUpdate(role) {
         return request.auth != null
           && role in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin']
           && !isOwner(userId)
           && isSafeTeamMembershipUpdateByStaff()
-          && (role in ['admin', 'super_admin'] || isTeamStaffMembershipDelta());
+          && (role in ['admin', 'super_admin'] || isTeamStaffMembershipDelta() || hasEffectivePermForRole(role, 'team.manage_all'));
+      }
+
+      // 等同 hasEffectivePerm(perm)（hasPerm 的 role 就是 authRole()），角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件的運算式。
+      function hasEffectivePermForRole(role, perm) {
+        let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+        return (role != 'user'
+            && exists(rpPath)
+            && get(rpPath).data.permissions is list
+            && perm in get(rpPath).data.permissions)
+          || hasUserPermissionGrant(perm);
       }
 
       function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
