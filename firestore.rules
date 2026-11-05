@@ -1658,22 +1658,44 @@ service cloud.firestore {
         return teamKey is string
           && teamKey.matches('^[^/]+$')
           && !teamKey.matches('^[.]{1,2}$|^__.*__$')
-          && isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey));
+          && isTeamStaffOfResolvedKey(teamKey, legacyTeamDocIds().get(teamKey, null));
       }
 
-      function isTeamStaffAtPath(teamPath) {
-        return exists(teamPath) && isTeamStaffData(get(teamPath).data);
+      // T-090k legacy bridge：舊格式名單已凍結（createUserTeam 唯一入口＋tm_ 格式），不再新增（2026-11-05 盤點，顧問裁定 §1.9）。
+      // 舊格式俱樂部的文件 id（D）不等於 id 欄位（L），成員 users 存的是 L；這裡把 L 對到 D 才能找到隊伍文件。
+      // 只在 isTeamStaffOfTeamKey 解析時使用：未列的鍵原樣當文件 id（D 形式與新 tm_ 隊不受影響）；
+      // 被對照的鍵在同一次 get 驗 teams/D 的 id 欄位 == L，不符即 false（抄錯只會拒，不會授錯隊）。
+      function legacyTeamDocIds() {
+        return {
+          'tm_1774590829557_m9igzv': 'G3WbDZAzmYADMvaCFc5g',
+          'tm_1772099699445_naajv3': 'Nh35tT1SLIiZz6nbVegE',
+          'tm_1774501575628_nox9py': 'QLW6HsCEtm9B8JxvooyS',
+          'tm_1772098773535_xwom46': 'fr1TOptgysV5HFYzChNa',
+          'tm_1775200536662_oruwll': 'pTB68IEojMZkhbsrR159'
+        };
       }
 
-      function isTeamStaffData(teamData) {
+      function isTeamStaffOfResolvedKey(teamKey, legacyDocId) {
+        return legacyDocId == null
+          ? isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey), null)
+          : isTeamStaffAtPath(/databases/$(database)/documents/teams/$(legacyDocId), teamKey);
+      }
+
+      // expectedLegacyId：null＝一般鍵；非 null＝橋接鍵 L，隊伍文件的 id 欄位必須等於它（與職員判斷共用同一次 get）。
+      function isTeamStaffAtPath(teamPath, expectedLegacyId) {
+        return exists(teamPath) && isTeamStaffData(get(teamPath).data, expectedLegacyId);
+      }
+
+      function isTeamStaffData(teamData, expectedLegacyId) {
         let leaders = teamData.get('leaderUids', null);
         let coaches = teamData.get('coachUids', null);
-        return teamData.get('captainUid', null) == request.auth.uid
-          || teamData.get('creatorUid', null) == request.auth.uid
-          || teamData.get('ownerUid', null) == request.auth.uid
-          || teamData.get('leaderUid', null) == request.auth.uid
-          || (leaders is list && request.auth.uid in leaders)
-          || (coaches is list && request.auth.uid in coaches);
+        return (expectedLegacyId == null || teamData.get('id', null) == expectedLegacyId)
+          && (teamData.get('captainUid', null) == request.auth.uid
+            || teamData.get('creatorUid', null) == request.auth.uid
+            || teamData.get('ownerUid', null) == request.auth.uid
+            || teamData.get('leaderUid', null) == request.auth.uid
+            || (leaders is list && request.auth.uid in leaders)
+            || (coaches is list && request.auth.uid in coaches));
       }
 
       // T-090k：非 admin 的 coach 以上改他人隊伍欄位時，一次只能新增或移除「一支」隊，且自己必須是那支隊的職員

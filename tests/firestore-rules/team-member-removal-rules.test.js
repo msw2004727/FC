@@ -384,4 +384,94 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       }));
     });
   });
+
+  // T-090k legacy bridge（顧問裁定 §1.9）：舊格式俱樂部文件 id（D）≠ id 欄位（L），成員存 L。
+  // 對照表寫死在 firestore.rules 的 legacyTeamDocIds()，這裡從 Rules 原文讀出，測試不另抄 id。
+  describe("舊格式俱樂部橋接（L→D）", () => {
+    const LEGACY_MAP = (() => {
+      const source = fs.readFileSync(RULES_PATH, "utf8");
+      const body = /function legacyTeamDocIds\(\) \{\s*return \{([\s\S]*?)\};/.exec(source);
+      if (!body) throw new Error("firestore.rules 找不到 legacyTeamDocIds()");
+      return [...body[1].matchAll(/'([^']+)':\s*'([^']+)'/g)].map((m) => ({ L: m[1], D: m[2] }));
+    })();
+    const { L, D } = LEGACY_MAP[0];
+    const LEG_CAP = "leg_cap";                   // users.role=captain，teams/D 的 captainUid
+    const LEG_COACH = "leg_coach";               // users.role=coach，teams/D 的 coachUids 內
+    const SHADOW_CAP = "shadow_cap";             // users.role=captain，只是 teams/L（非 D）文件的隊長
+    const MEMBER_LEG = "member_leg";             // teamIds:[L]、teamId:L
+    const MEMBER_LEG_EMPTY = "member_leg_empty"; // 8 人那種形狀：teamIds:[]、teamId:L
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", D), { id: L, name: "Legacy", captainUid: LEG_CAP, leaderUids: [], coachUids: [LEG_COACH] });
+        await setDoc(doc(db, "users", LEG_CAP), { uid: LEG_CAP, role: "captain", ...membership([L]) });
+        await setDoc(doc(db, "users", LEG_COACH), { uid: LEG_COACH, role: "coach", ...membership([L]) });
+        await setDoc(doc(db, "users", SHADOW_CAP), { uid: SHADOW_CAP, role: "captain", ...membership([]) });
+        await setDoc(doc(db, "users", MEMBER_LEG), { uid: MEMBER_LEG, role: "user", ...membership([L]) });
+        await setDoc(doc(db, "users", MEMBER_LEG_EMPTY), {
+          uid: MEMBER_LEG_EMPTY, role: "user", teamId: L, teamName: "Legacy", teamIds: [], teamNames: [],
+        });
+      });
+    });
+
+    test("41. 對照表 5 組、格式正確且不重複（名單已凍結）", () => {
+      expect(LEGACY_MAP).toHaveLength(5);
+      for (const { L: key, D: docId } of LEGACY_MAP) {
+        expect(key).toMatch(/^tm_\d{13}_[a-z0-9]{6}$/);
+        expect(docId).toMatch(/^[A-Za-z0-9]{20}$/);
+      }
+      expect(new Set(LEGACY_MAP.map((p) => p.L)).size).toBe(5);
+      expect(new Set(LEGACY_MAP.map((p) => p.D)).size).toBe(5);
+    });
+
+    test("42. 橋接職員（D 的隊長／教練）剔除 teamIds 含 L 的成員 → 通過", async () => {
+      await assertSucceeds(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertSucceeds(write(LEG_CAP, MEMBER_LEG, CLEARED));
+    });
+
+    test("43. 橋接職員核准他人加入 L（新增鍵 L）→ 通過", async () => {
+      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(LEG_CAP, MEMBER_LOW, membership(["team_low", L])));
+    });
+
+    test("44. 不是 D 職員的 coach 以上帶鍵 L 增減 → 拒（含只當 teams/L 文件隊長者）", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", L), { id: L, name: "Shadow", captainUid: SHADOW_CAP });
+      });
+      await assertFails(write(CAP, EMPTY_USER, membership([L])));
+      await assertFails(write(COACH_OUTSIDER, MEMBER_LEG, CLEARED));
+      await assertFails(write(SHADOW_CAP, EMPTY_USER, membership([L])));
+      await assertFails(write(SHADOW_CAP, MEMBER_LEG, CLEARED));
+    });
+
+    test("45. 假對照：teams/D 的 id 欄位 ≠ L → 橋接職員也拒；admin 不受影響", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", D), { id: "tm_fake_mismatch", name: "Legacy", captainUid: LEG_CAP, coachUids: [LEG_COACH] });
+      });
+      await assertFails(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertFails(write(LEG_CAP, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(ADMIN, MEMBER_LEG, CLEARED));
+    });
+
+    test("46. teamIds:[]＋teamId:L 被橋接職員剔除（寫 teamIds:[]、teamId:null）→ 通過", async () => {
+      await assertSucceeds(write(LEG_COACH, MEMBER_LEG_EMPTY, CLEARED));
+    });
+
+    test("47. teamIds:[]＋teamId:L 被 X 隊職員核准（寫 teamIds:[L,X]、teamId:L）→ 通過", async () => {
+      await assertSucceeds(write(CAP, MEMBER_LEG_EMPTY, {
+        teamId: L, teamName: "Legacy", teamIds: [L, TEAM_MAIN], teamNames: ["Legacy", "Main"],
+      }));
+    });
+
+    test("48. admin 路徑不變：不是任何隊職員也可加入／剔除 L", async () => {
+      await assertSucceeds(write(ADMIN, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(ADMIN, MEMBER_LEG, CLEARED));
+    });
+
+    test("49. 未列在對照表的鍵原樣通過：直接用 D 當鍵仍由 D 的職員判斷", async () => {
+      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([D])));
+      await assertFails(write(CAP, EMPTY_USER, membership([D])));
+    });
+  });
 });
