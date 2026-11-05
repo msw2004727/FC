@@ -249,10 +249,17 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertSucceeds(write(CAP, MEMBER_TWO, membership([TEAM_OTHER])));
     });
 
-    test("23. 舊資料 teamIds 與 teamId 不一致時，核准仍只算新增一隊", async () => {
-      await assertSucceeds(write(CAP, MEMBER_INCONSISTENT, {
+    // T-090k（Grok P1 修正後，顧問 11-06 §1.13 裁定改拒）：有效清單只看非空 teamIds（[team_low]），不再把 teamId（team_other）併進來。
+    // 把 team_other 併進 teamIds 再加 team_main ＝ 有效清單一次多兩隊 → 拒；只加自己那隊 → 通過。
+    // 正式資料 teamId 不在 teamIds 的帳號 0 筆（2026-11-05 盤點 teamIdNotInTeamIds）。
+    test("23. 舊資料 teamIds 與 teamId 不一致時，只看 teamIds：併入 teamId＋加自己那隊拒、只加自己那隊過", async () => {
+      await assertFails(write(CAP, MEMBER_INCONSISTENT, {
         teamId: "team_low", teamName: "Low",
         teamIds: ["team_low", TEAM_OTHER, TEAM_MAIN], teamNames: ["Low", "Other", "Main"],
+      }));
+      await assertSucceeds(write(CAP, MEMBER_INCONSISTENT, {
+        teamId: "team_low", teamName: "Low",
+        teamIds: ["team_low", TEAM_MAIN], teamNames: ["Low", "Main"],
       }));
     });
 
@@ -377,11 +384,54 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       await assertSucceeds(write(NULL_LEADERS_COACH, EMPTY_USER, membership(["team_null_leaders"])));
     });
 
-    // 現況鎖定（依規則推演）：舊鍵 [team_low, team_low] → 新鍵 [team_low, team_main]，多出的只有 team_main，
-    // 且 CAP 是 team_main 隊長，所以通過；結果是 teamId 指向 team_main、teamIds 仍只有 team_low（與 A 的寫法不同，屬髒資料形狀）。
-    test("40. 現況：teamIds 不變、把 teamId 換成自己是職員的那隊 → 通過", async () => {
-      await assertSucceeds(write(CAP, MEMBER_LOW, {
+    // T-090k（Grok P1 修正後，顧問 11-06 §1.13 裁定改拒）：原本聯集算法放行，會造出 teamId 指向 team_main、teamIds 仍只有 team_low 的髒資料形狀。
+    // 現在有效清單只看非空 teamIds（前後都是 [team_low]，沒有增減），且新 teamId 不在新清單內 → 拒。
+    test("40. teamIds 不變、把 teamId 換成自己是職員的那隊 → 拒（不再造出 teamId 不在 teamIds 的形狀）", async () => {
+      await assertFails(write(CAP, MEMBER_LOW, {
         teamId: TEAM_MAIN, teamName: "Main", teamIds: ["team_low"], teamNames: ["team_low-name"],
+      }));
+    });
+  });
+
+  // T-090k Grok 交叉審查 P1：teamId 不得掩護 teamIds 的第二筆增減。
+  describe("Grok P1：teamId 掩護 teamIds 的攻擊形狀", () => {
+    const VICTIM_ONE = "victim_one"; // teamIds:[team_other]、teamId:team_other（CAP 不是 team_other 職員）
+    const VICTIM_TWO = "victim_two"; // teamIds:[team_low, team_other]、teamId:team_low
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "users", VICTIM_ONE), { uid: VICTIM_ONE, role: "user", ...membership([TEAM_OTHER]) });
+        await setDoc(doc(db, "users", VICTIM_TWO), { uid: VICTIM_TWO, role: "user", ...membership(["team_low", TEAM_OTHER]) });
+      });
+    });
+
+    test("52. 攻擊①：[A]/A → teamIds:[C]、teamId:A（C 是自己的隊）→ 拒（不得把 A 移出 teamIds）", async () => {
+      await assertFails(write(CAP, VICTIM_ONE, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN], teamNames: ["Main"],
+      }));
+    });
+
+    test("53. 攻擊②：[A,B]/A → teamIds:[A,C]、teamId:B → 拒（不得刪掉 B）", async () => {
+      await assertFails(write(CAP, VICTIM_TWO, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low", TEAM_MAIN], teamNames: ["Low", "Main"],
+      }));
+    });
+
+    test("54. 同一受害者的正常核准仍通過：[A]/A → [A,C]/A", async () => {
+      await assertSucceeds(write(CAP, VICTIM_ONE, membership([TEAM_OTHER, TEAM_MAIN])));
+    });
+
+    test("55. 新 teamId 指到新清單外的隊 → 拒（只加自己那隊，但 teamId 指向別隊）", async () => {
+      await assertFails(write(CAP, EMPTY_USER, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN], teamNames: ["Main"],
+      }));
+    });
+
+    // 顧問 11-06 §1.13 裁定必補：[A,B]/A → [A,B]/B（teamIds 不變只換主隊）→ 拒；剔除首隊 [A,X]/A → [X]/X 允許見測試 22。
+    test("56. [A,B]/A → [A,B]/B：teamIds 不變、只把 teamId 換成清單內另一隊 → 拒（沒有增減）", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN, TEAM_OTHER], teamNames: ["Main", "Other"],
       }));
     });
   });

@@ -1644,10 +1644,16 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
-      // T-090k：users 文件的隊伍鍵＝teamIds（list）加上舊欄位 teamId（string），用來算這次增減了哪些隊。
+      // T-090k（顧問 11-06 §1.13 裁定）：users 文件的「有效隊伍清單」E：teamIds 是非空 list 就用 teamIds；否則 teamId 是字串就用 [teamId]；否則 []。
+      // 與後端 getUserTeamIds（只認非空 teamIds，空才退回 teamId）及 A／B 寫入（teamId＝teamIds[0]）一致。
+      // （取代 teamIds∪teamId 聯集：Grok 交叉審查 P1，聯集讓 teamId 掩護 teamIds 的第二筆增減，例如 [A]/A → [C]/A 會把 A 移出 teamIds。）
+      // 只給 coach 分支的 isTeamStaffMembershipDelta 使用。
       function userTeamKeysOf(data) {
-        return (data.get('teamIds', null) is list ? data.teamIds : [])
-          .concat(data.get('teamId', null) is string ? [data.teamId] : []);
+        let ids = data.get('teamIds', null);
+        let primary = data.get('teamId', null);
+        return (ids is list && ids.size() > 0)
+          ? ids
+          : (primary is string ? [primary] : []);
       }
 
       // T-090k（審查修正）：與 isCurrentUserTeamStaff 同一組職員欄位，隊伍文件 exists＋get 各一次、欄位用 .get() 取。
@@ -1718,7 +1724,10 @@ service cloud.firestore {
         let newKeys = userTeamKeysOf(request.resource.data);
         let added = newKeys.removeAll(oldKeys);
         let removed = oldKeys.removeAll(newKeys);
-        return added.toSet().size() + removed.toSet().size() == 1
+        let newPrimary = request.resource.data.get('teamId', null);
+        // 新 teamId 只能是 null／缺，或屬於新的有效清單（主隊指標不得指到清單外的任意隊）。
+        return (newPrimary == null || (newPrimary is string && newPrimary in newKeys))
+          && added.toSet().size() + removed.toSet().size() == 1
           && isTeamStaffOfTeamKey(added.size() > 0 ? added[0] : removed[0]);
       }
 
