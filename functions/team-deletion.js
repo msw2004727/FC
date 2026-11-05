@@ -11,7 +11,8 @@
  *           清完後再查一次「仍含本隊」的人（recheck），有新加入者就再清，最多共 3 次 recheck；仍 >0 → TEAM_MEMBERS_CHURNING；
  *           有成員重試耗盡仍清不掉 → 回 partial、不進 Phase 2～4（team 文件與所有角色都沒動，呼叫者重跑即可）
  *   Phase 2/3 幹部角色重算（排除本隊）＋站內信（見 team-deletion-roles.js）；呼叫者本人的降級留給 Phase 4
- *   Phase 4 同一個 batch：呼叫者本人的角色變更（若有）＋ operationLog ＋ 刪 team 文件（帶 exists 前置條件）
+ *   Phase 4 同一個交易：重讀 team 重驗准入（擁有者已轉移 → TEAM_OWNER_CHANGED，T-090h P3）後，
+ *           呼叫者本人的角色變更（若有）＋ operationLog ＋ 刪 team 文件（帶 exists 前置條件）；Phase 2 前另有一次便宜的預檢
  * 刻意不處理（A 現況也沒有）：子集合、events.creatorTeamIds、tournaments.hostTeamId、teamExpLogs、入隊申請訊息、進行中活動／賽事檢查。
  */
 
@@ -96,6 +97,14 @@ function createDeleteTeamHandler({
       if (!isTeamOwner(teamData, callerUid) && !isCoachPlusAccess(access, roleLevels)) {
         throw new HttpsError("permission-denied", "COACH_PLUS_REQUIRED");
       }
+      // 以同一份 access 對「重讀後的 team」套用與上面完全相同的准入判斷（自建隊與 legacy 一致，不另訂規則）；
+      // 不再成立（例如擁有者已轉移）→ TEAM_OWNER_CHANGED，team 文件與呼叫者角色不動。
+      const assertStillDeleter = (current) => {
+        if (!isFrontendTeamDeleter(current, callerUid, access)
+          || (!isTeamOwner(current, callerUid) && !isCoachPlusAccess(access, roleLevels))) {
+          throw new HttpsError("failed-precondition", "TEAM_OWNER_CHANGED");
+        }
+      };
 
       const issuedAt = now();
       const actor = { uid: callerUid, ...(await readActorNames(db, callerUid, access.role)) };
@@ -124,6 +133,12 @@ function createDeleteTeamHandler({
         };
       }
 
+      // T-090h P3：Phase 1 期間擁有者可能已被 transferUserTeam 轉走；降級他人前先便宜地重讀一次（1 讀），
+      // 真正的關卡在 Phase 4 交易內再驗一次。查無 team 時交給 Phase 4 走 alreadyDeleted。
+      phase = "reauthorize";
+      const beforeRoles = await teamSnap.ref.get();
+      if (beforeRoles.exists) assertStillDeleter(beforeRoles.data() || {});
+
       phase = "recalculate-roles";
       const recalculator = createStaffRoleRecalculator({
         db,
@@ -150,35 +165,53 @@ function createDeleteTeamHandler({
 
       phase = "delete-team";
       const teamName = typeof teamData.name === "string" && teamData.name ? teamData.name : "俱樂部";
-      const finalBatch = db.batch();
-      if (callerChange) await recalculator.stage(finalBatch, callerChange);
-      // skippedNotifies 是 getter，呼叫者那次 stage 可能剛把它加一，所以要在 stage 之後讀。
-      const skippedNotifies = roleOutcome.skippedNotifies;
-      finalBatch.set(
-        db.collection("operationLogs").doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`),
-        {
-          ...buildOperationLogPayload({
-            operator: actor.operator,
-            type: "team_delete",
-            typeName: "刪除俱樂部",
-            content: `刪除「${teamName}」`,
-            now: issuedAt,
-          }),
-          actorUid: callerUid,
-          source: "callable",
-        },
-      );
-      finalBatch.delete(teamSnap.ref, { exists: true });
+      const opLogRef = db.collection("operationLogs").doc(`op_${issuedAt.getTime()}_${Math.random().toString(36).slice(2, 8)}`);
+      // T-090h P3：原本的 batch 只靠 exists 前置條件，擁有者在中途被轉移仍會刪掉。改成交易：先重讀 team 並重驗准入，
+      // 再寫呼叫者角色＋opLog＋刪 team（同一次提交，寫入數不變、多 1 讀）。成員清理（可能上千筆）維持交易外分批，
+      // 不受單次交易 500 寫上限影響。不用 lastUpdateTime 前置條件：team 文件會被成員數重算等無關寫入改動而誤拒。
+      // 呼叫者的 stage（含 claim 外部呼叫）只在第一次驗證通過後做一次並錄下寫入，交易重跑時只重放，不重複呼叫／計數。
+      let callerOps = null;
+      let teamGone = false;
       try {
-        await finalBatch.commit();
+        await db.runTransaction(async (tx) => {
+          const current = await tx.get(teamSnap.ref);
+          teamGone = !current.exists;
+          if (teamGone) return;
+          assertStillDeleter(current.data() || {});
+          if (callerChange && !callerOps) {
+            const recorded = [];
+            await recalculator.stage({
+              update: (...args) => recorded.push(["update", args]),
+              set: (...args) => recorded.push(["set", args]),
+            }, callerChange);
+            callerOps = recorded;
+          }
+          (callerOps || []).forEach(([op, args]) => tx[op](...args));
+          tx.set(opLogRef, {
+            ...buildOperationLogPayload({
+              operator: actor.operator,
+              type: "team_delete",
+              typeName: "刪除俱樂部",
+              content: `刪除「${teamName}」`,
+              now: issuedAt,
+            }),
+            actorUid: callerUid,
+            source: "callable",
+          });
+          tx.delete(teamSnap.ref, { exists: true });
+        });
       } catch (error) {
+        if (error instanceof HttpsError) throw error;
         // 兩個呼叫同時進行時，後到的 delete 前置條件會失敗（整批不寫）；確認 team 已不在就視為已刪。
-        if (isFirestoreError(error, "not-found") && !(await teamSnap.ref.get()).exists) {
-          logger.warn?.("[deleteTeam] team was deleted by a concurrent call", ctx);
-          // 本次呼叫已提交的他人降級仍如實回報（呼叫者自己的降級在失敗的最後一批裡，沒有提交）
-          return { ok: true, alreadyDeleted: true, roleChangedUids, skippedNotifies };
-        }
-        throw error;
+        if (isFirestoreError(error, "not-found") && !(await teamSnap.ref.get()).exists) teamGone = true;
+        else throw error;
+      }
+      // skippedNotifies 是 getter，呼叫者那次 stage 可能剛把它加一，所以要在交易之後讀。
+      const skippedNotifies = roleOutcome.skippedNotifies;
+      if (teamGone) {
+        logger.warn?.("[deleteTeam] team was deleted by a concurrent call", ctx);
+        // 本次呼叫已提交的他人降級仍如實回報（呼叫者自己的降級在未提交的最後一次交易裡，沒有提交）
+        return { ok: true, alreadyDeleted: true, roleChangedUids, skippedNotifies };
       }
       if (callerChange) {
         progress.roleChanges += 1;

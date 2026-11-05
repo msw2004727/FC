@@ -42,10 +42,12 @@ const specs = [
   ['teams-update-owner-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix'],
   ['teams-update-owner-removal', 'teams/{teamId}', 'update', 'owner', 'team-removal'],
   ['teams-update-managed-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix-managed'],
+  // T-090i: user-created owner adds an existing member as coach (one extra users read).
+  ['teams-update-user-created-staff-add', 'teams/{teamId}', 'update', 'owner', 'team-staff-add-user-created'],
   ['coursePlans-create-owner', 'coursePlans/{planId}', 'create', 'owner', 'course'],
   ['coursePlans-create-coach', 'coursePlans/{planId}', 'create', 'coach', 'course'],
   ['coursePlans-create-manager', 'coursePlans/{planId}', 'create', 'manager', 'course'],
-].filter(spec => scope === 'all' || (scope === 'mixed' && (spec[4].startsWith('team-role-mix') || spec[4] === 'team-removal')) || (scope === 'users' && spec[1] === 'users/{userId}' && spec[2] === 'update') || (scope === 'full-events' ? spec[4] === 'event-full' : scope === 'events' ? spec[4].startsWith('event') : scope === 'supplement' && ['team-edit-user-created', 'profile-full'].includes(spec[4])));
+].filter(spec => scope === 'all' || (scope === 'mixed' && (spec[4].startsWith('team-role-mix') || spec[4] === 'team-removal' || spec[4].startsWith('team-staff-add'))) || (scope === 'teams' && spec[1] === 'teams/{teamId}' && spec[2] === 'update') || (scope === 'users' && spec[1] === 'users/{userId}' && spec[2] === 'update') || (scope === 'full-events' ? spec[4] === 'event-full' : scope === 'events' ? spec[4].startsWith('event') : scope === 'supplement' && ['team-edit-user-created', 'profile-full'].includes(spec[4])));
 function paddedRules(match, action, count) {
   if (!count) return source;
   const start = source.indexOf('match /' + match + ' {');
@@ -80,6 +82,7 @@ async function trial(spec, pads) {
       if (kind === 'team') { const data = team({ creatorUid: uid, captainUid: uid }); if (uid === 'granted') delete data.createdVia; await setDoc(doc(db, 'teams', data.id), data); }
       else if (kind.startsWith('team-edit')) await updateDoc(doc(db, 'teams', ID), { name: 'Edited' });
       else if (kind.startsWith('team-role-mix')) await updateDoc(doc(db, 'teams', ID), { coachUids: ['coach', 'member'], coaches: ['Coach', 'Member'], coachNames: ['Coach', 'Member'], members: 2, updatedAt: serverTimestamp() });
+      else if (kind.startsWith('team-staff-add')) await updateDoc(doc(db, 'teams', ID), { coachUids: ['coach', 'member'], coaches: ['Coach', 'Member'], coachNames: ['Coach', 'Member'], updatedAt: serverTimestamp() });
       else if (kind === 'team-removal') await updateDoc(doc(db, 'teams', ID), { coachUids: [], coaches: [], coachNames: [], members: 1, updatedAt: serverTimestamp() });
       else if (kind === 'team-count') await updateDoc(doc(db, 'teams', ID), { members: 1, updatedAt: serverTimestamp() });
       else if (kind.startsWith('team-view')) await updateDoc(doc(db, 'teams', ID), { viewCount: increment(1) });

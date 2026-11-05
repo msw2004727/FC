@@ -57,4 +57,26 @@ describe("getSavedTeamRoleExcludingTeam（T-027 7b(A) 新增，deleteTeam 專用
     };
     await expect(roleOf(teams, "del")).resolves.toBe("coach");
   });
+
+  // T-090i：自建俱樂部（createdVia=='user_capability'）的職員欄位一律不算。
+  test.each([
+    ["只在自建隊當隊長", { other: { createdVia: "user_capability", captainUid: "U-x" } }, "user"],
+    ["只在自建隊當教練", { other: { createdVia: "user_capability", coachUids: ["U-x"] } }, "user"],
+    ["只在自建隊當領隊（leaderUids）", { other: { createdVia: "user_capability", leaderUids: ["U-x"] } }, "user"],
+    ["只在自建隊當領隊（舊 leaderUid）", { other: { createdVia: "user_capability", leaderUid: "U-x" } }, "user"],
+    ["自建隊隊長＋legacy 隊教練", { a: { createdVia: "user_capability", captainUid: "U-x" }, b: { coachUids: ["U-x"] } }, "coach"],
+    ["createdVia 非精確標記視為 legacy", { other: { createdVia: "admin", captainUid: "U-x" } }, "captain"],
+  ])("T-090i %s → %s", async (_label, teams, expected) => {
+    await expect(roleOf(teams, "del")).resolves.toBe(expected);
+    await expect(roleOf(teams, undefined)).resolves.toBe(expected);
+  });
+
+  test("T-090i 大量自建隊掛名不會擠掉同一人的 legacy 隊（分頁讀到底）", async () => {
+    const teams = Object.fromEntries(Array.from({ length: 23 }, (_, i) => [
+      `a${String(i).padStart(2, "0")}`, { createdVia: "user_capability", captainUid: "U-x" },
+    ]));
+    teams.z_legacy = { captainUid: "U-x" };
+    await expect(roleOf(teams, "del")).resolves.toBe("captain");
+    await expect(roleOf(teams, "z_legacy")).resolves.toBe("user");
+  });
 });
