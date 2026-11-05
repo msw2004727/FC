@@ -423,6 +423,10 @@ describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那�
       }
       expect(new Set(LEGACY_MAP.map((p) => p.L)).size).toBe(5);
       expect(new Set(LEGACY_MAP.map((p) => p.D)).size).toBe(5);
+      // 查表範圍（預算用）必須正好是對照表最小～最大的 L，否則有 L 不會被查表。
+      const keys = LEGACY_MAP.map((p) => p.L).sort();
+      const source = fs.readFileSync(RULES_PATH, "utf8");
+      expect(source).toContain(`teamKey >= '${keys[0]}' && teamKey <= '${keys[keys.length - 1]}'`);
     });
 
     test("42. 橋接職員（D 的隊長／教練）剔除 teamIds 含 L 的成員 → 通過", async () => {

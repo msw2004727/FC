@@ -47,6 +47,10 @@ const specs = [
   ['users-update-admin-join', 'users/{userId}', 'update', 'admin', 'staff-join'],
   // T-090k legacy bridge: coach is staff of teams/D, the member key is L (map lookup + id check on the same get).
   ...(LEGACY ? [['users-update-coach-legacy-join', 'users/{userId}', 'update', 'coach', 'legacy-join'], ['users-update-coach-legacy-remove', 'users/{userId}', 'update', 'coach', 'legacy-remove']] : []),
+  // T-090k: coach (not staff) with the team-join-repair grant clears a deleted team key; the coach branch fails first, then repair allows.
+  // 'missing' key is outside the legacy lookup range, 'missing-inrange' sits inside it (worst case: table built, no hit).
+  ['users-update-repair-coach-remove-missing', 'users/{userId}', 'update', 'coach', 'repair-remove-missing'],
+  ['users-update-repair-coach-remove-missing-inrange', 'users/{userId}', 'update', 'coach', 'repair-remove-missing-inrange'],
   ['teams-update-owner-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix'],
   ['teams-update-owner-removal', 'teams/{teamId}', 'update', 'owner', 'team-removal'],
   ['teams-update-managed-role-mix', 'teams/{teamId}', 'update', 'owner', 'team-role-mix-managed'],
@@ -83,6 +87,7 @@ async function trial(spec, pads) {
       await setDoc(doc(db, 'users', 'member'), profile('member', { teamId: ID, teamIds: [ID] }));
       if (caps !== 'missing') await setDoc(doc(db, 'roleActivityCapabilities', 'user'), { capabilities: caps === 'closed' ? [] : [...BASE_CAPS, CAP] });
       if (kind === 'join') await setDoc(doc(db, 'userPermissionGrants', 'owner'), { permissions: ['team.review_join'], enabled: true });
+      if (kind.startsWith('repair-')) { await setDoc(doc(db, 'userPermissionGrants', 'coach'), { permissions: ['admin.repair.team_join_repair'], enabled: true }); const gone = kind.endsWith('-inrange') ? 'tm_1773000000000_aaaaaa' : 'tm_1790000000000_zzzzzz'; await setDoc(doc(db, 'users', 'gonemember'), profile('gonemember', { teamId: gone, teamIds: [gone] })); }
       if (kind.startsWith('legacy-')) { await setDoc(doc(db, 'teams', LEGACY.D), { ...legacy, id: LEGACY.L }); await setDoc(doc(db, 'users', 'legmember'), profile('legmember', { teamId: LEGACY.L, teamIds: [LEGACY.L] })); }
     });
     const db = env.authenticatedContext(uid).firestore();
@@ -105,6 +110,7 @@ async function trial(spec, pads) {
       else if (kind === 'staff-remove') await updateDoc(doc(db, 'users', 'member'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
       else if (kind === 'legacy-join') await updateDoc(doc(db, 'users', 'other'), { teamId: LEGACY.L, teamName: 'Budget team', teamIds: [LEGACY.L], teamNames: ['Budget team'], updatedAt: serverTimestamp() });
       else if (kind === 'legacy-remove') await updateDoc(doc(db, 'users', 'legmember'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
+      else if (kind.startsWith('repair-remove-missing')) await updateDoc(doc(db, 'users', 'gonemember'), { teamId: null, teamName: null, teamIds: [], teamNames: [], updatedAt: serverTimestamp() });
       else if (kind === 'course') await setDoc(doc(db, 'teams', ID, 'coursePlans', 'plan'), { title: 'Course' });
       return { allowed: true };
     } catch (error) {

@@ -1658,13 +1658,18 @@ service cloud.firestore {
         return teamKey is string
           && teamKey.matches('^[^/]+$')
           && !teamKey.matches('^[.]{1,2}$|^__.*__$')
-          && isTeamStaffOfResolvedKey(teamKey, legacyTeamDocIds().get(teamKey, null));
+          && (teamKey >= 'tm_1772098773535_xwom46' && teamKey <= 'tm_1775200536662_oruwll'
+            ? isTeamStaffOfLegacyRangeKey(teamKey, legacyTeamDocIds().get(teamKey, null))
+            : isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey)));
       }
 
       // T-090k legacy bridge：舊格式名單已凍結（createUserTeam 唯一入口＋tm_ 格式），不再新增（2026-11-05 盤點，顧問裁定 §1.9）。
       // 舊格式俱樂部的文件 id（D）不等於 id 欄位（L），成員 users 存的是 L；這裡把 L 對到 D 才能找到隊伍文件。
       // 只在 isTeamStaffOfTeamKey 解析時使用：未列的鍵原樣當文件 id（D 形式與新 tm_ 隊不受影響）；
       // 被對照的鍵在同一次 get 驗 teams/D 的 id 欄位 == L，不符即 false（抄錯只會拒，不會授錯隊）。
+      // 預算：上面先用字串範圍（對照表最小～最大的 L，兩端都含）擋掉範圍外的鍵，範圍外不建對照表、走原本路徑；
+      // 範圍是對照表的上下界，只決定「要不要查表」，查不到仍原樣當文件 id，不影響結果。
+      // （取代 6114256a0「每個鍵都查表」：副機全套 1 案超過 1000 運算式。）改對照表時兩個界限要一起改（測試 41 會檢查）。
       function legacyTeamDocIds() {
         return {
           'tm_1774590829557_m9igzv': 'G3WbDZAzmYADMvaCFc5g',
@@ -1675,27 +1680,34 @@ service cloud.firestore {
         };
       }
 
-      function isTeamStaffOfResolvedKey(teamKey, legacyDocId) {
+      function isTeamStaffOfLegacyRangeKey(teamKey, legacyDocId) {
         return legacyDocId == null
-          ? isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey), null)
-          : isTeamStaffAtPath(/databases/$(database)/documents/teams/$(legacyDocId), teamKey);
+          ? isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey))
+          : isLegacyTeamStaffAtPath(/databases/$(database)/documents/teams/$(legacyDocId), teamKey);
       }
 
-      // expectedLegacyId：null＝一般鍵；非 null＝橋接鍵 L，隊伍文件的 id 欄位必須等於它（與職員判斷共用同一次 get）。
-      function isTeamStaffAtPath(teamPath, expectedLegacyId) {
-        return exists(teamPath) && isTeamStaffData(get(teamPath).data, expectedLegacyId);
+      function isTeamStaffAtPath(teamPath) {
+        return exists(teamPath) && isTeamStaffData(get(teamPath).data);
       }
 
-      function isTeamStaffData(teamData, expectedLegacyId) {
+      // 橋接鍵 L：隊伍文件 teams/D 的 id 欄位必須等於 L（與職員判斷共用同一次 get）。
+      function isLegacyTeamStaffAtPath(teamPath, legacyKey) {
+        return exists(teamPath) && isLegacyTeamStaffData(get(teamPath).data, legacyKey);
+      }
+
+      function isLegacyTeamStaffData(teamData, legacyKey) {
+        return teamData.get('id', null) == legacyKey && isTeamStaffData(teamData);
+      }
+
+      function isTeamStaffData(teamData) {
         let leaders = teamData.get('leaderUids', null);
         let coaches = teamData.get('coachUids', null);
-        return (expectedLegacyId == null || teamData.get('id', null) == expectedLegacyId)
-          && (teamData.get('captainUid', null) == request.auth.uid
-            || teamData.get('creatorUid', null) == request.auth.uid
-            || teamData.get('ownerUid', null) == request.auth.uid
-            || teamData.get('leaderUid', null) == request.auth.uid
-            || (leaders is list && request.auth.uid in leaders)
-            || (coaches is list && request.auth.uid in coaches));
+        return teamData.get('captainUid', null) == request.auth.uid
+          || teamData.get('creatorUid', null) == request.auth.uid
+          || teamData.get('ownerUid', null) == request.auth.uid
+          || teamData.get('leaderUid', null) == request.auth.uid
+          || (leaders is list && request.auth.uid in leaders)
+          || (coaches is list && request.auth.uid in coaches);
       }
 
       // T-090k：非 admin 的 coach 以上改他人隊伍欄位時，一次只能新增或移除「一支」隊，且自己必須是那支隊的職員
