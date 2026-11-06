@@ -6,7 +6,7 @@
 // 舊欄位（noShowCount／expectedCount 等）的算法不在這裡，維持原樣。
 
 // 起算點（台北日期，補零 YYYY-MM-DD）。佔位值；部署前改成部署隔天。
-const NOSHOW_V2_SINCE = "2026-11-08";
+const NOSHOW_V2_SINCE = "2026-11-07";
 const ATTENDANCE_FLAG_COLLECTION = "eventAttendanceFlags";
 const TAIPEI_OFFSET_HOURS = 8;
 
