@@ -8,6 +8,9 @@ const EVENT_SHARE_OG_PATH = "/eventShareOg";
 const RUNTIME_CONFIG_PATH = "/runtime-config.json";
 const RUNTIME_CONFIG_FUNCTION_PATH = "/runtimeConfig";
 const EDGE_CACHE_TTL = 300; // 5 minutes
+// 與 functions/index.js `OG_CRAWLER_USER_AGENT_RE` 相同：上游對爬蟲回無跳轉版、對真人回跳轉版，邊緣快取鍵必須分開，
+// 否則爬蟲先抓過的分享連結，5 分鐘內真人點開會停在沒有跳轉的頁面（2026-11-06 修，B 同批）。
+const OG_CRAWLER_USER_AGENT_RE = /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|whatsapp|pinterest|skypeuripreview|linespider|googlebot|google-inspectiontool|applebot|embedly|quora link preview|outbrain|vkshare|tumblr|threads)/i;
 const LIST_SPA_PATHS = new Set(["/activities", "/teams", "/tournaments", "/profile"]);
 const DETAIL_SPA_ROOTS = new Set(["events", "teams", "tournaments"]);
 const OPS_REPORT_PATHS = new Set(["/ops-report", "/ops-report.html"]);
@@ -121,7 +124,9 @@ async function handleOgShare(request, buildUrlFn) {
 
   // Edge Cache: check cache first
   const cache = caches.default;
-  const cacheKey = new Request(request.url, { method: "GET" });
+  const cacheKeyUrl = new URL(request.url);
+  cacheKeyUrl.searchParams.set("__ogbot", OG_CRAWLER_USER_AGENT_RE.test(request.headers.get("user-agent") || "") ? "1" : "0");
+  const cacheKey = new Request(cacheKeyUrl.toString(), { method: "GET" });
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
