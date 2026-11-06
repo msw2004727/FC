@@ -1644,6 +1644,134 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
+      // T-090k（顧問 11-06 §1.13 裁定）：users 文件的「有效隊伍清單」E：teamIds 是非空 list 就用 teamIds；否則 teamId 是字串就用 [teamId]；否則 []。
+      // 與後端 getUserTeamIds（只認非空 teamIds，空才退回 teamId）及 A／B 寫入（teamId＝teamIds[0]）一致。
+      // （取代 teamIds∪teamId 聯集：Grok 交叉審查 P1，聯集讓 teamId 掩護 teamIds 的第二筆增減，例如 [A]/A → [C]/A 會把 A 移出 teamIds。）
+      // 只給 coach 分支的 isTeamStaffMembershipDelta 使用。
+      function userTeamKeysOf(data) {
+        let ids = data.get('teamIds', null);
+        let primary = data.get('teamId', null);
+        return (ids is list && ids.size() > 0)
+          ? ids
+          : (primary is string ? [primary] : []);
+      }
+
+      // T-090k（審查修正）：與 isCurrentUserTeamStaff 同一組職員欄位，隊伍文件 exists＋get 各一次、欄位用 .get() 取。
+      // 只回 true／false、不產生錯誤值：teamKey 不是字串、不是合法單段文件 id（空字串、含 '/'、'.'、'..'、__x__）
+      // 或隊伍文件不存在時直接 false；leaderUids／coachUids 先驗 is list 再比對，型別壞的欄位只讓該項為 false。
+      // （取代前一版「get 錯誤值→拒」：錯誤值在 || 裡可能被下一個分支的 true 蓋過，也可能讓整條式子變錯誤值而誤擋其他分支。）
+      function isTeamStaffOfTeamKey(teamKey) {
+        return teamKey is string
+          && teamKey.matches('^[^/]+$')
+          && !teamKey.matches('^[.]{1,2}$|^__.*__$')
+          && (teamKey >= 'tm_1772098773535_xwom46' && teamKey <= 'tm_1775200536662_oruwll'
+            ? isTeamStaffOfLegacyRangeKey(teamKey, legacyTeamDocIds().get(teamKey, null))
+            : isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey)));
+      }
+
+      // T-090k legacy bridge：舊格式名單已凍結（createUserTeam 唯一入口＋tm_ 格式），不再新增（2026-11-05 盤點，顧問裁定 §1.9）。
+      // 舊格式俱樂部的文件 id（D）不等於 id 欄位（L），成員 users 存的是 L；這裡把 L 對到 D 才能找到隊伍文件。
+      // 只在 isTeamStaffOfTeamKey 解析時使用：未列的鍵原樣當文件 id（D 形式與新 tm_ 隊不受影響）；
+      // 被對照的鍵在同一次 get 驗 teams/D 的 id 欄位 == L，不符即 false（抄錯只會拒，不會授錯隊）。
+      // 預算：上面先用字串範圍（對照表最小～最大的 L，兩端都含）擋掉範圍外的鍵，範圍外不建對照表、走原本路徑；
+      // 範圍是對照表的上下界，只決定「要不要查表」，查不到仍原樣當文件 id，不影響結果。
+      // （取代 6114256a0「每個鍵都查表」：副機全套 1 案超過 1000 運算式。）改對照表時兩個界限要一起改（測試 41 會檢查）。
+      function legacyTeamDocIds() {
+        return {
+          'tm_1774590829557_m9igzv': 'G3WbDZAzmYADMvaCFc5g',
+          'tm_1772099699445_naajv3': 'Nh35tT1SLIiZz6nbVegE',
+          'tm_1774501575628_nox9py': 'QLW6HsCEtm9B8JxvooyS',
+          'tm_1772098773535_xwom46': 'fr1TOptgysV5HFYzChNa',
+          'tm_1775200536662_oruwll': 'pTB68IEojMZkhbsrR159'
+        };
+      }
+
+      function isTeamStaffOfLegacyRangeKey(teamKey, legacyDocId) {
+        return legacyDocId == null
+          ? isTeamStaffAtPath(/databases/$(database)/documents/teams/$(teamKey))
+          : isLegacyTeamStaffAtPath(/databases/$(database)/documents/teams/$(legacyDocId), teamKey);
+      }
+
+      function isTeamStaffAtPath(teamPath) {
+        return exists(teamPath) && isTeamStaffData(get(teamPath).data);
+      }
+
+      // 橋接鍵 L：隊伍文件 teams/D 的 id 欄位必須等於 L（與職員判斷共用同一次 get）。
+      function isLegacyTeamStaffAtPath(teamPath, legacyKey) {
+        return exists(teamPath) && isLegacyTeamStaffData(get(teamPath).data, legacyKey);
+      }
+
+      function isLegacyTeamStaffData(teamData, legacyKey) {
+        return teamData.get('id', null) == legacyKey && isTeamStaffData(teamData);
+      }
+
+      function isTeamStaffData(teamData) {
+        let leaders = teamData.get('leaderUids', null);
+        let coaches = teamData.get('coachUids', null);
+        return teamData.get('captainUid', null) == request.auth.uid
+          || teamData.get('creatorUid', null) == request.auth.uid
+          || teamData.get('ownerUid', null) == request.auth.uid
+          || teamData.get('leaderUid', null) == request.auth.uid
+          || (leaders is list && request.auth.uid in leaders)
+          || (coaches is list && request.auth.uid in coaches);
+      }
+
+      // T-090k：非 admin 的 coach 以上改他人隊伍欄位時，一次只能新增或移除「一支」隊，且自己必須是那支隊的職員
+      // （captainUid／creatorUid／ownerUid／leaderUid／leaderUids／coachUids），其他隊的條目不得增減。
+      // 取代原本「任何 coach 以上可改任意用戶任意隊」的寫法（S4 前複核 P2）；隊名欄位只驗型別，不比對內容。
+      function isTeamStaffMembershipDelta() {
+        let oldKeys = userTeamKeysOf(resource.data);
+        let newKeys = userTeamKeysOf(request.resource.data);
+        let added = newKeys.removeAll(oldKeys);
+        let removed = oldKeys.removeAll(newKeys);
+        let newPrimary = request.resource.data.get('teamId', null);
+        let newIds = request.resource.data.get('teamIds', null);
+        // 顧問 11-06 §1.14：新寫入必須是正規形狀——teamIds 非空時 teamId 是字串且在 teamIds 內；teamIds 空／null／缺時 teamId 必須是 null。
+        // （取代 §1.13 的「teamId 屬於新有效清單」：Grok 第二輪 P2，[A,B]/A 清成 []/A 或 null/A 會讓 E 退回 [A]、看似只移除 B。）
+        return ((newIds is list && newIds.size() > 0)
+            ? (newPrimary is string && newPrimary in newIds)
+            : newPrimary == null)
+          && added.toSet().size() + removed.toSet().size() == 1
+          && isTeamStaffOfTeamKey(added.size() > 0 ? added[0] : removed[0]);
+      }
+
+      // T-090k（精簡版）：coach 以上分支的角色只算一次（authRole 每次呼叫都重讀 users 文件），
+      // 等同原本 isCoachPlus() && … && (isAdmin() || …)：兩者都是 request.auth != null && authRole() in 清單。
+      // 顧問 11-06 §1.14：coach 以上且持 team.manage_all（rolePermissions 或個別授權）與 admin 同樣不受「自己那隊」與正規形狀限制；
+      // 放在職員判斷之後，只有職員判斷失敗才多讀權限文件。
+      // 同一次讀權限也收 admin.repair.team_join_repair：這是後面 (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
+      // 的子集（canRunTeamJoinRepair＝isSuperAdmin() || hasEffectivePerm(該權限)，且本分支已含 isSafeTeamMembershipUpdateByStaff），不擴權；
+      // 目的是讓持入隊修復授權的 coach 在職員判斷失敗後就地放行，不必再跑後面分支而超過 1000 運算式（Opus 第三輪 P2）。
+      function isCoachPlusTeamMembershipUpdate(role) {
+        return request.auth != null
+          && role in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin']
+          && !isOwner(userId)
+          && isSafeTeamMembershipUpdateByStaff()
+          && (role in ['admin', 'super_admin']
+            || isTeamStaffMembershipDelta()
+            || hasAnyEffectivePermForRole(role, ['team.manage_all', 'admin.repair.team_join_repair']));
+      }
+
+      // 持有 perms 其中任一個：允許結果同 hasEffectivePerm 逐一 OR（角色權限或個別授權；個別授權的 enabled 缺省視為 true，
+      // 同 hasUserPermissionGrantForUid），角色由呼叫端傳入，省掉 authRole 再讀一次 users 文件；兩份權限文件各讀一次。
+      // 只回 true／false：文件不存在、permissions 欄位缺或型別壞都是 false，不產生錯誤值（ed1816bb7 起；Grok 第三輪 P2 經 Opus 判讀
+      // 不構成回歸——錯誤值 || true＝true——但布林化保留，判斷較清楚）。
+      function hasAnyEffectivePermForRole(role, perms) {
+        let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+        let grantPath = /databases/$(database)/documents/userPermissionGrants/$(request.auth.uid);
+        return (role != 'user' && exists(rpPath) && isAnyPermInList(get(rpPath).data.get('permissions', null), perms))
+          || (exists(grantPath) && isEnabledGrantWithAnyPerm(get(grantPath).data, perms));
+      }
+
+      function isAnyPermInList(values, perms) {
+        return values is list && values.hasAny(perms);
+      }
+
+      function isEnabledGrantWithAnyPerm(grantData, perms) {
+        return grantData.get('enabled', true) == true
+          && isAnyPermInList(grantData.get('permissions', null), perms);
+      }
+
       function isManagedAddedTeamAt(oldTeamIds, newTeamIds, index) {
         return newTeamIds.size() > index
           && newTeamIds[index] is string
@@ -1713,9 +1841,12 @@ service cloud.firestore {
       allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
         || (isOwner(userId) && isSafeLoginUpdate())
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
+        // T-090k：admin／super_admin 維持原樣（A 入隊審核允許 admin、資料同步清無效隊伍）；其餘 coach 以上限自己當職員的那一隊。
+        // 這條排在 super_admin／入隊修復之前，省掉 coach 路徑先算的兩次權限判斷。它只回 true／false（職員判斷不產生錯誤值），
+        // 為 false 時照常往下評估後面的分支，所以不會擋掉 super_admin、入隊修復或個別授權原本允許的寫入。
+        || isCoachPlusTeamMembershipUpdate(authRole())
         || (isSuperAdmin() && isSafeSuperAdminUserUpdate())
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
-        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff())
         || isSafeGrantedTeamReviewJoinUpdate();
       allow delete: if false;
 

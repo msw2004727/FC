@@ -20,6 +20,7 @@ const {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   setLogLevel,
   serverTimestamp,
 } = require("firebase/firestore");
@@ -139,8 +140,9 @@ describe("allow（鎖住現況）：Callable 上線後前端直寫路徑維持�
     await assertSucceeds(write(CAP, MEMBER_LEGACY, CLEARED));
   });
 
-  test("4. 1713 不綁定俱樂部：role=coach 但不是 team_main 幹部者也能清空 team_main 成員（現況，列為收緊候選）", async () => {
-    await assertSucceeds(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+  // T-090k：原本鎖住「不綁定俱樂部」的現況（列為收緊候選），收緊後改成拒絕。
+  test("4. T-090k：role=coach 但不是 team_main 幹部者清空 team_main 成員 → 拒", async () => {
+    await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
   });
 
   test("5. admin（1713）與 super_admin（1711）清空他人", async () => {
@@ -209,5 +211,488 @@ describe("deny（新增）：coach 以上也只能動四個隊伍欄位＋update
 
   test("19. teamName 不是 string／null → 拒", async () => {
     await assertFails(write(CAP, MEMBER_ONE, { ...CLEARED, teamName: ["Main"] }));
+  });
+});
+
+describe("T-090k：非 admin 的 coach 以上只能增減自己當職員的那一隊", () => {
+  const COACH_MAIN = "coach_main";     // users.role=coach，team_main coachUids 內
+  const LEADER_MAIN = "leader_main";   // users.role=coach，team_main leaderUids 內（無個別授權）
+  const MEMBER_INCONSISTENT = "member_inconsistent"; // 舊資料：teamIds 與 teamId 不一致
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "teams", TEAM_MAIN), {
+        id: TEAM_MAIN, name: "Main", captainUid: CAP, leaderUids: [GRANT_LEADER, LEADER_MAIN], coachUids: [COACH_MAIN],
+      });
+      await setDoc(doc(db, "users", COACH_MAIN), { uid: COACH_MAIN, role: "coach", ...membership([TEAM_MAIN]) });
+      await setDoc(doc(db, "users", LEADER_MAIN), { uid: LEADER_MAIN, role: "coach", ...membership([TEAM_MAIN]) });
+      await setDoc(doc(db, "users", MEMBER_INCONSISTENT), {
+        uid: MEMBER_INCONSISTENT, role: "user",
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["Low"],
+      });
+    });
+  });
+
+  describe("allow", () => {
+    test("20. 隊長（coach 以上）核准：在尾端加入自己那隊", async () => {
+      await assertSucceeds(write(CAP, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertSucceeds(write(CAP, MEMBER_LOW, membership(["team_low", TEAM_MAIN])));
+    });
+
+    test("21. coachUids 內的教練、leaderUids 內的領隊（coach 以上）可加入／移除自己那隊", async () => {
+      await assertSucceeds(write(COACH_MAIN, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertSucceeds(write(LEADER_MAIN, MEMBER_TWO, membership([TEAM_OTHER])));
+    });
+
+    test("22. 移除第一隊時 teamId 改指向原本就有的下一隊（不算新增）", async () => {
+      await assertSucceeds(write(CAP, MEMBER_TWO, membership([TEAM_OTHER])));
+    });
+
+    // T-090k（Grok P1 修正後，顧問 11-06 §1.13 裁定改拒）：有效清單只看非空 teamIds（[team_low]），不再把 teamId（team_other）併進來。
+    // 把 team_other 併進 teamIds 再加 team_main ＝ 有效清單一次多兩隊 → 拒；只加自己那隊 → 通過。
+    // 正式資料 teamId 不在 teamIds 的帳號 0 筆（2026-11-05 盤點 teamIdNotInTeamIds）。
+    test("23. 舊資料 teamIds 與 teamId 不一致時，只看 teamIds：併入 teamId＋加自己那隊拒、只加自己那隊過", async () => {
+      await assertFails(write(CAP, MEMBER_INCONSISTENT, {
+        teamId: "team_low", teamName: "Low",
+        teamIds: ["team_low", TEAM_OTHER, TEAM_MAIN], teamNames: ["Low", "Other", "Main"],
+      }));
+      await assertSucceeds(write(CAP, MEMBER_INCONSISTENT, {
+        teamId: "team_low", teamName: "Low",
+        teamIds: ["team_low", TEAM_MAIN], teamNames: ["Low", "Main"],
+      }));
+    });
+
+    test("24. admin 不是幹部仍可核准／移除（A 入隊審核允許 admin、資料同步清無效隊伍）", async () => {
+      await assertSucceeds(write(ADMIN, EMPTY_USER, membership([TEAM_OTHER])));
+      await assertSucceeds(write(ADMIN, MEMBER_LOW_TWO, membership(["team_low"])));
+    });
+  });
+
+  describe("deny", () => {
+    test("25. 不是該隊職員的 coach 把他人加進該隊 → 拒", async () => {
+      await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_MAIN])));
+      await assertFails(write(CAP, EMPTY_USER, membership([TEAM_OTHER])));
+    });
+
+    test("26. 職員移除他人「別隊」的條目 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, membership([TEAM_MAIN])));
+      await assertFails(write(COACH_MAIN, MEMBER_LOW_TWO, membership(["team_low"])));
+    });
+
+    test("27. 同一筆同時加自己那隊、移除別隊 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_LOW_TWO, membership(["team_low", TEAM_MAIN])));
+    });
+
+    test("28. 一次加入兩隊（含自己那隊）→ 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, membership([TEAM_MAIN, TEAM_OTHER])));
+    });
+
+    // 有效清單只看非空 teamIds（前後都是 [team_low]，沒有增減），且新 teamId 不在新清單內 → 拒。
+    // 換成自己是職員的隊也一樣拒（見 40，顧問 11-06 §1.13 裁定）。
+    test("29. teamIds 不變、把 teamId 換成自己不是職員的別隊 → 拒", async () => {
+      await assertFails(write(CAP, MEMBER_LOW, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low"], teamNames: ["team_low-name"],
+      }));
+    });
+
+    test("30. 只調整他人隊伍順序（沒有增減）→ 拒", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, membership([TEAM_OTHER, TEAM_MAIN])));
+    });
+
+    test("31. 職員加入自己那隊的同時改 role → 拒（欄位白名單不變）", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { ...membership([TEAM_MAIN]), role: "coach" }));
+    });
+  });
+
+  // T-090k 精簡版：職員判斷改成單次 get＋.get()，逐一鎖住 isCurrentUserTeamStaff 原本涵蓋的欄位與「隊伍不存在」。
+  describe("精簡版職員欄位逐一對照", () => {
+    const OWNER_ONLY = "owner_only";       // team_owner_only 只有 ownerUid
+    const CREATOR_ONLY = "creator_only";   // team_creator_only 只有 creatorUid
+    const LEGACY_LEADER = "legacy_leader"; // team_legacy_leader 只有舊欄位 leaderUid
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", "team_owner_only"), { id: "team_owner_only", name: "OwnerOnly", ownerUid: OWNER_ONLY });
+        await setDoc(doc(db, "teams", "team_creator_only"), { id: "team_creator_only", name: "CreatorOnly", creatorUid: CREATOR_ONLY });
+        await setDoc(doc(db, "teams", "team_legacy_leader"), { id: "team_legacy_leader", name: "LegacyLeader", leaderUid: LEGACY_LEADER });
+        for (const uid of [OWNER_ONLY, CREATOR_ONLY, LEGACY_LEADER]) {
+          await setDoc(doc(db, "users", uid), { uid, role: "coach", ...membership([]) });
+        }
+        await setDoc(doc(db, "users", "member_legacy_leader"), { uid: "member_legacy_leader", role: "user", ...membership(["team_legacy_leader", TEAM_OTHER]) });
+      });
+    });
+
+    test("32. 只有 ownerUid／creatorUid 的隊主（coach 以上）可把他人加入自己那隊", async () => {
+      await assertSucceeds(write(OWNER_ONLY, EMPTY_USER, membership(["team_owner_only"])));
+      await assertSucceeds(write(CREATOR_ONLY, MEMBER_ONE, membership([TEAM_MAIN, "team_creator_only"])));
+    });
+
+    test("33. 舊欄位 leaderUid 的領隊（coach 以上）可移除自己那隊、不能移除別隊", async () => {
+      await assertFails(write(LEGACY_LEADER, "member_legacy_leader", membership(["team_legacy_leader"])));
+      await assertSucceeds(write(LEGACY_LEADER, "member_legacy_leader", membership([TEAM_OTHER])));
+    });
+
+    test("34. 加入不存在的隊 → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, membership(["team_missing"])));
+    });
+
+    test("35. 別隊的隊主不能把他人加入這隊", async () => {
+      await assertFails(write(OWNER_ONLY, EMPTY_USER, membership(["team_creator_only"])));
+    });
+  });
+
+  // T-090k 審查補強（Opus／Grok）：職員判斷只回布林、不產生錯誤值。
+  describe("審查補強：錯誤值與髒資料", () => {
+    const REPAIR_COACH = "repair_coach";   // users.role=coach，非 admin，持 admin.repair.team_join_repair 個別授權
+    const NULL_LEADERS_COACH = "null_leaders_coach";
+    const MEMBER_DELETED_TEAM = "member_deleted_team"; // teamId／teamIds 指向已刪除的隊
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "users", REPAIR_COACH), { uid: REPAIR_COACH, role: "coach", ...membership([]) });
+        await setDoc(doc(db, "userPermissionGrants", REPAIR_COACH), {
+          permissions: ["admin.repair.team_join_repair"],
+          enabled: true,
+        });
+        await setDoc(doc(db, "users", MEMBER_DELETED_TEAM), { uid: MEMBER_DELETED_TEAM, role: "user", ...membership(["team_deleted"]) });
+        await setDoc(doc(db, "teams", "team_null_leaders"), {
+          id: "team_null_leaders", name: "NullLeaders", leaderUids: null, coachUids: [NULL_LEADERS_COACH],
+        });
+        await setDoc(doc(db, "users", NULL_LEADERS_COACH), { uid: NULL_LEADERS_COACH, role: "coach", ...membership([]) });
+      });
+    });
+
+    // coach 分支先評估：移除的隊不存在 → 該分支為 false（不是錯誤值），再由入隊修復分支放行。
+    test("36. 持入隊修復授權的 coach（非 admin）清掉單一已刪除隊伍 → 通過", async () => {
+      await assertSucceeds(write(REPAIR_COACH, MEMBER_DELETED_TEAM, CLEARED));
+    });
+
+    // 只有那一個壞元素是新增的鍵，所以拒絕原因是型別，不是「一次加兩隊」。
+    test("37. 新增的隊伍鍵是數字或 map → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { teamId: null, teamName: null, teamIds: [42], teamNames: ["x"] }));
+      await assertFails(write(CAP, EMPTY_USER, { teamId: null, teamName: null, teamIds: [{ id: TEAM_MAIN }], teamNames: ["Main"] }));
+    });
+
+    test("38. 新增的 teamId 含 '/' → 拒", async () => {
+      await assertFails(write(CAP, EMPTY_USER, { teamId: `${TEAM_MAIN}/x`, teamName: "Main", teamIds: [], teamNames: [] }));
+      await assertFails(write(CAP, EMPTY_USER, { teamId: `x/${TEAM_MAIN}`, teamName: "Main", teamIds: [], teamNames: [] }));
+    });
+
+    test("39. 隊伍 leaderUids 為 null、本人只在 coachUids → 可把他人加入該隊", async () => {
+      await assertSucceeds(write(NULL_LEADERS_COACH, EMPTY_USER, membership(["team_null_leaders"])));
+    });
+
+    // T-090k（Grok P1 修正後，顧問 11-06 §1.13 裁定改拒）：原本聯集算法放行，會造出 teamId 指向 team_main、teamIds 仍只有 team_low 的髒資料形狀。
+    // 現在有效清單只看非空 teamIds（前後都是 [team_low]，沒有增減），且新 teamId 不在新清單內 → 拒。
+    test("40. teamIds 不變、把 teamId 換成自己是職員的那隊 → 拒（不再造出 teamId 不在 teamIds 的形狀）", async () => {
+      await assertFails(write(CAP, MEMBER_LOW, {
+        teamId: TEAM_MAIN, teamName: "Main", teamIds: ["team_low"], teamNames: ["team_low-name"],
+      }));
+    });
+  });
+
+  // T-090k Grok 交叉審查 P1：teamId 不得掩護 teamIds 的第二筆增減。
+  describe("Grok P1：teamId 掩護 teamIds 的攻擊形狀", () => {
+    const VICTIM_ONE = "victim_one"; // teamIds:[team_other]、teamId:team_other（CAP 不是 team_other 職員）
+    const VICTIM_TWO = "victim_two"; // teamIds:[team_low, team_other]、teamId:team_low
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "users", VICTIM_ONE), { uid: VICTIM_ONE, role: "user", ...membership([TEAM_OTHER]) });
+        await setDoc(doc(db, "users", VICTIM_TWO), { uid: VICTIM_TWO, role: "user", ...membership(["team_low", TEAM_OTHER]) });
+      });
+    });
+
+    test("52. 攻擊①：[A]/A → teamIds:[C]、teamId:A（C 是自己的隊）→ 拒（不得把 A 移出 teamIds）", async () => {
+      await assertFails(write(CAP, VICTIM_ONE, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN], teamNames: ["Main"],
+      }));
+    });
+
+    test("53. 攻擊②：[A,B]/A → teamIds:[A,C]、teamId:B → 拒（不得刪掉 B）", async () => {
+      await assertFails(write(CAP, VICTIM_TWO, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: ["team_low", TEAM_MAIN], teamNames: ["Low", "Main"],
+      }));
+    });
+
+    test("54. 同一受害者的正常核准仍通過：[A]/A → [A,C]/A", async () => {
+      await assertSucceeds(write(CAP, VICTIM_ONE, membership([TEAM_OTHER, TEAM_MAIN])));
+    });
+
+    test("55. 新 teamId 指到新清單外的隊 → 拒（只加自己那隊，但 teamId 指向別隊）", async () => {
+      await assertFails(write(CAP, EMPTY_USER, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN], teamNames: ["Main"],
+      }));
+    });
+
+    // 顧問 11-06 §1.13 裁定必補：[A,B]/A → [A,B]/B（teamIds 不變只換主隊）→ 拒；剔除首隊 [A,X]/A → [X]/X 允許見測試 22。
+    test("56. [A,B]/A → [A,B]/B：teamIds 不變、只把 teamId 換成清單內另一隊 → 拒（沒有增減）", async () => {
+      await assertFails(write(CAP, MEMBER_TWO, {
+        teamId: TEAM_OTHER, teamName: "Other", teamIds: [TEAM_MAIN, TEAM_OTHER], teamNames: ["Main", "Other"],
+      }));
+    });
+
+    // Grok 第二輪 P2：[A,B]/A 由 B 職員把 teamIds 清成 []／null、teamId 留 A，E 退回 [A] 看似只移除 B，實際 A 從 teamIds 消失。
+    describe("Grok 第二輪 P2：清空 teamIds、留 teamId", () => {
+      const VICTIM_THREE = "victim_three"; // teamIds:[team_other, team_main]、teamId:team_other（CAP 是 team_main 職員）
+
+      beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "users", VICTIM_THREE), { uid: VICTIM_THREE, role: "user", ...membership([TEAM_OTHER, TEAM_MAIN]) });
+        });
+      });
+
+      test("57. [A,B]/A → teamIds:[]、teamId:A → 拒", async () => {
+        await assertFails(write(CAP, VICTIM_THREE, { teamId: TEAM_OTHER, teamName: "Other", teamIds: [], teamNames: [] }));
+      });
+
+      test("58. [A,B]/A → teamIds:null、teamId:A → 拒", async () => {
+        await assertFails(write(CAP, VICTIM_THREE, { teamId: TEAM_OTHER, teamName: "Other", teamIds: null, teamNames: null }));
+      });
+
+      test("59. [A,B]/A → [A]/A（B 職員只移除 B）→ 通過", async () => {
+        await assertSucceeds(write(CAP, VICTIM_THREE, membership([TEAM_OTHER])));
+      });
+
+      // 顧問 11-06 §1.14 正規形狀：teamIds 非空時 teamId 必須是其中之一；空時 teamId 必須是 null。
+      // 允許案例對照：[A]/A→[]/null 見 1；[]/L→[]/null 見 46；[]/L→[L,X]/L 見 47；[A,X]/A→[X]/X 見 22。
+      test("63. [A,X]/A → [X]/null（teamIds 非空卻清掉 teamId）→ 拒", async () => {
+        await assertFails(write(CAP, MEMBER_TWO, { teamId: null, teamName: null, teamIds: [TEAM_OTHER], teamNames: ["Other"] }));
+      });
+    });
+
+    // 顧問 11-06 §1.14：coach 以上持 team.manage_all（rolePermissions 或個別授權）不受「自己那隊」限制。
+    describe("team.manage_all 持有人", () => {
+      const GRANT_MANAGE_COACH = "grant_manage_coach"; // users.role=coach，個別授權 team.manage_all
+
+      test("64. coach 角色＋rolePermissions/coach 含 team.manage_all：剔除／核准非自己職員的隊 → 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "rolePermissions", "coach"), { permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertSucceeds(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+
+      test("65. rolePermissions/coach 不含 team.manage_all → 拒", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), "rolePermissions", "coach"), { permissions: ["team.review_join"] });
+        });
+        await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+
+      test("66. coach 角色＋個別授權 userPermissionGrants 含 team.manage_all（enabled:true）→ 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "users", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, role: "coach", ...membership([]) });
+          await setDoc(doc(db, "userPermissionGrants", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, enabled: true, permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(GRANT_MANAGE_COACH, MEMBER_ONE, CLEARED));
+        await assertSucceeds(write(GRANT_MANAGE_COACH, EMPTY_USER, membership([TEAM_OTHER])));
+      });
+
+      // Grok 第三輪 P2：manage_all 判斷不得產生錯誤值，否則 allow update 的 OR 停在 coach 分支、後面的入隊修復不被計算。
+      test("67. 角色權限只有入隊修復、沒有個人授權文件的 coach 清掉已刪除隊伍 → 通過（由入隊修復分支放行）", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { permissions: ["admin.repair.team_join_repair"] });
+          await setDoc(doc(db, "users", "member_gone_team"), { uid: "member_gone_team", role: "user", ...membership(["team_gone"]) });
+        });
+        await assertSucceeds(write(COACH_OUTSIDER, "member_gone_team", CLEARED));
+      });
+
+      test("68. 角色權限文件沒有 permissions 欄位、個人授權含 team.manage_all → 通過", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { label: "no permissions field" });
+          await setDoc(doc(db, "users", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, role: "coach", ...membership([]) });
+          await setDoc(doc(db, "userPermissionGrants", GRANT_MANAGE_COACH), { uid: GRANT_MANAGE_COACH, enabled: true, permissions: ["team.manage_all"] });
+        });
+        await assertSucceeds(write(GRANT_MANAGE_COACH, MEMBER_ONE, CLEARED));
+      });
+
+      test("69. 角色權限與個人授權都沒有 manage_all／入隊修復（含文件缺欄位）→ 拒", async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "rolePermissions", "coach"), { label: "no permissions field" });
+          await setDoc(doc(db, "userPermissionGrants", COACH_OUTSIDER), { uid: COACH_OUTSIDER, enabled: true });
+          await setDoc(doc(db, "users", "member_gone_team"), { uid: "member_gone_team", role: "user", ...membership(["team_gone"]) });
+        });
+        await assertFails(write(COACH_OUTSIDER, MEMBER_ONE, CLEARED));
+        await assertFails(write(COACH_OUTSIDER, "member_gone_team", CLEARED));
+      });
+    });
+
+    // Opus 建議：E 的退回寫法（舊 teamIds 為 null／空 list 時改看 teamId）與非法鍵。
+    describe("有效清單 E 的退回與非法鍵", () => {
+      const FALLBACK_NULL = "fallback_null";   // teamIds:null、teamId:team_other
+      const FALLBACK_EMPTY = "fallback_empty"; // teamIds:[]、teamId:team_other
+
+      beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          const db = ctx.firestore();
+          await setDoc(doc(db, "users", FALLBACK_NULL), { uid: FALLBACK_NULL, role: "user", teamId: TEAM_OTHER, teamName: "Other", teamIds: null, teamNames: null });
+          await setDoc(doc(db, "users", FALLBACK_EMPTY), { uid: FALLBACK_EMPTY, role: "user", teamId: TEAM_OTHER, teamName: "Other", teamIds: [], teamNames: [] });
+        });
+      });
+
+      test("60. 舊 teamIds 為 null／[]＋teamId:A，A 不是職員的隊 → 核准成 [A,C]/A 通過（E 舊值＝[A]，只多 C）", async () => {
+        await assertSucceeds(write(CAP, FALLBACK_NULL, membership([TEAM_OTHER, TEAM_MAIN])));
+        await assertSucceeds(write(CAP, FALLBACK_EMPTY, membership([TEAM_OTHER, TEAM_MAIN])));
+      });
+
+      test("61. 舊 teamIds 為 null／[]＋teamId:A，非 A 職員清空 → 拒（E 舊值＝[A]，移除的是 A）", async () => {
+        await assertFails(write(CAP, FALLBACK_NULL, CLEARED));
+        await assertFails(write(CAP, FALLBACK_EMPTY, CLEARED));
+      });
+
+      test("62. 新增的鍵是 '.'、'..'、'__x__'、空字串 → 拒", async () => {
+        for (const key of [".", "..", "__x__", ""]) {
+          await assertFails(write(CAP, EMPTY_USER, { teamId: key, teamName: "Bad", teamIds: [key], teamNames: ["Bad"] }));
+        }
+      });
+    });
+  });
+
+  // T-090k legacy bridge（顧問裁定 §1.9）：舊格式俱樂部文件 id（D）≠ id 欄位（L），成員存 L。
+  // 對照表寫死在 firestore.rules 的 legacyTeamDocIds()，這裡從 Rules 原文讀出，測試不另抄 id。
+  describe("舊格式俱樂部橋接（L→D）", () => {
+    const LEGACY_MAP = (() => {
+      const source = fs.readFileSync(RULES_PATH, "utf8");
+      const body = /function legacyTeamDocIds\(\) \{\s*return \{([\s\S]*?)\};/.exec(source);
+      if (!body) throw new Error("firestore.rules 找不到 legacyTeamDocIds()");
+      return [...body[1].matchAll(/'([^']+)':\s*'([^']+)'/g)].map((m) => ({ L: m[1], D: m[2] }));
+    })();
+    const { L, D } = LEGACY_MAP[0];
+    const LEG_CAP = "leg_cap";                   // users.role=captain，teams/D 的 captainUid
+    const LEG_COACH = "leg_coach";               // users.role=coach，teams/D 的 coachUids 內
+    const SHADOW_CAP = "shadow_cap";             // users.role=captain，只是 teams/L（非 D）文件的隊長
+    const MEMBER_LEG = "member_leg";             // teamIds:[L]、teamId:L
+    const MEMBER_LEG_TWO = "member_leg_two";     // 同上，給第二位橋接職員剔除
+    const MEMBER_LEG_EMPTY = "member_leg_empty"; // 8 人那種形狀：teamIds:[]、teamId:L
+
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", D), { id: L, name: "Legacy", captainUid: LEG_CAP, leaderUids: [], coachUids: [LEG_COACH] });
+        await setDoc(doc(db, "users", LEG_CAP), { uid: LEG_CAP, role: "captain", ...membership([L]) });
+        await setDoc(doc(db, "users", LEG_COACH), { uid: LEG_COACH, role: "coach", ...membership([L]) });
+        await setDoc(doc(db, "users", SHADOW_CAP), { uid: SHADOW_CAP, role: "captain", ...membership([]) });
+        await setDoc(doc(db, "users", MEMBER_LEG), { uid: MEMBER_LEG, role: "user", ...membership([L]) });
+        await setDoc(doc(db, "users", MEMBER_LEG_TWO), { uid: MEMBER_LEG_TWO, role: "user", ...membership([L]) });
+        await setDoc(doc(db, "users", MEMBER_LEG_EMPTY), {
+          uid: MEMBER_LEG_EMPTY, role: "user", teamId: L, teamName: "Legacy", teamIds: [], teamNames: [],
+        });
+      });
+    });
+
+    test("41. 對照表 5 組、格式正確且不重複（名單已凍結）", () => {
+      expect(LEGACY_MAP).toHaveLength(5);
+      for (const { L: key, D: docId } of LEGACY_MAP) {
+        expect(key).toMatch(/^tm_\d{13}_[a-z0-9]{6}$/);
+        expect(docId).toMatch(/^[A-Za-z0-9]{20}$/);
+      }
+      expect(new Set(LEGACY_MAP.map((p) => p.L)).size).toBe(5);
+      expect(new Set(LEGACY_MAP.map((p) => p.D)).size).toBe(5);
+      // 查表範圍（預算用）必須正好是對照表最小～最大的 L，否則有 L 不會被查表。
+      const keys = LEGACY_MAP.map((p) => p.L).sort();
+      const source = fs.readFileSync(RULES_PATH, "utf8");
+      expect(source).toContain(`teamKey >= '${keys[0]}' && teamKey <= '${keys[keys.length - 1]}'`);
+    });
+
+    test("42. 橋接職員（D 的隊長／教練）剔除 teamIds 含 L 的成員 → 通過", async () => {
+      // 兩筆剔除不同成員：同一人第二次清空時隊伍鍵沒有增減（delta 0），本來就會被拒。
+      await assertSucceeds(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertSucceeds(write(LEG_CAP, MEMBER_LEG_TWO, CLEARED));
+    });
+
+    test("43. 橋接職員核准他人加入 L（新增鍵 L）→ 通過", async () => {
+      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(LEG_CAP, MEMBER_LOW, membership(["team_low", L])));
+    });
+
+    test("44. 不是 D 職員的 coach 以上帶鍵 L 增減 → 拒（含只當 teams/L 文件隊長者）", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", L), { id: L, name: "Shadow", captainUid: SHADOW_CAP });
+      });
+      await assertFails(write(CAP, EMPTY_USER, membership([L])));
+      await assertFails(write(COACH_OUTSIDER, MEMBER_LEG, CLEARED));
+      await assertFails(write(SHADOW_CAP, EMPTY_USER, membership([L])));
+      await assertFails(write(SHADOW_CAP, MEMBER_LEG, CLEARED));
+    });
+
+    test("45. 假對照：teams/D 的 id 欄位 ≠ L → 橋接職員也拒；admin 不受影響", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", D), { id: "tm_fake_mismatch", name: "Legacy", captainUid: LEG_CAP, coachUids: [LEG_COACH] });
+      });
+      await assertFails(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertFails(write(LEG_CAP, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(ADMIN, MEMBER_LEG, CLEARED));
+    });
+
+    test("46. teamIds:[]＋teamId:L 被橋接職員剔除（寫 teamIds:[]、teamId:null）→ 通過", async () => {
+      await assertSucceeds(write(LEG_COACH, MEMBER_LEG_EMPTY, CLEARED));
+    });
+
+    test("47. teamIds:[]＋teamId:L 被 X 隊職員核准（寫 teamIds:[L,X]、teamId:L）→ 通過", async () => {
+      await assertSucceeds(write(CAP, MEMBER_LEG_EMPTY, {
+        teamId: L, teamName: "Legacy", teamIds: [L, TEAM_MAIN], teamNames: ["Legacy", "Main"],
+      }));
+    });
+
+    test("48. admin 路徑不變：不是任何隊職員也可加入／剔除 L", async () => {
+      await assertSucceeds(write(ADMIN, EMPTY_USER, membership([L])));
+      await assertSucceeds(write(ADMIN, MEMBER_LEG, CLEARED));
+    });
+
+    test("49. 未列在對照表的鍵原樣通過：直接用 D 當鍵仍由 D 的職員判斷", async () => {
+      // 先驗拒絕：放行那筆寫入後 EMPTY_USER 已在 D，再寫同樣內容沒有增減，拒絕原因就不是「非職員」。
+      await assertFails(write(CAP, EMPTY_USER, membership([D])));
+      await assertSucceeds(write(LEG_COACH, EMPTY_USER, membership([D])));
+    });
+
+    test("50. 鍵 L 對應的 teams/D 已刪除 → D 原本的職員也拒", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await deleteDoc(doc(ctx.firestore(), "teams", D));
+      });
+      await assertFails(write(LEG_COACH, MEMBER_LEG, CLEARED));
+      await assertFails(write(LEG_CAP, EMPTY_USER, membership([L])));
+    });
+
+    test("51. 查表範圍內、但不在對照表上的鍵（隊伍存在）→ 原樣當文件 id：該隊職員過、非職員拒", async () => {
+      const IN_RANGE = "tm_1773000000000_aaaaaa";
+      const keys = LEGACY_MAP.map((p) => p.L).sort();
+      expect(IN_RANGE > keys[0] && IN_RANGE < keys[keys.length - 1]).toBe(true);
+      expect(keys).not.toContain(IN_RANGE);
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "teams", IN_RANGE), { id: IN_RANGE, name: "InRange", captainUid: CAP, leaderUids: [], coachUids: [] });
+      });
+      await assertFails(write(COACH_OUTSIDER, EMPTY_USER, membership([IN_RANGE])));
+      await assertSucceeds(write(CAP, EMPTY_USER, membership([IN_RANGE])));
+    });
+
+    // Opus 第三輪 P2：最重的入隊修復形狀（teams/D 職員欄位齊全但不含操作者、剔除 L 後成員仍有他隊）。
+    // 改前 coach 分支失敗後再跑入隊修復分支會超過 1000 運算式而被拒；改後 coach 分支同一次讀權限就放行。
+    test("70. coach＋個人授權入隊修復、teams/D 欄位齊全、剔除 L 後仍有他隊 → 通過", async () => {
+      const REPAIR_GRANT_COACH = "repair_grant_coach";
+      const MEMBER_LEG_MULTI = "member_leg_multi";
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "teams", D), {
+          id: L, name: "Legacy", captainUid: LEG_CAP, creatorUid: LEG_CAP, ownerUid: LEG_CAP,
+          leaderUid: "leg_leader", leaderUids: ["leg_leader"], coachUids: [LEG_COACH, "leg_coach_two"],
+        });
+        await setDoc(doc(db, "users", REPAIR_GRANT_COACH), { uid: REPAIR_GRANT_COACH, role: "coach", ...membership([]) });
+        await setDoc(doc(db, "userPermissionGrants", REPAIR_GRANT_COACH), {
+          uid: REPAIR_GRANT_COACH, enabled: true, permissions: ["admin.repair.team_join_repair"],
+        });
+        await setDoc(doc(db, "users", MEMBER_LEG_MULTI), { uid: MEMBER_LEG_MULTI, role: "user", ...membership([L, TEAM_OTHER]) });
+      });
+      await assertSucceeds(write(REPAIR_GRANT_COACH, MEMBER_LEG_MULTI, membership([TEAM_OTHER])));
+    });
   });
 });
