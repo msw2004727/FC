@@ -23,9 +23,20 @@
     "新檔不得含真實 UID、email、金鑰、Firebase 專案 ID、網域",
     "只改需求必要檔；既有未提交變更視為他人所有，不覆蓋",
     "新增或修改的檔案一律 UTF-8 無 BOM（CLAUDE.md R-ENC-001～007）",
-    "禁用模型：deepseek-v4-pro",
+    "禁用模型：deepseek-v4-pro、kimi-k3.1-pro；MiMo 不走 Codex 接法（布達第 51 號）",
     "Grok 不碰金鑰、個資、正式站設定、Rules／Functions 授權核心，也不當終審"
   ],
+  "roles": {
+    "source": "D:/Users/msw74/Documents/總司令交接/布達/2026-11-06-第51號-外部AI崗位定案.md",
+    "opus": "高風險卡（錢、存檔、權限、Rules、Functions 授權、個資）設計與驗收、最終把關短審；Codex 停用期間兼主審",
+    "grok": "一般與中等施工第一順位、退修輪、第一輪審查、測試與突變工具；不碰金鑰、個資、正式設定，不當終審",
+    "deepseekFlash": "規格寫死的大量施工第二順位（畫面以外）、文件卡；派前查餘額；退修第 4 輪沒 GO 即停派",
+    "mimo": "只走 Claude Code；每卡 ≤8 題唯讀查證、第一輪唯讀審查、反例測試；不施工",
+    "gemini": "健檢線索、第二審、看圖對照；不單獨放行、不施工",
+    "sonnet": "PM；UI／UX 畫面實作與巡查；看板、紀錄",
+    "codex": "停用中（帳號到期）",
+    "stallRule": "15 分鐘無提交就停只限 Codex 類；其他施工 60 分鐘零提交先存 WIP"
+  },
   "reportFormat": "docs/specs/lite-convergence/commander-dispatch.md",
   "dispatchLog": "docs/specs/lite-convergence/ai-dispatch-log.md",
   "stagingDir": "docs/specs/lite-convergence",

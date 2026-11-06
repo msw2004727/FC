@@ -1,6 +1,6 @@
 ---
 name: delegate
-description: 當要把機械性或大量產文工作派給外部 AI 時使用。依任務選 DeepSeek、MiMo、Gemini 或 Codex，產出先進 staging 再驗收。
+description: 當要把機械性或大量產文工作派給外部 AI 時使用。依布達第 51 號崗位選 Grok、DeepSeek Flash、MiMo、Gemini 或 Claude 子代理，產出先進 staging 再驗收。
 disable-model-invocation: false
 allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/pack-prompt.py *)
 ---
@@ -11,17 +11,21 @@ allowed-tools: Bash(python -I ${CLAUDE_SKILL_DIR}/scripts/llm-run.py *), Bash(py
 
 ## 選模型
 
-2026-10-23 依總司令布達第 3 號（站長口述）改為「專長 × 任務」分工（取代 2026-10-22「粗活一律 Grok 主力」）。每份回報第 1 行註明每項任務派給誰、為什麼；每張卡（含 Claude 子代理）登記進 `docs/specs/lite-convergence/ai-dispatch-log.md`。
+2026-11-06 依總司令布達第 51 號（站長定，常設）定案崗位，取代第 43 號派工分配與 2026-10-23「專長 × 任務」表；施工方不自審（第 35 號）照舊。全文 `D:/Users/msw74/Documents/總司令交接/布達/2026-11-06-第51號-外部AI崗位定案.md`。每份回報第 1 行註明每項任務派給誰、為什麼；每張卡（含 Claude 子代理）登記進 `docs/specs/lite-convergence/ai-dispatch-log.md`。
 
 | 任務 | Provider／Model | 用法 |
 | --- | --- | --- |
-| 一般施工（中等規模、非核心）、退修輪、第一輪審查、文件／規則卡、測試與突變工具、調查對照 | Grok `grok-4.7`（**Grok Build CLI**） | 見下方「Grok 走 CLI」。**不碰金鑰、個資、正式站設定、Rules／Functions 授權核心；不當終審**；>5 項拆卡；交件一律另審 |
-| 主審查、合流疑難、核心施工（Rules、Functions 授權、金流、個資） | Claude Opus 子代理（主審／核心施工）＋Grok 或 Gemini 一家交叉審查 | 第 43 號（2026-11-04）起 Codex 停用，取代原「Codex GPT-6 Astra 主審」；下方「Codex 純文字派工」僅留作歷史參考 |
-| 施工次選、畫面以外的大量施工 | DeepSeek `deepseek-flash` | 禁用 `deepseek-v4-pro`；規格長的產碼任務一律加 `--effort low`（2026-10-18 實測：`high` 與預設都可能把 64k 額度全花在推理、正文 0 字）；退修到第 4 輪就停派、重寫卡 |
-| 第一輪唯讀審查、審後小修、反例測試、文件對照 | MiMo `mimo-v2.6-pro` | 複雜任務必加 `--no-think`；每卡 ≤8 題 |
-| 較難第二審、畫面對照 | Gemini `gemini-4-argon` | 引用的檔名行號常虛構，當線索不當證據 |
-| UI 畫面實作與巡查、看板、紀錄整理 | Claude Sonnet 子工作者 | 畫面照站長六點：多語、深淺色、360／375／1280、不拆字、對比、無英文代號 |
-| 錢／金鑰／個資／核心邏輯的最終短審 | Claude Opus 子代理 | 一般任務不開 Opus |
+| 高風險卡（錢、存檔、權限、Rules、Functions 授權、個資）先寫死設計與驗收；最終把關短審；Codex 停用期間兼主審 | Claude Opus 子代理 | 短審附接線點逐點表與新舊對照；不做一般施工 |
+| 一般與中等施工**第一順位**、退修輪、**第一輪審查**、測試與突變工具 | Grok `grok-4.7`（**Grok Build CLI**） | 見下方「Grok 走 CLI」。小改卡寫死可改範圍；**不碰金鑰、個資、正式設定；不當終審**；被權限分類器擋就改派，不繞過 |
+| 規格寫死的大量施工**第二順位**（畫面以外）、文件卡 | DeepSeek `deepseek-flash` | 派前先查餘額；規格長的產碼任務加 `--effort low`；**退修到第 4 輪還沒 GO 就停派，由 Opus 重寫卡** |
+| 定點唯讀查證、第一輪唯讀審查、反例測試、Gemini 線索抽樣查證 | MiMo `mimo-v2.6-pro`（**只走 Claude Code**，見 skill `mimo-audit`） | 每卡 ≤8 題；複雜任務加 `--no-think`；不施工、不給可寫卡 |
+| 健檢線索、第二審、看圖對照 | Gemini `gemini-4-argon` | 分小批；**不單獨放行、不施工**；產出一律另行實測（檔名行號常虛構） |
+| UI 畫面實作與巡查、看板、紀錄等機械工作 | Claude Sonnet（PM 或子工作者） | 畫面照站長六點：多語、深淺色、360／375／1280、不拆字、對比、無英文代號 |
+| 主審查、回合核心疑難 | Codex | **停用中**（帳號到期）；若續訂，先讓 Grok 盲審 5～10 張已有 Codex 結論的舊卡比對。下方「Codex 純文字派工」僅留作歷史參考 |
+
+- **淘汰**：DeepSeek V4 Pro（禁用）、Kimi K3.1 Pro、MiMo 經 Codex 的接法。
+- **提早抓 BUG**：高風險卡驗收要有「跑完後檢查存檔欄位真的改變」的測試，外加「拿掉接線那一行」的突變；派卡時用 `git grep` 列出改到的函式名、DOM id、舊字串的定向測試；審查員各給不同清單（接線、測試涵蓋、反例）；報告寫「改動前就壞」要附 main 上的對照結果。
+- **時限**：「15 分鐘無提交就停」只適用 Codex 類；其他施工 60 分鐘仍零提交，先存 WIP，不要砍掉重來。
 
 ### Grok 走 CLI（2026-10-23 起為主；取代「`llm-run.py --provider xai` 直連為主」）
 
