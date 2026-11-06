@@ -15,7 +15,8 @@ function matches(row, filter) {
   throw new Error(`unsupported op ${filter.op}`);
 }
 
-function createFakeDb({ events = {}, flags = {} } = {}) {
+// attempts：模擬 transaction 重試次數；beforeAttempt(n) 在第 n 次（從 0 起）嘗試前呼叫，可改資料；只有最後一次嘗試的寫入生效。
+function createFakeDb({ events = {}, flags = {}, attempts = 1, beforeAttempt } = {}) {
   const calls = { flagWrites: [], queued: [], queries: [] };
   function makeQuery(label, rowsFn) {
     const filters = [];
@@ -65,13 +66,21 @@ function createFakeDb({ events = {}, flags = {} } = {}) {
       throw new Error(`unexpected collection ${name}`);
     },
     async runTransaction(fn) {
-      return fn({
-        get: (target) => target.get(),
-        set: (ref, data) => {
-          flags[ref.id] = data;
-          calls.flagWrites.push({ id: ref.id, data });
-        },
+      let result;
+      let pending = [];
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (beforeAttempt) beforeAttempt(attempt);
+        pending = [];
+        result = await fn({
+          get: (target) => target.get(),
+          set: (ref, data) => pending.push({ id: ref.id, data }),
+        });
+      }
+      pending.forEach(({ id, data }) => {
+        flags[id] = data;
+        calls.flagWrites.push({ id, data });
       });
+      return result;
     },
     batch() {
       const ops = [];
@@ -190,6 +199,45 @@ describe('onEventAttendanceFlagWrite', () => {
     expect(calls.flagWrites).toEqual([]);
   });
 
+  test('hard-deleting the only valid checkout (after missing) flips the flag off', async () => {
+    const { db, calls, flags } = createFakeDb({
+      events: { 'doc-e1': eventEntry({ attendanceRecords: [] }) },
+      flags: { 'doc-e1': { eventId: 'e1', hasCountedCheckout: true } },
+    });
+    const queued = await build(db).onEventAttendanceFlagWrite.handler(attendanceWrite(checkout('U-a'), null));
+    expect(flags['doc-e1'].hasCountedCheckout).toBe(false);
+    expect(queued).toBe(2);
+    expect(calls.queued[0].reason).toBe('attendance_flag_flip');
+  });
+
+  test('transaction retry re-reads the event: latest delegateUids decide the flag', async () => {
+    const events = { 'doc-e1': eventEntry({ attendanceRecords: [checkout('U-a')] }) };
+    const { db, calls, flags } = createFakeDb({
+      events,
+      attempts: 2,
+      beforeAttempt: (attempt) => {
+        if (attempt === 1) events['doc-e1'].data = endedEvent({ delegateUids: ['U-del', 'U-a'] });
+      },
+    });
+    await expect(build(db).onEventAttendanceFlagWrite.handler(attendanceWrite(null, checkout('U-a')))).resolves.toBe(0);
+    expect(flags['doc-e1']).toBeUndefined();
+    expect(calls.flagWrites).toEqual([]);
+    expect(calls.queued).toEqual([]);
+  });
+
+  test('transaction retry re-reads the event: event re-opened mid-retry is skipped', async () => {
+    const events = { 'doc-e1': eventEntry({ attendanceRecords: [checkout('U-a')] }) };
+    const { db, calls } = createFakeDb({
+      events,
+      attempts: 2,
+      beforeAttempt: (attempt) => {
+        if (attempt === 1) events['doc-e1'].data = endedEvent({ status: 'open' });
+      },
+    });
+    await expect(build(db).onEventAttendanceFlagWrite.handler(attendanceWrite(null, checkout('U-a')))).resolves.toBe(0);
+    expect(calls.flagWrites).toEqual([]);
+  });
+
   test('stale eventId on an existing flag is rewritten without re-enqueue', async () => {
     const { db, calls, flags } = createFakeDb({
       events: { 'doc-e1': eventEntry({ attendanceRecords: [checkout('U-a')] }) },
@@ -220,7 +268,11 @@ describe('onUserAttendanceEventWrite v2 flag maintenance', () => {
 
   test('delegate change that invalidates the only checkout flips the flag and enqueues', async () => {
     const { db, calls, flags } = createFakeDb({
-      events: { 'doc-e1': eventEntry({ attendanceRecords: [checkout('U-a')] }) },
+      // 資料庫裡是寫入後的最新內容（transaction 內以它為準）。
+      events: { 'doc-e1': eventEntry({
+        data: endedEvent({ delegateUids: ['U-del', 'U-a'] }),
+        attendanceRecords: [checkout('U-a')],
+      }) },
       flags: { 'doc-e1': { eventId: 'e1', hasCountedCheckout: true } },
     });
     const write = eventWrite(endedEvent(), endedEvent({ delegateUids: ['U-del', 'U-a'] }));
@@ -229,6 +281,21 @@ describe('onUserAttendanceEventWrite v2 flag maintenance', () => {
     expect(flags['doc-e1'].hasCountedCheckout).toBe(false);
     expect(queued).toBe(2);
     expect(calls.queued[0].reason).toBe('attendance_flag_event');
+  });
+
+  test('stale trigger payload does not decide the flag: latest event document wins', async () => {
+    // payload 的 after 只有 U-del 是委託人（U-a 簽退有效），但資料庫最新內容已把 U-a 設為委託人。
+    const { db, calls, flags } = createFakeDb({
+      events: { 'doc-e1': eventEntry({
+        data: endedEvent({ delegateUids: ['U-del', 'U-a'] }),
+        attendanceRecords: [checkout('U-a')],
+      }) },
+    });
+    const write = eventWrite(endedEvent({ delegateUids: [] }), endedEvent());
+    write.data.after.ref = db.collection('events').doc('doc-e1');
+    await expect(build(db).onUserAttendanceEventWrite.handler(write)).resolves.toBe(0);
+    expect(flags['doc-e1']).toBeUndefined();
+    expect(calls.flagWrites).toEqual([]);
   });
 
   test('date moved before since re-enqueues only when the stored flag was on', async () => {

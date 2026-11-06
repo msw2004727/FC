@@ -211,32 +211,45 @@ function hostKey(data) {
   return `${normalizeText(data?.creatorUid)}|${delegates.join(",")}`;
 }
 
+function flagSkipReason(data, since) {
+  if (normalizeText(data?.status) !== "ended") return "not_ended";
+  if (!isOnOrAfterSince(normalizeEventDateKey(data?.date), since)) return "before_since";
+  return "";
+}
+
 /**
  * 整場重算旗標 eventAttendanceFlags/{eventDocId}.hasCountedCheckout，只在值翻轉（或 eventId 對不上）時寫入。
  * 只算「已結束且開始日 ≥ 起算點」的活動；其他活動不讀子集合、不寫旗標（使用端本來就要求 ended＋日期）。
- * 旗標文件與子集合查詢在同一個 transaction，並行的簽退寫入不會讓舊結果蓋掉新結果。
+ * 活動主檔、旗標文件與子集合查詢都在同一個 transaction 內讀，結論只以 transaction 內的最新活動內容為準
+ * （重試時會重讀）；eventData（觸發器 payload）與 transaction 外的讀取只用來快速篩掉不必算的活動。
+ * （Grok 第一輪審查：原本在 transaction 外讀活動主檔，重試或寫入亂序時可能用舊的 status／date／主辦委託人寫出錯誤旗標。）
  * @returns {Promise<{ skipped?: string, flipped: boolean, value: boolean }>}
  */
 async function recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventData, since = NOSHOW_V2_SINCE }) {
   const docId = safeUid(eventDocId);
   if (!docId) return { skipped: "invalid_event", flipped: false, value: false };
   const eventRef = db.collection("events").doc(docId);
-  let data = eventData;
-  if (!data) {
+  let hint = eventData;
+  if (!hint) {
     const eventSnap = await eventRef.get();
     if (!eventSnap.exists) return { skipped: "missing_event", flipped: false, value: false };
-    data = eventSnap.data() || {};
+    hint = eventSnap.data() || {};
   }
-  if (normalizeText(data.status) !== "ended") return { skipped: "not_ended", flipped: false, value: false };
-  if (!isOnOrAfterSince(normalizeEventDateKey(data.date), since)) {
-    return { skipped: "before_since", flipped: false, value: false };
-  }
-  const event = { ...data, _docId: docId };
-  const publicId = normalizeText(data.id) || docId;
+  const hintSkip = flagSkipReason(hint, since);
+  if (hintSkip) return { skipped: hintSkip, flipped: false, value: false };
   const flagRef = db.collection(ATTENDANCE_FLAG_COLLECTION).doc(docId);
   return db.runTransaction(async (transaction) => {
-    const [flagSnap, registrationSnap, checkoutSnap] = await Promise.all([
+    const [eventSnap, flagSnap] = await Promise.all([
+      transaction.get(eventRef),
       transaction.get(flagRef),
+    ]);
+    if (!eventSnap.exists) return { skipped: "missing_event", flipped: false, value: false };
+    const data = eventSnap.data() || {};
+    const skipped = flagSkipReason(data, since);
+    if (skipped) return { skipped, flipped: false, value: false };
+    const event = { ...data, _docId: docId };
+    const publicId = normalizeText(data.id) || docId;
+    const [registrationSnap, checkoutSnap] = await Promise.all([
       transaction.get(eventRef.collection("registrations")
         .where("status", "==", "confirmed")
         .select("userId", "status", "participantType", "companionId")),

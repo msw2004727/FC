@@ -1,8 +1,9 @@
 "use strict";
 
 // 放鴿子／出席率 v2 純函式（設計：docs/specs/lite-convergence/noshow-attendance-redesign.md §2.2、§2.3）。
-// 每小時 batch（calcNoShowCountsBatch）、個人重算（user-attendance-stats-core）、旗標觸發器與回填腳本都只呼叫這裡，
-// 規則只有這一份。舊欄位（noShowCount／expectedCount 等）的算法不在這裡，維持原樣。
+// 個人重算（user-attendance-stats-core）、旗標觸發器與回填腳本都只呼叫這裡，規則只有這一份。
+// 每小時 batch（calcNoShowCountsBatch）不算 v2、不使用本模組（設計 §2.4：B 名單改讀 userAttendanceStats）。
+// 舊欄位（noShowCount／expectedCount 等）的算法不在這裡，維持原樣。
 
 // 起算點（台北日期，補零 YYYY-MM-DD）。佔位值；部署前改成部署隔天。
 const NOSHOW_V2_SINCE = "2026-11-08";

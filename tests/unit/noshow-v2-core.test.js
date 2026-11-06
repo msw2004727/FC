@@ -139,6 +139,10 @@ describe('noshow v2 counted event / promotion helpers', () => {
     expect(isLatePromotion({ promotedAt: { seconds: (start + 1000) / 1000, nanoseconds: 0 } }, ev)).toBe(true);
     expect(isLatePromotion({ promotedAt: '2026-11-10T18:00:00+08:00' }, ev)).toBe(false);
     expect(isLatePromotion({}, ev)).toBe(false);
+    // 純數字毫秒
+    expect(isLatePromotion({ promotedAt: start + 1 }, ev)).toBe(true);
+    expect(isLatePromotion({ promotedAt: start - 1 }, ev)).toBe(false);
+    expect(isLatePromotion({ promotedAt: start }, ev)).toBe(false);
   });
 });
 
