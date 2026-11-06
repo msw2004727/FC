@@ -8,7 +8,15 @@ const {
   isCompanion,
   normalizeText,
 } = require("./user-attendance-stats-core");
-const { SUMMARY_COLLECTION, safeUid } = require("./user-attendance-stats");
+const { ATTENDANCE_FLAG_COLLECTION, SUMMARY_COLLECTION, safeUid } = require("./user-attendance-stats");
+
+const V2_FIELDS = [
+  "participatedCount",
+  "countedCount",
+  "countedCompletedCount",
+  "countedIncompleteCount",
+  "countedNoShowCount",
+];
 
 const PROJECT_ID = "fc-football-6c8dc";
 const BATCH_SIZE = 400;
@@ -39,14 +47,16 @@ function sameSummary(current, next) {
     && Number(current?.expectedCount || 0) === next.expectedCount
     && Number(current?.attendedCount || 0) === next.attendedCount
     && Number(current?.completedCount || 0) === next.completedCount
-    && Number(current?.attendRate || 0) === next.attendRate;
+    && Number(current?.attendRate || 0) === next.attendRate
+    && V2_FIELDS.every((field) => Number(current?.[field] || 0) === next[field])
+    && normalizeText(current?.countedSince) === next.countedSince;
 }
 
 async function loadInputs() {
-  const [eventsSnap, registrationsSnap, activitySnap, attendanceSnap, summarySnap] = await Promise.all([
-    db.collection("events").select("id", "status").get(),
+  const [eventsSnap, registrationsSnap, activitySnap, attendanceSnap, summarySnap, flagSnap] = await Promise.all([
+    db.collection("events").select("id", "status", "date").get(),
     db.collectionGroup("registrations")
-      .select("userId", "eventId", "status", "participantType", "companionId")
+      .select("userId", "eventId", "status", "participantType", "companionId", "promotedAt")
       .get(),
     db.collectionGroup("activityRecords")
       .select("uid", "eventId", "status", "participantType", "companionId")
@@ -55,9 +65,12 @@ async function loadInputs() {
       .select("uid", "eventId", "type", "status", "participantType", "companionId")
       .get(),
     db.collection(SUMMARY_COLLECTION).get(),
+    // 全量回填一次讀整個旗標集合（文件數＝曾經有效簽退的場次），比逐塊 in 查詢少。
+    db.collection(ATTENDANCE_FLAG_COLLECTION).select("hasCountedCheckout").get(),
   ]);
   return {
     events: eventsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id })),
+    attendanceFlags: new Map(flagSnap.docs.map((doc) => [doc.id, doc.data()?.hasCountedCheckout === true])),
     registrations: mapDocs(registrationsSnap),
     activityRecords: mapDocs(activitySnap),
     attendanceRecords: mapDocs(attendanceSnap),
@@ -99,6 +112,7 @@ function buildSummaries(input) {
       registrations: registrationsByUid.get(uid) || [],
       activityRecords: activityByUid.get(uid) || [],
       attendanceRecords: attendanceByUid.get(uid) || [],
+      attendanceFlags: input.attendanceFlags,
     });
     summaries.push({
       uid,
@@ -107,6 +121,12 @@ function buildSummaries(input) {
       attendedCount: result.attendedCount,
       completedCount: result.completedCount,
       attendRate: result.attendRate,
+      participatedCount: result.participatedCount,
+      countedCount: result.countedCount,
+      countedCompletedCount: result.countedCompletedCount,
+      countedIncompleteCount: result.countedIncompleteCount,
+      countedNoShowCount: result.countedNoShowCount,
+      countedSince: result.countedSince,
       updatedAt,
     });
   });

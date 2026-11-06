@@ -7,6 +7,13 @@ const {
   isCompanion,
   normalizeText,
 } = require("./user-attendance-stats-core");
+const {
+  ATTENDANCE_FLAG_COLLECTION,
+  NOSHOW_V2_SINCE,
+  computeEventCountedCheckoutFlag,
+  isOnOrAfterSince,
+  normalizeEventDateKey,
+} = require("./noshow-v2-core");
 
 const REGION = "asia-east1";
 const SUMMARY_COLLECTION = "userAttendanceStats";
@@ -39,7 +46,7 @@ async function loadEventsByPublicIds(db, eventIds) {
   const snapshots = await Promise.all(chunks(ids, EVENT_ID_QUERY_CHUNK).map((group) => (
     db.collection("events")
       .where("id", "in", group)
-      .select("id", "status")
+      .select("id", "status", "date")
       .get()
   )));
   return snapshots.flatMap((snapshot) => snapshot.docs.map((doc) => ({
@@ -48,13 +55,36 @@ async function loadEventsByPublicIds(db, eventIds) {
   })));
 }
 
+// v2 旗標：只讀「已結束且開始日 ≥ 起算點」的活動，依 public id 分塊 in 查詢；沒有旗標文件＝false。
+async function loadAttendanceFlags(db, events, since = NOSHOW_V2_SINCE) {
+  const candidates = (events || []).filter((event) => (
+    normalizeText(event?.status) === "ended"
+    && isOnOrAfterSince(normalizeEventDateKey(event?.date), since)
+    && normalizeText(event?._docId)
+  ));
+  const flags = new Map();
+  if (!candidates.length) return flags;
+  const docIds = new Set(candidates.map((event) => normalizeText(event._docId)));
+  const publicIds = [...new Set(candidates.map((event) => normalizeText(event.id || event._docId)))];
+  const snapshots = await Promise.all(chunks(publicIds, EVENT_ID_QUERY_CHUNK).map((group) => (
+    db.collection(ATTENDANCE_FLAG_COLLECTION)
+      .where("eventId", "in", group)
+      .select("eventId", "hasCountedCheckout")
+      .get()
+  )));
+  snapshots.forEach((snapshot) => snapshot.docs.forEach((doc) => {
+    if (docIds.has(doc.id)) flags.set(doc.id, doc.data()?.hasCountedCheckout === true);
+  }));
+  return flags;
+}
+
 async function loadUserAttendanceStatsInput({ db, uid }) {
   const targetUid = safeUid(uid);
   if (!targetUid) throw new Error("invalid attendance stats uid");
   const [registrationSnap, activitySnap, attendanceSnap] = await Promise.all([
     db.collectionGroup("registrations")
       .where("userId", "==", targetUid)
-      .select("userId", "eventId", "status", "participantType", "companionId")
+      .select("userId", "eventId", "status", "participantType", "companionId", "promotedAt")
       .get(),
     db.collectionGroup("activityRecords")
       .where("uid", "==", targetUid)
@@ -74,7 +104,8 @@ async function loadUserAttendanceStatsInput({ db, uid }) {
     activityRecords,
   });
   const events = await loadEventsByPublicIds(db, [...eventIds]);
-  return { uid: targetUid, events, registrations, activityRecords, attendanceRecords };
+  const attendanceFlags = await loadAttendanceFlags(db, events);
+  return { uid: targetUid, events, registrations, activityRecords, attendanceRecords, attendanceFlags };
 }
 
 function buildSummaryPayload(uid, result, updatedAt) {
@@ -85,6 +116,12 @@ function buildSummaryPayload(uid, result, updatedAt) {
     attendedCount: result.attendedCount,
     completedCount: result.completedCount,
     attendRate: result.attendRate,
+    participatedCount: result.participatedCount,
+    countedCount: result.countedCount,
+    countedCompletedCount: result.countedCompletedCount,
+    countedIncompleteCount: result.countedIncompleteCount,
+    countedNoShowCount: result.countedNoShowCount,
+    countedSince: result.countedSince,
     updatedAt,
   };
 }
@@ -132,12 +169,16 @@ async function eventParticipantUids(event) {
   const before = event?.data?.before;
   const after = event?.data?.after;
   const snapshot = after?.exists ? after : before;
-  if (!snapshot?.ref) return [];
+  return participantUidsForEventRef(snapshot?.ref);
+}
+
+async function participantUidsForEventRef(eventRef) {
+  if (!eventRef) return [];
   const [registrationSnap, activitySnap] = await Promise.all([
-    snapshot.ref.collection("registrations")
+    eventRef.collection("registrations")
       .select("userId", "participantType", "companionId")
       .get(),
-    snapshot.ref.collection("activityRecords")
+    eventRef.collection("activityRecords")
       .select("uid", "participantType", "companionId")
       .get(),
   ]);
@@ -162,6 +203,94 @@ function eventStatsStateChanged(event) {
   const idChanged = normalizeText(before.id) !== normalizeText(after.id);
   const touchesTerminalState = beforeStatus === "ended" || afterStatus === "ended";
   return idChanged || (beforeStatus !== afterStatus && touchesTerminalState);
+}
+
+function hostKey(data) {
+  const delegates = (Array.isArray(data?.delegateUids) ? data.delegateUids : [])
+    .map(normalizeText).filter(Boolean).sort();
+  return `${normalizeText(data?.creatorUid)}|${delegates.join(",")}`;
+}
+
+/**
+ * 整場重算旗標 eventAttendanceFlags/{eventDocId}.hasCountedCheckout，只在值翻轉（或 eventId 對不上）時寫入。
+ * 只算「已結束且開始日 ≥ 起算點」的活動；其他活動不讀子集合、不寫旗標（使用端本來就要求 ended＋日期）。
+ * 旗標文件與子集合查詢在同一個 transaction，並行的簽退寫入不會讓舊結果蓋掉新結果。
+ * @returns {Promise<{ skipped?: string, flipped: boolean, value: boolean }>}
+ */
+async function recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventData, since = NOSHOW_V2_SINCE }) {
+  const docId = safeUid(eventDocId);
+  if (!docId) return { skipped: "invalid_event", flipped: false, value: false };
+  const eventRef = db.collection("events").doc(docId);
+  let data = eventData;
+  if (!data) {
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) return { skipped: "missing_event", flipped: false, value: false };
+    data = eventSnap.data() || {};
+  }
+  if (normalizeText(data.status) !== "ended") return { skipped: "not_ended", flipped: false, value: false };
+  if (!isOnOrAfterSince(normalizeEventDateKey(data.date), since)) {
+    return { skipped: "before_since", flipped: false, value: false };
+  }
+  const event = { ...data, _docId: docId };
+  const publicId = normalizeText(data.id) || docId;
+  const flagRef = db.collection(ATTENDANCE_FLAG_COLLECTION).doc(docId);
+  return db.runTransaction(async (transaction) => {
+    const [flagSnap, registrationSnap, checkoutSnap] = await Promise.all([
+      transaction.get(flagRef),
+      transaction.get(eventRef.collection("registrations")
+        .where("status", "==", "confirmed")
+        .select("userId", "status", "participantType", "companionId")),
+      transaction.get(eventRef.collection("attendanceRecords")
+        .where("type", "==", "checkout")
+        .select("uid", "eventId", "type", "status", "participantType", "companionId")),
+    ]);
+    const current = flagSnap.exists ? flagSnap.data() || {} : null;
+    const currentValue = current?.hasCountedCheckout === true;
+    const value = computeEventCountedCheckoutFlag({
+      event,
+      registrations: registrationSnap.docs.map((doc) => doc.data() || {}),
+      attendanceRecords: checkoutSnap.docs.map((doc) => doc.data() || {}),
+    });
+    const flipped = value !== currentValue;
+    const idStale = !!current && normalizeText(current.eventId) !== publicId;
+    if (flipped || idStale) {
+      transaction.set(flagRef, {
+        eventId: publicId,
+        hasCountedCheckout: value,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return { flipped, value };
+  });
+}
+
+function recordTouchesCheckout(event) {
+  return [event?.data?.before, event?.data?.after].some((snapshot) => (
+    snapshot?.exists && normalizeText((snapshot.data() || {}).type) === "checkout"
+  ));
+}
+
+// 活動文件寫入時的旗標維護：結束狀態／id／主辦委託人／日期變動才動作，其餘寫入不讀資料庫。
+// 回傳 true 表示計入狀態可能改變，要把全場參加者排進重算。
+async function syncAttendanceFlagOnEventWrite({ db, FieldValue, event, stateChanged }) {
+  const after = event?.data?.after;
+  if (!after?.exists) return false;
+  const before = event?.data?.before?.exists ? event.data.before.data() || {} : {};
+  const afterData = after.data() || {};
+  const hostsChanged = hostKey(before) !== hostKey(afterData);
+  const dateChanged = normalizeText(before.date) !== normalizeText(afterData.date);
+  if (!stateChanged && !hostsChanged && !dateChanged) return false;
+  if (normalizeText(afterData.status) !== "ended") return false;
+  const eventDocId = safeUid(event.params?.eventId || after.id || after.ref?.id);
+  if (!eventDocId) return false;
+  if (isOnOrAfterSince(normalizeEventDateKey(afterData.date))) {
+    const outcome = await recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventData: afterData });
+    return outcome.flipped || (dateChanged && outcome.value);
+  }
+  // 日期移到起算點之前：旗標原本為 true 的場次會從計入變成不計入。
+  if (!dateChanged || !isOnOrAfterSince(normalizeEventDateKey(before.date))) return false;
+  const flagSnap = await db.collection(ATTENDANCE_FLAG_COLLECTION).doc(eventDocId).get();
+  return !!flagSnap.exists && flagSnap.data()?.hasCountedCheckout === true;
 }
 
 function createUserAttendanceStatsExports({
@@ -205,12 +334,32 @@ function createUserAttendanceStatsExports({
       { ...sourceOptions, document: "events/{eventId}", memory: "256MiB" },
       async (event) => {
         // 刪除活動（before 存在、after 不存在）依賴此觸發器排入統計重算；改動此處或 event-deletion.js 的刪除主文件處，要確認另一處。
-        if (!eventStatsStateChanged(event)) return 0;
+        const stateChanged = eventStatsStateChanged(event);
+        // v2 旗標先算完再排重算，個人重算才讀得到新旗標。
+        const flagChanged = await syncAttendanceFlagOnEventWrite({ db, FieldValue, event, stateChanged });
+        if (!stateChanged && !flagChanged) return 0;
         return enqueueUserAttendanceStats({
           db,
           FieldValue,
           uids: await eventParticipantUids(event),
-          reason: "event_terminal_state",
+          reason: stateChanged ? "event_terminal_state" : "attendance_flag_event",
+        });
+      },
+    ),
+    // v2：簽退新增／修改／刪除時整場重算旗標；值翻轉才把全場非同行者參加者排進重算。
+    onEventAttendanceFlagWrite: onDocumentWritten(
+      { ...sourceOptions, document: "events/{eventId}/attendanceRecords/{recordId}" },
+      async (event) => {
+        if (!recordTouchesCheckout(event)) return 0;
+        const eventDocId = safeUid(event.params?.eventId);
+        if (!eventDocId) return 0;
+        const outcome = await recomputeEventAttendanceFlag({ db, FieldValue, eventDocId });
+        if (!outcome.flipped) return 0;
+        return enqueueUserAttendanceStats({
+          db,
+          FieldValue,
+          uids: await participantUidsForEventRef(db.collection("events").doc(eventDocId)),
+          reason: "attendance_flag_flip",
         });
       },
     ),
@@ -279,12 +428,16 @@ function createUserAttendanceStatsExports({
 }
 
 module.exports = {
+  ATTENDANCE_FLAG_COLLECTION,
   QUEUE_COLLECTION,
   SUMMARY_COLLECTION,
   calculateUserAttendanceSummary,
   createUserAttendanceStatsExports,
   enqueueUserAttendanceStats,
+  loadAttendanceFlags,
   loadUserAttendanceStatsInput,
+  participantUidsForEventRef,
   rebuildUserAttendanceSummary,
+  recomputeEventAttendanceFlag,
   safeUid,
 };

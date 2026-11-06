@@ -17,6 +17,7 @@ describe('user attendance stats Cloud Function wiring', () => {
   test('exports all source triggers, serialized queue worker, and weekly reconcile', () => {
     const { exportsMap } = buildExports();
     expect(Object.keys(exportsMap).sort()).toEqual([
+      'onEventAttendanceFlagWrite',
       'onUserAttendanceActivityWrite',
       'onUserAttendanceEventWrite',
       'onUserAttendanceRecordWrite',

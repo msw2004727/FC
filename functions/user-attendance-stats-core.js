@@ -1,6 +1,9 @@
 "use strict";
 
-const SOURCE_VERSION = 1;
+const { NOSHOW_V2_SINCE, computeUserCountedStats } = require("./noshow-v2-core");
+
+// 2：新增 v2 計入欄位（participatedCount／counted*／countedSince），舊欄位算法不變。
+const SOURCE_VERSION = 2;
 
 function normalizeText(value) {
   return String(value == null ? "" : value).trim();
@@ -46,6 +49,8 @@ function computeUserAttendanceStats({
   registrations,
   activityRecords,
   attendanceRecords,
+  attendanceFlags,
+  since = NOSHOW_V2_SINCE,
 } = {}) {
   const safeUid = normalizeText(uid);
   const eventMap = new Map();
@@ -60,9 +65,12 @@ function computeUserAttendanceStats({
     if (recordUid(record, "userId") !== safeUid) return;
     const eventId = normalizeText(record.eventId);
     if (!eventId) return;
-    const state = registrationState.get(eventId) || { hasAny: false, confirmed: false };
+    const state = registrationState.get(eventId) || { hasAny: false, confirmed: false, confirmedRecord: null };
     state.hasAny = true;
-    if (normalizeText(record.status) === "confirmed") state.confirmed = true;
+    if (normalizeText(record.status) === "confirmed") {
+      state.confirmed = true;
+      if (!state.confirmedRecord) state.confirmedRecord = record;
+    }
     registrationState.set(eventId, state);
   });
 
@@ -117,6 +125,17 @@ function computeUserAttendanceStats({
   const expectedCount = expectedEventIds.size;
   const attendedCount = attendedEventIds.size;
   const completedCount = completedEventIds.size;
+  // v2：參與＝expectedEventIds（同舊應到定義）；計入／完成／未完成／放鴿子交給 noshow-v2-core。
+  const counted = computeUserCountedStats({
+    uid: safeUid,
+    participations: [...expectedEventIds].map((eventId) => ({
+      event: eventMap.get(eventId),
+      registration: registrationState.get(eventId)?.confirmedRecord || null,
+    })),
+    flagsByEventDocId: attendanceFlags,
+    attendanceRecords,
+    since,
+  });
   return {
     sourceVersion: SOURCE_VERSION,
     expectedCount,
@@ -126,6 +145,12 @@ function computeUserAttendanceStats({
     expectedEventIds: [...expectedEventIds].sort(),
     attendedEventIds: [...attendedEventIds].sort(),
     completedEventIds: [...completedEventIds].sort(),
+    participatedCount: counted.participatedCount,
+    countedCount: counted.countedCount,
+    countedCompletedCount: counted.countedCompletedCount,
+    countedIncompleteCount: counted.countedIncompleteCount,
+    countedNoShowCount: counted.countedNoShowCount,
+    countedSince: counted.countedSince,
   };
 }
 

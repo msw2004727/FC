@@ -194,3 +194,76 @@ describe('user attendance materialized stats core', () => {
     expect([...ids].sort()).toEqual(['confirmed', 'legacy']);
   });
 });
+
+describe('user attendance stats v2 counted fields', () => {
+  const since = '2026-11-08';
+  const endedAfter = (id = 'e1', overrides = {}) => ({
+    id, _docId: `doc-${id}`, status: 'ended', date: '2026/11/10 19:00~21:00', ...overrides,
+  });
+  const flags = (...docIds) => new Map(docIds.map((docId) => [docId, true]));
+
+  test('source version is 2 and old fields keep their meaning', () => {
+    const result = calculate({
+      events: [endedAfter()],
+      registrations: [confirmed()],
+      attendanceRecords: [attendance('checkin')],
+      attendanceFlags: flags('doc-e1'),
+      since,
+    });
+    expect(SOURCE_VERSION).toBe(2);
+    expect(result).toMatchObject({
+      sourceVersion: 2,
+      expectedCount: 1,
+      attendedCount: 1,
+      completedCount: 0,
+      attendRate: 100,
+      participatedCount: 1,
+      countedCount: 1,
+      countedCompletedCount: 0,
+      countedIncompleteCount: 1,
+      countedNoShowCount: 0,
+      countedSince: since,
+    });
+  });
+
+  test('participated equals expected across all history; counted only after since with flag', () => {
+    const result = calculate({
+      events: [
+        endedAfter('old', { date: '2025/5/1 19:00~21:00' }),
+        endedAfter('noflag'),
+        endedAfter('counted'),
+      ],
+      registrations: [confirmed('old'), confirmed('noflag'), confirmed('counted')],
+      attendanceFlags: flags('doc-old', 'doc-counted'),
+      since,
+    });
+    expect(result.participatedCount).toBe(result.expectedCount);
+    expect(result).toMatchObject({ participatedCount: 3, countedCount: 1, countedNoShowCount: 1 });
+  });
+
+  test('legacy activity evidence without registration participates and can be counted', () => {
+    const result = calculate({
+      events: [endedAfter()],
+      activityRecords: [activity()],
+      attendanceRecords: [attendance('checkout')],
+      attendanceFlags: flags('doc-e1'),
+      since,
+    });
+    expect(result).toMatchObject({ participatedCount: 1, countedCount: 1, countedCompletedCount: 1 });
+  });
+
+  test('late promotion is excluded from counted but still participated', () => {
+    const result = calculate({
+      events: [endedAfter()],
+      registrations: [confirmed('e1', { promotedAt: new Date(Date.parse('2026-11-10T20:00:00+08:00')) })],
+      attendanceFlags: flags('doc-e1'),
+      since,
+    });
+    expect(result).toMatchObject({ participatedCount: 1, countedCount: 0, countedNoShowCount: 0 });
+  });
+
+  test('missing flags input yields zero counted', () => {
+    const result = calculate({ events: [endedAfter()], registrations: [confirmed()], since });
+    expect(result).toMatchObject({ participatedCount: 1, countedCount: 0 });
+  });
+});
