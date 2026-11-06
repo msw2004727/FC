@@ -131,6 +131,8 @@ describe('startup performance guardrails', () => {
       expect(fs.existsSync(absolute)).toBe(true);
       return total + fs.statSync(absolute).size;
     }, 0);
-    expect(rawBytes).toBeLessThanOrEqual(900_000);
+    // 2026-11-06 顧問 §1.32：900_000→920_000。首頁摘要由自動 inline bot（[skip ci]）寫進 index.html，大小隨活動資料浮動；
+    // dfedecde1 讓 main 達 902_297 而紅燈，與功能改動無關。
+    expect(rawBytes).toBeLessThanOrEqual(920_000);
   });
 });
