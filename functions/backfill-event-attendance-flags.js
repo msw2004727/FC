@@ -3,7 +3,8 @@
 // 一次性回填 eventAttendanceFlags（放鴿子 v2 旗標）。預設 dry-run，只讀不寫；加 --apply 才寫入。
 // 用法（functions/ 目錄）：node backfill-event-attendance-flags.js [--apply]
 // 建議順序：部署 Functions 之前跑（那時旗標觸發器還不存在，不會互搶）；之後用 SOURCE_VERSION 2 全量重排個人統計。
-// 本腳本不排個人重算佇列。
+// 本腳本不排個人重算佇列。部署後若用來補修旗標，接著要跑全量重排（backfill-user-attendance-stats.js --apply），
+// 被翻轉場次的參加者個人統計才會更新。
 
 const { getApps, initializeApp } = require("firebase-admin/app");
 const { FieldValue, getFirestore } = require("firebase-admin/firestore");

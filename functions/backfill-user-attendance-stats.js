@@ -134,12 +134,14 @@ function buildSummaries(input) {
 }
 
 function aggregate(summaries) {
+  const v2Zero = Object.fromEntries(V2_FIELDS.map((field) => [field, 0]));
   return summaries.reduce((total, item) => ({
     users: total.users + 1,
     expectedCount: total.expectedCount + item.expectedCount,
     attendedCount: total.attendedCount + item.attendedCount,
     completedCount: total.completedCount + item.completedCount,
-  }), { users: 0, expectedCount: 0, attendedCount: 0, completedCount: 0 });
+    ...Object.fromEntries(V2_FIELDS.map((field) => [field, total[field] + Number(item[field] || 0)])),
+  }), { users: 0, expectedCount: 0, attendedCount: 0, completedCount: 0, ...v2Zero });
 }
 
 async function writeSummaries(summaries) {
@@ -179,7 +181,8 @@ async function main() {
   if (verification.users !== allSummaries.length
     || verification.expectedCount !== report.calculated.expectedCount
     || verification.attendedCount !== report.calculated.attendedCount
-    || verification.completedCount !== report.calculated.completedCount) {
+    || verification.completedCount !== report.calculated.completedCount
+    || V2_FIELDS.some((field) => verification[field] !== report.calculated[field])) {
     throw new Error(`attendance stats verification failed: ${JSON.stringify(verification)}`);
   }
   console.log(JSON.stringify({ verified: true, ...verification }, null, 2));

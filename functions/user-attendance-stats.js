@@ -14,6 +14,7 @@ const {
   isOnOrAfterSince,
   normalizeEventDateKey,
 } = require("./noshow-v2-core");
+const { maskUid } = require("./notification-fields");
 
 const REGION = "asia-east1";
 const SUMMARY_COLLECTION = "userAttendanceStats";
@@ -211,9 +212,20 @@ function hostKey(data) {
   return `${normalizeText(data?.creatorUid)}|${delegates.join(",")}`;
 }
 
-function flagSkipReason(data, since) {
+function warnUnparsableEventDate(fnName, eventDocId) {
+  console.warn(`[${fnName}] unparsable event date; treated as not counted`, {
+    eventDocId: maskUid(normalizeText(eventDocId)),
+  });
+}
+
+function flagSkipReason(data, since, eventDocId) {
   if (normalizeText(data?.status) !== "ended") return "not_ended";
-  if (!isOnOrAfterSince(normalizeEventDateKey(data?.date), since)) return "before_since";
+  const dateKey = normalizeEventDateKey(data?.date);
+  if (!dateKey) {
+    warnUnparsableEventDate("recomputeEventAttendanceFlag", eventDocId);
+    return "unparsable_date";
+  }
+  if (!isOnOrAfterSince(dateKey, since)) return "before_since";
   return "";
 }
 
@@ -235,7 +247,7 @@ async function recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventD
     if (!eventSnap.exists) return { skipped: "missing_event", flipped: false, value: false };
     hint = eventSnap.data() || {};
   }
-  const hintSkip = flagSkipReason(hint, since);
+  const hintSkip = flagSkipReason(hint, since, docId);
   if (hintSkip) return { skipped: hintSkip, flipped: false, value: false };
   const flagRef = db.collection(ATTENDANCE_FLAG_COLLECTION).doc(docId);
   return db.runTransaction(async (transaction) => {
@@ -245,7 +257,7 @@ async function recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventD
     ]);
     if (!eventSnap.exists) return { skipped: "missing_event", flipped: false, value: false };
     const data = eventSnap.data() || {};
-    const skipped = flagSkipReason(data, since);
+    const skipped = flagSkipReason(data, since, docId);
     if (skipped) return { skipped, flipped: false, value: false };
     const event = { ...data, _docId: docId };
     const publicId = normalizeText(data.id) || docId;
@@ -296,7 +308,9 @@ async function syncAttendanceFlagOnEventWrite({ db, FieldValue, event, stateChan
   if (normalizeText(afterData.status) !== "ended") return false;
   const eventDocId = safeUid(event.params?.eventId || after.id || after.ref?.id);
   if (!eventDocId) return false;
-  if (isOnOrAfterSince(normalizeEventDateKey(afterData.date))) {
+  const afterDateKey = normalizeEventDateKey(afterData.date);
+  if (!afterDateKey) warnUnparsableEventDate("syncAttendanceFlagOnEventWrite", eventDocId);
+  if (isOnOrAfterSince(afterDateKey)) {
     const outcome = await recomputeEventAttendanceFlag({ db, FieldValue, eventDocId, eventData: afterData });
     return outcome.flipped || (dateChanged && outcome.value);
   }
@@ -349,14 +363,30 @@ function createUserAttendanceStatsExports({
         // 刪除活動（before 存在、after 不存在）依賴此觸發器排入統計重算；改動此處或 event-deletion.js 的刪除主文件處，要確認另一處。
         const stateChanged = eventStatsStateChanged(event);
         // v2 旗標先算完再排重算，個人重算才讀得到新旗標。
-        const flagChanged = await syncAttendanceFlagOnEventWrite({ db, FieldValue, event, stateChanged });
-        if (!stateChanged && !flagChanged) return 0;
-        return enqueueUserAttendanceStats({
-          db,
-          FieldValue,
-          uids: await eventParticipantUids(event),
-          reason: stateChanged ? "event_terminal_state" : "attendance_flag_event",
-        });
+        // 旗標失敗不得擋住舊欄位入隊：記錄錯誤、照常入隊，最後重拋讓觸發器重試（重複入隊只會多重算一次）。
+        let flagChanged = false;
+        let flagError = null;
+        try {
+          flagChanged = await syncAttendanceFlagOnEventWrite({ db, FieldValue, event, stateChanged });
+        } catch (error) {
+          flagError = error;
+          console.error("[onUserAttendanceEventWrite] attendance flag sync failed", {
+            eventDocId: maskUid(normalizeText(event?.params?.eventId)),
+            stateChanged,
+            error: normalizeText(error?.message || error).slice(0, 300),
+          });
+        }
+        let queued = 0;
+        if (stateChanged || flagChanged) {
+          queued = await enqueueUserAttendanceStats({
+            db,
+            FieldValue,
+            uids: await eventParticipantUids(event),
+            reason: stateChanged ? "event_terminal_state" : "attendance_flag_event",
+          });
+        }
+        if (flagError) throw flagError;
+        return queued;
       },
     ),
     // v2：簽退新增／修改／刪除時整場重算旗標；值翻轉才把全場非同行者參加者排進重算。

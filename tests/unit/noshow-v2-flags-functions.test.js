@@ -191,12 +191,14 @@ describe('onEventAttendanceFlagWrite', () => {
     ['before since', endedEvent({ date: BEFORE_DATE })],
     ['unparsable date', endedEvent({ date: 'TBD' })],
   ])('%s event is skipped without reading subcollections', async (_label, data) => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const { db, calls } = createFakeDb({
       events: { 'doc-e1': eventEntry({ data, attendanceRecords: [checkout('U-a')] }) },
     });
     await expect(build(db).onEventAttendanceFlagWrite.handler(attendanceWrite(null, checkout('U-a')))).resolves.toBe(0);
     expect(calls.queries).toEqual([]);
     expect(calls.flagWrites).toEqual([]);
+    warn.mockRestore();
   });
 
   test('hard-deleting the only valid checkout (after missing) flips the flag off', async () => {
@@ -236,6 +238,24 @@ describe('onEventAttendanceFlagWrite', () => {
     });
     await expect(build(db).onEventAttendanceFlagWrite.handler(attendanceWrite(null, checkout('U-a')))).resolves.toBe(0);
     expect(calls.flagWrites).toEqual([]);
+  });
+
+  test('unparsable date on an ended event warns with function name and masked doc id', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { db } = createFakeDb({
+        events: { 'doc-event-1': eventEntry({ data: endedEvent({ date: 'TBD' }), attendanceRecords: [checkout('U-a')] }) },
+      });
+      const write = attendanceWrite(null, checkout('U-a'));
+      write.params.eventId = 'doc-event-1';
+      await expect(build(db).onEventAttendanceFlagWrite.handler(write)).resolves.toBe(0);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('[recomputeEventAttendanceFlag]'),
+        { eventDocId: 'do*******-1' },
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('stale eventId on an existing flag is rewritten without re-enqueue', async () => {
@@ -296,6 +316,43 @@ describe('onUserAttendanceEventWrite v2 flag maintenance', () => {
     await expect(build(db).onUserAttendanceEventWrite.handler(write)).resolves.toBe(0);
     expect(flags['doc-e1']).toBeUndefined();
     expect(calls.flagWrites).toEqual([]);
+  });
+
+  test('flag sync failure still enqueues the terminal-state rebuild, logs, then rethrows', async () => {
+    const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { db, calls } = createFakeDb({
+        events: { 'doc-e1': eventEntry({ attendanceRecords: [checkout('U-a')] }) },
+      });
+      db.runTransaction = jest.fn().mockRejectedValue(new Error('contention'));
+      const write = eventWrite(endedEvent({ status: 'open' }), endedEvent());
+      write.data.after.ref = db.collection('events').doc('doc-e1');
+      await expect(build(db).onUserAttendanceEventWrite.handler(write)).rejects.toThrow('contention');
+      expect(calls.queued.map((q) => q.uid).sort()).toEqual(['U-a', 'U-b']);
+      expect(calls.queued.every((q) => q.reason === 'event_terminal_state')).toBe(true);
+      expect(errorLog).toHaveBeenCalledWith(
+        '[onUserAttendanceEventWrite] attendance flag sync failed',
+        expect.objectContaining({ eventDocId: 'do**e1', stateChanged: true, error: 'contention' }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  test('unparsable date on an ended event write warns from the event trigger path', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { db } = createFakeDb({ events: { 'doc-e1': eventEntry() } });
+      const write = eventWrite(endedEvent(), endedEvent({ date: 'TBD' }));
+      write.data.after.ref = db.collection('events').doc('doc-e1');
+      await build(db).onUserAttendanceEventWrite.handler(write);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('[syncAttendanceFlagOnEventWrite]'),
+        { eventDocId: 'do**e1' },
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('date moved before since re-enqueues only when the stored flag was on', async () => {
