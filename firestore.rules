@@ -2032,13 +2032,15 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
+      // 2026-11-07 站長定案 F4：報名建立／取消／刪除只准系統（Callable Admin SDK）與管理員；
+      // 本人只留徽章與自選隊伍更新。取代原「本人可自建、自改取消、自刪」（可自填狀態與報名時間插隊）。
+      // isRegistrationOwnerRequest／isRegistrationOwnerSafeUpdate 因此暫無呼叫端，依 R-DATA-002 保留待另案清理。
       allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
-        && (isAdmin() || isRegistrationOwnerRequest());
+        && isAdmin();
       allow update: if !hasCourseLinkedRegistrationData(resource.data)
         && !hasCourseLinkedRegistrationData(request.resource.data)
         && (
           isAdmin()
-          || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
           || (isWaitlistPromotion() && isEventSiteOperatorForData(getRegEventData()))
           || (isWaitlistDemotion() && isEventOperatorForData(getRegEventData()))
           || (isManagerRegistrationRemoval() && isEventOperatorForData(getRegEventData()))
@@ -2047,7 +2049,7 @@ service cloud.firestore {
           || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
         );
       allow delete: if !hasCourseLinkedRegistrationData(resource.data)
-        && (isAdmin() || isRegistrationOwnerResource());
+        && isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -3348,13 +3350,14 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
+      // 2026-11-07 站長定案 F4：同根集合，建立／取消／刪除只准系統與管理員；本人只留徽章與自選隊伍更新。
+      // isSubRegOwnerRequest／isSubRegOwnerSafeUpdate 因此暫無呼叫端，依 R-DATA-002 保留待另案清理。
       allow create: if !hasCourseLinkedRegistrationData(request.resource.data)
-        && (isAdmin() || isSubRegOwnerRequest());
+        && isAdmin();
       allow update: if !hasCourseLinkedRegistrationData(resource.data)
         && !hasCourseLinkedRegistrationData(request.resource.data)
         && (
           isAdmin()
-          || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
           || (isSubWaitlistPromotion() && isEventSiteOperatorForData(getSubRegEventData()))
           || (isSubWaitlistDemotion() && isEventOperatorForData(getSubRegEventData()))
           || (isSubManagerRegistrationRemoval() && isEventOperatorForData(getSubRegEventData()))
@@ -3363,7 +3366,7 @@ service cloud.firestore {
           || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
         );
       allow delete: if !hasCourseLinkedRegistrationData(resource.data)
-        && (isAdmin() || isSubRegOwner());
+        && isAdmin();
     }
 
     match /events/{eventId}/teamReservations/{reservationId} {

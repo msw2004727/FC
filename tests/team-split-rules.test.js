@@ -136,9 +136,10 @@ afterAll(async () => {
 describe("Step 0: Registration owner update whitelist", () => {
 
   describe("cancel registration (status + cancelledAt)", () => {
-    test("owner can cancel own registration", async () => {
+    // 測試同步更新（2026-11-07 站長定案 F4）：取消改走 cancelRegistration Callable（同交易遞補），本人不能直寫取消。
+    test("owner CANNOT cancel own registration directly", async () => {
       await seedReg("reg1", { userId: "uidA", status: "confirmed" });
-      await assertSucceeds(
+      await assertFails(
         updateDoc(doc(authed("uidA"), "registrations", "reg1"), {
           status: "cancelled",
           cancelledAt: Timestamp.now(),

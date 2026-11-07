@@ -2797,14 +2797,15 @@ describe("/registrations/{regId}", () => {
     );
   });
 
-  test("[SECURITY_GAP_FIXED] create: member can create own registration but cannot spoof userId", async () => {
+  // 測試同步更新（2026-11-07 站長定案 F4）：報名建立／取消／刪除只准系統（Callable）與管理員，本人不能直寫。
+  test("[F4] create: only admin can create registrations; members cannot create even their own", async () => {
     await assertByRole(
       ({ db, role }) =>
         setDoc(doc(db, "registrations", `reg_create_${role}`), {
           eventId: "eventA",
           userId: uidByRole[role] || "uidA",
         }),
-      allowAuth
+      allowAdminAndSuper
     );
     await assertFails(
       setDoc(doc(memberA(), "registrations", "reg_spoof_by_A"), {
@@ -2812,21 +2813,23 @@ describe("/registrations/{regId}", () => {
         userId: "uidB",
       })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberA(), "registrations", "reg_self_by_A"), {
         eventId: "eventA",
         userId: "uidA",
+        status: "confirmed",
+        registeredAt: new Date("2020-01-01T00:00:00Z"),
       })
     );
   });
 
-  test("[SECURITY_GAP_FIXED] update: member cannot update others' registration", async () => {
+  test("[F4] update: members cannot cancel registrations directly (own or others')", async () => {
     await assertByRole(
       ({ db }) => updateDoc(doc(db, "registrations", "regB"), { status: "cancelled" }),
       {
         guest: false,
         memberA: false,
-        memberB: true,
+        memberB: false,
         admin: true,
         superAdmin: true,
       }
@@ -2836,11 +2839,19 @@ describe("/registrations/{regId}", () => {
     );
   });
 
-  test("[SECURITY_GAP_FIXED] delete: member cannot delete others' registration", async () => {
+  test("[F4] owner keeps badge-only update on own root registration", async () => {
+    await assertSucceeds(
+      updateDoc(doc(memberB(), "registrations", "regB"), { displayBadges: ["badge_1"] })
+    );
+    await assertFails(
+      updateDoc(doc(memberB(), "registrations", "regB"), { displayBadges: ["badge_2"], status: "cancelled" })
+    );
+  });
+
+  test("[F4] delete: only admin can delete registrations; owners cannot delete their own", async () => {
     await assertFails(deleteDoc(doc(guest(), "registrations", "regB")));
     await assertFails(deleteDoc(doc(memberA(), "registrations", "regB")));
-    await seedDoc("registrations", "regB", { eventId: "eventB", userId: "uidB", status: "confirmed" });
-    await assertSucceeds(deleteDoc(doc(memberB(), "registrations", "regB")));
+    await assertFails(deleteDoc(doc(memberB(), "registrations", "regB")));
     await seedDoc("registrations", "regB", { eventId: "eventB", userId: "uidB", status: "confirmed" });
     await assertFails(deleteDoc(doc(memberB(), "registrations", "regA")));
     await seedDoc("registrations", "regA", { eventId: "eventA", userId: "uidA", status: "confirmed" });
@@ -2886,7 +2897,8 @@ describe("/registrations/{regId}", () => {
     await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_existing")));
   });
 
-  test("private course-linked events allow ordinary root registration writes without provenance fields", async () => {
+  // 測試同步更新（F4）：一般報名也只准系統／管理員直寫，本人改走 Callable。
+  test("private course-linked events: members cannot write ordinary root registrations directly", async () => {
     await seedDoc("events", "event_course_private", {
       id: "event_course_private",
       title: "Course Private",
@@ -2898,7 +2910,7 @@ describe("/registrations/{regId}", () => {
       status: "open",
     });
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberA(), "registrations", "reg_course_private_create"), {
         eventId: "event_course_private",
         userId: "uidA",
@@ -2920,17 +2932,12 @@ describe("/registrations/{regId}", () => {
       userId: "uidA",
       status: "confirmed",
     });
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(memberA(), "registrations", "reg_course_private_existing"), {
         status: "cancelled",
       })
     );
-    await seedDoc("registrations", "reg_course_private_existing", {
-      eventId: "event_course_private",
-      userId: "uidA",
-      status: "confirmed",
-    });
-    await assertSucceeds(deleteDoc(doc(memberA(), "registrations", "reg_course_private_existing")));
+    await assertFails(deleteDoc(doc(memberA(), "registrations", "reg_course_private_existing")));
   });
 });
 
@@ -3330,7 +3337,8 @@ describe("course-linked event direct write guards", () => {
     );
   });
 
-  test("private course-linked events allow ordinary subcollection registrations and activity side effects", async () => {
+  // 測試同步更新（F4）：子集合報名本人不能直接建立；活動紀錄與活動投影不在本次範圍。
+  test("private course-linked events: members cannot create subcollection registrations directly; activity side effects unchanged", async () => {
     await seedDoc("events", "event_course_private_sub", {
       id: "event_course_private_sub",
       title: "Course Private Sub",
@@ -3350,7 +3358,7 @@ describe("course-linked event direct write guards", () => {
         status: "open",
       })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberA(), "events", "event_course_private_sub", "registrations", "reg_private_sub"), {
         eventId: "event_course_private_sub",
         userId: "uidA",
@@ -4032,8 +4040,9 @@ describe("/trades/{tradeId}", () => {
 });
 
 describe("Role usability smoke tests", () => {
-  test("user can create own registration", async () => {
-    await assertSucceeds(
+  // 測試同步更新（F4）：報名／取消改走 Callable，本人不能直寫建立、取消或刪除。
+  test("user cannot create own registration directly", async () => {
+    await assertFails(
       setDoc(doc(user(), "registrations", "reg_user_smoke_create"), {
         eventId: "eventA",
         userId: "uidUser",
@@ -4042,16 +4051,16 @@ describe("Role usability smoke tests", () => {
     );
   });
 
-  test("user can update own registration", async () => {
-    await assertSucceeds(
+  test("user cannot cancel own registration directly", async () => {
+    await assertFails(
       updateDoc(doc(user(), "registrations", "regUser"), {
         status: "cancelled",
       })
     );
   });
 
-  test("user can delete own registration", async () => {
-    await assertSucceeds(deleteDoc(doc(user(), "registrations", "regUser")));
+  test("user cannot delete own registration directly", async () => {
+    await assertFails(deleteDoc(doc(user(), "registrations", "regUser")));
   });
 
   test("user cannot update another user's registration", async () => {
@@ -5353,8 +5362,9 @@ describe("Phase 4: user basic features always allowed (no perm required)", () =>
     await assertSucceeds(getDoc(doc(user(), "events", "evt1")));
   });
 
-  test("user can create own registration", async () => {
-    await assertSucceeds(
+  // 測試同步更新（F4）：報名是基本功能但走 registerForEvent Callable，不再允許前端直寫。
+  test("user cannot create own registration directly (registration goes through Callable)", async () => {
+    await assertFails(
       setDoc(doc(user(), "registrations", "reg1"), {
         eventId: "evt1", userId: "uidUser", uid: "uidUser",
         status: "confirmed", registeredAt: new Date(),
