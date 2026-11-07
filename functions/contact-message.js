@@ -102,21 +102,15 @@ function mergeStamp(recent, stamp) {
   return next;
 }
 
-// 未來時間戳留在視窗內。effectiveNow 同時用來比 60 秒間隔與成功時寫入的時間。
-// 間隔為負代表這次時鐘比最後一筆早，視為太快；仍把這次的較早時間戳留下，避免下一輪蓋掉未來紀錄。
+// 未來時間戳留在視窗內。effectiveNow 同時用來比 60 秒間隔與成功時寫入的時間；間隔為負代表這次時鐘比最後一筆早，視為太快。
+// 被拒一律不寫入（Opus 複審 P3-1：取代原「被拒也留下較早時間戳」，連點被拒會白吃額度、最壞鎖 24 小時；成功時的 recent 本就保留未來時間戳）。
 function evaluateUserRate(stored, nowMs) {
   const recent = recentSentAt(stored, nowMs);
   const last = recent.length ? recent[recent.length - 1] : null;
   const effectiveNow = last === null ? nowMs : Math.max(nowMs, last);
-  const negativeGap = last !== null && nowMs - last < 0;
   const tooSoon = last !== null && effectiveNow - last < CONTACT_MIN_GAP_MS;
   const tooMany = recent.length >= CONTACT_MAX_PER_WINDOW;
-  if (tooMany || tooSoon) {
-    return {
-      reject: true,
-      sentAtMs: negativeGap && !tooMany ? mergeStamp(recent, nowMs) : null,
-    };
-  }
+  if (tooMany || tooSoon) return { reject: true, sentAtMs: null };
   return { reject: false, sentAtMs: mergeStamp(recent, effectiveNow) };
 }
 
@@ -325,16 +319,7 @@ function createSubmitContactMessageHandler({
         const dailySnap = await tx.get(dailyRef);
         const stored = limitSnap.exists ? limitSnap.data()?.sentAtMs : [];
         const rate = evaluateUserRate(stored, nowMs);
-        if (rate.reject) {
-          if (rate.sentAtMs) {
-            tx.set(limitRef, {
-              uid,
-              sentAtMs: rate.sentAtMs,
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-          }
-          return { reject: "rate" };
-        }
+        if (rate.reject) return { reject: "rate" };
 
         const daily = evaluateDaily(dailySnap.exists ? dailySnap.data() : null);
         if (daily.reject) return { reject: "daily" };

@@ -385,7 +385,8 @@ describe("submitContactMessage", () => {
     expect(messages(emoji.db)[0].content).toBe("😀".repeat(301));
   });
 
-  test("先以 t+5 秒送一則，再以 t 送必須被拒，且限制文件保留兩筆", async () => {
+  // 測試同步更新：被拒一律不寫入限制文件（Opus 複審 P3-1）
+  test("先以 t+5 秒送一則，再以 t 送必須被拒，且被拒的那次不佔額度", async () => {
     const later = T0 + 5000;
     const env = load({ t0: later });
     await env.call(valid({ content: "未來" }));
@@ -396,7 +397,7 @@ describe("submitContactMessage", () => {
       details: { code: "CONTACT_RATE_LIMITED" },
     });
     expect(messages(env.db).map((item) => item.content)).toEqual(["未來"]);
-    expect(env.db.read(`contactMessageLimits/${CALLER}`).sentAtMs).toEqual([T0, later]);
+    expect(env.db.read(`contactMessageLimits/${CALLER}`).sentAtMs).toEqual([later]);
     expect(env.db.read("contactMessageLimits/daily-20261108").storedCount).toBe(1);
   });
 
@@ -413,7 +414,7 @@ describe("submitContactMessage", () => {
     expect(messages(env.db)).toHaveLength(1);
     expect(messages(env.db)[0].content).toBe("n0");
     const sentAtMs = env.db.read(`contactMessageLimits/${CALLER}`).sentAtMs;
-    expect(sentAtMs[sentAtMs.length - 1]).toBe(times[0]);
+    expect(sentAtMs).toEqual([times[0]]);
     expect(env.db.read("contactMessageLimits/daily-20261108").storedCount).toBe(1);
   });
 
