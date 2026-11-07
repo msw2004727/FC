@@ -44,7 +44,8 @@ describe('startup performance guardrails', () => {
     // and create-modal navigation guards, plus the PageLoader robots-meta strip,
     // and the home next-activity registration query (status-in filter, limit warning,
     // stale-cache calibration, legacy-root filter; T-034); 2026-10-30 事件繫結強化借支：上限由 raw 1,547,900／gz 390,000 調為 1,548,376／390,113（全批 b／c 包完成後實測，相對原上限 +476／+113），A 下線後不追回
-    expect(rawBytes).toBeLessThanOrEqual(1_548_377);
+    // 2026-11-07 換站 A-03 備援網址（old.toosterx.com 的 LIFF ID 分流與說明註解）借支：raw 上限 1,548,377 → 1,548,419（副機實測 1,548,419，+42，A 下線後不追回）
+    expect(rawBytes).toBeLessThanOrEqual(1_548_419);
     // 2026-11-04 T-090c 建立俱樂部能力開關（能力項目、自建俱樂部略過自動升級、通知補帶 teamId／applicantUid）借支：gz 上限 390,113 → 390,240（實測 390,221，+108，A 下線後不追回；測試同步更新）
     expect(gzipBytes).toBeLessThanOrEqual(390_240);
   });
