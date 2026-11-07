@@ -490,6 +490,10 @@ function createConfirmEventAttendanceHandler({
     if (!request?.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
     }
+    // 預熱：已登入即回，不驗證其他參數、不讀寫、不記 log。
+    if (request.data?.warmup === true) {
+      return { warmup: true };
+    }
     const callerUid = request.auth.uid;
     const { eventId, desired } = request.data || {};
 
