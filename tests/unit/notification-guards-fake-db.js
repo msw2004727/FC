@@ -3,7 +3,7 @@
 /**
  * 通知發送授權強化測試共用的記憶體版 Firestore（以路徑為鍵）。
  * 只實作用得到的子集：doc／collection／subcollection、get／set(merge)／update／create／delete、add、
- * where(==、array-contains)＋collection.get、getAll、batch(set/create/commit)、runTransaction。
+ * where(==、array-contains)＋limit＋collection.get、getAll、batch(set/create/commit)、runTransaction。
  *
  * 限制（不要假裝它有）：
  *  - runTransaction 以序列佇列執行（模擬 Firestore 對同一文件交易的序列化），不模擬 ABORTED 重試。
@@ -91,16 +91,17 @@ function createFakeDb({ seed = {}, faults = {} } = {}) {
       .sort();
   }
 
-  function query(path, filters = []) {
+  function query(path, filters = [], maxDocs = Infinity) {
     return {
-      where: (field, op, value) => query(path, [...filters, { field, op, value }]),
+      where: (field, op, value) => query(path, [...filters, { field, op, value }], maxDocs),
+      limit: (count) => query(path, filters, count),
       get: async () => {
-        const docs = childPaths(path)
+        const matched = childPaths(path)
           .filter((childPath) => filters.every(({ field, op, value }) => {
             const actual = store.get(childPath)?.[field];
             return op === "array-contains" ? Array.isArray(actual) && actual.includes(value) : actual === value;
-          }))
-          .map(snapshot);
+          }));
+        const docs = matched.slice(0, maxDocs).map(snapshot);
         return { docs, size: docs.length, empty: docs.length === 0, forEach: (cb) => docs.forEach(cb) };
       },
     };

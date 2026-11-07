@@ -3796,6 +3796,15 @@ service cloud.firestore {
     match /linePushDedupe/{docId} {
       allow read, write: if false;
     }
+    // 聯繫站長：根層集合，不參與 events 路徑，不增加活動規則運算式預算。
+    // 訊息只由 Callable（Admin SDK）寫入；super_admin 可讀。頻率計數客戶端不可讀寫。
+    match /contactMessages/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /contactMessageLimits/{uid} {
+      allow read, write: if false;
+    }
     // collectionGroup wildcard rules（僅 read，供 Phase 3 collectionGroup 查詢使用）
     match /{path=**}/registrations/{regId} {
       allow read: if request.auth != null;

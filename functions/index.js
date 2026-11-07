@@ -40,6 +40,7 @@ const { createRelationChecker } = require("./notification-relation-log");
 const { selectEnqueuePool } = require("./notification-pool");
 const { relationMode } = require("./notification-relation-enforcement");
 const { maskUid } = require("./notification-fields");
+const { createSubmitContactMessageCallable } = require("./contact-message");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -19399,3 +19400,14 @@ Object.assign(exports, createUserAttendanceStatsExports({
   onDocumentWritten,
   onSchedule,
 }));
+
+exports.submitContactMessage = createSubmitContactMessageCallable({
+  onCall,
+  HttpsError,
+  db,
+  FieldValue,
+  getCallerRoleWithFallback,
+  findUserDocByUidOrLineUserId,
+  getLineRecipientUidFromUserDoc,
+  isStaffRole: (role) => notificationGuards.isStaffRole(role),
+});
