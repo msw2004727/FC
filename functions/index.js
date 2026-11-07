@@ -1745,15 +1745,14 @@ async function getRoleActivityCapabilitiesFromFirestore(roleKey) {
 
 async function getCallerAccessContext(request) {
   const role = await getCallerRoleWithFallback(request);
-  const stored = role === "super_admin"
-    ? []
-    : await getRolePermissionsFromFirestore(role);
-  const userGrants = role === "super_admin"
-    ? []
-    : await getUserPermissionGrantsFromFirestore(request.auth?.uid);
+  // 角色已確定後，三個權限讀取彼此無依賴，並行；super_admin 仍不讀 rolePermissions／grants。
+  const [stored, userGrants, activityCapabilities] = await Promise.all([
+    role === "super_admin" ? [] : getRolePermissionsFromFirestore(role),
+    role === "super_admin" ? [] : getUserPermissionGrantsFromFirestore(request.auth?.uid),
+    getRoleActivityCapabilitiesFromFirestore(role),
+  ]);
   const inherent = INHERENT_ROLE_PERMISSIONS[role] || [];
   const permissions = Array.from(new Set([...stored, ...userGrants, ...inherent]));
-  const activityCapabilities = await getRoleActivityCapabilitiesFromFirestore(role);
   return {
     role,
     permissions,
@@ -12453,11 +12452,25 @@ function rebuildOccupancy(event, registrations) {
   };
 }
 
+// 已讀使用者必須能對上 targetUid（文件 ID、uid 或 lineUserId），才跳過再讀。
+function providedExpUserMatches(targetUser, targetUid) {
+  if (!targetUser || typeof targetUser !== "object" || Array.isArray(targetUser)) return false;
+  const docId = typeof targetUser.docId === "string" ? targetUser.docId.trim() : "";
+  if (!docId) return false;
+  const data = targetUser.data && typeof targetUser.data === "object" ? targetUser.data : {};
+  const wanted = String(targetUid || "").trim();
+  if (!wanted) return false;
+  return [docId, data.uid, data.lineUserId].some((value) => String(value || "").trim() === wanted);
+}
+
 // ── 內部用 adjustExp（同進程直接呼叫，不走 onCall） ──
-async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorUid }) {
+// targetUser 可選：{ docId, data }。吻合才沿用；未傳或對不上時照舊再讀。
+async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorUid, targetUser: providedUser }) {
   if (!targetUid || typeof amount !== "number" || amount === 0) return null;
 
-  const targetUser = await findUserDocByUidOrLineUserId(targetUid);
+  const targetUser = providedExpUserMatches(providedUser, targetUid)
+    ? { docId: String(providedUser.docId).trim(), data: providedUser.data || {} }
+    : await findUserDocByUidOrLineUserId(targetUid);
   if (!targetUser) return null;
 
   const userData = targetUser.data || {};
@@ -12647,14 +12660,15 @@ async function writeAuditEntryInternal({ action, targetType, targetId, targetLab
   }
 }
 
-// ── 寫入 inbox 通知的內部 helper（雙寫：messages/ + users/{uid}/inbox/）──
+// ── 寫入 inbox 通知的內部 helper（雙寫同一 batch：messages/ + users/{uid}/inbox/，同成同敗）──
 async function writeInboxNotification({ recipientUid, title, body, category, categoryLabel }) {
   const safeTitle = String(title || "").slice(0, 200);
   const safeBody = String(body || "").slice(0, 2000);
   const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   try {
-    // 舊路徑（向後相容）
-    await db.collection("messages").add({
+    const batch = db.batch();
+    // 舊路徑（向後相容）。batch 沒有 add()，用自動 ID 的 set，與 add 一樣是新建。
+    batch.set(db.collection("messages").doc(), {
       recipientUid,
       title: safeTitle,
       body: safeBody,
@@ -12664,9 +12678,9 @@ async function writeInboxNotification({ recipientUid, title, body, category, cat
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     });
-    // 新路徑（per-user inbox）
+    // 新路徑（per-user inbox）。與舊路徑同一次 commit。
     if (recipientUid) {
-      await db.collection("users").doc(recipientUid).collection("inbox").doc(msgId).set({
+      batch.set(db.collection("users").doc(recipientUid).collection("inbox").doc(msgId), {
         id: msgId,
         title: safeTitle,
         body: safeBody,
@@ -12680,6 +12694,7 @@ async function writeInboxNotification({ recipientUid, title, body, category, cat
         createdAt: FieldValue.serverTimestamp(),
       });
     }
+    await batch.commit();
   } catch (err) {
     console.error("[writeInboxNotification]", err);
   }
@@ -13144,10 +13159,39 @@ function normalizeBinaryGenderForRegistration(value) {
 // ═══════════════════════════════════════════════════════════════
 //  registerForEvent — 報名 callable（含同行者）
 // ═══════════════════════════════════════════════════════════════
+function registrationCallableTimingOutcome(error) {
+  const raw = error?.code;
+  const text = typeof raw === "number" && Number.isInteger(raw)
+    ? String(raw)
+    : (typeof raw === "string" ? raw : "");
+  return /^[A-Za-z0-9_-]{1,64}$/.test(text) ? text : "internal";
+}
+
+function logRegistrationCallableTiming(fn, startedAt, timing, outcome) {
+  console.log(JSON.stringify({
+    fn,
+    ms_total: Date.now() - startedAt,
+    ms_auth: timing.authMs,
+    ms_txn: timing.txnMs,
+    ms_post: timing.postMs,
+    outcome,
+  }));
+}
+
 exports.registerForEvent = onCall(
   // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650 / 用戶體感從 3-5 秒 → < 1 秒）
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
   registrationGuards.withRegistrationErrorBoundary({ fn: "registerForEvent", HttpsError }, async (request) => {
+    const startedAt = Date.now();
+    const timing = { authMs: 0, txnMs: 0, postMs: 0, authStamped: false };
+    let outcome = "ok";
+    const stampAuth = () => {
+      if (timing.authStamped) return;
+      timing.authMs = Date.now() - startedAt;
+      timing.authStamped = true;
+    };
+    try {
+      return await (async () => {
     // ── 身份驗證 ──
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -13215,7 +13259,12 @@ exports.registerForEvent = onCall(
     }
 
     // ── Firestore Transaction ──
-    const result = await db.runTransaction(async (transaction) => {
+    stampAuth();
+    const txnStart = Date.now();
+    let result;
+    // 交易耗時用 try/finally 量測（R-CODE-001：新增程式不用 .then() chain，Opus 審 P2）；callback 本體不動。
+    try {
+      result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西、不扣早鳥點數
       const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "register", callerUid, eventId });
@@ -13676,6 +13725,9 @@ exports.registerForEvent = onCall(
       }
       return txResult;
     });
+    } finally {
+      timing.txnMs = Date.now() - txnStart;
+    }
 
     // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複加 EXP、不重寫 audit）
     if (result.deduplicated === true) {
@@ -13683,6 +13735,8 @@ exports.registerForEvent = onCall(
     }
 
     // ── Transaction 成功：交易成功後的 best-effort 後置操作（等待完成、失敗只記錄） ──
+    const postStart = Date.now();
+    try {
     const postOps = [];
 
     // P1: auditLog
@@ -13735,6 +13789,7 @@ exports.registerForEvent = onCall(
           reason: `報名活動：${result.eventData.title}`,
           ruleKey: "register_activity",
           operatorUid: callerUid,
+          ...(callerUserDoc && callerUserDoc.docId ? { targetUser: callerUserDoc } : {}),
         })
       );
     }
@@ -13788,6 +13843,9 @@ exports.registerForEvent = onCall(
 
     // 非同步執行所有後置操作
     await settleBestEffortPostCommitOps("registerForEvent", postOps);
+    } finally {
+      timing.postMs = Date.now() - postStart;
+    }
 
     return {
       success: true,
@@ -13798,6 +13856,14 @@ exports.registerForEvent = onCall(
       earlyBirdCharged: result.earlyBirdCharged === true,
       earlyBirdCost: result.earlyBirdCost || 0,
     };
+      })();
+    } catch (error) {
+      if (!timing.authStamped) stampAuth();
+      outcome = registrationCallableTimingOutcome(error);
+      throw error;
+    } finally {
+      logRegistrationCallableTiming("registerForEvent", startedAt, timing, outcome);
+    }
   })
 );
 
@@ -14587,6 +14653,16 @@ exports.cancelRegistration = onCall(
   // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650）
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
   registrationGuards.withRegistrationErrorBoundary({ fn: "cancelRegistration", HttpsError }, async (request) => {
+    const startedAt = Date.now();
+    const timing = { authMs: 0, txnMs: 0, postMs: 0, authStamped: false };
+    let outcome = "ok";
+    const stampAuth = () => {
+      if (timing.authStamped) return;
+      timing.authMs = Date.now() - startedAt;
+      timing.authStamped = true;
+    };
+    try {
+      return await (async () => {
     // ── 身份驗證 ──
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
@@ -14619,7 +14695,12 @@ exports.cancelRegistration = onCall(
     }
 
     // ── Firestore Transaction ──
-    const result = await db.runTransaction(async (transaction) => {
+    stampAuth();
+    const txnStart = Date.now();
+    let result;
+    // 交易耗時用 try/finally 量測（R-CODE-001：新增程式不用 .then() chain，Opus 審 P2）；callback 本體不動。
+    try {
+      result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西
       const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "cancel", callerUid, eventId });
@@ -14909,6 +14990,9 @@ exports.cancelRegistration = onCall(
       }
       return txResult;
     });
+    } finally {
+      timing.txnMs = Date.now() - txnStart;
+    }
 
     // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複扣／加 EXP、不重寫 audit）
     if (result.deduplicated === true) {
@@ -14916,6 +15000,8 @@ exports.cancelRegistration = onCall(
     }
 
     // ── Transaction 成功：交易成功後的 best-effort 後置操作（等待完成、失敗只記錄） ──
+    const postStart = Date.now();
+    try {
     const postOps = [];
 
     // P1: 通知取消者
@@ -14963,19 +15049,27 @@ exports.cancelRegistration = onCall(
       }
     }
 
-    // P3: 取消者扣 EXP（僅 user_cancel）
+    // P3: 取消者扣 EXP（僅 user_cancel）。本人文件只讀一次，再傳給每一筆，避免 adjustExpInternal 重讀。
     if (cancelReason === "user_cancel") {
+      let callerExpUserPromise = null;
+      const loadCallerExpUser = () => {
+        // 讀取失敗時回 null，交由 adjustExpInternal 各自重讀，避免一次失敗連坐本人與同行者（Opus 審 P3）。
+        if (!callerExpUserPromise) callerExpUserPromise = findUserDocByUidOrLineUserId(callerUid).catch(() => null);
+        return callerExpUserPromise;
+      };
       for (const reg of result.cancelled) {
         if (reg.courseLinked) continue;
-        postOps.push(
-          adjustExpInternal({
+        postOps.push((async () => {
+          const knownUser = reg.userId === callerUid ? await loadCallerExpUser() : null;
+          return adjustExpInternal({
             targetUid: reg.userId,
             amount: -5,
             reason: `取消報名：${result.eventData.title}`,
             ruleKey: "cancel_registration",
             operatorUid: callerUid,
-          })
-        );
+            ...(knownUser && knownUser.docId ? { targetUser: knownUser } : {}),
+          });
+        })());
       }
     }
 
@@ -15019,6 +15113,9 @@ exports.cancelRegistration = onCall(
     }
 
     await settleBestEffortPostCommitOps("cancelRegistration", postOps);
+    } finally {
+      timing.postMs = Date.now() - postStart;
+    }
 
     return {
       success: true,
@@ -15027,6 +15124,14 @@ exports.cancelRegistration = onCall(
       promoted: result.promoted,
       event: result.event,
     };
+      })();
+    } catch (error) {
+      if (!timing.authStamped) stampAuth();
+      outcome = registrationCallableTimingOutcome(error);
+      throw error;
+    } finally {
+      logRegistrationCallableTiming("cancelRegistration", startedAt, timing, outcome);
+    }
   })
 );
 

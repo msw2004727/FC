@@ -51,10 +51,27 @@ function createRosterStatusHandler(action, dependencies) {
   const internalCode = demote ? "FORCE_DEMOTE_FAILED" : "FORCE_PROMOTE_FAILED";
 
   return async function rosterStatusHandler(request) {
+    const startedAt = Date.now();
+    let authMs = 0;
+    let txnMs = 0;
+    let postMs = 0;
+    let outcome = "ok";
+    let authStamped = false;
+    let skipTiming = false;
+    const stampAuth = () => {
+      if (authStamped) return;
+      authMs = Date.now() - startedAt;
+      authStamped = true;
+    };
     let eventId = "";
     try {
       const callerUid = request?.auth?.uid;
       if (!callerUid) throw new HttpsError("unauthenticated", "Authentication required", { code: "UNAUTHENTICATED" });
+      // 預熱：已登入即回，不驗證其他參數、不讀寫、不記 log。
+      if (request?.data?.warmup === true) {
+        skipTiming = true;
+        return { warmup: true };
+      }
       const data = request.data || {};
       // 長度先驗再 sanitize，避免截斷後意外指向另一個實體或去重鍵。
       const validId = (value, limit) => typeof value === "string" && value.length <= limit
@@ -69,12 +86,22 @@ function createRosterStatusHandler(action, dependencies) {
       const userId = sanitizeStr(data.userId, 128);
       const registrationId = sanitizeStr(data.registrationId, 120);
       const requestId = sanitizeStr(data.requestId, 100);
-      if (!await claimRequestId({ requestId, callerUid, fn })) {
+      // claim 與權限讀取無資料依賴，同時開始。去重命中仍直接回傳，不讓權限讀取的錯誤把重複請求變成失敗。
+      const claimPromise = claimRequestId({ requestId, callerUid, fn });
+      const accessPromise = getCallerAccessContext(request);
+      accessPromise.catch(() => {});
+      const claimed = await claimPromise;
+      if (!claimed) {
+        stampAuth();
         logger.info({ fn, eventId: maskId(eventId), errorCode: "DEDUPLICATED", count: 0 });
         return { success: true, deduplicated: true };
       }
-      const access = await getCallerAccessContext(request);
-      const result = await db.runTransaction(async (transaction) => {
+      const access = await accessPromise;
+      stampAuth();
+      const txnStart = Date.now();
+      let result;
+      try {
+        result = await db.runTransaction(async (transaction) => {
         const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
         if (!eventDoc || !eventDoc.exists) throw new HttpsError("not-found", "EVENT_NOT_FOUND", { code: "EVENT_NOT_FOUND" });
         const eventRef = eventDoc.ref;
@@ -125,9 +152,15 @@ function createRosterStatusHandler(action, dependencies) {
           })),
           title: eventData.title || "", date: eventData.date || "", location: eventData.location || "",
         };
-      });
+        });
+      } catch (error) {
+        txnMs = Date.now() - txnStart;
+        throw error;
+      }
+      txnMs = Date.now() - txnStart;
 
       // 對齊 A 模板；同組同行者只通知主報名者一次。
+      const postStart = Date.now();
       const details = `活動名稱：${result.title}\n活動時間：${result.date}\n活動地點：${result.location}`;
       const body = demote
         ? `因活動名額調整，您目前已改為候補狀態。\n\n${details}\n\n若後續有名額釋出，系統會再通知您。`
@@ -186,6 +219,7 @@ function createRosterStatusHandler(action, dependencies) {
           count: outcomes.filter((outcome) => outcome.status === "rejected").length,
         });
       }
+      postMs = Date.now() - postStart;
       logger.info({ fn, eventId: maskId(eventId), errorCode: "OK", count: result.count });
       return {
         success: true, [demote ? "demoted" : "promoted"]: result.count,
@@ -194,14 +228,27 @@ function createRosterStatusHandler(action, dependencies) {
         event: result.event,
       };
     } catch (error) {
+      if (!authStamped) stampAuth();
       const knownCodes = ["unauthenticated", "invalid-argument", "not-found", "permission-denied", "failed-precondition"];
       const expected = error instanceof HttpsError && knownCodes.includes(error.code);
       const errorCode = expected ? error.code : internalCode;
+      outcome = /^[A-Za-z0-9_-]{1,64}$/.test(String(errorCode || "")) ? String(errorCode) : "internal";
       // 預期中的拒絕（權限不足、狀態不符等）記 warn；其餘為內部錯誤，記去敏後的錯誤碼。
       if (expected) logger.warn({ fn, eventId: maskId(eventId), errorCode });
       else logger.error({ fn, eventId: maskId(eventId), errorCode, cause: String(error?.code ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "unknown" });
       if (error instanceof HttpsError) throw error;
       throw new HttpsError("internal", internalCode, { code: internalCode });
+    } finally {
+      if (!skipTiming) {
+        console.log(JSON.stringify({
+          fn,
+          ms_total: Date.now() - startedAt,
+          ms_auth: authMs,
+          ms_txn: txnMs,
+          ms_post: postMs,
+          outcome,
+        }));
+      }
     }
   };
 }
