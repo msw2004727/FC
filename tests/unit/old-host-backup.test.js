@@ -50,10 +50,10 @@ function lineConfigSnippet(oldHostLiffId) {
   let snippet = source.slice(start, end);
   if (oldHostLiffId != null) {
     const next = snippet.replace(
-      "const OLD_HOST_LIFF_ID = '';",
+      /const OLD_HOST_LIFF_ID = '[^']*';/,
       'const OLD_HOST_LIFF_ID = ' + JSON.stringify(oldHostLiffId) + ';'
     );
-    expect(next).not.toBe(snippet);
+    expect(next).toMatch(/const OLD_HOST_LIFF_ID = /);
     snippet = next;
   }
   return snippet;
@@ -192,7 +192,7 @@ describe('old.toosterx.com backup host', () => {
 
   test('LIFF_ID uses OLD_HOST_LIFF_ID only on old host when the constant is non-empty', () => {
     const snippet = lineConfigSnippet();
-    expect(snippet).toMatch(/const OLD_HOST_LIFF_ID = '';/);
+    expect(snippet).toMatch(/const OLD_HOST_LIFF_ID = '2009084941-oVHTDgcH';/);
     expect(snippet).toContain('location.hostname');
     expect(snippet).toContain("=== 'old.toosterx.com'");
     expect(snippet).not.toMatch(/\?\./);
@@ -202,7 +202,10 @@ describe('old.toosterx.com backup host', () => {
     expect(snippet).toMatch(/LIFF_ID_LEGACY:\s*'2009084941-zgn7tQOp'/);
     expect(snippet).toMatch(/CHANNEL_ID:\s*'2009525300'/);
 
-    const emptyOnOld = evalLineConfig('old.toosterx.com');
+    // 實際填入的 old 專用 LIFF：只在 old 生效
+    expect(evalLineConfig('old.toosterx.com').LIFF_ID).toBe('2009084941-oVHTDgcH');
+
+    const emptyOnOld = evalLineConfig('old.toosterx.com', '');
     expect(emptyOnOld.LIFF_ID).toBe(MINI_APP_LIFF_ID);
     expect(emptyOnOld.MINI_APP_ID).toBe(MINI_APP_LIFF_ID);
     expect(emptyOnOld.LIFF_ID_LEGACY).toBe('2009084941-zgn7tQOp');

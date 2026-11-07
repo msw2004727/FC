@@ -481,8 +481,8 @@ const PROD_HOSTS = Array.isArray(window.__SPORTHUB_PROD_HOSTS__)
   : ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev', 'old.toosterx.com'];
 
 // ─── LINE Login Config ───
-// old.toosterx.com 專用 LIFF ID，站長在 LINE 後台建好後填入；空字串時沿用 Mini App LIFF ID。
-const OLD_HOST_LIFF_ID = '';
+// old.toosterx.com 專用 LIFF ID（LINE Login 通道 2009084941「ToosterX Old」，與 Mini App 同 Provider，2026-11-07 建）；空字串時沿用 Mini App LIFF ID。
+const OLD_HOST_LIFF_ID = '2009084941-oVHTDgcH';
 const LINE_CONFIG = {
   LIFF_ID: (typeof location !== 'undefined' && location.hostname === 'old.toosterx.com' && OLD_HOST_LIFF_ID)
     ? OLD_HOST_LIFF_ID
