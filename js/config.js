@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20261106a';
+const CACHE_VERSION = '0.20261107';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -478,11 +478,15 @@ const ModeManager = { getMode() { return 'production'; } };
 
 const PROD_HOSTS = Array.isArray(window.__SPORTHUB_PROD_HOSTS__)
   ? [...window.__SPORTHUB_PROD_HOSTS__]
-  : ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev'];
+  : ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev', 'old.toosterx.com'];
 
 // ─── LINE Login Config ───
+// old.toosterx.com 專用 LIFF ID，站長在 LINE 後台建好後填入；空字串時沿用 Mini App LIFF ID。
+const OLD_HOST_LIFF_ID = '';
 const LINE_CONFIG = {
-  LIFF_ID: '2009525300-AuPGQ0sh',          // Mini App LIFF ID（用於 liff.init）
+  LIFF_ID: (typeof location !== 'undefined' && location.hostname === 'old.toosterx.com' && OLD_HOST_LIFF_ID)
+    ? OLD_HOST_LIFF_ID
+    : '2009525300-AuPGQ0sh',          // Mini App LIFF ID（用於 liff.init）
   LIFF_ID_LEGACY: '2009084941-zgn7tQOp',   // [備用] 舊 LIFF App ID
   MINI_APP_ID: '2009525300-AuPGQ0sh',
   CHANNEL_ID: '2009525300',

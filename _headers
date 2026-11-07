@@ -87,3 +87,7 @@
 # Service Worker
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
+
+# A-03 備援網址不收錄
+https://old.toosterx.com/*
+  X-Robots-Tag: noindex, nofollow
