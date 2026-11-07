@@ -1928,7 +1928,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Registrations（報名）
-    //  登入可讀寫（報名、取消報名、管理員代報名）
+    //  登入可讀；報名／取消走 Callable（Admin SDK），前端只准管理員直寫與主辦遞補／降級／移除／分隊（2026-11-07 F4）
     //  候補遞補：取消正取時需同 batch 更新他人的 waitlisted→confirmed
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
