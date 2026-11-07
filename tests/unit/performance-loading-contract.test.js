@@ -47,7 +47,8 @@ describe('startup performance guardrails', () => {
     // 2026-11-07 換站 A-03 備援網址（old.toosterx.com 的 LIFF ID 分流與說明註解）借支：raw 上限 1,548,377 → 1,548,496（填入 old 專用 LIFF ID 後副機實測 1,548,496，+119，A 下線後不追回）
     expect(rawBytes).toBeLessThanOrEqual(1_548_496);
     // 2026-11-04 T-090c 建立俱樂部能力開關（能力項目、自建俱樂部略過自動升級、通知補帶 teamId／applicantUid）借支：gz 上限 390,113 → 390,240（實測 390,221，+108，A 下線後不追回；測試同步更新）
-    expect(gzipBytes).toBeLessThanOrEqual(390_240);
+    // 2026-11-07 換站 A-03 old 專用 LIFF ID 分流借支：gz 上限 390,240 → 390,358（副機實測 390,358，+118，A 下線後不追回）
+    expect(gzipBytes).toBeLessThanOrEqual(390_358);
   });
 
   test('public activity list uses list-only scripts and data', () => {
