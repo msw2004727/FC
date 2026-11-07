@@ -5,7 +5,7 @@ const {
   assertFails,
   assertSucceeds,
 } = require("@firebase/rules-unit-testing");
-const { doc, getDoc, setDoc, updateDoc, deleteDoc } = require("firebase/firestore");
+const { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } = require("firebase/firestore");
 
 const PROJECT_ID = "demo-rules-test";
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
@@ -67,6 +67,10 @@ function superAdmin() {
   return testEnv.authenticatedContext("uidSuper", { role: "super_admin", admin: true }).firestore();
 }
 
+function userClaimingSuperAdmin() {
+  return testEnv.authenticatedContext("uidUser", { role: "super_admin", admin: true }).firestore();
+}
+
 const IDENTITIES = [
   ["訪客", () => guest()],
   ["一般使用者", () => member()],
@@ -85,6 +89,15 @@ describe("contactMessages", () => {
     ["admin", () => admin()],
   ])("%s 不能讀", async (_label, getDb) => {
     await assertFails(getDoc(doc(getDb(), "contactMessages", "msg1")));
+  });
+
+  test("users 文件 role 是 user 但 token 宣稱 super_admin 時讀取被拒", async () => {
+    await assertFails(getDoc(doc(userClaimingSuperAdmin(), "contactMessages", "msg1")));
+  });
+
+  test("super_admin 可 list contactMessages，一般使用者不可", async () => {
+    await assertSucceeds(getDocs(collection(superAdmin(), "contactMessages")));
+    await assertFails(getDocs(collection(member(), "contactMessages")));
   });
 
   describe.each(IDENTITIES)("%s 不能寫", (_label, getDb) => {

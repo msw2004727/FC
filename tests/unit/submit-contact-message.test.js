@@ -46,8 +46,14 @@ function valid(extra = {}) {
 function defaultUsers() {
   return {
     [CALLER]: { uid: CALLER, role: "user", displayName: "王小明", name: "不該用這個" },
-    sa1: { uid: "UauthSa1", role: "super_admin", lineUserId: "UlineSa1", displayName: "站長一" },
-    sa2: { uid: "UauthSa2", role: "super_admin" },
+    sa1: {
+      uid: "UauthSa1",
+      role: "super_admin",
+      lineUserId: "UlineSa1",
+      displayName: "站長一",
+      lineNotify: { bound: true },
+    },
+    sa2: { uid: "UauthSa2", role: "super_admin", lineNotify: { bound: true } },
     admin1: { uid: "Uadmin1", role: "admin", lineUserId: "UadminLine1" },
   };
 }
@@ -94,7 +100,7 @@ function load(options = {}) {
     db: database,
     HttpsError: ContactHttpsError,
     FieldValue,
-    now: () => clock.t,
+    now: options.now || (() => clock.t),
     logger,
     getCallerRoleWithFallback: async (request) => {
       if (options.roleError) {
@@ -287,7 +293,7 @@ describe("submitContactMessage", () => {
   test("超過 5 位 super_admin 只入列 5 筆", async () => {
     const users = { [CALLER]: { displayName: "王小明", role: "user" } };
     for (let index = 1; index <= 6; index += 1) {
-      users[`sa${index}`] = { role: "super_admin", lineUserId: `Uline${index}` };
+      users[`sa${index}`] = { role: "super_admin", lineUserId: `Uline${index}`, lineNotify: { bound: true } };
     }
     const env = load({ users });
     await env.call(valid());
@@ -379,6 +385,126 @@ describe("submitContactMessage", () => {
     expect(messages(emoji.db)[0].content).toBe("😀".repeat(301));
   });
 
+  test("先以 t+5 秒送一則，再以 t 送必須被拒，且限制文件保留兩筆", async () => {
+    const later = T0 + 5000;
+    const env = load({ t0: later });
+    await env.call(valid({ content: "未來" }));
+    env.clock.t = T0;
+    await expect(env.call(valid({ content: "較早" }))).rejects.toMatchObject({
+      code: "resource-exhausted",
+      message: "CONTACT_RATE_LIMITED",
+      details: { code: "CONTACT_RATE_LIMITED" },
+    });
+    expect(messages(env.db).map((item) => item.content)).toEqual(["未來"]);
+    expect(env.db.read(`contactMessageLimits/${CALLER}`).sentAtMs).toEqual([T0, later]);
+    expect(env.db.read("contactMessageLimits/daily-20261108").storedCount).toBe(1);
+  });
+
+  test("fake DB 模擬 20 個併發（時間遞減）只收 1 則", async () => {
+    const times = Array.from({ length: 20 }, (_, index) => T0 + (19 - index) * 1000);
+    let cursor = 0;
+    const env = load({ now: () => times[cursor++] });
+    const results = await Promise.all(times.map((_, index) => env.call(valid({ content: `n${index}` })).then(
+      () => ({ ok: true }),
+      (error) => ({ ok: false, message: error.message }),
+    )));
+    expect(results.filter((item) => item.ok)).toHaveLength(1);
+    expect(results.filter((item) => !item.ok).every((item) => item.message === "CONTACT_RATE_LIMITED")).toBe(true);
+    expect(messages(env.db)).toHaveLength(1);
+    expect(messages(env.db)[0].content).toBe("n0");
+    const sentAtMs = env.db.read(`contactMessageLimits/${CALLER}`).sentAtMs;
+    expect(sentAtMs[sentAtMs.length - 1]).toBe(times[0]);
+    expect(env.db.read("contactMessageLimits/daily-20261108").storedCount).toBe(1);
+  });
+
+  test("全站每日第 20 則照常推播、第 21 則改推上限通知、第 22 則不推", async () => {
+    const env = load();
+    for (let index = 1; index <= 22; index += 1) {
+      await env.call(valid({ content: `第${index}則` }), `Udaily${index}`);
+    }
+    const items = queued(env.db);
+    const notices = items.filter((item) => item.body === "今日聯繫訊息已達推播上限，請到後台查看");
+    expect(messages(env.db)).toHaveLength(22);
+    expect(items.filter((item) => item.body.includes("第20則"))).toHaveLength(2);
+    expect(items.some((item) => item.body.includes("第21則") || item.body.includes("第22則"))).toBe(false);
+    expect(notices.map((item) => item.targetDocId).sort()).toEqual(["sa1", "sa2"]);
+    expect(items).toHaveLength(42);
+    expect(env.db.read("contactMessageLimits/daily-20261108")).toMatchObject({
+      storedCount: 22,
+      capNoticeSent: true,
+    });
+  });
+
+  test("全站每日第 301 則被拒且不寫入", async () => {
+    const env = load();
+    for (let index = 1; index <= 300; index += 1) {
+      await env.call(valid({ content: `第${index}則` }), `Ucap${index}`);
+    }
+    await expect(env.call(valid({ content: "第301則" }), "Ucap301")).rejects.toMatchObject({
+      code: "resource-exhausted",
+      message: "CONTACT_DAILY_LIMIT",
+      details: { code: "CONTACT_DAILY_LIMIT" },
+    });
+    expect(messages(env.db)).toHaveLength(300);
+    expect(messages(env.db).some((item) => item.content === "第301則")).toBe(false);
+    expect(env.db.read("contactMessageLimits/daily-20261108").storedCount).toBe(300);
+    expect(env.db.paths("contactMessageLimits/").some((itemPath) => itemPath.includes("__"))).toBe(false);
+  });
+
+  test("未綁定的 super_admin 不推播；個人 system 關閉仍推給已綁定站長", async () => {
+    const env = load({
+      users: {
+        [CALLER]: { displayName: "王小明", role: "user" },
+        unbound: { role: "super_admin", lineUserId: "Uunbound", lineNotify: { bound: false } },
+        missing: { role: "super_admin", lineUserId: "Umissing" },
+        systemOff: {
+          role: "super_admin",
+          lineUserId: "Ubound",
+          lineNotify: { bound: true, settings: { system: false } },
+        },
+      },
+    });
+    await env.call(valid());
+    expect(queued(env.db).map((item) => item.targetDocId)).toEqual(["systemOff"]);
+    expect(queued(env.db)[0].uid).toBe("Ubound");
+  });
+
+  test("沒有已綁定站長時只存檔並 warn", async () => {
+    const env = load({
+      users: {
+        [CALLER]: { displayName: "王小明", role: "user" },
+        sa1: { role: "super_admin", lineUserId: "UlineSa1", lineNotify: { bound: false } },
+        sa2: { role: "super_admin", lineNotify: { bound: "true" } },
+      },
+    });
+    await expect(env.call(valid())).resolves.toMatchObject({ ok: true });
+    expect(messages(env.db)).toHaveLength(1);
+    expect(queued(env.db)).toHaveLength(0);
+    expect(env.logger.warns.some(([msg]) => msg === "[submitContactMessage] no super_admin recipient")).toBe(true);
+  });
+
+  test("只有控制字元的內容被拒，稱呼含換行被拒", async () => {
+    const controls = load();
+    await expect(controls.call(valid({ content: "\u0000\u0001\u0008\u000B\u001F" }))).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "INVALID_CONTENT",
+      details: { code: "INVALID_CONTENT" },
+    });
+    expect(messages(controls.db)).toHaveLength(0);
+    expect(controls.db.paths("contactMessageLimits/")).toHaveLength(0);
+
+    const brokenName = load();
+    await expect(brokenName.call(valid({ name: "王\n小明" }))).rejects.toMatchObject({ message: "INVALID_NAME" });
+    await expect(brokenName.call(valid({ name: "王\r小明" }))).rejects.toMatchObject({ message: "INVALID_NAME" });
+    await expect(brokenName.call(valid({ name: "王\t小明" }))).rejects.toMatchObject({ message: "INVALID_NAME" });
+    await expect(brokenName.call(valid({ contact: "line\nowner" }))).rejects.toMatchObject({ message: "INVALID_CONTACT" });
+    expect(messages(brokenName.db)).toHaveLength(0);
+
+    const stripped = load();
+    await stripped.call(valid({ name: "王\u0000小明", content: "想問\u0000場地" }));
+    expect(messages(stripped.db)[0]).toMatchObject({ name: "王小明", content: "想問場地" });
+  });
+
   test("註冊在 asia-east1，index.js 接到既有 helper", () => {
     const db = createFakeDb();
     const onCall = jest.fn((options, handler) => ({ options, handler }));
@@ -392,7 +518,13 @@ describe("submitContactMessage", () => {
       getLineRecipientUidFromUserDoc,
       isStaffRole: () => false,
     });
-    expect(callable.options).toEqual({ region: "asia-east1", timeoutSeconds: 20 });
+    expect(callable.options).toEqual({
+      region: "asia-east1",
+      timeoutSeconds: 20,
+      memory: "256MiB",
+      minInstances: 0,
+      maxInstances: 5,
+    });
     expect(Object.prototype.hasOwnProperty.call(callable.options, "secrets")).toBe(false);
 
     const indexSource = fs.readFileSync(path.join(__dirname, "..", "..", "functions", "index.js"), "utf8");
