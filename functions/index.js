@@ -13260,7 +13260,10 @@ exports.registerForEvent = onCall(
     // ── Firestore Transaction ──
     stampAuth();
     const txnStart = Date.now();
-    const result = await db.runTransaction(async (transaction) => {
+    let result;
+    // 交易耗時用 try/finally 量測（R-CODE-001：新增程式不用 .then() chain，Opus 審 P2）；callback 本體不動。
+    try {
+      result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西、不扣早鳥點數
       const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "register", callerUid, eventId });
@@ -13720,13 +13723,10 @@ exports.registerForEvent = onCall(
         }));
       }
       return txResult;
-    }).then((value) => {
-      timing.txnMs = Date.now() - txnStart;
-      return value;
-    }, (txnError) => {
-      timing.txnMs = Date.now() - txnStart;
-      throw txnError;
     });
+    } finally {
+      timing.txnMs = Date.now() - txnStart;
+    }
 
     // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複加 EXP、不重寫 audit）
     if (result.deduplicated === true) {
@@ -14696,7 +14696,10 @@ exports.cancelRegistration = onCall(
     // ── Firestore Transaction ──
     stampAuth();
     const txnStart = Date.now();
-    const result = await db.runTransaction(async (transaction) => {
+    let result;
+    // 交易耗時用 try/finally 量測（R-CODE-001：新增程式不用 .then() chain，Opus 審 P2）；callback 本體不動。
+    try {
+      result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西
       const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "cancel", callerUid, eventId });
@@ -14985,13 +14988,10 @@ exports.cancelRegistration = onCall(
         }));
       }
       return txResult;
-    }).then((value) => {
-      timing.txnMs = Date.now() - txnStart;
-      return value;
-    }, (txnError) => {
-      timing.txnMs = Date.now() - txnStart;
-      throw txnError;
     });
+    } finally {
+      timing.txnMs = Date.now() - txnStart;
+    }
 
     // 去重命中：直接回存的結果，不跑後置操作（不重發站內信、不重複扣／加 EXP、不重寫 audit）
     if (result.deduplicated === true) {
@@ -15052,7 +15052,8 @@ exports.cancelRegistration = onCall(
     if (cancelReason === "user_cancel") {
       let callerExpUserPromise = null;
       const loadCallerExpUser = () => {
-        if (!callerExpUserPromise) callerExpUserPromise = findUserDocByUidOrLineUserId(callerUid);
+        // 讀取失敗時回 null，交由 adjustExpInternal 各自重讀，避免一次失敗連坐本人與同行者（Opus 審 P3）。
+        if (!callerExpUserPromise) callerExpUserPromise = findUserDocByUidOrLineUserId(callerUid).catch(() => null);
         return callerExpUserPromise;
       };
       for (const reg of result.cancelled) {
