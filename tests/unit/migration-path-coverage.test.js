@@ -52,7 +52,7 @@ const KNOWN_REFERENCES = {
 
 // Cloud Functions — uses double quotes
 const KNOWN_CF_REFERENCES = {
-  'functions/index.js': { registrations: 31, attendanceRecords: 0, activityRecords: 29 }, // +5/+5: 2026-07-23 course-linked edit, exact roster management, and atomic activity cancellation/course-leave synchronization.
+  'functions/index.js': { registrations: 32, attendanceRecords: 0, activityRecords: 31 }, // +5/+5: 2026-07-23 course-linked edit, exact roster management, and atomic activity cancellation/course-leave synchronization. +1/+2: 2026-11-07 F1 registerForEvent 空洞遞補（eventDoc.ref 子集合：讀 activityRecords、寫遞補報名與活動紀錄；測試同步更新）.
 };
 
 // CF triggers — document path references (not db.collection)
