@@ -132,6 +132,7 @@ describe.each(["demote", "promote"])("%s 輸入與狀態拒絕", (action) => {
       "isCourseLinkedEventData", "isCourseLinkedRegistrationData", "getCallerAccessContext", "canOperateEventSiteForAccess",
       "canRemoveConfirmedParticipantForAccess", "getEventDocByPublicIdInTransaction", "sanitizeStr", "claimRequestId",
       "maskId", "writeInboxNotification", "writeAuditEntryInternal", "settleBestEffortPostCommitOps", "db", "FieldValue", "logger",
+      "promoteWaitlistForAvailableSeats", "adjustExpInternal",
     ]) expect(() => make({ ...h.deps, [key]: undefined })).toThrow(TypeError);
     const callable = action === "demote" ? createForceDemoteCallable : createForcePromoteCallable;
     expect(() => callable({ ...h.deps })).toThrow("onCall helper is required");

@@ -38,7 +38,8 @@ function loadHelpers(db, log = createLogger()) {
     "canOperateEventSiteForAccess", "canRemoveConfirmedParticipantForAccess",
     "isCourseLinkedEventData", "isCourseLinkedRegistrationData", "hasCourseLinkedActivityRecordData",
     "getCourseLinkedRegistrationKey", "registrationUniqueKey", "dedupeRegistrations",
-    "normalizeTeamReservationSummaries", "registrationTeamReservationTeamId", "rebuildOccupancy",
+    "normalizeTeamReservationSummaries", "registrationTeamReservationTeamId", "sortWaitlistCandidates",
+    "promoteWaitlistForAvailableSeats", "rebuildOccupancy",
     "preserveUpcomingEventOccupancyStatus", "findActivityRecordForRegistration", "settleBestEffortPostCommitOps",
   ];
   const sandbox = {
@@ -99,7 +100,8 @@ function createHarness({
     writeInboxNotification: jest.fn(async () => undefined),
     writeAuditEntryInternal: jest.fn(async () => undefined),
     settleBestEffortPostCommitOps: jest.fn(helpers.settleBestEffortPostCommitOps),
-    promoteWaitlistForAvailableSeats: jest.fn(), adjustExpInternal: jest.fn(),
+    promoteWaitlistForAvailableSeats: jest.fn(helpers.promoteWaitlistForAvailableSeats),
+    adjustExpInternal: jest.fn(async () => undefined),
   };
   const make = action === "demote" ? createForceDemoteHandler : createForcePromoteHandler;
   return {

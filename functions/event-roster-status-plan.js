@@ -11,13 +11,15 @@ function createPlanRosterStatus(dependencies) {
   requireFunctions(dependencies, [
     "HttpsError", "rebuildOccupancy", "preserveUpcomingEventOccupancyStatus",
     "findActivityRecordForRegistration", "isCourseLinkedEventData", "isCourseLinkedRegistrationData",
+    "promoteWaitlistForAvailableSeats",
   ]);
   const {
     HttpsError, rebuildOccupancy, preserveUpcomingEventOccupancyStatus,
     findActivityRecordForRegistration, isCourseLinkedEventData, isCourseLinkedRegistrationData,
+    promoteWaitlistForAvailableSeats,
   } = dependencies;
 
-  return function planRosterStatus({ action, eventData, registrations, activityRecords, userId, registrationId }) {
+  return function planRosterStatus({ action, eventData, registrations, activityRecords, userId, registrationId, nowMs = Date.now() }) {
     if (!["demote", "promote"].includes(action)) throw new TypeError("Invalid roster action");
     const demote = action === "demote";
     const fromStatus = demote ? "confirmed" : "waitlisted";
@@ -43,13 +45,22 @@ function createPlanRosterStatus(dependencies) {
     const maxCount = Math.max(0, Number(eventData.max || 0) || 0);
     if (demote && maxCount <= 0) reject("WAITLIST_DISABLED");
 
-    // 指定同一主報名者的整組紀錄；不挑下一位、不改席位來源或原始報名時間。
+    // 指定同一主報名者的整組紀錄；不改席位來源或原始報名時間。
+    // 下放（2026-11-07 站長定案 F3）：被下放者另寫 waitlistSortAt 排到候補最後，同交易把空出的名額依序遞補給其他候補。
     const targetIds = new Set(targets.map((reg) => reg._docId));
+    const waitlistSortAt = new Date(nowMs).toISOString();
     const regs = registrations.map((reg) => ({
       ...reg,
       registeredAt: reg.registeredAt?.toDate?.()?.toISOString?.() || reg.registeredAt,
+      ...(reg.waitlistSortAt ? { waitlistSortAt: reg.waitlistSortAt?.toDate?.()?.toISOString?.() || reg.waitlistSortAt } : {}),
+      ...(demote && targetIds.has(reg._docId) ? { waitlistSortAt } : {}),
       status: targetIds.has(reg._docId) ? nextStatus : reg.status,
     }));
+    // 被下放者本人的其他紀錄不參與這次遞補，避免下放後立刻被補回或只補回同行者；
+    // 已結束／已取消的活動（事後名單更正）不遞補，避免事後多出正取與 EXP。
+    const promoted = demote && !["ended", "cancelled"].includes(eventData.status)
+      ? promoteWaitlistForAvailableSeats({ ...eventData }, regs.filter((reg) => reg.userId !== userId), {})
+      : [];
     const overCapacity = !demote && maxCount > 0
       && regs.filter((reg) => reg.status === "confirmed").length > maxCount;
     const activityRecordUpdates = [];
@@ -60,6 +71,14 @@ function createPlanRosterStatus(dependencies) {
       if (ar?._docId && !seen.has(ar._docId)) {
         seen.add(ar._docId);
         activityRecordUpdates.push({ docId: ar._docId, status: demote ? "waitlisted" : "registered" });
+      }
+    }
+    for (const reg of promoted) {
+      if (reg.participantType === "companion") continue;
+      const ar = findActivityRecordForRegistration(activityRecords, reg, "waitlisted");
+      if (ar?._docId && !seen.has(ar._docId)) {
+        seen.add(ar._docId);
+        activityRecordUpdates.push({ docId: ar._docId, status: "registered" });
       }
     }
     const occupancy = preserveUpcomingEventOccupancyStatus(
@@ -81,6 +100,18 @@ function createPlanRosterStatus(dependencies) {
     return {
       regs, occupancy, eventUpdate, overCapacity, activityRecordUpdates,
       registrationUpdates: targets.map((reg) => ({ docId: reg._docId, status: nextStatus })),
+      promotedUpdates: promoted.map((reg) => {
+        const extra = {};
+        if (reg.teamSeatSource) extra.teamSeatSource = reg.teamSeatSource;
+        if (isCourseLinkedRegistrationData(reg)) {
+          extra.courseRosterOverride = "confirmed";
+          extra.courseRosterOverrideSource = "capacity";
+        }
+        return {
+          docId: reg._docId, userId: reg.userId, userName: reg.userName || "",
+          participantType: reg.participantType || "self", courseLinked: isCourseLinkedRegistrationData(reg), extra,
+        };
+      }),
       recipientUid: targets[0].userId,
       registrationId: requested?._docId || targets.find((reg) => reg.participantType !== "companion")?._docId || targets[0]._docId,
     };

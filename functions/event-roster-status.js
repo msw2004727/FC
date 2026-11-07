@@ -35,12 +35,13 @@ function createRosterStatusHandler(action, dependencies) {
   requireFunctions(dependencies, [
     "getCallerAccessContext", "canOperateEventSiteForAccess", "canRemoveConfirmedParticipantForAccess",
     "getEventDocByPublicIdInTransaction", "sanitizeStr", "claimRequestId", "maskId",
-    "writeInboxNotification", "writeAuditEntryInternal", "settleBestEffortPostCommitOps",
+    "writeInboxNotification", "writeAuditEntryInternal", "settleBestEffortPostCommitOps", "adjustExpInternal",
   ]);
   const {
     db, HttpsError, FieldValue, logger, getCallerAccessContext, canOperateEventSiteForAccess,
     canRemoveConfirmedParticipantForAccess, getEventDocByPublicIdInTransaction, sanitizeStr,
     claimRequestId, maskId, writeInboxNotification, writeAuditEntryInternal, settleBestEffortPostCommitOps,
+    adjustExpInternal,
   } = dependencies;
   requireFunctions(db, ["runTransaction"]);
   requireFunctions(FieldValue, ["serverTimestamp"]);
@@ -100,6 +101,16 @@ function createRosterStatusHandler(action, dependencies) {
             status: update.status,
             [demote ? "demotedAt" : "promotedAt"]: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
+            ...(demote ? { waitlistSortAt: FieldValue.serverTimestamp() } : {}),
+          });
+        }
+        // F3：下放空出的名額同交易遞補給其他候補（欄位同 cancelRegistration 的遞補）
+        for (const update of plan.promotedUpdates) {
+          transaction.update(eventRef.collection("registrations").doc(update.docId), {
+            status: "confirmed",
+            promotedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            ...update.extra,
           });
         }
         for (const update of plan.activityRecordUpdates) {
@@ -109,6 +120,9 @@ function createRosterStatusHandler(action, dependencies) {
         return {
           count: plan.registrationUpdates.length, event: plan.occupancy, overCapacity: plan.overCapacity,
           recipientUid: plan.recipientUid, registrationId: plan.registrationId,
+          promoted: plan.promotedUpdates.map(({ docId, userId, userName, participantType, courseLinked }) => ({
+            docId, userId, userName, participantType, courseLinked,
+          })),
           title: eventData.title || "", date: eventData.date || "", location: eventData.location || "",
         };
       });
@@ -134,9 +148,30 @@ function createRosterStatusHandler(action, dependencies) {
           action: demote ? "event_waitlist_demote" : "event_waitlist_promote",
           targetType: "event", targetId: eventId, targetLabel: result.title,
           result: "success", source: "cloud_function",
-          meta: { registrationId: result.registrationId }, actorUid: callerUid,
+          meta: {
+            registrationId: result.registrationId,
+            ...(result.promoted.length ? { promotedRegistrationIds: result.promoted.map((item) => item.docId) } : {}),
+          },
+          actorUid: callerUid,
         })),
       ];
+      // F3：被遞補者通知（同組只通知主報名者一次）、EXP 只給本人，文案同 cancelRegistration；遞補紀錄併入上面的 audit meta
+      const notifiedUids = new Set();
+      for (const promoted of result.promoted) {
+        if (!notifiedUids.has(promoted.userId)) {
+          notifiedUids.add(promoted.userId);
+          postOps.push(postOp(() => writeInboxNotification({
+            recipientUid: promoted.userId, title: "候補遞補通知",
+            body: `恭喜！您已從候補升為正取：\n\n${details}`, category: "activity", categoryLabel: "活動",
+          })));
+        }
+        if (promoted.participantType !== "companion" && !promoted.courseLinked) {
+          postOps.push(postOp(() => adjustExpInternal({
+            targetUid: promoted.userId, amount: 10, reason: `候補遞補報名：${result.title}`,
+            ruleKey: "register_activity", operatorUid: callerUid,
+          })));
+        }
+      }
       try {
         const settled = await settleBestEffortPostCommitOps(fn, postOps);
         if (settled.failureCount) logger.error({

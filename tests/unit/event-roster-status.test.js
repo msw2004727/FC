@@ -21,7 +21,7 @@ describe("T-070 名單交易與投影", () => {
       },
     });
     expect(h.fake.get("events/evtA/registrations/regA")).toEqual({
-      ...registration(), status: "waitlisted", demotedAt: SERVER_TS, updatedAt: SERVER_TS,
+      ...registration(), status: "waitlisted", demotedAt: SERVER_TS, updatedAt: SERVER_TS, waitlistSortAt: SERVER_TS,
     });
     expect(h.fake.get("events/evtA/activityRecords/arA").status).toBe("waitlisted");
     expect(h.fake.get("events/evtA")).toEqual({ ...h.seed["events/evtA"], ...result.event, schemaVersion: 2 });
@@ -61,15 +61,103 @@ describe("T-070 名單交易與投影", () => {
     expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(1);
   });
 
-  test("U10 降級保留空位，不自動遞補既有候補", async () => {
+  // 測試同步更新（2026-11-07 站長定案 F3）：原 U10「降級保留空位、不自動遞補」改為下放同交易遞補下一位、被下放者排候補最後。
+  test("U10 降級同交易遞補下一位候補，被下放者排候補最後且不改原報名時間", async () => {
     const h = createHarness({ regs: [
-      registration(), registration("regB", "waitlisted", { userId: "uidOther", userName: "測試乙" }),
+      registration(),
+      registration("regB", "waitlisted", { userId: "uidOther", userName: "測試乙", registeredAt: "2026-10-02T00:00:00.000Z" }),
+    ], ars: [
+      { _docId: "arA", uid: "uidA", status: "registered" },
+      { _docId: "arB", uid: "uidOther", status: "waitlisted" },
+    ] });
+    const result = await h.invoke();
+    expect(result).toMatchObject({ demoted: 1, current: 1, waitlist: 1, status: "full" });
+    expect(result.event).toMatchObject({ participants: ["測試乙"], waitlistNames: ["測試甲"] });
+    expect(h.fake.get("events/evtA/registrations/regA")).toMatchObject({
+      status: "waitlisted", waitlistSortAt: SERVER_TS, registeredAt: "2026-10-01T00:00:00.000Z",
+    });
+    expect(h.fake.get("events/evtA/registrations/regB")).toMatchObject({
+      status: "confirmed", promotedAt: SERVER_TS, updatedAt: SERVER_TS, registeredAt: "2026-10-02T00:00:00.000Z",
+    });
+    expect(h.fake.get("events/evtA/registrations/regB").waitlistSortAt).toBeUndefined();
+    expect(h.fake.get("events/evtA/activityRecords/arA").status).toBe("waitlisted");
+    expect(h.fake.get("events/evtA/activityRecords/arB").status).toBe("registered");
+    expect(h.fake.state.writes.every((write) => write.via === "tx" && write.commit === 1)).toBe(true);
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(2);
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledWith(expect.objectContaining({
+      recipientUid: "uidOther", title: "候補遞補通知",
+    }));
+    expect(h.deps.adjustExpInternal).toHaveBeenCalledTimes(1);
+    expect(h.deps.adjustExpInternal).toHaveBeenCalledWith(expect.objectContaining({
+      targetUid: "uidOther", amount: 10, ruleKey: "register_activity", operatorUid: "uidB",
+    }));
+    expect(h.deps.writeAuditEntryInternal).toHaveBeenCalledWith(expect.objectContaining({
+      meta: { registrationId: "regA", promotedRegistrationIds: ["regB"] },
+    }));
+  });
+
+  test("F3 下放後遞補順序：先補原候補，被下放者排在下放前已在候補的人之後", () => {
+    const h = createHarness();
+    const regs = [
+      registration("regA", "confirmed"),
+      registration("regB", "waitlisted", { userId: "uidB2", userName: "測試乙", registeredAt: "2026-10-02T00:00:00.000Z" }),
+      registration("regC", "waitlisted", { userId: "uidC", userName: "測試丙", registeredAt: "2026-10-03T00:00:00.000Z" }),
+    ];
+    const plan = createPlanRosterStatus(h.deps)({
+      action: "demote", eventData: { id: "evtA", status: "full", max: 1 }, registrations: regs,
+      activityRecords: [], userId: "uidA", nowMs: Date.parse("2026-10-05T00:00:00.000Z"),
+    });
+    expect(plan.promotedUpdates.map((item) => item.docId)).toEqual(["regB"]);
+    expect(plan.occupancy.waitlistNames).toEqual(["測試丙", "測試甲"]);
+    const demoted = plan.regs.find((reg) => reg._docId === "regA");
+    expect(demoted).toMatchObject({ registeredAt: "2026-10-01T00:00:00.000Z", waitlistSortAt: "2026-10-05T00:00:00.000Z" });
+    // 之後有人取消釋出一個名額：先遞補丙，被下放的甲排在丙之後
+    const afterCancel = plan.regs.map((reg) => (reg._docId === "regB" ? { ...reg, status: "cancelled" } : { ...reg }));
+    expect(h.helpers.promoteWaitlistForAvailableSeats({ max: 1 }, afterCancel).map((reg) => reg._docId)).toEqual(["regC"]);
+    // 下放後才報名的人仍排在被下放者之後
+    const late = registration("regD", "waitlisted", { userId: "uidD", userName: "測試丁", registeredAt: "2026-10-06T00:00:00.000Z" });
+    const withLate = [...afterCancel.filter((reg) => reg._docId !== "regC"), late];
+    expect(h.helpers.promoteWaitlistForAvailableSeats({ max: 1 }, withLate).map((reg) => reg._docId)).toEqual(["regA"]);
+  });
+
+  test("F3 沒有其他候補時名額空著，被下放者本人與其同行者不會立刻被補回", async () => {
+    const h = createHarness({ event: { max: 2 }, regs: [
+      registration("regA", "confirmed"),
+      registration("regC1", "waitlisted", { participantType: "companion", companionId: "comp_1", companionName: "同行甲" }),
     ] });
     const result = await h.invoke();
     expect(result).toMatchObject({ current: 0, waitlist: 2 });
+    expect(h.fake.get("events/evtA/registrations/regC1").status).toBe("waitlisted");
+    expect(h.deps.adjustExpInternal).not.toHaveBeenCalled();
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test("F3 已結束活動的事後下放不遞補", async () => {
+    const h = createHarness({ event: { status: "ended" }, regs: [
+      registration(), registration("regB", "waitlisted", { userId: "uidOther", userName: "測試乙" }),
+    ] });
+    await h.invoke();
     expect(h.fake.get("events/evtA/registrations/regB").status).toBe("waitlisted");
-    expect(h.fake.writesTo("events/evtA/registrations")).toHaveLength(1);
-    expect(h.deps.promoteWaitlistForAvailableSeats).not.toHaveBeenCalled();
+    expect(h.deps.adjustExpInternal).not.toHaveBeenCalled();
+  });
+
+  test("F3 只空一席時遞補本人、同行者留候補；通知與 EXP 不重複", async () => {
+    const h = createHarness({ event: { max: 3 }, regs: [
+      registration("regA", "confirmed"),
+      registration("regX", "confirmed", { userId: "uidX", userName: "測試戊" }),
+      registration("regY", "confirmed", { userId: "uidY", userName: "測試己" }),
+      registration("regB", "waitlisted", { userId: "uidOther", userName: "測試乙", registeredAt: "2026-10-02T00:00:00.000Z" }),
+      registration("regB1", "waitlisted", {
+        userId: "uidOther", userName: "測試乙", participantType: "companion", companionId: "comp_b", companionName: "同行乙",
+        registeredAt: "2026-10-02T00:00:00.000Z", promotionOrder: 1,
+      }),
+    ] });
+    // 只空出一席：遞補本人，同行者留在候補
+    await h.invoke();
+    expect(h.fake.get("events/evtA/registrations/regB").status).toBe("confirmed");
+    expect(h.fake.get("events/evtA/registrations/regB1").status).toBe("waitlisted");
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(2);
+    expect(h.deps.adjustExpInternal).toHaveBeenCalledTimes(1);
   });
 
   test("U11/U17 強制正取重建完整投影、不自動挑人、不發 EXP、不改 teamSeatSource", async () => {
@@ -127,7 +215,9 @@ describe("T-070 名單交易與投影", () => {
       action: "demote", eventData: event, registrations: regs, activityRecords: ars, userId: "uidA",
     });
     expect(plan.regs[0].registeredAt).toBe("2026-10-02T00:00:00.000Z");
-    expect(plan.occupancy.waitlistNames).toEqual(["測試乙", "測試甲"]);
+    // 測試同步更新（F3）：下放同交易遞補乙，甲排候補
+    expect(plan.occupancy.participants).toEqual(["測試乙"]);
+    expect(plan.occupancy.waitlistNames).toEqual(["測試甲"]);
     expect(regs[0].registeredAt).toBe(timestamp);
     expect(regs[0].status).toBe("confirmed");
     expect(ars[0].status).toBe("registered");

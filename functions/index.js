@@ -3846,9 +3846,11 @@ exports.forceDemoteToWaitlist = createForceDemoteCallable({
   rebuildOccupancy,
   preserveUpcomingEventOccupancyStatus,
   findActivityRecordForRegistration,
+  promoteWaitlistForAvailableSeats,
   writeInboxNotification,
   writeAuditEntryInternal,
   settleBestEffortPostCommitOps,
+  adjustExpInternal,
   claimRequestId: createRosterRequestClaim({ db, FieldValue, Timestamp, now: Date.now, logger }),
 });
 exports.forcePromoteWaitlist = createForcePromoteCallable({
@@ -3868,9 +3870,11 @@ exports.forcePromoteWaitlist = createForcePromoteCallable({
   rebuildOccupancy,
   preserveUpcomingEventOccupancyStatus,
   findActivityRecordForRegistration,
+  promoteWaitlistForAvailableSeats,
   writeInboxNotification,
   writeAuditEntryInternal,
   settleBestEffortPostCommitOps,
+  adjustExpInternal,
   claimRequestId: createRosterRequestClaim({ db, FieldValue, Timestamp, now: Date.now, logger }),
 });
 
@@ -11994,9 +11998,11 @@ function decideRegistrationSeat(eventData, activeRegs, registration, userData = 
   return { status, reservation, source, occupancyBefore };
 }
 
+// 候補順序：waitlistSortAt（被手動下放時寫入、排到候補最後；2026-11-07 F3）→ registeredAt → promotionOrder → docId。
+// registeredAt 保留原報名時間不改。rebuildOccupancy 的候補名單也用這支排序，顯示與遞補一致（F6）。
 function sortWaitlistCandidates(regs = []) {
   const sortTime = (reg) => {
-    const v = reg && reg.registeredAt;
+    const v = reg && (reg.waitlistSortAt || reg.registeredAt);
     if (!v) return Number.POSITIVE_INFINITY;
     if (typeof v.toMillis === "function") {
       try { return v.toMillis(); } catch (_e) { /* ignore */ }
@@ -12342,7 +12348,8 @@ async function syncTeamReservationSeatsForUserChange({ userId, beforeData = null
 function rebuildOccupancy(event, registrations) {
   // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
   const confirmed = dedupeRegistrations(registrations.filter((r) => r.status === "confirmed"));
-  const waitlisted = dedupeRegistrations(registrations.filter((r) => r.status === "waitlisted"));
+  // F6（2026-11-07）：候補名單與實際遞補同序（含 waitlistSortAt、promotionOrder）；舊站 A 前端 _rebuildOccupancy 凍結未同步
+  const waitlisted = sortWaitlistCandidates(dedupeRegistrations(registrations.filter((r) => r.status === "waitlisted")));
 
   const regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -12364,7 +12371,6 @@ function rebuildOccupancy(event, registrations) {
     return String(a._docId || a.id || "").localeCompare(String(b._docId || b.id || ""));
   };
   confirmed.sort(regSort);
-  waitlisted.sort(regSort);
 
   const participants = confirmed
     .map((r) =>
@@ -13404,6 +13410,21 @@ exports.registerForEvent = onCall(
       let earlyBirdCharged = false;
       let earlyBirdChargedCost = 0;
 
+      // T3.5（2026-11-07 站長定案 F1）：名單有空洞（人數＜名額但仍有候補）時，先依序把空位補給既有候補，
+      // 再判定新報名者，避免新報名者越過所有候補直接正取。交易讀先於寫：有遞補才讀 activityRecords，
+      // 遞補的寫入放在報名迴圈之後（早鳥扣點的交易內讀取在迴圈裡）。
+      const holePromotedCandidates = Number(maxCount) > 0
+        ? promoteWaitlistForAvailableSeats(
+          { ...ed, id: eventId, max: maxCount },
+          plannedActiveRegs,
+          { excludeCourseLinkedCandidates: isCourseLinkedEventData(ed) }
+        )
+        : [];
+      const holePromotionArs = holePromotedCandidates.some((r) => r.participantType !== "companion")
+        ? (await transaction.get(eventDoc.ref.collection("activityRecords"))).docs
+          .map((d) => ({ ...d.data(), _docId: d.id }))
+        : [];
+
       for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
         const p = sanitizedParticipants[idx];
         const dupKey = registrationUniqueKey(p);
@@ -13438,7 +13459,7 @@ exports.registerForEvent = onCall(
             const validKeys = new Set(tsTeams.map(t => t.key));
             const counts = {};
             tsTeams.forEach(t => { counts[t.key] = 0; });
-            [...firestoreActiveRegs, ...registrations]
+            plannedActiveRegs
               .filter(r => r.status === "confirmed" && r.teamKey && validKeys.has(r.teamKey))
               .forEach(r => { counts[r.teamKey] = (counts[r.teamKey] || 0) + 1; });
             teamKey = tsTeams.reduce((min, t) =>
@@ -13568,9 +13589,28 @@ exports.registerForEvent = onCall(
         activityRecordDocId = arRef.id;
       }
 
-      // T7: 更新 event occupancy
-      const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
-      const occupancy = rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
+      // T6.5（F1）：空洞遞補寫入，欄位與 cancelRegistration 的遞補一致
+      for (const candidate of holePromotedCandidates) {
+        const promoUpdate = {
+          status: "confirmed",
+          promotedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (candidate.teamSeatSource) promoUpdate.teamSeatSource = candidate.teamSeatSource;
+        if (isCourseLinkedRegistrationData(candidate)) {
+          promoUpdate.courseRosterOverride = "confirmed";
+          promoUpdate.courseRosterOverrideSource = "capacity";
+        }
+        transaction.update(eventDoc.ref.collection("registrations").doc(candidate._docId), promoUpdate);
+        if (candidate.participantType === "companion") continue;
+        const ar = findActivityRecordForRegistration(holePromotionArs, candidate, "waitlisted");
+        if (ar) {
+          transaction.update(eventDoc.ref.collection("activityRecords").doc(ar._docId), { status: "registered" });
+        }
+      }
+
+      // T7: 更新 event occupancy（plannedActiveRegs＝既有有效報名〔含 T3.5 遞補〕＋本次新報名）
+      const occupancy = rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, plannedActiveRegs);
       const eventProjection = {
         ...occupancy,
         status: earlyBirdMode ? "upcoming" : occupancy.status,
@@ -13611,6 +13651,14 @@ exports.registerForEvent = onCall(
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
         earlyBirdCharged,
         earlyBirdCost: earlyBirdChargedCost,
+        promoted: holePromotedCandidates.map((r) => ({
+          id: r.id,
+          docId: r._docId,
+          userId: r.userId,
+          userName: r.userName,
+          participantType: r.participantType,
+          courseLinked: isCourseLinkedRegistrationData(r),
+        })),
       };
       // T8（T-087）：同交易建立去重文件（最後一個寫入、之後沒有讀取），只存精簡結果
       if (shouldCreateDedupe) {
@@ -13685,6 +13733,53 @@ exports.registerForEvent = onCall(
           reason: `報名活動：${result.eventData.title}`,
           ruleKey: "register_activity",
           operatorUid: callerUid,
+        })
+      );
+    }
+
+    // P4（F1）：空洞遞補者的通知、EXP 與 operationLog，文案同 cancelRegistration P2／P5；
+    // 同組同行者只通知主報名者一次，EXP 照報名規則只給本人（不含同行者）
+    const notifiedPromotedUids = new Set();
+    for (const promoted of result.promoted || []) {
+      if (!notifiedPromotedUids.has(promoted.userId)) {
+        notifiedPromotedUids.add(promoted.userId);
+        postOps.push(
+          writeInboxNotification({
+            recipientUid: promoted.userId,
+            title: "候補遞補通知",
+            body:
+              `恭喜！您已從候補升為正取：\n\n` +
+              `活動名稱：${result.eventData.title}\n` +
+              `活動時間：${result.eventData.date}\n` +
+              `活動地點：${result.eventData.location}`,
+            category: "activity",
+            categoryLabel: "活動",
+          })
+        );
+      }
+      if (promoted.participantType !== "companion" && !promoted.courseLinked) {
+        postOps.push(
+          adjustExpInternal({
+            targetUid: promoted.userId,
+            amount: 10,
+            reason: `候補遞補報名：${result.eventData.title}`,
+            ruleKey: "register_activity",
+            operatorUid: callerUid,
+          })
+        );
+      }
+      const now = new Date();
+      const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      postOps.push(
+        db.collection("operationLogs").add({
+          type: "auto_promote",
+          typeName: "自動遞補",
+          content: `活動「${result.eventData.title}」候補 ${promoted.userName || "?"} 自動遞補為正取`,
+          operator: "系統",
+          actorUid: callerUid,
+          eventId: eventId,
+          time: timeStr,
+          createdAt: FieldValue.serverTimestamp(),
         })
       );
     }

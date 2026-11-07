@@ -165,6 +165,7 @@ test("index.js 兩支註冊確實注入真 helper，region/timeout 與既有 Cal
       "canRemoveConfirmedParticipantForAccess", "isCourseLinkedEventData", "isCourseLinkedRegistrationData",
       "rebuildOccupancy", "preserveUpcomingEventOccupancyStatus", "findActivityRecordForRegistration",
       "writeInboxNotification", "writeAuditEntryInternal", "settleBestEffortPostCommitOps", "sanitizeStr",
+      "promoteWaitlistForAvailableSeats", "adjustExpInternal",
     ]) expect(deps[key]).toBe(h.deps[key]);
     expect(deps.maskId).toBe(h.deps.maskId);
     expect(deps.claimRequestId).toBe(h.deps.claimRequestId);
