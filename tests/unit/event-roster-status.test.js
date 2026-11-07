@@ -132,8 +132,8 @@ describe("T-070 名單交易與投影", () => {
     expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(1);
   });
 
-  test("F3 已結束活動的事後下放不遞補", async () => {
-    const h = createHarness({ event: { status: "ended" }, regs: [
+  test.each(["ended", "cancelled"])("F3 %s 活動的事後下放不遞補", async (status) => {
+    const h = createHarness({ event: { status }, regs: [
       registration(), registration("regB", "waitlisted", { userId: "uidOther", userName: "測試乙" }),
     ] });
     await h.invoke();

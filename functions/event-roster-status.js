@@ -155,7 +155,8 @@ function createRosterStatusHandler(action, dependencies) {
           actorUid: callerUid,
         })),
       ];
-      // F3：被遞補者通知（同組只通知主報名者一次）、EXP 只給本人，文案同 cancelRegistration；遞補紀錄併入上面的 audit meta
+      // F3：被遞補者通知文案同 cancelRegistration，但同組只通知主報名者一次、EXP 只給本人（與 F1 一致，cancel 逐筆未對齊）；
+      // 遞補紀錄併入上面的 audit meta，不另寫 operationLogs
       const notifiedUids = new Set();
       for (const promoted of result.promoted) {
         if (!notifiedUids.has(promoted.userId)) {

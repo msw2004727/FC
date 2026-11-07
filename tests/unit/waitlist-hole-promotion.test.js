@@ -178,6 +178,43 @@ describe('F1 registerForEvent 空洞時先遞補候補', () => {
     expect(fake.get(`events/${EVENT_ID}`).waitlistNames).toEqual(['third', 'n-44']);
   });
 
+  test('俱樂部保留名額有剩、候補是該俱樂部成員：以 reserved 遞補並寫入席位來源', async () => {
+    setup({
+      [`events/${EVENT_ID}`]: event({ max: 2, teamReservationSummaries: [{ teamId: 'teamA', teamName: 'A隊', reservedSlots: 1 }] }),
+      [`events/${EVENT_ID}/registrations/r1`]: reg('r1', { userId: U_SELF, userName: 'self', status: 'confirmed', registeredAt: new FakeTimestamp(1000) }),
+      [`events/${EVENT_ID}/registrations/r2`]: reg('r2', {
+        userId: U_OTHER, userName: 'other', status: 'waitlisted', registeredAt: new FakeTimestamp(2000),
+        teamReservationTeamId: 'teamA', teamReservationTeamName: 'A隊', teamSeatSource: 'waitlist',
+      }),
+    });
+    const result = await register(U_FOURTH);
+    expect(result.registrations[0].status).toBe('waitlisted');
+    expect(fake.get(`events/${EVENT_ID}/registrations/r2`)).toMatchObject({ status: 'confirmed', teamSeatSource: 'reserved' });
+    expect(fake.get(`events/${EVENT_ID}`)).toMatchObject({ current: 2, realCurrent: 2, waitlist: 1 });
+  });
+
+  test('遞補到同組同行者：主報名者只收一封通知、EXP 只加本人一次', async () => {
+    setup({
+      [`events/${EVENT_ID}`]: event({ max: 3 }),
+      [`events/${EVENT_ID}/registrations/r1`]: reg('r1', { userId: U_SELF, userName: 'self', status: 'confirmed', registeredAt: new FakeTimestamp(1000) }),
+      [`events/${EVENT_ID}/registrations/r2`]: reg('r2', { userId: U_OTHER, userName: 'other', status: 'waitlisted', registeredAt: new FakeTimestamp(2000) }),
+      [`events/${EVENT_ID}/registrations/r2c`]: reg('r2c', {
+        userId: U_OTHER, userName: 'other', participantType: 'companion', companionId: 'comp_o', companionName: 'other-c',
+        status: 'waitlisted', registeredAt: new FakeTimestamp(2000), promotionOrder: 1,
+      }),
+      [`events/${EVENT_ID}/activityRecords/a2`]: { eventId: EVENT_ID, uid: U_OTHER, status: 'waitlisted' },
+    });
+    const result = await register(U_THIRD);
+    expect(result.registrations[0].status).toBe('waitlisted');
+    expect(fake.get(`events/${EVENT_ID}/registrations/r2`).status).toBe('confirmed');
+    expect(fake.get(`events/${EVENT_ID}/registrations/r2c`).status).toBe('confirmed');
+    expect(fake.get(`events/${EVENT_ID}/activityRecords/a2`).status).toBe('registered');
+    expect(inboxTitlesFor(U_OTHER)).toEqual(['候補遞補通知']);
+    expect(fake.get(`users/${U_OTHER}`).exp).toBe(110);
+    const logs = fake.list('operationLogs').map((id) => fake.get(`operationLogs/${id}`));
+    expect(logs.filter((log) => log.type === 'auto_promote')).toHaveLength(2);
+  });
+
   test('被手動下放者（waitlistSortAt）排在下放後仍在候補的人之後', async () => {
     setup({
       [`events/${EVENT_ID}`]: event({ max: 2 }),

@@ -13413,6 +13413,7 @@ exports.registerForEvent = onCall(
       // T3.5（2026-11-07 站長定案 F1）：名單有空洞（人數＜名額但仍有候補）時，先依序把空位補給既有候補，
       // 再判定新報名者，避免新報名者越過所有候補直接正取。交易讀先於寫：有遞補才讀 activityRecords，
       // 遞補的寫入放在報名迴圈之後（早鳥扣點的交易內讀取在迴圈裡）。
+      // 無上限活動不在此遞補：新報名者本來就正取，殘留候補由 cancelRegistration 的無上限正規化處理。
       const holePromotedCandidates = Number(maxCount) > 0
         ? promoteWaitlistForAvailableSeats(
           { ...ed, id: eventId, max: maxCount },
@@ -13738,7 +13739,7 @@ exports.registerForEvent = onCall(
     }
 
     // P4（F1）：空洞遞補者的通知、EXP 與 operationLog，文案同 cancelRegistration P2／P5；
-    // 同組同行者只通知主報名者一次，EXP 照報名規則只給本人（不含同行者）
+    // 但同組同行者只通知主報名者一次、EXP 照報名規則只給本人（cancelRegistration 對同行者逐筆通知與加分，未對齊）
     const notifiedPromotedUids = new Set();
     for (const promoted of result.promoted || []) {
       if (!notifiedPromotedUids.has(promoted.userId)) {

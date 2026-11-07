@@ -63,7 +63,7 @@ paths:
 - **R-REG-003 [A/HARD]**：報名 transaction／batch；取消正取與候補遞補同原子提交。
 - **R-REG-004 [A/HARD]**：`_rebuildOccupancy` 純函式：不寫 cache、不呼 API、不改輸入。
 - **R-REG-005 [B/HARD]**：改鎖定 symbol 跑 `check:registration-ops`、完整 `test:unit`、local-only `docs/registration-integrity-check.js`；缺工具回報，不假稱。
-- **R-REG-006 [A/HARD]**：遞補 `registeredAt ASC`、同時 `promotionOrder ASC`；容量下降兩者 DESC。
+- **R-REG-006 [A/HARD]**：遞補 `waitlistSortAt ASC`（缺值用 `registeredAt`）→ `promotionOrder ASC` → docId；`waitlistSortAt` 只在手動下放（`forceDemoteToWaitlist`）時寫入，`registeredAt` 不改；Functions `rebuildOccupancy` 的候補名單同此序。容量下降挑降級者仍依 `registeredAt DESC`、`promotionOrder DESC`。（2026-11-07 站長定案 F3／F6 取代原「遞補 `registeredAt ASC`、同時 `promotionOrder ASC`」：被下放者要排到候補最後，且名單顯示要與實際遞補同序。舊站 A 凍結的前端排序未同步，屬已知差異。）
 - **R-REG-007 [A/HARD]**：`confirmed ↔ waitlisted` 同步 activityRecord `registered ↔ waitlisted`；只有 `participantType === 'companion'` 例外。
 - **R-REG-008 [A/HARD]**：`cancelRegistration`、`cancelCompanionRegistrations` commit 前只在副本模擬，成功後才更新 cache。
 - **R-REG-009 [A/HARD]**：Timestamp 排序先 `data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt`。
