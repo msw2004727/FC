@@ -582,7 +582,8 @@ function readSourceBetween(startNeedle, endNeedle) {
 
 function readCancelRegistrationTransactionSource() {
   const fnSource = readCloudFunctionSource('cancelRegistration');
-  const txStart = fnSource.indexOf('const result = await db.runTransaction');
+  // 測試同步更新：按鈕加速②交易耗時改 try/finally，宣告與賦值分開（let result; try { result = await …}）。
+  const txStart = fnSource.indexOf('result = await db.runTransaction');
   expect(txStart).toBeGreaterThanOrEqual(0);
   const txEnd = fnSource.indexOf('\n    });', txStart);
   expect(txEnd).toBeGreaterThan(txStart);
@@ -1493,7 +1494,7 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('transaction.create(dedupRef');
     expect(source).not.toContain('await dedupRef.create(');
     expect(source).toContain('registrationGuards.areParticipantsOwnedByCaller(participants, callerUid)');
-    expect(source).toContain('const result = await db.runTransaction');
+    expect(source).toContain('result = await db.runTransaction');
     expect(source).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
     expect(source).toContain('const selfParticipantKeys = new Set(');
     expect(source).toContain('return selfParticipantKeys.has(registrationUniqueKey(r));');
@@ -1516,7 +1517,7 @@ describe('registration callable source contracts', () => {
 
   test('cancelRegistration updates registrations, activityRecords, locks, and waitlist promotion in one transaction', () => {
     const source = readCloudFunctionSource('cancelRegistration');
-    expect(source).toContain('const result = await db.runTransaction');
+    expect(source).toContain('result = await db.runTransaction');
     expect(source).toContain('eventDoc.ref.collection("registrations")');
     expect(source).toContain('eventDoc.ref.collection("activityRecords")');
     expect(source).toContain('findActivityRecordForRegistration(allArs, reg)');
@@ -1828,7 +1829,7 @@ describe('registerForEvent CF transaction ordering (T-087)', () => {
   // 簡報 §4：報名段比照取消段補「讀完才寫」自動檢查。
   function readRegisterTransactionSource() {
     const fnSource = readCloudFunctionSource('registerForEvent');
-    const txStart = fnSource.indexOf('const result = await db.runTransaction');
+    const txStart = fnSource.indexOf('result = await db.runTransaction');
     expect(txStart).toBeGreaterThanOrEqual(0);
     const txEnd = fnSource.indexOf('\n    });', txStart);
     expect(txEnd).toBeGreaterThan(txStart);
