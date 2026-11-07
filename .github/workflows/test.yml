@@ -43,7 +43,7 @@ jobs:
       - run: npm run test:rules
 
   e2e-smoke-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # 2026-11-07：ubuntu-latest 已是 26.04，Playwright 1.59.1 不支援，釘 24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
