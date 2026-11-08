@@ -13181,6 +13181,41 @@ function logRegistrationCallableTiming(fn, startedAt, timing, outcome) {
   }));
 }
 
+// ── 按鈕加速③：報名／取消交易內讀取並行（只給 registerForEvent、cancelRegistration 用）──
+// Admin SDK 7.x 的交易在第一個讀取時才開始，第一個讀取回來前其他讀取都會排隊，
+// 所以把去重文件與活動直讀（events/{eventId}）合成同一次 getAll，當作交易第一個讀取：
+// 去重文件仍在第一個讀取裡、仍最先判斷；活動直讀省掉一次往返。
+async function readRegistrationDedupeAndEventDirectInTransaction(transaction, dedupRef, eventId) {
+  const eventDirectRef = isSafeEventDirectDocId(eventId) ? db.collection("events").doc(eventId) : null;
+  const refs = [dedupRef, eventDirectRef].filter(Boolean);
+  const snaps = refs.length ? await transaction.getAll(...refs) : [];
+  return {
+    dedupSnap: dedupRef ? snaps[0] : null,
+    eventDirectSnap: eventDirectRef ? snaps[refs.length - 1] : null,
+  };
+}
+
+// 採用條件與 getEventDocByPublicIdInTransaction 的直讀分支相同；不符回 null，由呼叫端照舊呼叫該 helper。
+function pickRegistrationEventDirectSnap(eventDirectSnap, eventId) {
+  if (!eventDirectSnap || !eventDirectSnap.exists) return null;
+  return (eventDirectSnap.data() || {}).id === eventId ? eventDirectSnap : null;
+}
+
+// 立刻發出讀取，把結果或錯誤收成物件（本身不會 reject）；呼叫端在改前的判斷位置才用
+// takeTransactionRead 取值或重拋，讓並行後的錯誤優先序與循序時相同。
+async function settleTransactionRead(readFn) {
+  try {
+    return { ok: true, value: await readFn() };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function takeTransactionRead(outcome) {
+  if (!outcome.ok) throw outcome.error;
+  return outcome.value;
+}
+
 exports.registerForEvent = onCall(
   // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650 / 用戶體感從 3-5 秒 → < 1 秒）
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
@@ -13269,7 +13304,12 @@ exports.registerForEvent = onCall(
     try {
       result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西、不扣早鳥點數
-      const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
+      // 按鈕加速③：活動直讀併進同一次 getAll（去重仍最先判斷，命中時不看活動讀取結果）
+      const { dedupSnap, eventDirectSnap } = await readRegistrationDedupeAndEventDirectInTransaction(
+        transaction,
+        dedupRef,
+        eventId
+      );
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "register", callerUid, eventId });
       if (dedupe.status === "hit") {
         return { deduplicated: true, stored: dedupe.result };
@@ -13287,7 +13327,9 @@ exports.registerForEvent = onCall(
       const shouldCreateDedupe = dedupe.status === "miss" && !!dedupRef;
 
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
-      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      // 按鈕加速③：T0 直讀到且 id 相符就沿用；否則照舊走共用 helper（直讀＋id 欄位查詢）
+      const eventDoc = pickRegistrationEventDirectSnap(eventDirectSnap, eventId)
+        || await getEventDocByPublicIdInTransaction(transaction, eventId);
       if (!eventDoc) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
@@ -13309,9 +13351,16 @@ exports.registerForEvent = onCall(
       const reservationTeamIds = normalizeTeamReservationSummaries(ed)
         .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)
         .map((item) => item.teamId);
-      const callerReservationStaffTeams = reservationTeamIds.length
-        ? await loadTeamReservationTeamsForTransaction(transaction, reservationTeamIds)
-        : [];
+      // 按鈕加速③：俱樂部名額球隊、全部報名、報名鎖三組讀取都只依賴 eventDoc／ed，彼此不相依，同時發出。
+      // 各自的結果（含讀取錯誤）留到改前的同一位置才取用，判斷順序與錯誤優先序不變。
+      const [teamsRead, allRegsRead, lockDocsRead] = await Promise.all([
+        settleTransactionRead(() => (reservationTeamIds.length
+          ? loadTeamReservationTeamsForTransaction(transaction, reservationTeamIds)
+          : [])),
+        settleTransactionRead(() => transaction.get(eventDoc.ref.collection("registrations"))),
+        settleTransactionRead(() => Promise.all(regLockRefs.map((ref) => transaction.get(ref)))),
+      ]);
+      const callerReservationStaffTeams = takeTransactionRead(teamsRead);
       const now = new Date();
 
       // T2: 驗證活動狀態
@@ -13351,10 +13400,8 @@ exports.registerForEvent = onCall(
         ed.status = "open";
       }
 
-      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
-      const allRegsSnap = await transaction.get(
-        eventDoc.ref.collection("registrations")
-      );
+      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性；讀取已在上方並行發出）
+      const allRegsSnap = takeTransactionRead(allRegsRead);
       const allEventRegs = allRegsSnap.docs.map((d) => {
         const data = d.data();
         return {
@@ -13372,7 +13419,7 @@ exports.registerForEvent = onCall(
           "EVENT_UNAVAILABLE"
         );
       }
-      const lockDocs = await Promise.all(regLockRefs.map((ref) => transaction.get(ref)));
+      const lockDocs = takeTransactionRead(lockDocsRead);
 
       // T3: 重複報名檢查
       const selfParticipantKeys = new Set(
@@ -14705,7 +14752,12 @@ exports.cancelRegistration = onCall(
     try {
       result = await db.runTransaction(async (transaction) => {
       // T0（T-087）：交易第一個讀取＝去重文件；命中直接回存的結果，不寫任何東西
-      const dedupSnap = dedupRef ? await transaction.get(dedupRef) : null;
+      // 按鈕加速③：活動直讀併進同一次 getAll（去重仍最先判斷，命中時不看活動讀取結果）
+      const { dedupSnap, eventDirectSnap } = await readRegistrationDedupeAndEventDirectInTransaction(
+        transaction,
+        dedupRef,
+        eventId
+      );
       const dedupe = registrationGuards.decideRegistrationDedupe(dedupSnap, { fn: "cancel", callerUid, eventId });
       if (dedupe.status === "hit") {
         return { deduplicated: true, stored: dedupe.result };
@@ -14723,17 +14775,24 @@ exports.cancelRegistration = onCall(
       const shouldCreateDedupe = dedupe.status === "miss" && !!dedupRef;
 
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
-      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      // 按鈕加速③：T0 直讀到且 id 相符就沿用；否則照舊走共用 helper（直讀＋id 欄位查詢）
+      const eventDoc = pickRegistrationEventDirectSnap(eventDirectSnap, eventId)
+        || await getEventDocByPublicIdInTransaction(transaction, eventId);
       if (!eventDoc) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
 
-      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
-      const allRegsSnap = await transaction.get(
-        eventDoc.ref.collection("registrations")
-      );
+      // 按鈕加速③：全部報名與 activityRecords 都只依賴 eventDoc，彼此不相依，同時發出。
+      // activityRecords 的結果（含讀取錯誤）留到改前的位置（取消時限檢查之後）才取用，判斷與錯誤優先序不變。
+      const [allRegsRead, arRead] = await Promise.all([
+        settleTransactionRead(() => transaction.get(eventDoc.ref.collection("registrations"))),
+        settleTransactionRead(() => transaction.get(eventDoc.ref.collection("activityRecords"))),
+      ]);
+
+      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性；讀取已在上方並行發出）
+      const allRegsSnap = takeTransactionRead(allRegsRead);
       const allEventRegs = allRegsSnap.docs.map((d) => {
         const data = d.data();
         return {
@@ -14808,9 +14867,8 @@ exports.cancelRegistration = onCall(
       }
 
       // Firestore transactions require every read before the first write.
-      const arSnap = await transaction.get(
-        eventDoc.ref.collection("activityRecords")
-      );
+      // 按鈕加速③：activityRecords 已在 T2 前並行讀取，這裡才取結果（讀取失敗也在這裡才拋，與改前同位置）。
+      const arSnap = takeTransactionRead(arRead);
       const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
 
       if (targetRegs.length === 0) {

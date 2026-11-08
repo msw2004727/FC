@@ -6,7 +6,7 @@
  *
  * 假 Firestore 只實作這兩支 Callable 與其後置操作用得到的子集：
  *  - doc／collection／subcollection、where(==, array-contains, in)＋limit、add、batch(update/set/create/delete)。
- *  - transaction：讀必須在寫之前；commit 時以樂觀並發檢查「本次讀過的文件版本與查詢結果」，
+ *  - transaction（get／getAll）：讀必須在寫之前；commit 時以樂觀並發檢查「本次讀過的文件版本與查詢結果」，
  *    有變動就丟 ABORTED（code 10）並重跑 callback（最多 5 次，與 SDK 預設相同）；
  *    create 撞到既有文件丟 ALREADY_EXISTS（code 6）。
  *  - 寫入值含 undefined 時在 create／set／update／add 呼叫當下就丟錯（同真實 SDK 未設 ignoreUndefinedProperties）。
@@ -266,6 +266,11 @@ function createFakeFirestore(seed = {}) {
         let wrote = false;
         const tx = {
           ...writer(ops, () => { wrote = true; }),
+          // 按鈕加速③：交易內 getAll（真實 SDK 是一次 BatchGet、依傳入順序回傳）；讀取計數與版本檢查逐筆同 get。
+          getAll: async (...targets) => {
+            if (wrote) throw new Error("transaction reads must come before writes");
+            return Promise.all(targets.map((target) => tx.get(target)));
+          },
           get: async (target) => {
             if (wrote) throw new Error("transaction reads must come before writes");
             state.reads.tx += 1;

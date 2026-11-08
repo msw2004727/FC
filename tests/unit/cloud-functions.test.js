@@ -1490,7 +1490,8 @@ describe('registration callable source contracts', () => {
     // 測試同步更新（T-087）：去重從交易外 db.collection("_regDedupe").doc(safeRequestId).create() 改為
     // 交易內讀寫，鍵改含函式名與呼叫者 UID（registration-guards.js#buildRegistrationDedupeDocId）。
     expect(source).toContain('registrationGuards.buildRegistrationDedupeRef(db, "register", callerUid, requestId)');
-    expect(source).toContain('await transaction.get(dedupRef)');
+    // 測試同步更新（按鈕加速③）：去重文件改與活動直讀合成交易第一個 getAll（去重仍排第一、仍最先判斷）。
+    expect(source).toContain('await readRegistrationDedupeAndEventDirectInTransaction(');
     expect(source).toContain('transaction.create(dedupRef');
     expect(source).not.toContain('await dedupRef.create(');
     expect(source).toContain('registrationGuards.areParticipantsOwnedByCaller(participants, callerUid)');
@@ -1848,6 +1849,7 @@ describe('registerForEvent CF transaction ordering (T-087)', () => {
       ...findAllIndexes(txSource, 'transaction.get('),
       ...findAllIndexes(txSource, 'loadTeamReservationTeamsForTransaction('),
       ...findAllIndexes(txSource, 'getEventDocByPublicIdInTransaction('),
+      ...findAllIndexes(txSource, 'readRegistrationDedupeAndEventDirectInTransaction('),
     ];
     // 早鳥扣點的 users 讀取在報名寫入迴圈內、但在該迴圈任何寫入之前（既有設計，一次最多一位本人）。
     const earlyBirdReadIndex = txSource.indexOf('await transaction.get(callerUserRef)');
@@ -1856,7 +1858,12 @@ describe('registerForEvent CF transaction ordering (T-087)', () => {
     expect(earlyBirdReadIndex).toBeGreaterThan(0);
     expect(earlyBirdReadIndex).toBeLessThan(firstWriteIndex);
     expect(lateReads).toEqual([]);
-    expect(txSource.indexOf('transaction.get(dedupRef)')).toBe(Math.min(...findAllIndexes(txSource, 'transaction.get(')));
+    // 測試同步更新（按鈕加速③）：第一個讀取改為「去重文件＋活動直讀」的 getAll，去重文件排在 getAll 第一個。
+    expect(txSource.indexOf('readRegistrationDedupeAndEventDirectInTransaction(')).toBe(Math.min(...readIndexes));
+    expect(readSourceBetween(
+      'async function readRegistrationDedupeAndEventDirectInTransaction',
+      'function pickRegistrationEventDirectSnap'
+    )).toContain('const refs = [dedupRef, eventDirectRef].filter(Boolean);');
     expect(txSource.lastIndexOf('transaction.create(dedupRef')).toBe(Math.max(...writeIndexes));
   });
 
@@ -1911,8 +1918,12 @@ describe('cancelRegistration CF transaction ordering', () => {
     const txSource = readCancelRegistrationTransactionSource();
     expect(fnSource).toContain('registrationGuards.buildRegistrationDedupeRef(db, "cancel", callerUid, requestId)');
     expect(fnSource).not.toContain('await dedupRef.create(');
-    const readIndexes = findAllIndexes(txSource, 'transaction.get(');
-    expect(txSource.indexOf('transaction.get(dedupRef)')).toBe(Math.min(...readIndexes));
+    // 測試同步更新（按鈕加速③）：第一個讀取改為「去重文件＋活動直讀」的 getAll，去重文件排在 getAll 第一個。
+    const readIndexes = [
+      ...findAllIndexes(txSource, 'transaction.get('),
+      ...findAllIndexes(txSource, 'readRegistrationDedupeAndEventDirectInTransaction('),
+    ];
+    expect(txSource.indexOf('readRegistrationDedupeAndEventDirectInTransaction(')).toBe(Math.min(...readIndexes));
     const deadlineIndex = txSource.indexOf('registrationGuards.evaluateUserCancelDeadline(');
     const firstWriteIndex = Math.min(
       ...findAllIndexes(txSource, 'transaction.update('),
