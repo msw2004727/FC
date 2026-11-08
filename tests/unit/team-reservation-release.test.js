@@ -414,9 +414,10 @@ describe("releaseTeamReservations handler", () => {
       expect.objectContaining({ teamId: "teamA", reservedSlots: 0, usedSlots: 1, remainingSlots: 0, updatedByUid: "system" }),
     ]);
     expect(event).toMatchObject({ current: 4, realCurrent: 4, waitlist: 1, status: "full", schemaVersion: 2 });
-    expect(event.teamReservationReleaseCount).toBeUndefined();
+    expect(event.teamReservationReleaseCount).toBe(1);
     expect(h.fake.get("events/evtA/registrations/w1")).toMatchObject({ status: "confirmed" });
     expect(h.fake.get("events/evtA/registrations/w1").promotedAt).toBeInstanceOf(FakeTimestamp);
+    expect(h.fake.get("events/evtA/registrations/w1").updatedAt).toBeInstanceOf(FakeTimestamp);
     expect(h.fake.get("events/evtA/registrations/w3").status).toBe("waitlisted");
     expect(h.fake.get("events/evtA/activityRecords/ar_w1").status).toBe("registered");
     expect(h.fake.get("events/evtA/activityRecords/ar_w3").status).toBe("waitlisted");
@@ -484,6 +485,34 @@ describe("releaseTeamReservations handler", () => {
     expect(h.fake.get("events/evtA").teamReservationReleasedSummary).toHaveLength(1);
   });
 
+  test("後置整體丟錯：記 post_commit、不計入 failedCount", async () => {
+    const h = createHarness(seedEvent("evtA", baseEvent(), standardRegs(), standardArs()), {
+      extraDeps: { settleBestEffortPostCommitOps: jest.fn(async () => { throw Object.assign(new Error("settle down"), { code: "internal" }); }) },
+    });
+    const summary = await h.run();
+    expect(summary).toMatchObject({ releasedCount: 1, failedCount: 0, postCommitFailureCount: 1 });
+    expect(summary.outcomes.map((item) => item.outcome)).toEqual(["released"]);
+    expect(h.logger.error).toHaveBeenCalledWith(expect.objectContaining({ stage: "post_commit", eventId: maskId("evtA") }));
+    expect(h.logger.error).not.toHaveBeenCalledWith(expect.objectContaining({ stage: "transaction" }));
+    expect(h.fake.get("events/evtA").teamReservationReleasedSummary).toHaveLength(1);
+  });
+
+  test("date 不合格式改用 startTimestamp：照常釋出並記 start_fallback_timestamp", async () => {
+    const event = baseEvent({ date: "2026/11/20 10:00～12:00", startTimestamp: FakeTimestamp.fromMillis(START_MS), teamReservationSummaries: [] });
+    const h = createHarness(seedEvent("evtA", event));
+    const summary = await h.run();
+    expect(summary.lightweightCount).toBe(1);
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+      stage: "scan", reason: "start_fallback_timestamp", eventId: maskId("evtA"),
+    }));
+  });
+
+  test("date 合格式時不記 fallback warn", async () => {
+    const h = createHarness(seedEvent("evtA", baseEvent({ teamReservationSummaries: [] })));
+    await h.run();
+    expect(h.logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({ reason: "start_fallback_timestamp" }));
+  });
+
   test("冪等：第二輪看到終態就跳過，不再寫入", async () => {
     const h = createHarness(seedEvent("evtA", baseEvent(), standardRegs(), standardArs()));
     await h.run();
@@ -525,6 +554,7 @@ describe("releaseTeamReservations handler", () => {
     expect(stored.teamReservationReleasedAt).toBeInstanceOf(FakeTimestamp);
     expect(stored.teamReservationReleasedSummary).toEqual([]);
     expect(stored.current).toBe(7);
+    expect(stored.teamReservationReleaseCount).toBe(1);
     expect(h.fake.list("operationLogs")).toHaveLength(0);
   });
 
@@ -616,7 +646,8 @@ describe("過期回寫偵測（已釋出後又出現預留）", () => {
     expect(summary).toMatchObject({ releasedCount: 1, rereleasedCount: 1, promotedCount: 2 });
     const stored = h.fake.get("events/evtA");
     expect(stored.teamReservationReleasedAt.toMillis()).toBe(RELEASED_AT_MS);
-    expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 4 }]);
+    // 測試同步更新（批 1 審查）：過期回寫是同一批席位還回來，同隊取 max(2, 2)=2，不再相加成 4。
+    expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }]);
     expect(stored.teamReservationReleaseCount).toBe(2);
     expect(stored.teamReservationSummaries[0]).toMatchObject({ reservedSlots: 0, usedSlots: 1 });
     expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({ reason: "rerelease_stale_writeback" }));
@@ -657,6 +688,90 @@ describe("過期回寫偵測（已釋出後又出現預留）", () => {
     expect(summary.skippedByReason).toEqual({ rereserved_after_release: 1 });
     expect(h.fake.state.writes).toHaveLength(0);
     expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({ stage: "transaction", reason: "rereserved_after_release" }));
+  });
+});
+
+describe("併發：交易讀完報名後被插入寫入，重跑後結果正確", () => {
+  // 包 transaction.get：第一次讀 registrations 之後插入一筆外部寫入，假 DB 在 commit 時偵測版本變動而重跑（同 SDK 樂觀鎖）。
+  function withInsertAfterRegistrationsRead(h, mutate) {
+    const realRun = h.deps.db.runTransaction;
+    let inserted = false;
+    h.deps.db.runTransaction = (callback) => realRun(async (tx) => callback({
+      ...tx,
+      get: async (target) => {
+        const result = await tx.get(target);
+        if (!inserted && String(target?._collectionPath || "").endsWith("/registrations")) {
+          inserted = true;
+          mutate(h.fake);
+        }
+        return result;
+      },
+    }));
+  }
+
+  test("插入一筆新報名（預留成員剛用掉一席）：重跑後只釋出 1 席、只遞補 1 人、站內信只發一輪", async () => {
+    const h = createHarness(seedEvent("evtA", baseEvent(), standardRegs(), standardArs()));
+    withInsertAfterRegistrationsRead(h, (fake) => fake.put("events/evtA/registrations/n1", reg("n1", "confirmed", {
+      teamReservationTeamId: "teamA", teamReservationTeamName: "A 隊", teamSeatSource: "reserved", registeredAt: "2026-11-01T03:00:00.000Z",
+    })));
+    const summary = await h.run();
+    expect(h.fake.state.transactionAttempts).toBeGreaterThanOrEqual(2);
+    expect(summary).toMatchObject({ releasedCount: 1, promotedCount: 1, failedCount: 0 });
+    const stored = h.fake.get("events/evtA");
+    expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 1 }]);
+    expect(stored.teamReservationSummaries[0]).toMatchObject({ reservedSlots: 0, usedSlots: 2, remainingSlots: 0 });
+    expect(stored).toMatchObject({ realCurrent: 4, current: 4, waitlist: 2, status: "full" });
+    expect(h.fake.get("events/evtA/registrations/w1").status).toBe("confirmed");
+    expect(h.fake.get("events/evtA/registrations/w2").status).toBe("waitlisted");
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(1);
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledWith(expect.objectContaining({ recipientUid: "u_w1" }));
+  });
+
+  test("插入一筆取消（一般正取剛取消）：重跑後多補一人、站內信只發一輪", async () => {
+    const h = createHarness(seedEvent("evtA", baseEvent(), standardRegs(), standardArs()));
+    withInsertAfterRegistrationsRead(h, (fake) => fake.put("events/evtA/registrations/r2", {
+      ...fake.get("events/evtA/registrations/r2"), status: "cancelled",
+    }));
+    const summary = await h.run();
+    expect(h.fake.state.transactionAttempts).toBeGreaterThanOrEqual(2);
+    expect(summary).toMatchObject({ releasedCount: 1, promotedCount: 3, failedCount: 0 });
+    const stored = h.fake.get("events/evtA");
+    expect(stored).toMatchObject({ realCurrent: 4, current: 4, waitlist: 0, status: "full" });
+    expect(stored.participants).toEqual(expect.arrayContaining(["名r1", "名w1", "名w2", "名w3"]));
+    expect(stored.participants).not.toContain("名r2");
+    ["w1", "w2", "w3"].forEach((id) => expect(h.fake.get(`events/evtA/registrations/${id}`).status).toBe("confirmed"));
+    expect(h.deps.writeInboxNotification).toHaveBeenCalledTimes(3);
+    expect(h.fake.list("operationLogs")).toHaveLength(1);
+  });
+});
+
+describe("同一場活動同時有過期回寫與手動再預留", () => {
+  test("只再釋出過期的隊，手動再預留的隊原樣保留", async () => {
+    const releasedAtMs = NOW_MS - HOUR;
+    const event = baseEvent({
+      max: 8,
+      teamReservationReleasedAt: FakeTimestamp.fromMillis(releasedAtMs),
+      teamReservationReleaseCount: 1,
+      teamReservationReleasedSummary: [{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }],
+      teamReservationSummaries: [
+        { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: "2026-11-01T00:00:00.000Z" },
+        { teamId: "teamB", teamName: "B 隊", reservedSlots: 2, usedSlots: 0, updatedAt: new Date(releasedAtMs + 60000).toISOString(), updatedByUid: "staffB" },
+      ],
+    });
+    const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()));
+    const summary = await h.run();
+    expect(summary).toMatchObject({ dueCount: 1, releasedCount: 1, rereleasedCount: 1 });
+    const stored = h.fake.get("events/evtA");
+    expect(stored.teamReservationReleasedAt.toMillis()).toBe(releasedAtMs);
+    expect(stored.teamReservationReleaseCount).toBe(2);
+    expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }]);
+    const byTeam = Object.fromEntries(stored.teamReservationSummaries.map((item) => [item.teamId, item]));
+    expect(byTeam.teamA).toMatchObject({ reservedSlots: 0, usedSlots: 1, remainingSlots: 0, updatedByUid: "system" });
+    expect(byTeam.teamB).toMatchObject({ reservedSlots: 2, usedSlots: 0, remainingSlots: 2, updatedByUid: "staffB" });
+    // max 8：正取 r1、r2 ＋ B 隊空預留 2 → current 4，候補 w1～w3 全部補上後 current 7
+    expect(stored).toMatchObject({ realCurrent: 5, current: 7, waitlist: 0 });
+    const reservationWrites = h.fake.txWrites().filter((item) => item.path.includes("/teamReservations/"));
+    expect(reservationWrites.map((item) => item.path)).toEqual(["events/evtA/teamReservations/teamA"]);
   });
 });
 

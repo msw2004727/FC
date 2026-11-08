@@ -82,13 +82,20 @@ function resolveStartFromDateString(dateStr, parseEventStartDateInTaipei) {
 
 // 活動開始時間（epoch ms）：以 date 字串為主（與 Functions 其他「已開始」判斷一致），
 // 先嚴格格式＋月日回推，不符才用 startTimestamp；兩者都不可靠回 null。不改共用的 parseEventStartDateInTaipei。
-function resolveEventStartMs(eventData, parseEventStartDateInTaipei) {
+// resolveEventStart 另回傳來源（date／startTimestamp），讓排程在改用 startTimestamp 時記 warn。
+function resolveEventStart(eventData, parseEventStartDateInTaipei) {
   if (typeof parseEventStartDateInTaipei !== "function") {
     throw new TypeError("parseEventStartDateInTaipei helper is required");
   }
   const fromDate = resolveStartFromDateString(eventData?.date, parseEventStartDateInTaipei);
-  if (fromDate !== null) return fromDate;
-  return timestampToMs(eventData?.startTimestamp);
+  if (fromDate !== null) return { startMs: fromDate, source: "date" };
+  const fromTimestamp = timestampToMs(eventData?.startTimestamp);
+  if (fromTimestamp !== null) return { startMs: fromTimestamp, source: "startTimestamp" };
+  return { startMs: null, source: null };
+}
+
+function resolveEventStartMs(eventData, parseEventStartDateInTaipei) {
+  return resolveEventStart(eventData, parseEventStartDateInTaipei).startMs;
 }
 
 // 釋出資格（掃描粗篩與交易內二次檢查共用）。due 時回 { due:true, hours, startMs, releaseAtMs }。
@@ -99,14 +106,14 @@ function evaluateReleaseTiming(eventData, nowMs, deps) {
   }
   const hours = normalizeReleaseHours(eventData?.teamReservationReleaseHours);
   if (hours <= 0) return { due: false, reason: "hours_off" };
-  const startMs = resolveEventStartMs(eventData, deps.parseEventStartDateInTaipei);
+  const { startMs, source: startSource } = resolveEventStart(eventData, deps.parseEventStartDateInTaipei);
   if (startMs === null) return { due: false, reason: "start_unknown", hours };
   const releaseAtMs = startMs - hours * HOUR_MS;
   // 已開始的活動不處理（與 adjustTeamReservation 對齊）。
   if (!(releaseAtMs <= nowMs && nowMs < startMs)) {
-    return { due: false, reason: "not_due", hours, startMs, releaseAtMs };
+    return { due: false, reason: "not_due", hours, startMs, releaseAtMs, startSource };
   }
-  return { due: true, hours, startMs, releaseAtMs };
+  return { due: true, hours, startMs, releaseAtMs, startSource };
 }
 
 // 已釋出的活動若又出現 reservedSlots>0 的項目：updatedAt 早於 releasedAt ＝舊站 A 過期快取回寫 → 要再釋出；
@@ -137,12 +144,13 @@ function sanitizeReleasedSummary(value) {
     }));
 }
 
-// 再釋出時把新的釋出量併進既有摘要（同 teamId 相加），維持每隊一筆。
+// 再釋出時把新的釋出量併進既有摘要，維持每隊一筆。過期回寫是把同一批席位還回來，
+// 同 teamId 取 max(既有, 本次) 不相加，避免重複計算（批 1 審查 Gemini P2-1／Opus；取代原「相加」）。
 function mergeReleasedSummary(existing, added) {
   const merged = sanitizeReleasedSummary(existing);
   (Array.isArray(added) ? added : []).forEach((item) => {
     const found = merged.find((entry) => entry.teamId === item.teamId);
-    if (found) found.releasedSlots += item.releasedSlots;
+    if (found) found.releasedSlots = Math.max(found.releasedSlots, item.releasedSlots);
     else merged.push({ ...item });
   });
   return merged;
@@ -280,6 +288,7 @@ function createReleaseTeamReservationsHandler(deps) {
         transaction.update(eventRef, {
           teamReservationReleasedAt: FieldValue.serverTimestamp(),
           teamReservationReleasedSummary: [],
+          teamReservationReleaseCount: 1,
         });
         return { outcome: "lightweight" };
       }
@@ -307,7 +316,11 @@ function createReleaseTeamReservationsHandler(deps) {
       });
 
       for (const candidate of plan.promoted) {
-        const update = { status: "confirmed", promotedAt: FieldValue.serverTimestamp() };
+        const update = {
+          status: "confirmed",
+          promotedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
         if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
         transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
         // R-REG-007：非同行者同步 activityRecord waitlisted → registered。
@@ -331,7 +344,7 @@ function createReleaseTeamReservationsHandler(deps) {
         status: occupancy.status,
       };
       if (rerelease) {
-        // 再釋出：releasedAt 保留首次時間，摘要併入、次數 +1。
+        // 再釋出：releasedAt 保留首次時間，摘要併入（同隊取 max）、次數 +1。
         const prevCount = Number.isInteger(ed.teamReservationReleaseCount) && ed.teamReservationReleaseCount > 0
           ? ed.teamReservationReleaseCount
           : 1;
@@ -340,6 +353,7 @@ function createReleaseTeamReservationsHandler(deps) {
       } else {
         eventUpdate.teamReservationReleasedAt = FieldValue.serverTimestamp();
         eventUpdate.teamReservationReleasedSummary = plan.releasedSummary;
+        eventUpdate.teamReservationReleaseCount = 1;
       }
       transaction.update(eventRef, eventUpdate);
 
@@ -444,6 +458,10 @@ function createReleaseTeamReservationsHandler(deps) {
         }
         return;
       }
+      if (timing.startSource === "startTimestamp") {
+        // date 字串不合嚴格格式，改用 startTimestamp（A 為裝置時區，可能有時差），留紀錄供人工核對。
+        logger.warn({ fn, stage: "scan", reason: "start_fallback_timestamp", eventId: maskId(doc.id) });
+      }
       if (data.teamReservationReleasedAt) {
         const { stale, fresh } = classifyReservedAfterRelease(
           normalizeTeamReservationSummaries(data), data.teamReservationReleasedAt,
@@ -481,6 +499,7 @@ function createReleaseTeamReservationsHandler(deps) {
     // 一場一交易、逐場隔離（R-CF-002）；交易保留 SDK retry（R-CF-004）。
     for (const { doc } of batch) {
       const maskedEventId = maskId(doc.id);
+      let committed = null;
       try {
         const result = await releaseOneEvent(doc.ref);
         outcomes.push({ eventId: maskedEventId, ...result });
@@ -501,14 +520,28 @@ function createReleaseTeamReservationsHandler(deps) {
           logger.warn({ fn, stage: "transaction", reason: "rerelease_stale_writeback", eventId: maskedEventId });
         }
         summary.promotedCount += result.promoted.length;
-        const settled = await runPostCommit(doc.id, result);
-        summary.postCommitFailureCount += Number(settled?.failureCount || 0) || 0;
+        committed = result;
       } catch (error) {
         summary.failedCount += 1;
         outcomes.push({ eventId: maskedEventId, outcome: "failed" });
         logger.error({
           fn,
           stage: "transaction",
+          eventId: maskedEventId,
+          errorCode: String(error?.code || "unknown"),
+          message: String(error?.message || error).slice(0, 300),
+        });
+        continue;
+      }
+      // 交易已提交；後置失敗只記 post_commit，不算這場釋出失敗（R-CF-003；批 1 審查 Opus P3-2）。
+      try {
+        const settled = await runPostCommit(doc.id, committed);
+        summary.postCommitFailureCount += Number(settled?.failureCount || 0) || 0;
+      } catch (error) {
+        summary.postCommitFailureCount += 1;
+        logger.error({
+          fn,
+          stage: "post_commit",
           eventId: maskedEventId,
           errorCode: String(error?.code || "unknown"),
           message: String(error?.message || error).slice(0, 300),
@@ -525,6 +558,7 @@ module.exports = {
   TEAM_RESERVATION_RELEASE_HOURS,
   RELEASE_MAX_EVENTS_PER_RUN,
   normalizeReleaseHours,
+  resolveEventStart,
   resolveEventStartMs,
   evaluateReleaseTiming,
   classifyReservedAfterRelease,
