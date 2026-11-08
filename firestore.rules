@@ -1060,6 +1060,8 @@ service cloud.firestore {
           );
       }
 
+      // teamReservationReleaseHours（團隊預留自動釋出時數）：值域由 Functions 兜底（非允許值視為 0），Rules 不檢查以省運算式預算；
+      // teamReservationReleasedAt／teamReservationReleasedSummary 只由 Functions 寫，不加入這兩個白名單。
       function eventUpdateBasicFieldsOnly(changed) {
         return changed.hasOnly([
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
@@ -1068,7 +1070,7 @@ service cloud.firestore {
           'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
-          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours',
           'updatedAt'
         ]);
       }
@@ -1081,7 +1083,7 @@ service cloud.firestore {
           'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
-          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours',
           'status', 'updatedAt'
         ]);
       }
