@@ -9956,7 +9956,8 @@ exports.autoEndStartedEvents = onSchedule(
     schedule: "*/5 * * * *",
     timeZone: "Asia/Taipei",
     timeoutSeconds: 60,
-    memory: "128MiB",
+    // 2026-11-08：128MiB 近 48 小時 OOM 256 次（約 1／3 輪失敗、活動自動結束延遲）；改 256MiB。
+    memory: "256MiB",
     maxInstances: 1,
   },
   async () => {
@@ -10041,6 +10042,8 @@ exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
 exports.watchAttendanceChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    // 2026-11-08：128MiB 冷啟動載入 index.js 即貼上限，每處理 1 筆就 OOM、Pub/Sub 重送放大成數百筆 500；比照另外三支監看改 256MiB。
+    memory: "256MiB",
     document: "events/{eventId}/attendanceRecords/{recordId}",
   },
   async (event) => processChangeWatchEvent(event, "attendanceRecords", classifyAttendanceChange),
