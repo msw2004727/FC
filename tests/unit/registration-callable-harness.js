@@ -5,7 +5,7 @@
  * registerForEvent／cancelRegistration handler，搭配記憶體版 Firestore。
  *
  * 假 Firestore 只實作這兩支 Callable 與其後置操作用得到的子集：
- *  - doc／collection／subcollection、where(==, array-contains, in)＋limit、add、batch(update/set/create/delete)。
+ *  - doc／collection／subcollection、where(==, array-contains, in)＋select＋limit、add、batch(update/set/create/delete)。
  *  - transaction（get／getAll）：讀必須在寫之前；commit 時以樂觀並發檢查「本次讀過的文件版本與查詢結果」，
  *    有變動就丟 ABORTED（code 10）並重跑 callback（最多 5 次，與 SDK 預設相同）；
  *    create 撞到既有文件丟 ALREADY_EXISTS（code 6）。
@@ -174,6 +174,8 @@ function createFakeFirestore(seed = {}) {
       _spec: spec,
       where: (field, op, value) => next({ filters: [...(spec.filters || []), { field, op, value }] }),
       orderBy: () => next({}),
+      // select 只縮欄位、不影響篩選；假 DB 照樣回整份文件（團隊預留自動釋出排程掃描用）。
+      select: () => next({}),
       limit: (count) => next({ limit: count }),
       get: async () => {
         state.reads.direct += 1;

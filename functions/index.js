@@ -19,6 +19,7 @@ const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createRoleGraphLoader } = require("./role-hierarchy");
 const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
+const { createReleaseTeamReservationsHandler } = require("./team-reservation-release");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
@@ -9969,6 +9970,35 @@ exports.autoEndStartedEvents = onSchedule(
       updatedCount: result.updatedCount,
     });
   },
+);
+// 團隊預留自動釋出（2026-11-09 計畫 v2.1 批 1）：活動開始前 N 小時把未用的團隊預留歸 0，
+// 照既有遞補順序補候補；計算與交易流程在 team-reservation-release.js，這裡只接線。
+exports.releaseTeamReservations = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "*/5 * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 120,
+    // 同輪多場百人活動要載入報名與 activityRecords 模擬，比照 adjustTeamReservation 用 512MiB。
+    memory: "512MiB",
+    maxInstances: 1,
+  },
+  createReleaseTeamReservationsHandler({
+    db,
+    FieldValue,
+    logger,
+    maskId: maskRosterId,
+    parseEventStartDateInTaipei,
+    isCourseLinkedEventData,
+    normalizeTeamReservationSummaries,
+    rebuildOccupancy,
+    promoteWaitlistForAvailableSeats,
+    findActivityRecordForRegistration,
+    writeInboxNotification,
+    adjustExpInternal,
+    settleBestEffortPostCommitOps,
+    formatOperationLogTime,
+  }),
 );
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
   {

@@ -6370,3 +6370,34 @@ describe('deliverToInbox actionType/meta guard (T-022)', () => {
     expect(db.commitAttempts).toBe(0);
   });
 });
+
+describe('team reservation auto release schedule contract', () => {
+  // 團隊預留自動釋出（計畫 v2.1 批 1）：行為測試在 team-reservation-release.test.js，這裡釘排程規格與接線。
+  test('releaseTeamReservations runs every 5 minutes in asia-east1 with isolated limits', () => {
+    const source = readCloudFunctionSource('releaseTeamReservations');
+    expect(source).toContain('exports.releaseTeamReservations = onSchedule(');
+    expect(source).toContain('region: "asia-east1"');
+    expect(source).toContain('schedule: "*/5 * * * *"');
+    expect(source).toContain('timeZone: "Asia/Taipei"');
+    expect(source).toContain('timeoutSeconds: 120');
+    expect(source).toContain('memory: "512MiB"');
+    expect(source).toContain('maxInstances: 1');
+    expect(source).toContain('createReleaseTeamReservationsHandler({');
+    ['rebuildOccupancy', 'promoteWaitlistForAvailableSeats', 'parseEventStartDateInTaipei',
+      'isCourseLinkedEventData', 'findActivityRecordForRegistration', 'settleBestEffortPostCommitOps']
+      .forEach((name) => expect(source).toContain(`    ${name},`));
+  });
+
+  test('release module scans open/full only, re-checks inside the transaction, and caps each run', () => {
+    const moduleSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'functions', 'team-reservation-release.js'),
+      'utf8'
+    ).replace(/\r\n/g, '\n');
+    expect(moduleSource).toContain('const RELEASE_SCAN_STATUSES = Object.freeze(["open", "full"]);');
+    expect(moduleSource).toContain('const RELEASE_MAX_EVENTS_PER_RUN = 20;');
+    expect(moduleSource).toContain('.where("status", "in", [...RELEASE_SCAN_STATUSES])');
+    expect(moduleSource).toContain('const timing = evaluateReleaseTiming(ed, txNowMs, deps);');
+    expect(moduleSource).toContain('type: "team_reservation_auto_release"');
+    expect(moduleSource).not.toContain('parseEventStartDateInTaipei = ');
+  });
+});
