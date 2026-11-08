@@ -116,20 +116,34 @@ function evaluateReleaseTiming(eventData, nowMs, deps) {
   return { due: true, hours, startMs, releaseAtMs, startSource };
 }
 
-// 已釋出的活動若又出現 reservedSlots>0 的項目：updatedAt 早於 releasedAt ＝舊站 A 過期快取回寫 → 要再釋出；
-// 晚於（或 releasedAt 無法判讀）＝釋出後手動再預留 → 只 warn 不處理（批 0 ③）。
-function classifyReservedAfterRelease(summaries, releasedAt) {
+function toSlotCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+}
+
+// 已釋出的活動又出現 reservedSlots>0 的項目時，用只有伺服器能寫的鏡像子文件 events/{id}/teamReservations/{teamId}
+// 判斷是誰改的（顧問 11-09 裁定 Opus 批 1 P2-1 (a)；取代原「比 summary 上的 updatedAt」，因舊站 A 會寫裝置時鐘）。
+// 手動再預留＝子文件存在、updatedByUid 為真人（非 system）、updatedAt（serverTimestamp）晚於 releasedAt、
+// 子文件 reservedSlots >= summary 該項；其餘都視為過期回寫。
+// releasedAt 無法判讀時不判斷（invalid＝true），由呼叫端跳過，不做不可逆的釋出。
+function classifyReservedAfterRelease(summaries, releasedAt, subDocsByTeamId = {}) {
   const releasedAtMs = looseTimeToMs(releasedAt);
-  const reserved = (Array.isArray(summaries) ? summaries : []).filter((item) => Number(item?.reservedSlots || 0) > 0);
+  const reserved = (Array.isArray(summaries) ? summaries : []).filter((item) => toSlotCount(item?.reservedSlots) > 0);
+  if (!Number.isFinite(releasedAtMs)) return { stale: [], manual: [], invalid: reserved.length > 0 };
   const stale = [];
-  const fresh = [];
+  const manual = [];
   reserved.forEach((item) => {
-    const updatedMs = looseTimeToMs(item.updatedAt);
-    const updatedOrZero = Number.isFinite(updatedMs) ? updatedMs : 0;
-    if (Number.isFinite(releasedAtMs) && updatedOrZero < releasedAtMs) stale.push(item);
-    else fresh.push(item);
+    const sub = subDocsByTeamId?.[item.teamId];
+    const updatedByUid = String(sub?.updatedByUid || "").trim();
+    const updatedMs = looseTimeToMs(sub?.updatedAt);
+    const isManual = !!sub
+      && !!updatedByUid && updatedByUid !== RELEASE_SYSTEM_UID
+      && Number.isFinite(updatedMs) && updatedMs > releasedAtMs
+      && toSlotCount(sub.reservedSlots) >= toSlotCount(item.reservedSlots);
+    if (isManual) manual.push({ ...item, restoredReservedSlots: toSlotCount(sub.reservedSlots) });
+    else stale.push(item);
   });
-  return { stale, fresh };
+  return { stale, manual, invalid: false };
 }
 
 function sanitizeReleasedSummary(value) {
@@ -158,13 +172,16 @@ function mergeReleasedSummary(existing, added) {
 
 /**
  * 純函式：計算一場活動的團隊預留釋出結果。
- * input：{ eventData, registrations（全部報名，內部只取 confirmed／waitlisted 的副本）, nowMs, targetTeamIds?（再釋出時只處理這些隊） }
+ * input：{ eventData, registrations（全部報名，內部只取 confirmed／waitlisted 的副本）, nowMs,
+ *          targetTeamIds?（再釋出時只歸 0 這些隊）, restoreReservedByTeamId?（再釋出時其餘隊以鏡像子文件名額為準） }
  * helpers：{ rebuildOccupancy, promoteWaitlistForAvailableSeats }（index.js 既有函式，不另寫容量邏輯）
  */
 function planTeamReservationRelease(input, helpers) {
   requireFunctions(helpers, ["rebuildOccupancy", "promoteWaitlistForAvailableSeats"]);
   const { rebuildOccupancy, promoteWaitlistForAvailableSeats } = helpers;
-  const { eventData = {}, registrations = [], nowMs, targetTeamIds = null } = input || {};
+  const {
+    eventData = {}, registrations = [], nowMs, targetTeamIds = null, restoreReservedByTeamId = null,
+  } = input || {};
   const releaseIso = new Date(nowMs).toISOString();
   const targets = targetTeamIds ? new Set(targetTeamIds) : null;
   const isTarget = (teamId) => !targets || targets.has(teamId);
@@ -186,7 +203,11 @@ function planTeamReservationRelease(input, helpers) {
   const nextSummaries = [];
   beforeSummaries.forEach((item) => {
     if (!isTarget(item.teamId)) {
-      nextSummaries.push({ ...item });
+      // 再釋出時判為手動再預留的隊：名額以子文件為真相還原（remaining／occupied 由 rebuildOccupancy 重算）。
+      const restored = restoreReservedByTeamId && Object.prototype.hasOwnProperty.call(restoreReservedByTeamId, item.teamId)
+        ? { reservedSlots: toSlotCount(restoreReservedByTeamId[item.teamId]) }
+        : {};
+      nextSummaries.push({ ...item, ...restored });
       return;
     }
     releasedTeamIds.push(item.teamId);
@@ -276,13 +297,24 @@ function createReleaseTeamReservationsHandler(deps) {
 
       const summaries = normalizeTeamReservationSummaries(ed);
       let targetTeamIds = null;
+      let restoreReservedByTeamId = null;
       const rerelease = !!ed.teamReservationReleasedAt;
       if (rerelease) {
-        const { stale, fresh } = classifyReservedAfterRelease(summaries, ed.teamReservationReleasedAt);
-        if (!stale.length) {
-          return { outcome: "skipped", reason: fresh.length ? "rereserved_after_release" : "already_released" };
+        const reservedItems = summaries.filter((item) => item.reservedSlots > 0);
+        if (!reservedItems.length) return { outcome: "skipped", reason: "already_released" };
+        // 讀這些隊的鏡像子文件（只有 Functions 能寫）判斷手動再預留或過期回寫。
+        const subDocsByTeamId = {};
+        for (const item of reservedItems) {
+          const subSnap = await transaction.get(eventRef.collection("teamReservations").doc(item.teamId));
+          if (subSnap.exists) subDocsByTeamId[item.teamId] = subSnap.data() || {};
         }
+        const { stale, manual, invalid } = classifyReservedAfterRelease(
+          reservedItems, ed.teamReservationReleasedAt, subDocsByTeamId,
+        );
+        if (invalid) return { outcome: "skipped", reason: "released_at_invalid" };
+        if (!stale.length) return { outcome: "skipped", reason: "rereserved_after_release" };
         targetTeamIds = stale.map((item) => item.teamId);
+        restoreReservedByTeamId = Object.fromEntries(manual.map((item) => [item.teamId, item.restoredReservedSlots]));
       } else if (!summaries.some((item) => item.reservedSlots > 0)) {
         // 輕量終態：沒有任何預留可釋出，只寫終態，不讀報名子集合、不碰 current 等欄位（Gemini P2-1）。
         transaction.update(eventRef, {
@@ -296,7 +328,7 @@ function createReleaseTeamReservationsHandler(deps) {
       const regsSnap = await transaction.get(eventRef.collection("registrations"));
       const registrations = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
       const plan = planTeamReservationRelease(
-        { eventData: ed, registrations, nowMs: txNowMs, targetTeamIds },
+        { eventData: ed, registrations, nowMs: txNowMs, targetTeamIds, restoreReservedByTeamId },
         deps,
       );
       // 交易內讀取必須在寫入前；只有真的遞補才讀 activityRecords。
@@ -443,11 +475,10 @@ function createReleaseTeamReservationsHandler(deps) {
       throw error;
     }
 
-    // 粗篩：到點且未釋出，或已釋出但有舊站過期回寫的預留項目。
+    // 粗篩：到點且未釋出，或已釋出但又出現 reservedSlots>0（交易內再讀鏡像子文件判斷）。
     const scanSkippedByReason = {};
     const countScanSkip = (reason) => { scanSkippedByReason[reason] = (scanSkippedByReason[reason] || 0) + 1; };
     const due = [];
-    const rereservedIds = [];
     snapshot.docs.forEach((doc) => {
       const data = doc.data() || {};
       const timing = evaluateReleaseTiming(data, runNowMs, deps);
@@ -458,26 +489,17 @@ function createReleaseTeamReservationsHandler(deps) {
         }
         return;
       }
+      if (data.teamReservationReleasedAt
+        && !normalizeTeamReservationSummaries(data).some((item) => item.reservedSlots > 0)) {
+        countScanSkip("already_released");
+        return;
+      }
       if (timing.startSource === "startTimestamp") {
         // date 字串不合嚴格格式，改用 startTimestamp（A 為裝置時區，可能有時差），留紀錄供人工核對。
         logger.warn({ fn, stage: "scan", reason: "start_fallback_timestamp", eventId: maskId(doc.id) });
       }
-      if (data.teamReservationReleasedAt) {
-        const { stale, fresh } = classifyReservedAfterRelease(
-          normalizeTeamReservationSummaries(data), data.teamReservationReleasedAt,
-        );
-        if (!stale.length) {
-          if (fresh.length) rereservedIds.push(maskId(doc.id));
-          countScanSkip(fresh.length ? "rereserved_after_release" : "already_released");
-          return;
-        }
-      }
       due.push({ doc, releaseAtMs: timing.releaseAtMs });
     });
-    if (rereservedIds.length) {
-      // 釋出後手動再預留（或 releasedAt 無法判讀）：不自動處理，只提示。
-      logger.warn({ fn, stage: "scan", reason: "rereserved_after_release", eventIds: rereservedIds.slice(0, 20), count: rereservedIds.length });
-    }
 
     due.sort((a, b) => a.releaseAtMs - b.releaseAtMs);
     const batch = due.slice(0, maxEventsPerRun);
@@ -505,7 +527,7 @@ function createReleaseTeamReservationsHandler(deps) {
         outcomes.push({ eventId: maskedEventId, ...result });
         if (result.outcome === "skipped") {
           summary.skippedByReason[result.reason] = (summary.skippedByReason[result.reason] || 0) + 1;
-          if (result.reason === "rereserved_after_release") {
+          if (result.reason === "rereserved_after_release" || result.reason === "released_at_invalid") {
             logger.warn({ fn, stage: "transaction", reason: result.reason, eventId: maskedEventId });
           }
           continue;

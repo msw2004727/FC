@@ -303,22 +303,47 @@ describe("planTeamReservationRelease：純函式", () => {
   });
 });
 
-describe("classifyReservedAfterRelease：過期回寫偵測", () => {
-  const releasedAt = FakeTimestamp.fromMillis(NOW_MS - HOUR);
-  test("updatedAt 早於 releasedAt（或缺）→ stale；晚於 → fresh；reserved 0 不算", () => {
-    const { stale, fresh } = classifyReservedAfterRelease([
-      { teamId: "old", reservedSlots: 2, updatedAt: new Date(NOW_MS - 2 * HOUR).toISOString() },
-      { teamId: "missing", reservedSlots: 1, updatedAt: null },
-      { teamId: "manual", reservedSlots: 2, updatedAt: new Date(NOW_MS).toISOString() },
-      { teamId: "released", reservedSlots: 0, usedSlots: 3, updatedAt: null },
-    ], releasedAt);
-    expect(stale.map((item) => item.teamId)).toEqual(["old", "missing"]);
-    expect(fresh.map((item) => item.teamId)).toEqual(["manual"]);
+describe("classifyReservedAfterRelease：以鏡像子文件判斷手動再預留或過期回寫", () => {
+  const RELEASED = NOW_MS - HOUR;
+  const releasedAt = FakeTimestamp.fromMillis(RELEASED);
+  const manualSub = (reservedSlots, extra = {}) => ({
+    reservedSlots, updatedByUid: "staffA", updatedAt: FakeTimestamp.fromMillis(RELEASED + 60000), ...extra,
   });
-  test("releasedAt 無法判讀時一律視為 fresh（不自動釋出）", () => {
-    const { stale, fresh } = classifyReservedAfterRelease([{ teamId: "x", reservedSlots: 1, updatedAt: null }], "garbage");
-    expect(stale).toEqual([]);
-    expect(fresh).toHaveLength(1);
+
+  test("三條件都成立才算手動；summary 上的 updatedAt 不參與判斷", () => {
+    const summaries = [
+      // A 裝置時鐘較晚的過期回寫：summary updatedAt 晚於 releasedAt，但子文件是 system
+      { teamId: "deviceClock", reservedSlots: 3, updatedAt: new Date(RELEASED + 2 * HOUR).toISOString() },
+      { teamId: "manual", reservedSlots: 2, updatedAt: "2020-01-01T00:00:00.000Z" },
+      { teamId: "noSub", reservedSlots: 1 },
+      { teamId: "subOlder", reservedSlots: 2 },
+      { teamId: "subSmaller", reservedSlots: 4 },
+      { teamId: "noUid", reservedSlots: 1 },
+      { teamId: "systemLater", reservedSlots: 1 },
+      { teamId: "released", reservedSlots: 0, usedSlots: 3 },
+    ];
+    const subs = {
+      deviceClock: { reservedSlots: 0, updatedByUid: "system", updatedAt: FakeTimestamp.fromMillis(RELEASED) },
+      manual: manualSub(2),
+      subOlder: manualSub(2, { updatedAt: FakeTimestamp.fromMillis(RELEASED - 1000) }),
+      subSmaller: manualSub(2),
+      noUid: manualSub(1, { updatedByUid: "" }),
+      systemLater: manualSub(1, { updatedByUid: "system" }),
+    };
+    const { stale, manual, invalid } = classifyReservedAfterRelease(summaries, releasedAt, subs);
+    expect(invalid).toBe(false);
+    expect(stale.map((item) => item.teamId)).toEqual(["deviceClock", "noSub", "subOlder", "subSmaller", "noUid", "systemLater"]);
+    expect(manual).toEqual([expect.objectContaining({ teamId: "manual", restoredReservedSlots: 2 })]);
+  });
+
+  test("子文件名額大於 summary 仍算手動，還原值取子文件", () => {
+    const { manual } = classifyReservedAfterRelease([{ teamId: "t", reservedSlots: 1 }], releasedAt, { t: manualSub(3) });
+    expect(manual[0].restoredReservedSlots).toBe(3);
+  });
+
+  test("releasedAt 無法判讀時標 invalid，不判斷也不釋出", () => {
+    const result = classifyReservedAfterRelease([{ teamId: "x", reservedSlots: 1 }], "garbage", {});
+    expect(result).toEqual({ stale: [], manual: [], invalid: true });
   });
 });
 
@@ -630,64 +655,103 @@ describe("releaseTeamReservations handler", () => {
   });
 });
 
-describe("過期回寫偵測（已釋出後又出現預留）", () => {
+describe("過期回寫偵測（已釋出後又出現預留；以鏡像子文件為準）", () => {
   const RELEASED_AT_MS = NOW_MS - HOUR;
+  const systemSub = (extra = {}) => ({
+    id: "teamA", teamId: "teamA", teamName: "A 隊", reservedSlots: 0, usedSlots: 1, remainingSlots: 0, occupiedSlots: 1,
+    updatedByUid: "system", updatedByName: "系統自動釋出", updatedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS), ...extra,
+  });
+  const staffSub = (reservedSlots, extra = {}) => systemSub({
+    reservedSlots, remainingSlots: Math.max(0, reservedSlots - 1), occupiedSlots: Math.max(reservedSlots, 1),
+    updatedByUid: "staffA", updatedByName: "職員甲", updatedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS + 60000), ...extra,
+  });
+  const releasedEvent = (summaries, extra = {}) => baseEvent({
+    teamReservationReleasedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS),
+    teamReservationReleaseCount: 1,
+    teamReservationReleasedSummary: [{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }],
+    teamReservationSummaries: summaries,
+    ...extra,
+  });
 
-  test("項目 updatedAt 早於 releasedAt（舊站快取回寫）→ 再釋出，releasedAt 不變、摘要併入、次數 +1", async () => {
-    const event = baseEvent({
-      teamReservationReleasedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS),
-      teamReservationReleasedSummary: [{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }],
-      teamReservationSummaries: [
-        { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: "2026-11-01T00:00:00.000Z" },
-      ],
-    });
-    const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()));
+  test("A 裝置時鐘較晚的過期回寫（summary updatedAt 晚於 releasedAt）仍判過期並再釋出", async () => {
+    const event = releasedEvent([
+      { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: new Date(RELEASED_AT_MS + 30 * 60000).toISOString() },
+    ]);
+    const h = createHarness({ ...seedEvent("evtA", event, standardRegs(), standardArs()), "events/evtA/teamReservations/teamA": systemSub() });
     const summary = await h.run();
-    expect(summary).toMatchObject({ releasedCount: 1, rereleasedCount: 1, promotedCount: 2 });
+    expect(summary).toMatchObject({ dueCount: 1, releasedCount: 1, rereleasedCount: 1, promotedCount: 2 });
     const stored = h.fake.get("events/evtA");
     expect(stored.teamReservationReleasedAt.toMillis()).toBe(RELEASED_AT_MS);
     // 測試同步更新（批 1 審查）：過期回寫是同一批席位還回來，同隊取 max(2, 2)=2，不再相加成 4。
     expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }]);
     expect(stored.teamReservationReleaseCount).toBe(2);
     expect(stored.teamReservationSummaries[0]).toMatchObject({ reservedSlots: 0, usedSlots: 1 });
+    expect(h.fake.get("events/evtA/teamReservations/teamA")).toMatchObject({ reservedSlots: 0, updatedByUid: "system" });
     expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({ reason: "rerelease_stale_writeback" }));
     const log = h.fake.get(`operationLogs/${h.fake.list("operationLogs")[0]}`);
     expect(log.meta.rerelease).toBe(true);
   });
 
-  test("項目 updatedAt 晚於 releasedAt（釋出後手動再預留）→ 只 warn、不進交易、不寫入", async () => {
-    const event = baseEvent({
-      teamReservationReleasedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS),
-      teamReservationReleasedSummary: [{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }],
-      teamReservationSummaries: [
-        { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: new Date(RELEASED_AT_MS + 60000).toISOString() },
-      ],
-    });
+  test("子文件不存在（隊伍首次釋出時已刪）→ 過期回寫，再釋出", async () => {
+    const event = releasedEvent([{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1 }]);
     const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()));
     const summary = await h.run();
-    expect(summary).toMatchObject({ dueCount: 0, releasedCount: 0, scanSkippedByReason: { rereserved_after_release: 1 } });
-    expect(h.fake.state.transactionAttempts).toBe(0);
+    expect(summary).toMatchObject({ releasedCount: 1, rereleasedCount: 1 });
+    expect(h.fake.get("events/evtA").teamReservationSummaries[0].reservedSlots).toBe(0);
+  });
+
+  test("團隊異動同步把 stale 名額寫進子文件（不碰 updatedAt／updatedByUid）→ 仍判過期", async () => {
+    const event = releasedEvent([{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1 }]);
+    const h = createHarness({
+      ...seedEvent("evtA", event, standardRegs(), standardArs()),
+      "events/evtA/teamReservations/teamA": systemSub({
+        reservedSlots: 3, remainingSlots: 2, occupiedSlots: 3, syncedAt: FakeTimestamp.fromMillis(NOW_MS - 60000),
+      }),
+    });
+    const summary = await h.run();
+    expect(summary).toMatchObject({ releasedCount: 1, rereleasedCount: 1 });
+    expect(h.fake.get("events/evtA/teamReservations/teamA")).toMatchObject({ reservedSlots: 0, updatedByUid: "system" });
+  });
+
+  test("真的手動再預留（子文件真人、晚於 releasedAt、名額相符）→ 交易內只 warn、不寫入", async () => {
+    const event = releasedEvent([
+      { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: new Date(RELEASED_AT_MS + 60000).toISOString() },
+    ]);
+    const h = createHarness({ ...seedEvent("evtA", event, standardRegs(), standardArs()), "events/evtA/teamReservations/teamA": staffSub(3) });
+    const summary = await h.run();
+    expect(summary).toMatchObject({ dueCount: 1, releasedCount: 0, skippedByReason: { rereserved_after_release: 1 } });
     expect(h.fake.state.writes).toHaveLength(0);
+    expect(h.fake.state.reads.tx).toBe(2); // 活動＋一份子文件，不讀報名子集合
     expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({
-      reason: "rereserved_after_release", eventIds: [maskId("evtA")], count: 1,
+      stage: "transaction", reason: "rereserved_after_release", eventId: maskId("evtA"),
     }));
   });
 
-  test("掃描時是過期回寫、交易前被手動再預留蓋掉 → 交易內 skip 並 warn", async () => {
-    const event = baseEvent({
-      teamReservationReleasedAt: FakeTimestamp.fromMillis(RELEASED_AT_MS),
-      teamReservationSummaries: [{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: "2026-11-01T00:00:00.000Z" }],
-    });
-    const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()), {
-      afterScan: (fake) => fake.put("events/evtA", {
-        ...fake.get("events/evtA"),
-        teamReservationSummaries: [{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: new Date(NOW_MS).toISOString() }],
-      }),
+  test("手動再預留後被舊站以更大的舊名額蓋掉（子文件名額 < summary）→ 判過期、歸 0", async () => {
+    const event = releasedEvent([{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1 }]);
+    const h = createHarness({ ...seedEvent("evtA", event, standardRegs(), standardArs()), "events/evtA/teamReservations/teamA": staffSub(2) });
+    const summary = await h.run();
+    expect(summary).toMatchObject({ releasedCount: 1, rereleasedCount: 1 });
+    expect(h.fake.get("events/evtA").teamReservationSummaries[0].reservedSlots).toBe(0);
+  });
+
+  test("掃描後、交易前子文件被手動再預留寫入 → 交易內 skip", async () => {
+    const event = releasedEvent([{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1 }]);
+    const h = createHarness({ ...seedEvent("evtA", event, standardRegs(), standardArs()), "events/evtA/teamReservations/teamA": systemSub() }, {
+      afterScan: (fake) => fake.put("events/evtA/teamReservations/teamA", staffSub(3)),
     });
     const summary = await h.run();
     expect(summary.skippedByReason).toEqual({ rereserved_after_release: 1 });
     expect(h.fake.state.writes).toHaveLength(0);
-    expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({ stage: "transaction", reason: "rereserved_after_release" }));
+  });
+
+  test("releasedAt 無法判讀 → 交易內 skip released_at_invalid，不釋出", async () => {
+    const event = releasedEvent([{ teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1 }], { teamReservationReleasedAt: "garbage" });
+    const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()));
+    const summary = await h.run();
+    expect(summary.skippedByReason).toEqual({ released_at_invalid: 1 });
+    expect(h.fake.state.writes).toHaveLength(0);
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.objectContaining({ reason: "released_at_invalid" }));
   });
 });
 
@@ -746,7 +810,7 @@ describe("併發：交易讀完報名後被插入寫入，重跑後結果正確"
 });
 
 describe("同一場活動同時有過期回寫與手動再預留", () => {
-  test("只再釋出過期的隊，手動再預留的隊原樣保留", async () => {
+  test("以子文件為真相還原：手動那隊保留子文件名額、過期那隊歸 0，再遞補", async () => {
     const releasedAtMs = NOW_MS - HOUR;
     const event = baseEvent({
       max: 8,
@@ -754,11 +818,21 @@ describe("同一場活動同時有過期回寫與手動再預留", () => {
       teamReservationReleaseCount: 1,
       teamReservationReleasedSummary: [{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }],
       teamReservationSummaries: [
-        { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: "2026-11-01T00:00:00.000Z" },
-        { teamId: "teamB", teamName: "B 隊", reservedSlots: 2, usedSlots: 0, updatedAt: new Date(releasedAtMs + 60000).toISOString(), updatedByUid: "staffB" },
+        // A 隊：舊站裝置時鐘回寫（時間晚於 releasedAt，但子文件仍是 system）
+        { teamId: "teamA", teamName: "A 隊", reservedSlots: 3, usedSlots: 1, updatedAt: new Date(releasedAtMs + 600000).toISOString() },
+        // B 隊：舊站回寫把手動再預留的 3 席蓋成 1 席；子文件仍記 3 → 還原成 3
+        { teamId: "teamB", teamName: "B 隊", reservedSlots: 1, usedSlots: 0, updatedAt: "2026-11-01T00:00:00.000Z" },
       ],
     });
-    const h = createHarness(seedEvent("evtA", event, standardRegs(), standardArs()));
+    const h = createHarness({
+      ...seedEvent("evtA", event, standardRegs(), standardArs()),
+      "events/evtA/teamReservations/teamA": {
+        teamId: "teamA", reservedSlots: 0, usedSlots: 1, updatedByUid: "system", updatedAt: FakeTimestamp.fromMillis(releasedAtMs),
+      },
+      "events/evtA/teamReservations/teamB": {
+        teamId: "teamB", reservedSlots: 3, usedSlots: 0, updatedByUid: "staffB", updatedAt: FakeTimestamp.fromMillis(releasedAtMs + 60000),
+      },
+    });
     const summary = await h.run();
     expect(summary).toMatchObject({ dueCount: 1, releasedCount: 1, rereleasedCount: 1 });
     const stored = h.fake.get("events/evtA");
@@ -767,11 +841,12 @@ describe("同一場活動同時有過期回寫與手動再預留", () => {
     expect(stored.teamReservationReleasedSummary).toEqual([{ teamId: "teamA", teamName: "A 隊", releasedSlots: 2 }]);
     const byTeam = Object.fromEntries(stored.teamReservationSummaries.map((item) => [item.teamId, item]));
     expect(byTeam.teamA).toMatchObject({ reservedSlots: 0, usedSlots: 1, remainingSlots: 0, updatedByUid: "system" });
-    expect(byTeam.teamB).toMatchObject({ reservedSlots: 2, usedSlots: 0, remainingSlots: 2, updatedByUid: "staffB" });
-    // max 8：正取 r1、r2 ＋ B 隊空預留 2 → current 4，候補 w1～w3 全部補上後 current 7
-    expect(stored).toMatchObject({ realCurrent: 5, current: 7, waitlist: 0 });
+    expect(byTeam.teamB).toMatchObject({ reservedSlots: 3, usedSlots: 0, remainingSlots: 3 });
+    // max 8：正取 r1、r2 ＋ B 隊空預留 3 → current 5，候補 w1～w3 全部補上後 realCurrent 5、current 8
+    expect(stored).toMatchObject({ realCurrent: 5, current: 8, waitlist: 0, status: "full" });
     const reservationWrites = h.fake.txWrites().filter((item) => item.path.includes("/teamReservations/"));
     expect(reservationWrites.map((item) => item.path)).toEqual(["events/evtA/teamReservations/teamA"]);
+    expect(h.fake.get("events/evtA/teamReservations/teamB")).toMatchObject({ reservedSlots: 3, updatedByUid: "staffB" });
   });
 });
 
