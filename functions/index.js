@@ -20,6 +20,7 @@ const { createRoleGraphLoader } = require("./role-hierarchy");
 const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createReleaseTeamReservationsHandler } = require("./team-reservation-release");
+const { createOnEventCommentCreatedHandler } = require("./event-comment-notify");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
@@ -512,6 +513,9 @@ const LINE_NOTIFICATION_FORCED_SOURCES = Object.freeze([
   "template:event_changed",
   // 角色申請通知：用戶主動觸發、管理員需即時處理、繞過 category toggle
   "template:role_application",
+  // 活動留言通知（計畫 v3 §3.29）：只跳過全站 notificationToggles；個人 settings.activity 與留言類每日上限照常，
+  // 全站開關改由 eventCommentNotify/_config 承擔（fail-closed）
+  "event_comment:",
 ]);
 const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
   "category_activity",
@@ -10117,6 +10121,27 @@ exports.releaseTeamReservations = onSchedule(
     adjustExpInternal,
     settleBestEffortPostCommitOps,
     formatOperationLogTime,
+  }),
+);
+// 活動留言通知（2026-11-09 計畫 v3 批 1）：新留言通知活動管理者與管理員（站內信＋LINE），
+// 收件人、合併視窗、每日上限與文案都在 event-comment-notify.js，這裡只接線。不設 retry（best-effort）。
+exports.onEventCommentCreated = onDocumentCreated(
+  {
+    document: "events/{eventId}/comments/{commentId}",
+    region: "asia-east1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    retry: false,
+  },
+  createOnEventCommentCreatedHandler({
+    db,
+    FieldValue,
+    logger,
+    enqueueLineFromServer,
+    resolveLineNotificationRecipient,
+    parseEventEndDateInTaipei,
+    getAuthUidFromUserDoc,
+    maskUid,
   }),
 );
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(

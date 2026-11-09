@@ -3972,10 +3972,15 @@ Object.assign(FirebaseService, {
   //  Education: Students CRUD
   // ════════════════════════════════
 
-  async listEduStudents(teamId) {
+  async listEduStudents(teamId, options = {}) {
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
-    const snapshot = await collRef.get();
-    return this._mapCollectionDocs(snapshot);
+    // 課程資料讀取權限收斂：非幹部帶 ownerUid，只讀本人／家長名下學員
+    const uid = options?.ownerUid;
+    if (!uid) return this._mapCollectionDocs(await collRef.get());
+    const snaps = await Promise.all(['selfUid', 'parentUid'].map(f => collRef.where(f, '==', uid).get()));
+    const byId = new Map();
+    snaps.forEach(snap => this._mapCollectionDocs(snap).forEach(s => byId.set(s._docId, s)));
+    return [...byId.values()];
   },
 
   async createEduStudent(teamId, data) {

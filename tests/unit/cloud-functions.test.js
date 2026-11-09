@@ -6401,3 +6401,32 @@ describe('team reservation auto release schedule contract', () => {
     expect(moduleSource).not.toContain('parseEventStartDateInTaipei = ');
   });
 });
+
+describe('event comment notify trigger contract', () => {
+  // 活動留言通知（計畫 v3 批 1）：行為測試在 event-comment-notify.test.js，這裡釘觸發器規格、接線與 forced 前綴。
+  test('onEventCommentCreated listens to new comments only, in asia-east1, without retry', () => {
+    const source = readCloudFunctionSource('onEventCommentCreated');
+    expect(source).toContain('exports.onEventCommentCreated = onDocumentCreated(');
+    expect(source).toContain('document: "events/{eventId}/comments/{commentId}"');
+    expect(source).not.toContain('replies');
+    expect(source).toContain('region: "asia-east1"');
+    expect(source).toContain('memory: "256MiB"');
+    expect(source).toContain('timeoutSeconds: 60');
+    expect(source).toContain('retry: false');
+    expect(source).toContain('createOnEventCommentCreatedHandler({');
+    ['db', 'FieldValue', 'logger', 'enqueueLineFromServer', 'resolveLineNotificationRecipient',
+      'parseEventEndDateInTaipei', 'getAuthUidFromUserDoc', 'maskUid']
+      .forEach((name) => expect(source).toContain(`    ${name},`));
+  });
+
+  test('event_comment: is the only comment-related forced prefix and stays out of toggle keys', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', '..', 'functions', 'index.js'), 'utf8')
+      .replace(/\r\n/g, '\n');
+    const start = source.indexOf('const LINE_NOTIFICATION_FORCED_SOURCES = Object.freeze([');
+    const block = source.slice(start, source.indexOf(']);', start));
+    expect(block).toContain('  "event_comment:",');
+    expect(block).not.toContain('"target:');
+    const toggleStart = source.indexOf('const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([');
+    expect(source.slice(toggleStart, source.indexOf(']);', toggleStart))).not.toContain('event_comment');
+  });
+});

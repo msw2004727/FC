@@ -45,10 +45,12 @@ describe('startup performance guardrails', () => {
     // and the home next-activity registration query (status-in filter, limit warning,
     // stale-cache calibration, legacy-root filter; T-034); 2026-10-30 事件繫結強化借支：上限由 raw 1,547,900／gz 390,000 調為 1,548,376／390,113（全批 b／c 包完成後實測，相對原上限 +476／+113），A 下線後不追回
     // 2026-11-07 換站 A-03 備援網址（old.toosterx.com 的 LIFF ID 分流與說明註解）借支：raw 上限 1,548,377 → 1,548,496（填入 old 專用 LIFF ID 後副機實測 1,548,496，+119，A 下線後不追回）
-    expect(rawBytes).toBeLessThanOrEqual(1_548_496);
+    // 2026-11-09 課程資料讀取權限收斂（firebase-crud.js listEduStudents 改依身分查詢）借支：raw 上限 1,548,496 → 1,548,900（實測 1,548,900，+404，A 下線後不追回；測試同步更新）
+    expect(rawBytes).toBeLessThanOrEqual(1_548_900);
     // 2026-11-04 T-090c 建立俱樂部能力開關（能力項目、自建俱樂部略過自動升級、通知補帶 teamId／applicantUid）借支：gz 上限 390,113 → 390,240（實測 390,221，+108，A 下線後不追回；測試同步更新）
     // 2026-11-07 換站 A-03 old 專用 LIFF ID 分流借支：gz 上限 390,240 → 390,358（副機實測 390,358，+118，A 下線後不追回）
-    expect(gzipBytes).toBeLessThanOrEqual(390_358);
+    // 2026-11-09 課程資料讀取權限收斂借支：gz 上限 390,358 → 390,559（實測 390,559，+201，A 下線後不追回；測試同步更新）
+    expect(gzipBytes).toBeLessThanOrEqual(390_559);
   });
 
   test('public activity list uses list-only scripts and data', () => {

@@ -950,6 +950,7 @@ describe('edu course lessons', () => {
 
   test('weekly lesson cards count only registered and signed-in students', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
       plans: [{
         id: 'weeklyPlan',
         name: '\u56fa\u5b9a\u9031\u671f\u73ed',
@@ -1008,6 +1009,7 @@ describe('edu course lessons', () => {
       capacity: 6,
     }];
     const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
       firestore,
       plans: [{
         id: 'weeklyPlan',
@@ -1102,6 +1104,7 @@ describe('edu course lessons', () => {
       capacity: 6,
     }];
     const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
       firestore: jest.fn(() => ({ collection: jest.fn(() => query) })),
       plans: [{
         id: 'weeklyPlan',
@@ -1153,6 +1156,7 @@ describe('edu course lessons', () => {
       throw new Error('offline');
     });
     const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
       plans: [{
         id: 'weeklyPlan',
         name: '\u56fa\u5b9a\u9031\u671f\u73ed',
@@ -1193,6 +1197,7 @@ describe('edu course lessons', () => {
       capacity: 6,
     }];
     const { app, context, container } = loadCourseLessonsContext({
+      isStaff: true,
       plans: [{
         id: 'weeklyPlan',
         name: '\u56fa\u5b9a\u9031\u671f\u73ed',

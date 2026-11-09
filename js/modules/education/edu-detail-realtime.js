@@ -19,6 +19,8 @@ Object.assign(App, {
   _startEduStudentsListener(teamId) {
     this._stopEduStudentsListener();
     if (!teamId) return;
+    // 課程資料讀取權限收斂：整個學員子集合只有幹部能讀，非幹部不掛監聽（自己的學員由 _loadEduStudents 載入）
+    if (this.isEduClubStaff?.(teamId) !== true) return;
     const generation = this._eduStudentsListenerGeneration;
     const scope = this._getEduStudentsReadScope?.();
     try {
@@ -106,7 +108,8 @@ Object.assign(App, {
    * 確保每個教育俱樂部有 students listener（不重複建立）
    */
   _ensureEduTeamsStudentListeners(teams) {
-    const eduTeams = teams.filter(t => t.type === 'education');
+    // 課程資料讀取權限收斂：只替自己是幹部的俱樂部掛學員監聽
+    const eduTeams = teams.filter(t => t.type === 'education' && this.isEduClubStaff?.(t) === true);
     const existingIds = new Set(this._eduTeamsStudentUnsubs.map(u => u._teamId));
 
     for (const t of eduTeams) {
