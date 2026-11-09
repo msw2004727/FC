@@ -304,11 +304,10 @@ async function loadUsageCost(db, FieldPath, nowMs, counter) {
   const prevSnap = await db.collection("usageMetrics")
     .where(FieldPath.documentId(), ">=", `${prevYear}${prevMonth}01`)
     .where(FieldPath.documentId(), "<=", `${prevYear}${prevMonth}${prevDay}`)
-    .orderBy(FieldPath.documentId(), "desc")
-    .limit(1)
     .get();
   addReads(counter, "usage", prevSnap.size || 0);
-  const prevDoc = prevSnap.docs && prevSnap.docs[0];
+  // 不用 orderBy(documentId, desc)：正式環境會要求 usageMetrics 的 __name__ 降序索引（11-10 03:00 首跑失敗）。上月最多 31 份，在記憶體取最後一份。
+  const prevDoc = (prevSnap.docs || []).reduce((best, doc) => (!best || String(doc.id) > String(best.id) ? doc : best), null);
   const prevMetric = prevDoc ? metricOf(prevDoc) : null;
   if (!latest) return null;
   return buildCost({

@@ -108,6 +108,10 @@ function createFakeDb(seed, hooks = {}) {
         return createQuery(collectionName, filters.concat([{ field, op, value }]), order, limitN);
       },
       orderBy(field, direction) {
+        // 正式環境對 usageMetrics 的 __name__ 降序排序要求複合索引（11-10 首跑失敗）；假 db 模擬這個限制。
+        if (collectionName === "usageMetrics" && field === "__name__" && direction === "desc") {
+          throw new Error("9 FAILED_PRECONDITION: The query requires an index.");
+        }
         return createQuery(collectionName, filters, { field, direction: direction || "asc" }, limitN);
       },
       limit(n) {
