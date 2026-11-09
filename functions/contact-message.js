@@ -8,12 +8,15 @@
  * 只推給 lineNotify.bound === true 的 super_admin；不看全站 system 總開關與個人通知開關。
  * 仍寫入 pool，processLinePushQueue 的全域發送上限照舊生效。
  * category 用既有 system。source contact_owner 符合格式；未知 source 只記 warn、不擋，故不改白名單。
+ * 站內信（顧問 §3.42②）：同一次 super_admin 查詢結果，不論是否綁 LINE 都寫 users/{docId}/inbox/cm_{contactMessageId}，
+ * 推播節奏與 LINE 相同（每日前 20 則逐則、第 21 則上限通知、之後不寫）；後置動作，失敗只記 log（R-CF-003），不影響 LINE 與回傳。
  */
 
 const { selectEnqueuePool } = require("./notification-pool");
 const { NOTIFICATION_GUARD_LIMITS } = require("./notification-guard-limits");
 const { relationMode } = require("./notification-relation-enforcement");
-const { maskUid, stripControlChars, taipeiDayKey } = require("./notification-fields");
+const { buildInboxMessageDoc } = require("./inbox-message-doc");
+const { formatTaipeiDateTime, maskUid, stripControlChars, taipeiDayKey } = require("./notification-fields");
 
 const CONTACT_NAME_MAX = 30;
 const CONTACT_METHOD_MAX = 80;
@@ -32,6 +35,12 @@ const CONTACT_SOURCE = "contact_owner";
 const CONTACT_TITLE = "聯繫站長";
 const CONTACT_PUSH_CAP_NOTICE = "今日聯繫訊息已達推播上限，請到後台查看";
 const CONTACT_BREAKS_RE = /[\n\r\t]/;
+const CONTACT_INBOX_ID_PREFIX = "cm_";
+const CONTACT_INBOX_SNIPPET_MAX = 40;
+// 站內信文字淨化：控制字元（含換行、Tab、DEL、C1）換成空白後壓平；格式字元（含雙向覆寫）去除，保留 ZWJ 以免拆散 emoji 組合。
+const INBOX_CONTROL_RE = /\p{Cc}/gu;
+const INBOX_FORMAT_RE = /\p{Cf}/gu;
+const ZWJ = String.fromCodePoint(0x200d);
 
 function codePointLength(text) {
   return Array.from(text).length;
@@ -80,6 +89,26 @@ function buildContactNotifyBody(name, contact, content) {
     `聯絡方式：${stripControlChars(contact)}`,
     `內容：${truncateNotifyContent(content)}`,
   ].join("\n");
+}
+
+function flattenInboxText(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(INBOX_FORMAT_RE, (ch) => (ch === ZWJ ? ch : ""))
+    .replace(INBOX_CONTROL_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateInboxSnippet(content) {
+  const chars = Array.from(flattenInboxText(content));
+  if (chars.length <= CONTACT_INBOX_SNIPPET_MAX) return chars.join("");
+  return `${chars.slice(0, CONTACT_INBOX_SNIPPET_MAX).join("")}…`;
+}
+
+// LINE 文案精簡成一行：稱呼（聯絡方式）：內容前 40 字。A／B 都沒有 contactMessages 檢視頁，聯絡方式留著才能直接回覆。
+function buildContactInboxBody(name, contact, content) {
+  return `${flattenInboxText(name)}（${flattenInboxText(contact)}）：${truncateInboxSnippet(content)}`;
 }
 
 function nonNegativeInt(value) {
@@ -176,9 +205,19 @@ function isBoundContactOwner(data) {
   return lineNotify.bound === true;
 }
 
+// LINE 與站內信共用同一次查詢；LINE 再篩已綁定，站內信不篩。
+async function listContactOwnerDocs(db) {
+  const snap = await db.collection("users")
+    .where("role", "==", "super_admin")
+    .limit(CONTACT_ADMIN_QUERY_LIMIT)
+    .get();
+  return Array.isArray(snap?.docs) ? snap.docs : [];
+}
+
 async function enqueueContactOwnerPushes({
   db,
   FieldValue,
+  adminDocs,
   name,
   contact,
   content,
@@ -189,11 +228,7 @@ async function enqueueContactOwnerPushes({
   getLineRecipientUidFromUserDoc,
   logger,
 }) {
-  const snap = await db.collection("users")
-    .where("role", "==", "super_admin")
-    .limit(CONTACT_ADMIN_QUERY_LIMIT)
-    .get();
-  const docs = (Array.isArray(snap?.docs) ? snap.docs : [])
+  const docs = adminDocs
     .filter((userDoc) => isBoundContactOwner(userDataOf(userDoc)))
     .slice(0, CONTACT_NOTIFY_LIMIT);
   if (!docs.length) {
@@ -242,6 +277,68 @@ async function enqueueContactOwnerPushes({
     });
   });
   return { queued: results.length - failed, failed };
+}
+
+function isAlreadyExists(error) {
+  return error?.code === 6 || error?.code === "already-exists" || /ALREADY_EXISTS/.test(String(error?.message));
+}
+
+// 收件路徑用 users 文件 id：Rules 的 inbox 讀取與 isSuperAdmin 都以 users/{auth.uid} 判斷，super_admin 的文件 id 即登入 uid。
+// 固定 id＋create()：重送遇到 ALREADY_EXISTS 視為已寫入。只回計數，不拋錯。
+async function writeContactOwnerInbox({
+  db,
+  FieldValue,
+  adminDocs,
+  contactMessageId,
+  name,
+  contact,
+  content,
+  noticeOnly,
+  nowMs,
+  requestedByUid,
+  logger,
+}) {
+  const docs = adminDocs.slice(0, CONTACT_NOTIFY_LIMIT);
+  const messageId = `${CONTACT_INBOX_ID_PREFIX}${contactMessageId}`;
+  const body = noticeOnly ? CONTACT_PUSH_CAP_NOTICE : buildContactInboxBody(name, contact, content);
+  const inboxDoc = buildInboxMessageDoc({
+    id: messageId,
+    title: CONTACT_TITLE,
+    body,
+    type: "system",
+    typeName: "系統",
+    time: formatTaipeiDateTime(nowMs),
+    senderName: "系統",
+    fromUid: "system",
+    // 不設 actionType：B 收件匣只要有 actionType 就顯示「待審核／已審核」標籤。
+    actionStatus: null,
+    meta: { contactMessageId },
+  }, { createdAt: FieldValue.serverTimestamp() });
+
+  const results = await Promise.allSettled(docs.map(async (userDoc) => {
+    try {
+      await db.collection("users").doc(userDoc.id).collection("inbox").doc(messageId).create(inboxDoc);
+      return "written";
+    } catch (err) {
+      if (isAlreadyExists(err)) return "duplicate";
+      throw err;
+    }
+  }));
+
+  const summary = { written: 0, duplicate: 0, failed: 0 };
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      summary[result.value] += 1;
+      return;
+    }
+    summary.failed += 1;
+    logger.warn("[submitContactMessage] inbox write failed", {
+      uid: maskUid(requestedByUid),
+      targetUid: maskUid(docs[index].id),
+      code: result.reason?.code ?? null,
+    });
+  });
+  return summary;
 }
 
 function createSubmitContactMessageHandler({
@@ -363,26 +460,65 @@ function createSubmitContactMessageHandler({
     }
 
     let notifyResult = { queued: 0, failed: 0 };
+    let inboxResult = { written: 0, duplicate: 0, failed: 0 };
     if (outcome.push === "message" || outcome.push === "notice") {
+      let adminDocs = null;
       try {
-        notifyResult = await enqueueContactOwnerPushes({
-          db,
-          FieldValue,
-          name,
-          contact,
-          content,
-          noticeOnly: outcome.push === "notice",
-          requestedByUid: uid,
-          requestedByRole: callerRole,
-          isStaffRole,
-          getLineRecipientUidFromUserDoc,
-          logger,
-        });
+        adminDocs = await listContactOwnerDocs(db);
       } catch (err) {
         logger.warn("[submitContactMessage] notify failed", {
           uid: maskUid(uid),
           code: err?.code ?? null,
         });
+      }
+      if (adminDocs) {
+        const noticeOnly = outcome.push === "notice";
+        // LINE 與站內信互不影響：各自 settle，任一失敗只記 log。
+        const [line, inbox] = await Promise.allSettled([
+          enqueueContactOwnerPushes({
+            db,
+            FieldValue,
+            adminDocs,
+            name,
+            contact,
+            content,
+            noticeOnly,
+            requestedByUid: uid,
+            requestedByRole: callerRole,
+            isStaffRole,
+            getLineRecipientUidFromUserDoc,
+            logger,
+          }),
+          writeContactOwnerInbox({
+            db,
+            FieldValue,
+            adminDocs,
+            contactMessageId: messageRef.id,
+            name,
+            contact,
+            content,
+            noticeOnly,
+            nowMs,
+            requestedByUid: uid,
+            logger,
+          }),
+        ]);
+        if (line.status === "fulfilled") {
+          notifyResult = line.value;
+        } else {
+          logger.warn("[submitContactMessage] notify failed", {
+            uid: maskUid(uid),
+            code: line.reason?.code ?? null,
+          });
+        }
+        if (inbox.status === "fulfilled") {
+          inboxResult = inbox.value;
+        } else {
+          logger.warn("[submitContactMessage] inbox failed", {
+            uid: maskUid(uid),
+            code: inbox.reason?.code ?? null,
+          });
+        }
       }
     }
 
@@ -392,6 +528,9 @@ function createSubmitContactMessageHandler({
       source,
       notified: notifyResult.queued,
       notifyFailed: notifyResult.failed,
+      inboxWritten: inboxResult.written,
+      inboxDuplicate: inboxResult.duplicate,
+      inboxFailed: inboxResult.failed,
     });
     return { ok: true, id: messageRef.id };
   };

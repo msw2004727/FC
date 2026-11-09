@@ -11,6 +11,7 @@ const {
   createSubmitContactMessageCallable,
   createSubmitContactMessageHandler,
 } = require("../../functions/contact-message");
+const { maskUid } = require("../../functions/notification-fields");
 
 const CALLER = "UcallerContact0001";
 const T0 = Date.UTC(2026, 10, 8, 2, 0, 0);
@@ -504,6 +505,199 @@ describe("submitContactMessage", () => {
     const stripped = load();
     await stripped.call(valid({ name: "王\u0000小明", content: "想問\u0000場地" }));
     expect(messages(stripped.db)[0]).toMatchObject({ name: "王小明", content: "想問場地" });
+  });
+
+  describe("站內信（顧問 §3.42②）", () => {
+    function inboxPaths(db) {
+      return db.paths("users/").filter((itemPath) => itemPath.includes("/inbox/"));
+    }
+
+    function mixedOwners() {
+      return {
+        [CALLER]: { uid: CALLER, displayName: "王小明", role: "user" },
+        UsaBoundDoc01: { role: "super_admin", lineUserId: "UlineBound01", lineNotify: { bound: true } },
+        UsaUnboundDoc02: { role: "super_admin", lineUserId: "UlineUnbound02", lineNotify: { bound: false } },
+        UsaNoLineDoc03: { role: "super_admin" },
+        UadminDoc04: { role: "admin", lineUserId: "UadminLine04", lineNotify: { bound: true } },
+      };
+    }
+
+    test("有綁與沒綁 LINE 的 super_admin 都收到站內信，LINE 只推已綁定", async () => {
+      const env = load({ users: mixedOwners() });
+      const result = await env.call(valid());
+      const id = messages(env.db)[0].id;
+      expect(result).toEqual({ ok: true, id });
+      expect(inboxPaths(env.db)).toEqual([
+        `users/UsaBoundDoc01/inbox/cm_${id}`,
+        `users/UsaNoLineDoc03/inbox/cm_${id}`,
+        `users/UsaUnboundDoc02/inbox/cm_${id}`,
+      ]);
+      const doc = env.db.read(`users/UsaUnboundDoc02/inbox/cm_${id}`);
+      expect(doc).toEqual({
+        id: `cm_${id}`,
+        title: "聯繫站長",
+        body: "王小明（line:owner）：想問週三的場地",
+        preview: "王小明（line:owner）：想問週三的場地",
+        type: "system",
+        typeName: "系統",
+        time: "2026/11/08 10:00",
+        senderName: "系統",
+        fromUid: "system",
+        read: false,
+        readAt: null,
+        actionType: null,
+        actionStatus: null,
+        reviewerName: null,
+        meta: { contactMessageId: id },
+        ref: `messages/cm_${id}`,
+        createdAt: "__ts__",
+      });
+      expect(queued(env.db).map((item) => item.targetDocId)).toEqual(["UsaBoundDoc01"]);
+      expect(env.logger.logs.find(([msg]) => msg === "[submitContactMessage] stored")[1]).toMatchObject({
+        notified: 1,
+        notifyFailed: 0,
+        inboxWritten: 3,
+        inboxDuplicate: 0,
+        inboxFailed: 0,
+      });
+    });
+
+    test("沒有已綁定站長時站內信照寫", async () => {
+      const env = load({
+        users: {
+          [CALLER]: { displayName: "王小明", role: "user" },
+          sa1: { role: "super_admin", lineNotify: { bound: false } },
+        },
+      });
+      await expect(env.call(valid())).resolves.toMatchObject({ ok: true });
+      expect(queued(env.db)).toHaveLength(0);
+      expect(inboxPaths(env.db)).toEqual([`users/sa1/inbox/cm_${messages(env.db)[0].id}`]);
+    });
+
+    test("超過 5 位 super_admin 站內信也只寫 5 份", async () => {
+      const users = { [CALLER]: { displayName: "王小明", role: "user" } };
+      for (let index = 1; index <= 6; index += 1) users[`sa${index}`] = { role: "super_admin" };
+      const env = load({ users });
+      await env.call(valid());
+      expect(inboxPaths(env.db).map((itemPath) => itemPath.split("/")[1])).toEqual(["sa1", "sa2", "sa3", "sa4", "sa5"]);
+    });
+
+    test("重送遇到 ALREADY_EXISTS 視為成功，不覆寫既有站內信", async () => {
+      const env = load({ users: mixedOwners() });
+      // fake DB 第一個自動 id 是 auto_1（contactMessages 是本次唯一用自動 id 的 doc()）。
+      await env.db.collection("users").doc("UsaBoundDoc01").collection("inbox").doc("cm_auto_1").set({ marker: "already" });
+      await expect(env.call(valid())).resolves.toMatchObject({ ok: true, id: "auto_1" });
+      expect(env.db.read("users/UsaBoundDoc01/inbox/cm_auto_1")).toEqual({ marker: "already" });
+      expect(env.db.read("users/UsaNoLineDoc03/inbox/cm_auto_1")).toMatchObject({ title: "聯繫站長" });
+      expect(queued(env.db)).toHaveLength(1);
+      expect(env.logger.warns.some(([msg]) => msg === "[submitContactMessage] inbox write failed")).toBe(false);
+      expect(env.logger.logs.find(([msg]) => msg === "[submitContactMessage] stored")[1]).toMatchObject({
+        inboxWritten: 2,
+        inboxDuplicate: 1,
+        inboxFailed: 0,
+      });
+
+      const stringCode = load({
+        users: mixedOwners(),
+        faults: {
+          write: ({ op, path: itemPath }) => (op === "create" && itemPath.includes("/inbox/")
+            ? Object.assign(new Error("Document already exists"), { code: "already-exists" })
+            : null),
+        },
+      });
+      await expect(stringCode.call(valid())).resolves.toMatchObject({ ok: true });
+      expect(stringCode.logger.logs.find(([msg]) => msg === "[submitContactMessage] stored")[1]).toMatchObject({
+        inboxWritten: 0,
+        inboxDuplicate: 3,
+        inboxFailed: 0,
+      });
+    });
+
+    test("站內信寫入失敗不影響回傳與 LINE，log 已遮罩", async () => {
+      const env = load({
+        users: mixedOwners(),
+        faults: {
+          write: ({ path: itemPath }) => (itemPath.includes("/inbox/")
+            ? Object.assign(new Error("inbox down"), { code: "unavailable" })
+            : null),
+        },
+      });
+      const result = await env.call(valid({ content: "SECRET_BODY 想問場地" }));
+      expect(result).toEqual({ ok: true, id: messages(env.db)[0].id });
+      expect(messages(env.db)).toHaveLength(1);
+      expect(inboxPaths(env.db)).toEqual([]);
+      expect(queued(env.db).map((item) => item.targetDocId)).toEqual(["UsaBoundDoc01"]);
+      const failures = env.logger.warns.filter(([msg]) => msg === "[submitContactMessage] inbox write failed");
+      expect(failures).toHaveLength(3);
+      expect(failures[0][1]).toEqual({ uid: maskUid(CALLER), targetUid: maskUid("UsaBoundDoc01"), code: "unavailable" });
+      expect(env.logger.logs.find(([msg]) => msg === "[submitContactMessage] stored")[1]).toMatchObject({
+        notified: 1,
+        inboxWritten: 0,
+        inboxFailed: 3,
+      });
+      const dumped = JSON.stringify(env.logger);
+      [CALLER, "UsaBoundDoc01", "UsaUnboundDoc02", "UsaNoLineDoc03", "SECRET_BODY", "line:owner", "王小明"].forEach((raw) => {
+        expect(dumped).not.toContain(raw);
+      });
+    });
+
+    test("LINE 入列失敗不影響站內信", async () => {
+      const env = load({
+        users: mixedOwners(),
+        faults: {
+          write: ({ path: itemPath }) => (itemPath.startsWith("linePushQueue/")
+            ? Object.assign(new Error("queue down"), { code: "unavailable" })
+            : null),
+        },
+      });
+      await expect(env.call(valid())).resolves.toMatchObject({ ok: true });
+      expect(queued(env.db)).toHaveLength(0);
+      expect(inboxPaths(env.db)).toHaveLength(3);
+    });
+
+    test("站長查詢失敗時 LINE 與站內信都不寫，仍回 ok", async () => {
+      const env = load({ failAdminQuery: true });
+      await expect(env.call(valid())).resolves.toMatchObject({ ok: true });
+      expect(inboxPaths(env.db)).toEqual([]);
+      expect(queued(env.db)).toHaveLength(0);
+    });
+
+    test("內文只帶前 40 字，並去控制字元、格式字元、壓平換行", async () => {
+      const cp = (code) => String.fromCodePoint(code);
+      const env = load();
+      const content = `第一行\r\n第二行\t${cp(0x85)}尾${cp(0x7f)}端${cp(0x202e)}反轉${cp(0x200b)}零寬   多空白${"測".repeat(40)}`;
+      await env.call(valid({ content }));
+      const id = messages(env.db)[0].id;
+      const doc = env.db.read(`users/sa1/inbox/cm_${id}`);
+      const snippet = `第一行 第二行 尾 端反轉零寬 多空白${"測".repeat(40)}`;
+      expect(doc.body).toBe(`王小明（line:owner）：${Array.from(snippet).slice(0, 40).join("")}…`);
+      expect(doc.body).not.toMatch(/[\n\r\t]/);
+      expect(doc.preview).toBe(doc.body.slice(0, 43));
+      expect(messages(env.db)[0].content).toContain("第一行");
+
+      const exact = load();
+      await exact.call(valid({ content: "😀".repeat(40) }));
+      expect(exact.db.read(`users/sa1/inbox/cm_${messages(exact.db)[0].id}`).body)
+        .toBe(`王小明（line:owner）：${"😀".repeat(40)}`);
+
+      const zwj = load();
+      const family = `👨${cp(0x200d)}👩${cp(0x200d)}👧`;
+      await zwj.call(valid({ content: family }));
+      expect(zwj.db.read(`users/sa1/inbox/cm_${messages(zwj.db)[0].id}`).body).toBe(`王小明（line:owner）：${family}`);
+    });
+
+    test("每日第 21 則站內信改上限通知，第 22 則不寫", async () => {
+      const env = load();
+      for (let index = 1; index <= 22; index += 1) {
+        await env.call(valid({ content: `第${index}則` }), `Udaily${index}`);
+      }
+      const ids = messages(env.db).map((item) => ({ id: item.id, content: item.content }));
+      const idOf = (content) => ids.find((item) => item.content === content).id;
+      expect(env.db.read(`users/sa1/inbox/cm_${idOf("第20則")}`).body).toBe("王小明（line:owner）：第20則");
+      expect(env.db.read(`users/sa2/inbox/cm_${idOf("第21則")}`).body).toBe("今日聯繫訊息已達推播上限，請到後台查看");
+      expect(env.db.has(`users/sa1/inbox/cm_${idOf("第22則")}`)).toBe(false);
+      expect(inboxPaths(env.db)).toHaveLength(42);
+    });
   });
 
   test("註冊在 asia-east1，index.js 接到既有 helper", () => {
