@@ -521,7 +521,7 @@ describe("ops-daily-rollup", () => {
       const reconcileDb = createFakeDb(baseSeed(), { failDate: "events failed" });
       await expect(run(reconcileDb, { mode: "reconcile" })).rejects.toThrow("events failed");
       expect(JSON.parse(errors[2])).toMatchObject({
-        tag: "opsDailyRollup",
+        tag: "opsWeeklyReconcile",
         mode: "reconcile",
         asOf: "2026-11-08",
         step: "loadEvents",

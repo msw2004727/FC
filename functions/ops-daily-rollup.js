@@ -98,9 +98,13 @@ async function loadEventsForDateKeys(db, dateKeys, counter) {
   const keys = new Set((dateKeys || []).filter(Boolean));
   const found = new Map();
   const segments = contiguousDateSegments([...keys]);
+  const queried = new Set();
   for (const segment of segments) {
     const bounds = eventDateQueryBounds(segment.start, segment.end);
     for (const bound of bounds) {
+      const boundKey = `${bound.start}|${bound.endExclusive}`;
+      if (queried.has(boundKey)) continue;
+      queried.add(boundKey);
       const snap = await db.collection("events")
         .where("date", ">=", bound.start)
         .where("date", "<", bound.endExclusive)
@@ -382,11 +386,11 @@ async function buildDaysForKeys({
 
 function logRollupFailure({ mode, asOf, step, err }) {
   console.error(JSON.stringify({
-    tag: "opsDailyRollup",
+    tag: mode === "reconcile" ? "opsWeeklyReconcile" : "opsDailyRollup",
     mode,
     asOf,
     step,
-    error: String(err && err.message),
+    error: String((err && err.message) || err),
   }));
 }
 
