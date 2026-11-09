@@ -416,6 +416,11 @@ Object.assign(App, {
     if (isSourceOverlayClosed()) return;
 
     // 取得用戶名下的學員
+    // 課程資料讀取權限收斂：名下學員沒載到時不自動建立本人，避免重複建檔
+    if (this._eduStudentsLoadFailedByTeam?.[teamId]) {
+      this.showToast('學員資料載入失敗，請稍後再試');
+      return;
+    }
     let students = this.getEduStudents(teamId);
     let myStudents = students.filter(s =>
       s.enrollStatus !== 'inactive' && (s.selfUid === curUser.uid || s.parentUid === curUser.uid)

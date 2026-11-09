@@ -33,7 +33,11 @@ Object.assign(App, {
     const snapshotVersion = scope.snapshots[teamId] || 0;
     const isSuperseded = () => scope.requests[teamId] !== requestSeq || (scope.snapshots[teamId] || 0) !== snapshotVersion;
     try {
-      const students = await ApiService.listEduStudents(teamId);
+      // 課程資料讀取權限收斂：幹部讀整份名單；其他人只讀本人／家長名下學員，未登入不查
+      const isStaff = this.isEduClubStaff?.(teamId) === true;
+      const ownerUid = isStaff ? '' : String(scope.uid || '').trim();
+      if (!isStaff && !ownerUid) return this._eduStudentsCache[teamId] || [];
+      const students = await ApiService.listEduStudents(teamId, isStaff ? undefined : { ownerUid });
       if (this._getEduStudentsReadScope() !== scope) return [];
       // A listener snapshot delivered during hydration owns the newer student state.
       if (isSuperseded()) return this._eduStudentsCache[teamId] || [];

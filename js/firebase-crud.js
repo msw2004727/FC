@@ -3972,10 +3972,23 @@ Object.assign(FirebaseService, {
   //  Education: Students CRUD
   // ════════════════════════════════
 
-  async listEduStudents(teamId) {
+  async listEduStudents(teamId, options = {}) {
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
-    const snapshot = await collRef.get();
-    return this._mapCollectionDocs(snapshot);
+    // 課程資料讀取權限收斂：帶 ownerUid（非幹部）時只讀本人／家長名下學員，selfUid、parentUid 各查一次再合併
+    // （同 functions/index.js fetchEduRosterOwnedStudentsByCaller 寫法；取代原本所有人都讀整個子集合）
+    const ownerUid = String(options?.ownerUid || '').trim();
+    if (!ownerUid) {
+      const snapshot = await collRef.get();
+      return this._mapCollectionDocs(snapshot);
+    }
+    const [selfSnap, parentSnap] = await Promise.all([
+      collRef.where('selfUid', '==', ownerUid).get(),
+      collRef.where('parentUid', '==', ownerUid).get(),
+    ]);
+    const byDocId = new Map();
+    [...this._mapCollectionDocs(selfSnap), ...this._mapCollectionDocs(parentSnap)]
+      .forEach(student => byDocId.set(student._docId, student));
+    return Array.from(byDocId.values());
   },
 
   async createEduStudent(teamId, data) {

@@ -138,11 +138,13 @@ Object.assign(App, {
   _renderCourseLessonList(plan, sessions, context = {}) {
     const teamId = context.teamId || '';
     const planId = plan?.id || context.planId || '';
+    // 課程資料讀取權限收斂：固定週期課堂的已報名數只有幹部算得出來，非幹部不顯示人數欄
+    const showCount = !(context.planType === 'weekly' && context.isStaff !== true);
     const lessonRows = (sessions || []).map((session, index) => {
       const status = this._getCourseLessonStatusMeta(session);
       const location = String(session.location || plan?.location || '').trim() || '地點未設定';
       const capacity = session.capacity ? '/' + session.capacity : '';
-      const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
+      const count = showCount ? this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人' : '';
       const lessonTitle = session.title || session.topic || session.focus || '未命名課堂';
       const statusKey = String(session.status || status.cls || '').trim().toLowerCase();
       const isRescheduled = this._isCourseLessonRescheduledSession(session);
@@ -196,7 +198,7 @@ Object.assign(App, {
           + '<div class="edu-course-lesson-meta">'
             + '<span class="edu-course-lesson-meta-time' + (quickAdjustBtn ? ' has-adjust' : '') + '"><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em>' + quickAdjustBtn + '</span>'
             + '<span class="edu-course-lesson-meta-location"><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
-            + '<span class="edu-course-lesson-meta-count"><b>人數</b><em>' + escapeHTML(count) + '</em></span>'
+            + (showCount ? '<span class="edu-course-lesson-meta-count"><b>人數</b><em>' + escapeHTML(count) + '</em></span>' : '')
           + '</div>'
         + '</div>'
       + '</article>';

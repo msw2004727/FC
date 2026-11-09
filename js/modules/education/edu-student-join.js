@@ -119,6 +119,11 @@ Object.assign(App, {
 
     // ★ 重複申請檢查
     const existingStudents = await this._loadEduStudents(teamId);
+    // 課程資料讀取權限收斂：名下學員沒載到時不能判斷重複，停下而不是當作沒有申請過
+    if (this._eduStudentsLoadFailedByTeam?.[teamId]) {
+      this.showToast('學員資料載入失敗，請稍後再試');
+      return;
+    }
     if (relation === 'self') {
       // 本人：同一俱樂部只能有一筆 selfUid
       const selfDup = existingStudents.find(s =>
