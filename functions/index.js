@@ -19751,3 +19751,10 @@ exports.submitContactMessage = createSubmitContactMessageCallable({
   getLineRecipientUidFromUserDoc,
   isStaffRole: (role) => notificationGuards.isStaffRole(role),
 });
+
+const { createOpsRollupExports } = require("./ops-daily-rollup");
+Object.assign(exports, createOpsRollupExports({
+  db,
+  Timestamp,
+  onSchedule,
+}));

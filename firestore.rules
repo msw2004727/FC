@@ -3818,6 +3818,24 @@ service cloud.firestore {
       allow read: if request.auth != null;
     }
 
+    // 營運儀表板彙總。只新增，不改既有 allow。opsDailyStats 含每場放鴿子，前端不可讀。
+    function canViewOpsDashboard() {
+      return isSuperAdmin() || hasEffectivePerm('admin.dashboard.entry');
+    }
+    match /opsSummary/{docId} {
+      allow get: if (docId == 'latest' && canViewOpsDashboard())
+        || (docId == 'noshow' && canViewOpsDashboard()
+            && (isSuperAdmin() || hasEffectivePerm('activity.view_noshow')));
+      allow list, create, update, delete: if false;
+    }
+    match /opsParticipantDays/{dateKey} {
+      allow get, list: if canViewOpsDashboard();
+      allow create, update, delete: if false;
+    }
+    match /opsDailyStats/{dateKey} {
+      allow read, write: if false;
+    }
+
     // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕
     // ═══════════════════════════════════════════
