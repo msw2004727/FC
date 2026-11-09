@@ -2695,15 +2695,15 @@ describe("/eduAttendance/{recordId}", () => {
     });
   }
 
-  // 課程資料讀取權限收斂（測試同步更新）：原「登入者都能讀」改為職員、名冊代理、本人／家長、super_admin 可讀；
-  // 完整矩陣與列表查詢見 tests/firestore-rules/course-read-scope-rules.test.js
-  test("read: owner and super admin can read, other signed-in users cannot", async () => {
+  // 課程資料讀取權限收斂（測試同步更新）：原「登入者都能讀」改為職員、名冊代理、本人／家長、super_admin、team.manage_all 可讀
+  // （本檔 admin 的 rolePermissions 含 team.manage_all）；完整矩陣與列表查詢見 tests/firestore-rules/course-read-scope-rules.test.js
+  test("read: owner, staff and team managers can read, other signed-in users cannot", async () => {
     await seedDoc("eduAttendance", "edu1", {
       ...attendancePayload,
     });
     await assertByRole(
       ({ db }) => getDoc(doc(db, "eduAttendance", "edu1")),
-      { guest: false, memberA: true, memberB: false, admin: false, superAdmin: true }
+      { guest: false, memberA: true, memberB: false, admin: true, superAdmin: true }
     );
     await assertSucceeds(getDoc(doc(captain(), "eduAttendance", "edu1")));
   });
