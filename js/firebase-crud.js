@@ -3974,21 +3974,13 @@ Object.assign(FirebaseService, {
 
   async listEduStudents(teamId, options = {}) {
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
-    // 課程資料讀取權限收斂：帶 ownerUid（非幹部）時只讀本人／家長名下學員，selfUid、parentUid 各查一次再合併
-    // （同 functions/index.js fetchEduRosterOwnedStudentsByCaller 寫法；取代原本所有人都讀整個子集合）
-    const ownerUid = String(options?.ownerUid || '').trim();
-    if (!ownerUid) {
-      const snapshot = await collRef.get();
-      return this._mapCollectionDocs(snapshot);
-    }
-    const [selfSnap, parentSnap] = await Promise.all([
-      collRef.where('selfUid', '==', ownerUid).get(),
-      collRef.where('parentUid', '==', ownerUid).get(),
-    ]);
-    const byDocId = new Map();
-    [...this._mapCollectionDocs(selfSnap), ...this._mapCollectionDocs(parentSnap)]
-      .forEach(student => byDocId.set(student._docId, student));
-    return Array.from(byDocId.values());
+    // 課程資料讀取權限收斂：非幹部帶 ownerUid，只讀本人／家長名下學員
+    const uid = options?.ownerUid;
+    if (!uid) return this._mapCollectionDocs(await collRef.get());
+    const snaps = await Promise.all(['selfUid', 'parentUid'].map(f => collRef.where(f, '==', uid).get()));
+    const byId = new Map();
+    snaps.forEach(snap => this._mapCollectionDocs(snap).forEach(s => byId.set(s._docId, s)));
+    return [...byId.values()];
   },
 
   async createEduStudent(teamId, data) {
