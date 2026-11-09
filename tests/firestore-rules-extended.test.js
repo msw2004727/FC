@@ -2695,14 +2695,17 @@ describe("/eduAttendance/{recordId}", () => {
     });
   }
 
-  test("read: authenticated can read", async () => {
+  // 課程資料讀取權限收斂（測試同步更新）：原「登入者都能讀」改為職員、名冊代理、本人／家長、super_admin 可讀；
+  // 完整矩陣與列表查詢見 tests/firestore-rules/course-read-scope-rules.test.js
+  test("read: owner and super admin can read, other signed-in users cannot", async () => {
     await seedDoc("eduAttendance", "edu1", {
       ...attendancePayload,
     });
     await assertByRole(
       ({ db }) => getDoc(doc(db, "eduAttendance", "edu1")),
-      allowAuth
+      { guest: false, memberA: true, memberB: false, admin: false, superAdmin: true }
     );
+    await assertSucceeds(getDoc(doc(captain(), "eduAttendance", "edu1")));
   });
 
   test("create: team staff can create signin records", async () => {
@@ -4004,16 +4007,22 @@ describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
 //  teams/{teamId}/students
 // ═══════════════════════════════════════════════════════════════
 describe("/teams/{teamId}/students/{studentId}", () => {
-  test("read: authenticated can read", async () => {
+  // 課程資料讀取權限收斂（測試同步更新）：原「登入者都能讀」改為幹部、canManageAnyTeam、本人／家長可讀；
+  // 完整矩陣與列表查詢見 tests/firestore-rules/course-read-scope-rules.test.js
+  test("read: team staff and the student's own user can read, other signed-in users cannot", async () => {
     await seedPath(["teams", "teamA", "students", "stu1"], {
       name: "Student 1",
       enrollStatus: "active",
+      selfUid: "uidUser",
     });
     await assertSucceeds(
-      getDoc(doc(memberA(), "teams", "teamA", "students", "stu1"))
+      getDoc(doc(captain(), "teams", "teamA", "students", "stu1"))
     );
     await assertSucceeds(
       getDoc(doc(user(), "teams", "teamA", "students", "stu1"))
+    );
+    await assertFails(
+      getDoc(doc(memberA(), "teams", "teamA", "students", "stu1"))
     );
   });
 
