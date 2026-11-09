@@ -132,8 +132,55 @@ describe('auto 模式：目標是本人', () => {
     expect(expOf(U_OTHER)).toBe(300);
   });
 
-  test('非 autoexp_ 開頭的 requestId 不受去重鍵歸屬限制', async () => {
-    const res = await call(U_SELF, auto(U_SELF, { amount: 5, requestId: 'custom-key-1' }));
+  test('auto 模式的 requestId 必須是 autoexp_ 形狀；任意字串拒絕且不佔用共用去重鍵', async () => {
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 5, requestId: 'manual-1' })));
+    expect(fake.has('_expDedupe/manual-1')).toBe(false);
+    expect(expOf(U_SELF)).toBe(200);
+    const res = await call(U_EXP_ADMIN, { mode: 'manual', targets: [U_OTHER], amount: 5, reason: 'x', requestId: 'manual-1' });
+    expect(res.results[0].success).toBe(true);
+  });
+
+  test('uid 段只比對到規則名為止：前綴相同的另一個 uid 不算本人', async () => {
+    const victim = `${U_SELF}_x`;
+    seed({ [`users/${victim}`]: user(victim) });
+    const requestId = `autoexp_${victim}_line_binding`;
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 100, requestId })));
+    expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
+    const res = await call(victim, auto(victim, { amount: 100, requestId }));
+    expect(res.results[0].success).toBe(true);
+  });
+
+  test('去重鍵只認目標的 docId／uid，不認 lineUserId', async () => {
+    const legacy = `L${'a'.repeat(32)}`;
+    seed({ [`users/${U_SELF}`]: user(U_SELF, { lineUserId: legacy }) });
+    const requestId = `autoexp_${legacy}_line_binding`;
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 100, requestId })));
+    expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
+  });
+
+  test('本人路徑查到的文件不是本人（僅 lineUserId 吻合）→ 拒絕，不改到該文件', async () => {
+    const noDoc = `U${'c'.repeat(32)}`;
+    const otherDoc = `U${'d'.repeat(32)}`;
+    seed({ [`users/${otherDoc}`]: user(otherDoc, { lineUserId: noDoc }) });
+    await expectDenied(call(noDoc, auto(noDoc, { amount: 100, requestId: `autoexp_${noDoc}_line_binding` })));
+    await expectDenied(call(noDoc, auto(noDoc, { amount: 100 })));
+    expect(expOf(otherDoc)).toBe(200);
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'target_mismatch' });
+  });
+
+  test.each([
+    ['A 主辦活動', (u) => `autoexp_${u}_host_activity_${TS}`, undefined],
+    ['A 徽章對帳', (u) => `autoexp_${u}_badge_bonus_200_${TS}_0`, 'badge_bonus'],
+    ['A 取消報名', (u) => `autoexp_${u}_cancel_registration_${TS}`, undefined],
+    ['A 報名活動', (u) => `autoexp_${u}_register_activity_${TS}`, undefined],
+    ['B 主辦活動', (u) => `autoexp_${u}_host_activity_${TS}`, 'host_activity'],
+  ])('既有本人形狀照常通過：%s', async (_label, build, ruleKey) => {
+    const res = await call(U_SELF, auto(U_SELF, { amount: 10, requestId: build(U_SELF), ...(ruleKey ? { ruleKey } : {}) }));
+    expect(res.results[0].success).toBe(true);
+  });
+
+  test('本人不帶 requestId 照舊放行', async () => {
+    const res = await call(U_SELF, auto(U_SELF, { amount: 10 }));
     expect(res.results[0].success).toBe(true);
   });
 });
@@ -237,7 +284,30 @@ describe('auto 模式：目標不是本人，呼叫者身分', () => {
 
   test('一般用戶且不帶任何 requestId／ruleKey → 拒絕', async () => {
     await expectDenied(call(U_SELF, auto(U_OTHER)));
-    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'rule_key', hasEventId: false });
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'request_id', hasEventId: false });
+  });
+
+  test('代發一律要可解析的 requestId：只帶 ruleKey、或隨機字串 → 拒絕（教練也一樣）', async () => {
+    await expectDenied(call(U_COACH, auto(U_OTHER, { ruleKey: 'complete_activity' })));
+    await expectDenied(call(U_COACH, auto(U_OTHER, { ruleKey: 'complete_activity', requestId: 'rnd-1' })));
+    await expectDenied(call(U_DELEGATE, auto(U_OTHER, { ruleKey: 'complete_activity', eventId: EVENT_ID })));
+    expect(fake.has('_expDedupe/rnd-1')).toBe(false);
+    expect(expOf(U_OTHER)).toBe(200);
+    expect(deniedLogs().every((row) => row[2].reason === 'request_id')).toBe(true);
+  });
+
+  test('代發的去重鍵 uid 段必須是目標本人（不能用別人的鍵）', async () => {
+    await expectDenied(call(U_COACH, auto(U_OTHER, { requestId: bId(U_SELF) })));
+    expect(fake.has(`_expDedupe/${bId(U_SELF)}`)).toBe(false);
+    expect(expOf(U_OTHER)).toBe(200);
+  });
+
+  test('代發的去重鍵 uid 段前綴碰撞不算吻合', async () => {
+    const victim = `${U_OTHER}_x`;
+    seed({ [`users/${victim}`]: user(victim) });
+    const requestId = `autoexp_${victim}_complete_activity_${EVENT_ID}`;
+    await expectDenied(call(U_COACH, auto(U_OTHER, { requestId })));
+    expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
   });
 });
 

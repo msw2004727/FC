@@ -3654,10 +3654,15 @@ function parseAutoExpRequestId(requestId) {
   return { ruleKey: match[2], eventId: tail && !AUTO_EXP_NUMERIC_TAIL_RE.test(tail) ? tail : "" };
 }
 
-// autoexp_ 開頭的去重鍵必須屬於本次目標。
+// auto 模式的去重鍵必須是 `autoexp_<目標 docId 或 uid>_<規則>…`；uid 段之後必須緊接規則名，前綴相同的 uid 不算吻合。
+const AUTO_EXP_RULE_KEY_PREFIX_RE = /^(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_|$)/;
 function autoExpRequestIdOwnedBy(requestId, ids) {
-  if (typeof requestId !== "string" || !requestId.startsWith("autoexp_")) return true;
-  return ids.some((id) => typeof id === "string" && id && requestId.startsWith(`autoexp_${id}_`));
+  if (typeof requestId !== "string" || requestId.length === 0) return true;
+  return ids.some((id) => {
+    if (typeof id !== "string" || !id) return false;
+    const prefix = `autoexp_${id}_`;
+    return requestId.startsWith(prefix) && AUTO_EXP_RULE_KEY_PREFIX_RE.test(requestId.slice(prefix.length));
+  });
 }
 
 function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEventId = false }) {
@@ -3679,22 +3684,24 @@ async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, 
   const targetEventId = givenEventId || parsed?.eventId || "";
   const logBase = { callerUid, ruleKey: effectiveRuleKey, hasEventId: !!targetEventId };
 
+  // 代發一律要有可解析的去重鍵（歸屬目標另於讀到目標文件後嚴格比對）
+  if (!parsed) throw denyAutoExp("request_id", logBase);
   if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(effectiveRuleKey)
-    || (givenRuleKey && parsed && parsed.ruleKey !== givenRuleKey)) {
+    || (givenRuleKey && parsed.ruleKey !== givenRuleKey)) {
     throw denyAutoExp("rule_key", logBase);
   }
   if (effectiveRuleKey === "register_activity" && amount !== AUTO_EXP_REGISTER_ACTIVITY_AMOUNT) {
     throw denyAutoExp("amount", logBase);
   }
-  if ((effectiveRuleKey === "complete_activity" && amount <= 0)
-    || (effectiveRuleKey === "noshow_penalty" && amount >= 0)) {
+  if (effectiveRuleKey === "complete_activity" && amount <= 0) {
     throw denyAutoExp("amount", logBase);
   }
 
   const access = await getCallerAccessContext(request);
   const callerRoleLevel = ROLE_LEVELS[access.role] || 0;
   const denyBase = { ...logBase, callerRoleLevel };
-  let allowed = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
+  const privileged = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
+  let allowed = privileged;
   if (!allowed && targetEventId) {
     const eventDoc = await getEventDocByPublicId(targetEventId);
     allowed = !!eventDoc && canManageScopedEventForAccess(eventDoc.data() || {}, callerUid);
@@ -3710,8 +3717,10 @@ async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, 
   if (effectiveRuleKey !== "register_activity") {
     const rulesSnap = await db.collection("siteConfig").doc("autoExpRules").get();
     const ruleAmount = rulesSnap.exists ? (rulesSnap.data() || {})[effectiveRuleKey] : null;
-    if (typeof ruleAmount !== "number" || !Number.isFinite(ruleAmount)
-      || Math.sign(ruleAmount) !== Math.sign(amount) || Math.abs(amount) > Math.abs(ruleAmount)) {
+    const withinRule = typeof ruleAmount === "number" && Number.isFinite(ruleAmount)
+      && Math.sign(ruleAmount) === Math.sign(amount) && Math.abs(amount) <= Math.abs(ruleAmount)
+      && (effectiveRuleKey !== "noshow_penalty" || amount < 0);
+    if (!withinRule) {
       throw denyAutoExp("amount", denyBase);
     }
   }
@@ -3860,8 +3869,11 @@ exports.adjustExp = onCall(
       }
 
       const userData = targetUser.data || {};
-      if (mode === "auto" && !autoExpRequestIdOwnedBy(requestId,
-        [targetId, targetUser.docId, userData.uid, userData.lineUserId])) {
+      if (mode === "auto" && targetId === callerUid
+        && targetUser.docId !== callerUid && userData.uid !== callerUid) {
+        throw denyAutoExp("target_mismatch", { callerUid, ruleKey, hasEventId: false });
+      }
+      if (mode === "auto" && !autoExpRequestIdOwnedBy(requestId, [targetUser.docId, userData.uid])) {
         throw denyAutoExp("request_id_owner", { callerUid, ruleKey, hasEventId: false });
       }
       const oldExp = typeof userData.exp === "number" ? userData.exp : 0;
