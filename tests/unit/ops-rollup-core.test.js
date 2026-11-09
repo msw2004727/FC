@@ -9,6 +9,7 @@ const {
   buildDayDocs,
   buildOpsSummaries,
   buildStuckAttention,
+  contiguousDateSegments,
   countUnparsableEvents,
   enumerateDateKeys,
   eventDateQueryBounds,
@@ -21,6 +22,7 @@ const {
   selectUpcomingLowFill,
   summarizeUserDirectory,
   taipeiStartMs,
+  userCreatedDateKey,
 } = require("../../functions/ops-rollup-core");
 
 const QA = `U${"0".repeat(28)}0001`;
@@ -197,8 +199,10 @@ describe("ops-rollup-core", () => {
       attendanceFlags: new Map([["qaReg", true]]),
       since: NOSHOW_V2_SINCE,
     });
-    expect(qaStats.countedNoShowCount + qaStats.countedCompletedCount + (qaStats.countedCount - qaStats.countedCompletedCount - qaStats.countedNoShowCount)).toBe(qaStats.countedCount);
     expect(qaStats.countedCount).toBe(1);
+    expect(qaStats.countedCompletedCount).toBe(0);
+    expect(qaStats.countedNoShowCount).toBe(0);
+    expect(qaStats.countedIncompleteCount).toBe(1);
     expect(built.daily.attend.counted).toBe(1);
   });
 
@@ -218,6 +222,19 @@ describe("ops-rollup-core", () => {
     expect(facts.unknownCreated).toBe(1);
     expect(facts.newUsersByDate["2026-11-08"]).toBe(2);
     expect(facts.newUsersByDate["2026-11-07"]).toBe(1);
+
+    const lateMs = Date.UTC(2026, 10, 8, 15, 59, 0);
+    const midnightMs = Date.UTC(2026, 10, 8, 16, 0, 0);
+    expect(userCreatedDateKey({ createdAt: { toMillis: () => lateMs } })).toBe("2026-11-08");
+    expect(userCreatedDateKey({
+      createdAt: { seconds: Math.floor(midnightMs / 1000), nanoseconds: 0 },
+    })).toBe("2026-11-09");
+    const boundary = summarizeUserDirectory([
+      { id: "late", createdAt: { seconds: Math.floor(lateMs / 1000), nanoseconds: 0 } },
+      { id: "midnight", createdAt: { toMillis: () => midnightMs } },
+    ], AS_OF);
+    expect(boundary.newUsersByDate["2026-11-08"]).toBe(1);
+    expect(boundary.newUsersByDate["2026-11-09"]).toBe(1);
 
     const fromCounts = activeSnapshotSubtractingQa(
       { d7: 2, d30: 2, d90: 2, d365: 2, total: 5 },
@@ -445,5 +462,26 @@ describe("ops-rollup-core", () => {
     expect(eventDateQueryBounds("2026-09-01", "2026-09-02").map((item) => item.start)).toEqual(
       expect.arrayContaining(["2026/9/", "2026/09/", "2026-9-", "2026-09-"]),
     );
+  });
+
+  test("重算日有缺口時只切成連續區段，月份前綴不含中間月份", () => {
+    expect(contiguousDateSegments(["2026-11-03", "2026-11-01", "2026-11-02", "2025-03-01", "2026-11-01"])).toEqual([
+      { start: "2025-03-01", end: "2025-03-01" },
+      { start: "2026-11-01", end: "2026-11-03" },
+    ]);
+    expect(contiguousDateSegments([])).toEqual([]);
+    const keys = recomputeDateKeys({
+      asOf: AS_OF,
+      previousAttention: [{ kind: "stuck_event", refId: "old", dateKey: "2025-03-01" }],
+      stuckRefIds: new Set(),
+    });
+    const segments = contiguousDateSegments(keys);
+    expect(segments).toEqual([
+      { start: "2025-03-01", end: "2025-03-01" },
+      { start: "2026-10-26", end: "2026-11-08" },
+    ]);
+    const starts = segments.flatMap((segment) => eventDateQueryBounds(segment.start, segment.end).map((item) => item.start));
+    expect(starts.some((start) => start.startsWith("2025/7") || start.startsWith("2025-7") || start.startsWith("2026/6"))).toBe(false);
+    expect(starts).toEqual(expect.arrayContaining(["2025/3/", "2025/03/", "2026/10/", "2026/11/"]));
   });
 });

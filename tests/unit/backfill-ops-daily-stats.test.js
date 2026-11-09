@@ -1,9 +1,11 @@
 "use strict";
 
+const { addDaysKey } = require("../../functions/ops-ltv-report");
 const { enumerateDateKeys } = require("../../functions/ops-rollup-core");
 const { parseBackfillArgs, runBackfill } = require("../../functions/backfill-ops-daily-stats");
 
 const QA = `U${"0".repeat(28)}0001`;
+const NOW = Date.UTC(2026, 10, 8, 19, 0, 0);
 
 function compare(doc, filter) {
   const left = doc.data[filter.field];
@@ -178,7 +180,7 @@ describe("backfill-ops-daily-stats", () => {
       apply: false,
       fromKey: "2026-11-08",
       toKey: "2026-11-08",
-      nowMs: 1700000000000,
+      nowMs: NOW,
       log: (line) => logs.push(line),
     });
     expect(report.mode).toBe("dry-run");
@@ -210,7 +212,7 @@ describe("backfill-ops-daily-stats", () => {
       apply: true,
       fromKey: "2026-11-08",
       toKey: "2026-11-08",
-      nowMs: 1700000000000,
+      nowMs: NOW,
       log() {},
     });
     expect(db.batchCalls).toBe(1);
@@ -221,7 +223,7 @@ describe("backfill-ops-daily-stats", () => {
     expect(daily.data.users.qaUsers).toBe(1);
     expect(daily.data.users.newUsers).toBe(1);
     expect(daily.data.users.unknownCreated).toBe(1);
-    expect(daily.data.runId).toBe("backfill-1700000000000");
+    expect(daily.data.runId).toBe(`backfill-${NOW}`);
     expect(participant.data.events.map((item) => item.docId)).toEqual(["e1"]);
     expect(participant.data.events[0].checkedInUids).toEqual(["u1"]);
     expect(db.writes.some((item) => item.path.startsWith("opsSummary/"))).toBe(false);
@@ -234,7 +236,7 @@ describe("backfill-ops-daily-stats", () => {
       apply: true,
       fromKey: "2026-11-08",
       toKey: "2026-11-08",
-      nowMs: 1700000000000,
+      nowMs: NOW,
       log() {},
     });
     const daily = db.writes.find((item) => item.path === "opsDailyStats/20261108");
@@ -245,8 +247,48 @@ describe("backfill-ops-daily-stats", () => {
       apply: true,
       fromKey: "2024-01-01",
       toKey: "2026-11-08",
-      nowMs: 1700000000000,
+      nowMs: NOW,
       log() {},
     })).rejects.toThrow("RANGE_EXCEEDS_730");
+  });
+
+  test("unknownCreated 只寫在 --to 那天", async () => {
+    const db = createFakeDb(seedStore());
+    await runBackfill({
+      db,
+      apply: true,
+      fromKey: "2026-11-07",
+      toKey: "2026-11-08",
+      nowMs: NOW,
+      log() {},
+    });
+    const earlier = db.writes.find((item) => item.path === "opsDailyStats/20261107");
+    const end = db.writes.find((item) => item.path === "opsDailyStats/20261108");
+    expect(earlier.data.users.unknownCreated).toBe(0);
+    expect(end.data.users.unknownCreated).toBe(1);
+    expect(end.data.users.newUsers).toBe(1);
+  });
+
+  test("--to 晚於台北昨日、以及 dry-run 超過 730 天，都直接拒絕且不讀資料", async () => {
+    expect(() => parseBackfillArgs(["node", "x", "--to", "2026-11-09"], NOW)).toThrow("TO_AFTER_ASOF");
+    let reads = 0;
+    const db = { collection() { reads += 1; throw new Error("should not read"); } };
+    await expect(runBackfill({
+      db,
+      apply: false,
+      fromKey: "2026-11-09",
+      toKey: "2026-11-09",
+      nowMs: NOW,
+      log() {},
+    })).rejects.toThrow("TO_AFTER_ASOF");
+    await expect(runBackfill({
+      db,
+      apply: false,
+      fromKey: addDaysKey("2026-11-08", -730),
+      toKey: "2026-11-08",
+      nowMs: NOW,
+      log() {},
+    })).rejects.toThrow("RANGE_EXCEEDS_730");
+    expect(reads).toBe(0);
   });
 });

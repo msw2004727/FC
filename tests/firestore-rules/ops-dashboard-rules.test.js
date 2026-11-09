@@ -99,6 +99,20 @@ describe("ops dashboard rules", () => {
     await assertSucceeds(getDocs(collection(db, "opsParticipantDays")));
   });
 
+  test("個別授予入口與 activity.view_noshow 可讀 noshow，仍不可讀每日統計、不可寫", async () => {
+    await seed({
+      grants: [{ uid: "bothGrant", permissions: ["admin.dashboard.entry", "activity.view_noshow"] }],
+    });
+    const db = dbAs("bothGrant", "user");
+    await assertSucceeds(getDoc(doc(db, "opsSummary", "latest")));
+    await assertSucceeds(getDoc(doc(db, "opsSummary", "noshow")));
+    await assertSucceeds(getDoc(doc(db, "opsParticipantDays", "20261108")));
+    await assertSucceeds(getDocs(collection(db, "opsParticipantDays")));
+    await assertFails(getDocs(collection(db, "opsSummary")));
+    await assertFails(getDoc(doc(db, "opsDailyStats", "20261108")));
+    await assertFails(setDoc(doc(db, "opsSummary", "noshow"), { schemaVersion: 2 }));
+  });
+
   test("只有 activity.view_noshow、沒有入口權限，三者都不可讀", async () => {
     await seed({ grants: [{ uid: "noshowOnly", permissions: ["activity.view_noshow"] }] });
     const db = dbAs("noshowOnly", "user");

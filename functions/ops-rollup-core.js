@@ -673,6 +673,29 @@ function reconcileMismatch(storedDaily, nextDaily, storedParticipant, nextPartic
   return participantSignature(storedParticipant) !== participantSignature(nextParticipant);
 }
 
+// 相鄰日（含跨月）合併成一段；中間有空日就拆開。
+// 活動日期與新用戶都要按段查，不能拿整包重算日的最小日～最大日當一個連續範圍。
+function contiguousDateSegments(dateKeys) {
+  const sorted = [...new Set((Array.isArray(dateKeys) ? dateKeys : []).filter(isDateKey))].sort();
+  if (!sorted.length) return [];
+  const segments = [];
+  let start = sorted[0];
+  let end = sorted[0];
+  for (let index = 1; index < sorted.length; index += 1) {
+    const key = sorted[index];
+    if (key === addDaysKey(end, 1)) {
+      end = key;
+    } else {
+      segments.push({ start, end });
+      start = key;
+      end = key;
+    }
+  }
+  segments.push({ start, end });
+  return segments;
+}
+
+// 只涵蓋 fromKey～toKey 這一段連續日期所碰到的月份前綴。跨缺口要先切段再各查一次。
 function eventDateQueryBounds(fromKey, toKey) {
   if (!isDateKey(fromKey) || !isDateKey(toKey) || fromKey > toKey) return [];
   const bounds = [];
@@ -1027,6 +1050,7 @@ module.exports = {
   buildOpsSummaries,
   buildStuckAttention,
   classifyEvent,
+  contiguousDateSegments,
   countUnparsableEvents,
   dateKeyToDocId,
   docIdToDateKey,
