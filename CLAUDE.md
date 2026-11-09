@@ -198,7 +198,7 @@ ToosterX 是運動活動報名與管理系統，包含活動、俱樂部、錦�
 | `functions/**` | `firestore-functions.md`、`testing-review.md` | R-CF-001～012、R-QA-009 | `test:functions` + domain unit；release 前完整 unit |
 | async／route／history | `navigation-history.md` | R-NAV-001～020 | route／popstate／race tests |
 | 分享／Mini App／OG | `share.md` | R-SHARE-001～013 | builder、worker、Functions、deep-link |
-| UI／modal／名單 | `ui.md` | R-UI-001～026 | desktop／mobile／light／dark、console |
+| UI／modal／名單 | `ui.md` | R-UI-001～027 | desktop／mobile／light／dark、console |
 | SEO | `seo.md` | R-SEO-001～004 | SEO log、generator／route |
 | `CLAUDE.md`／docs only | `CLAUDE.md`、`governance-migration.md`（補充參考） | R-DOC-001～006、R-ENC-001～007、R-COM-001～005 | diff、引用、編碼；無 runtime test／bump |
 
