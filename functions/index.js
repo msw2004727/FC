@@ -20,6 +20,7 @@ const { createRoleGraphLoader } = require("./role-hierarchy");
 const { decideAdminManageUser } = require("./admin-user-authz");
 const { createAdjustEventCapacityCallable } = require("./event-capacity");
 const { createReleaseTeamReservationsHandler } = require("./team-reservation-release");
+const { createOnEventCommentCreatedHandler } = require("./event-comment-notify");
 const {
   createForceDemoteCallable, createForcePromoteCallable, createRosterRequestClaim,
 } = require("./event-roster-status");
@@ -512,6 +513,9 @@ const LINE_NOTIFICATION_FORCED_SOURCES = Object.freeze([
   "template:event_changed",
   // 角色申請通知：用戶主動觸發、管理員需即時處理、繞過 category toggle
   "template:role_application",
+  // 活動留言通知（計畫 v3 §3.29）：只跳過全站 notificationToggles；個人 settings.activity 與留言類每日上限照常，
+  // 全站開關改由 eventCommentNotify/_config 承擔（fail-closed）
+  "event_comment:",
 ]);
 const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
   "category_activity",
@@ -3636,6 +3640,87 @@ exports.commitSecondaryIdentityAvatar = onCall(
 // ═══════════════════════════════════════════════════
 const ADMIN_EXP_PERMISSION = "admin.exp.entry";
 
+// ── 積分調整授權強化：auto 模式的 requestId 與「目標不是本人」條件 ──
+// 代發只放行三種規則：complete_activity 正值、register_activity 固定 +10（同 adjustExpInternal）、
+// noshow_penalty 依呼叫者分級；金額上限一律沿用 auto 的 ±100，不另讀規則設定。
+const AUTO_EXP_DELEGATED_RULE_KEYS = new Set(["complete_activity", "noshow_penalty", "register_activity"]);
+const AUTO_EXP_REGISTER_ACTIVITY_AMOUNT = 10;
+// 格式：autoexp_<目標 uid>_<規則>[_<尾段>]；uid 段不含底線（LINE／QA uid 皆然），以此切段完全比對。
+const AUTO_EXP_REQUEST_ID_RE = /^autoexp_([A-Za-z0-9-]{1,128})_(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_([^\s/]{1,160}))?$/;
+// A 的尾段是時間戳或「預期總額_時間戳_段號」（可為負數），不是活動 ID。
+const AUTO_EXP_NUMERIC_TAIL_RE = /^-?\d+(?:_-?\d+)*$/;
+// A 沒帶活動 ID 時的退回查詢：依序查，命中即停。
+const AUTO_EXP_RELATION_FALLBACK_QUERIES = Object.freeze([
+  ["creatorUid", "=="],
+  ["ownerUid", "=="],
+  ["captainUid", "=="],
+  ["delegateUids", "array-contains"],
+]);
+
+// requestId 形狀：B `autoexp_<uid>_complete_activity_<eventId>`；A `autoexp_<uid>_<ruleKey>_<時間戳…>`。
+function parseAutoExpRequestId(requestId) {
+  if (typeof requestId !== "string") return null;
+  const match = AUTO_EXP_REQUEST_ID_RE.exec(requestId);
+  if (!match) return null;
+  const tail = match[3] || "";
+  return {
+    ownerUid: match[1],
+    ruleKey: match[2],
+    eventId: tail && !AUTO_EXP_NUMERIC_TAIL_RE.test(tail) ? tail : "",
+  };
+}
+
+function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEventId = false }, code = "permission-denied") {
+  logger.warn("autoexp_denied", {
+    reason,
+    ruleKey: typeof ruleKey === "string" ? ruleKey.slice(0, 40) : "",
+    callerRoleLevel,
+    hasEventId,
+    caller: maskUid(callerUid),
+  });
+  return new HttpsError(code, "Auto mode target not permitted");
+}
+
+async function hasAnyEventRelationForUid(uid) {
+  for (const [field, op] of AUTO_EXP_RELATION_FALLBACK_QUERIES) {
+    const snap = await db.collection("events").where(field, op, uid).limit(1).get();
+    if (!snap.empty) return true;
+  }
+  return false;
+}
+
+async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed, eventId }) {
+  const givenRuleKey = typeof ruleKey === "string" ? ruleKey : "";
+  const givenEventId = typeof eventId === "string" ? eventId.trim().slice(0, 128) : "";
+  const targetEventId = givenEventId || parsed.eventId;
+  const logBase = { callerUid, ruleKey: parsed.ruleKey, hasEventId: !!targetEventId };
+
+  if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(parsed.ruleKey) || (givenRuleKey && givenRuleKey !== parsed.ruleKey)) {
+    throw denyAutoExp("rule_key", logBase);
+  }
+  if ((parsed.ruleKey === "register_activity" && amount !== AUTO_EXP_REGISTER_ACTIVITY_AMOUNT)
+    || (parsed.ruleKey === "complete_activity" && amount <= 0)) {
+    throw denyAutoExp("amount", logBase);
+  }
+
+  const access = await getCallerAccessContext(request);
+  const callerRoleLevel = ROLE_LEVELS[access.role] || 0;
+  const denyBase = { ...logBase, callerRoleLevel };
+  const privileged = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
+  // 只靠活動關係通過者，放鴿子只能扣分；管理者可雙向（A 對帳與補正會退分）
+  if (parsed.ruleKey === "noshow_penalty" && !privileged && amount >= 0) {
+    throw denyAutoExp("amount", denyBase);
+  }
+  let allowed = privileged;
+  if (!allowed && targetEventId) {
+    const eventDoc = await getEventDocByPublicId(targetEventId);
+    allowed = !!eventDoc && canManageScopedEventForAccess(eventDoc.data() || {}, callerUid);
+  } else if (!allowed) {
+    allowed = await hasAnyEventRelationForUid(callerUid);
+  }
+  if (!allowed) throw denyAutoExp("caller", denyBase);
+}
+
 exports.adjustExp = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
   async (request) => {
@@ -3644,20 +3729,14 @@ exports.adjustExp = onCall(
     }
 
     const callerUid = request.auth.uid;
-    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey } = request.data || {};
+    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey, eventId } = request.data || {};
 
-    // ── 冪等性保護（可選） ──
-    if (typeof requestId === "string" && requestId.length > 0) {
-      const dedupRef = db.collection("_expDedupe").doc(requestId);
-      try {
-        await dedupRef.create({ callerUid, createdAt: FieldValue.serverTimestamp() });
-      } catch (e) {
-        if (e.code === 6 || e.code === "already-exists") {
-          return { success: true, deduplicated: true };
-        }
-        // 其他錯誤不阻塞（dedup 失敗不影響主流程）
-      }
-    }
+    // ── 冪等性保護（可選）：參數與權限檢查全部通過後才建立，並與 EXP 寫入同一個 batch ──
+    const dedupRef = (typeof requestId === "string" && requestId.length > 0)
+      ? db.collection("_expDedupe").doc(requestId)
+      : null;
+    const dedupData = { callerUid, createdAt: FieldValue.serverTimestamp() };
+    const isDedupConflict = (e) => !!e && (e.code === 6 || e.code === "already-exists");
 
     // ── 參數驗證 ──
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) {
@@ -3677,6 +3756,26 @@ exports.adjustExp = onCall(
       // auto 模式：任何已登入用戶可觸發，限制幅度 ±100 + 冪等性保護
       if (amount < -100 || amount > 100) {
         throw new HttpsError("invalid-argument", "Auto mode amount must be between -100 and +100");
+      }
+      if (!Array.isArray(targets) || targets.length !== 1) {
+        throw new HttpsError("invalid-argument", "Auto mode requires exactly 1 target");
+      }
+      if (typeof targets[0] !== "string" || !targets[0]) {
+        throw new HttpsError("invalid-argument", "Auto mode target must be a non-empty string");
+      }
+      // requestId：本人可不帶；有帶（或代發）就必須是白名單格式，且 uid 段等於目標
+      const parsedRequestId = parseAutoExpRequestId(requestId);
+      const autoLog = { callerUid, ruleKey, hasEventId: false };
+      const hasRequestId = requestId !== undefined && requestId !== null && requestId !== "";
+      if ((hasRequestId || targets[0] !== callerUid) && !parsedRequestId) {
+        throw denyAutoExp("request_id", autoLog, "invalid-argument");
+      }
+      if (parsedRequestId && parsedRequestId.ownerUid !== targets[0]) {
+        throw denyAutoExp("request_id_owner", autoLog);
+      }
+      // 目標是本人照舊；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
+      if (targets[0] !== callerUid) {
+        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed: parsedRequestId, eventId });
       }
     } else {
       // manual / batch / team / teamExp：需要 admin.exp.entry 權限
@@ -3721,7 +3820,13 @@ exports.adjustExp = onCall(
       const batch = db.batch();
       batch.update(teamRef, { teamExp: newExp, updatedAt: FieldValue.serverTimestamp() });
       batch.create(db.collection("teamExpLogs").doc(), log);
-      await batch.commit();
+      if (dedupRef) batch.create(dedupRef, dedupData);
+      try {
+        await batch.commit();
+      } catch (e) {
+        if (dedupRef && isDedupConflict(e)) return { success: true, deduplicated: true };
+        throw e;
+      }
 
       return { success: true, teamId, oldExp, newExp, teamName: teamData.name || teamId };
     }
@@ -3730,10 +3835,7 @@ exports.adjustExp = onCall(
     const targetList = [];
 
     if (mode === "auto") {
-      // auto 模式：單一目標，targets[0] 為 uid
-      if (!Array.isArray(targets) || targets.length !== 1) {
-        throw new HttpsError("invalid-argument", "Auto mode requires exactly 1 target");
-      }
+      // auto 模式：單一目標，targets[0] 為 uid（數量與型別已在權限檢查驗過）
       targetList.push(targets[0]);
     } else if (mode === "batch" || mode === "team") {
       if (!Array.isArray(targets) || targets.length === 0) {
@@ -3751,6 +3853,17 @@ exports.adjustExp = onCall(
       targetList.push(targets[0]);
     }
 
+    // 多目標模式各目標分批寫入，去重鍵維持一次建立；單一目標模式併入該目標的 batch。
+    const multiTarget = mode === "batch" || mode === "team";
+    if (dedupRef && multiTarget) {
+      try {
+        await dedupRef.create(dedupData);
+      } catch (e) {
+        if (isDedupConflict(e)) return { success: true, deduplicated: true };
+        // 其他錯誤不阻塞（dedup 失敗不影響主流程）
+      }
+    }
+
     const results = [];
     for (const targetId of targetList) {
       if (typeof targetId !== "string" || !targetId) continue;
@@ -3761,6 +3874,10 @@ exports.adjustExp = onCall(
       }
 
       const userData = targetUser.data || {};
+      // auto 只認 users docId：查到的文件必須就是目標本身（不經 uid／lineUserId 欄位轉換）
+      if (mode === "auto" && targetUser.docId !== targetId) {
+        throw denyAutoExp("target_mismatch", { callerUid, ruleKey, hasEventId: false });
+      }
       const oldExp = typeof userData.exp === "number" ? userData.exp : 0;
       const newExp = Math.max(0, oldExp + amount);
 
@@ -3782,7 +3899,13 @@ exports.adjustExp = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       });
       batch.create(db.collection("expLogs").doc(), log);
-      await batch.commit();
+      if (dedupRef && !multiTarget) batch.create(dedupRef, dedupData);
+      try {
+        await batch.commit();
+      } catch (e) {
+        if (dedupRef && !multiTarget && isDedupConflict(e)) return { success: true, deduplicated: true };
+        throw e;
+      }
 
       results.push({
         targetId,
@@ -9998,6 +10121,27 @@ exports.releaseTeamReservations = onSchedule(
     adjustExpInternal,
     settleBestEffortPostCommitOps,
     formatOperationLogTime,
+  }),
+);
+// 活動留言通知（2026-11-09 計畫 v3 批 1）：新留言通知活動管理者與管理員（站內信＋LINE），
+// 收件人、合併視窗、每日上限與文案都在 event-comment-notify.js，這裡只接線。不設 retry（best-effort）。
+exports.onEventCommentCreated = onDocumentCreated(
+  {
+    document: "events/{eventId}/comments/{commentId}",
+    region: "asia-east1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    retry: false,
+  },
+  createOnEventCommentCreatedHandler({
+    db,
+    FieldValue,
+    logger,
+    enqueueLineFromServer,
+    resolveLineNotificationRecipient,
+    parseEventEndDateInTaipei,
+    getAuthUidFromUserDoc,
+    maskUid,
   }),
 );
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(

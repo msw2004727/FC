@@ -26,8 +26,8 @@ const ApiService = {
     return this._withFirestoreFetchTimeout(FirebaseService.listEduCoursePlans(teamId), 18000, 'course plans');
   },
 
-  async listEduStudents(teamId) {
-    return this._withFirestoreFetchTimeout(FirebaseService.listEduStudents(teamId), 18000, 'course students');
+  async listEduStudents(teamId, options) {
+    return this._withFirestoreFetchTimeout(FirebaseService.listEduStudents(teamId, options), 18000, 'course students');
   },
 
   _isCurrentUserRestricted() {

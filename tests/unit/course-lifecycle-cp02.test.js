@@ -2,7 +2,8 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
-function setup(){
+// 課程資料讀取權限收斂（測試同步更新）：學員即時監聽只替幹部掛，用到 listeners 的案例改以幹部身分執行（setup({staff:true})）。
+function setup(opts={}){
   document.body.innerHTML='<div id="edu-detail-tabs"></div><span id="edu-mine-badge"></span><span id="edu-mine-status"></span><div id="edu-detail-tab-content"></div>';
   const requests=[],studentReads=[],listeners=[];
   const user={uid:'viewer-a'};
@@ -13,7 +14,7 @@ function setup(){
     firebase:{firestore:()=>({collection:()=>({doc:()=>({collection:()=>({onSnapshot:cb=>{listeners.push(cb);return ()=>{};}})})})})},
     escapeJsAttr:require('../helpers/event-binding').escapeJsAttr,
     escapeHTML:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'),
-    App:{currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>false,
+    App:{currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>opts.staff===true,
       _loadCourseSessions:async()=>[],_getCourseEnrollCacheKey:()=>null,_todayStr:()=> '2026-09-07',_weekdayLabel:()=>''}};
   ctx.FirebaseService=ctx.ApiService;
   vm.createContext(ctx);
@@ -27,7 +28,7 @@ function setup(){
 }
 describe('CP02 section_refresh',()=>{
   test('active student hydration and repeated snapshots use the real unpaid badge without new course reads',async()=>{
-    const {app,requests,studentReads,listeners,plans}=setup();app._initEduClubDetailSection('a');
+    const {app,requests,studentReads,listeners,plans}=setup({staff:true});app._initEduClubDetailSection('a');
     requests[0].resolve(plans('課程 A'));await flush();
     const student={id:'s',parentUid:'viewer-a',groupIds:['g'],enrollStatus:'active'};
     studentReads[0].resolve([student]);await flush();
@@ -37,14 +38,14 @@ describe('CP02 section_refresh',()=>{
     expect(document.getElementById('edu-mine-badge').textContent).toBe('1');
   });
   test.each(['.edu-cp-detail-btn','.edu-cp-lessons-btn'])('changed card retains focus on %s',async selector=>{
-    const {app,requests,listeners,plans}=setup();app._initEduClubDetailSection('a');
+    const {app,requests,listeners,plans}=setup({staff:true});app._initEduClubDetailSection('a');
     requests[0].resolve(plans('課程 A'));await flush();
     document.querySelector(selector).focus();
     listeners[0]({docs:[{id:'s',data:()=>({parentUid:'viewer-a',groupIds:['g'],enrollStatus:'active'})}]});await flush();
     expect(document.activeElement).toBe(document.querySelector(selector));
   });
   test.each(['snapshot-first','hydration-first'])('%s: one course load and unchanged nodes survive notifications',async order=>{
-    const {app,requests,studentReads,listeners,plans}=setup();app._initEduClubDetailSection('a');
+    const {app,requests,studentReads,listeners,plans}=setup({staff:true});app._initEduClubDetailSection('a');
     requests[0].resolve(plans('課程 A'));await flush();
     const card=document.querySelector('.edu-course-card');const tabs=document.querySelector('.edu-cp-view-tabs');
     expect(card).not.toBeNull();
@@ -60,7 +61,7 @@ describe('CP02 section_refresh',()=>{
     expect(requests).toHaveLength(1);
   });
   test('snapshot beats delayed hydration, including empty snapshots and late failures',async()=>{
-    const {app,studentReads,listeners}=setup();app._startEduStudentsListener('a');
+    const {app,studentReads,listeners}=setup({staff:true});app._startEduStudentsListener('a');
     const read=app._loadEduStudents('a');
     listeners[0]({docs:[]});studentReads[0].resolve([{id:'old'}]);await read;
     expect(app.getEduStudents('a')).toEqual([]);
@@ -87,7 +88,7 @@ describe('CP02 race_retry_isolation',()=>{
     expect(document.querySelector('.edu-course-name').textContent).toBe('new A');
   });
   test('A→B→A route ignores old render and listener callbacks',async()=>{
-    const {app,requests,studentReads,listeners,plans}=setup();
+    const {app,requests,studentReads,listeners,plans}=setup({staff:true});
     app._initEduClubDetailSection('a');app._cleanupEduListeners();app._teamDetailRequestSeq++;
     app._initEduClubDetailSection('b');app._cleanupEduListeners();app._teamDetailRequestSeq++;
     app._initEduClubDetailSection('a');requests[2].resolve(plans('latest A'));await flush();

@@ -27,7 +27,8 @@ async function fixture(page, theme) {
       async listEduStudents() {window.calls.students++;await new Promise(r=>setTimeout(r,90));return [];},
     };
     window.firebase = {firestore:()=>({collection:()=>({doc:()=>({collection:()=>({onSnapshot:callback=>{window.deliverSnapshot=callback;return ()=>{};}})})})})};
-    window.App={currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>false,
+    // 課程資料讀取權限收斂（測試同步更新）：學員即時監聽只替幹部掛，本情境以幹部身分驗證監聽更新不重繪
+    window.App={currentPage:'page-team-detail',_teamDetailRequestSeq:1,isEduClubStaff:()=>true,
       _loadCourseSessions:async()=>[],_getCourseEnrollCacheKey:()=>null,
       _weekdayLabel:()=>'',_todayStr:()=> '2026-09-07'};
   }, require('../helpers/event-binding').escapeJsAttr.toString());

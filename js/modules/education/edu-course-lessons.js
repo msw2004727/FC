@@ -1595,7 +1595,8 @@ Object.assign(App, {
     }
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     let confirmedCountBySessionId = null;
-    if (plan.planType === 'weekly') {
+    // 課程資料讀取權限收斂：已報名數要讀全方案出缺席，只有幹部查詢；非幹部不顯示人數（見 _renderCourseLessonList）
+    if (plan.planType === 'weekly' && isStaff) {
       confirmedCountBySessionId = this._getCachedCourseLessonConfirmedCounts(teamId, planId, sessions)
         || this._buildCourseLessonConfirmedCountBySessionId(sessions, []);
       const liveCounts = await this._startCourseLessonAttendanceCountListener(teamId, planId, sessions);
