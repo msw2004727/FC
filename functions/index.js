@@ -3636,6 +3636,87 @@ exports.commitSecondaryIdentityAvatar = onCall(
 // ═══════════════════════════════════════════════════
 const ADMIN_EXP_PERMISSION = "admin.exp.entry";
 
+// ── 積分調整授權強化：auto 模式目標不是本人時的條件 ──
+// 只放行代發型規則；金額方向與上限依規則固定（register_activity 同 adjustExpInternal 的 +10，
+// 其餘上限取 siteConfig/autoExpRules 現值，A auto-exp 與 B 結算都讀同一份）。
+const AUTO_EXP_DELEGATED_RULE_KEYS = new Set(["complete_activity", "noshow_penalty", "register_activity"]);
+const AUTO_EXP_REGISTER_ACTIVITY_AMOUNT = 10;
+const AUTO_EXP_REQUEST_ID_RE = /^autoexp_(.+?)_(complete_activity|noshow_penalty|register_activity)(?:_(.+))?$/;
+// A 的尾段是時間戳或「預期總額_時間戳_段號」（可為負數），不是活動 ID。
+const AUTO_EXP_NUMERIC_TAIL_RE = /^-?\d+(?:_-?\d+)*$/;
+
+// requestId 形狀：B `autoexp_<uid>_complete_activity_<eventId>`；A `autoexp_<uid>_<ruleKey>_<時間戳…>`。
+function parseAutoExpRequestId(requestId) {
+  if (typeof requestId !== "string") return null;
+  const match = AUTO_EXP_REQUEST_ID_RE.exec(requestId);
+  if (!match) return null;
+  const tail = match[3] || "";
+  return { ruleKey: match[2], eventId: tail && !AUTO_EXP_NUMERIC_TAIL_RE.test(tail) ? tail : "" };
+}
+
+// autoexp_ 開頭的去重鍵必須屬於本次目標。
+function autoExpRequestIdOwnedBy(requestId, ids) {
+  if (typeof requestId !== "string" || !requestId.startsWith("autoexp_")) return true;
+  return ids.some((id) => typeof id === "string" && id && requestId.startsWith(`autoexp_${id}_`));
+}
+
+function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEventId = false }) {
+  logger.warn("autoexp_denied", {
+    reason,
+    ruleKey: typeof ruleKey === "string" ? ruleKey.slice(0, 40) : "",
+    callerRoleLevel,
+    hasEventId,
+    caller: maskUid(callerUid),
+  });
+  return new HttpsError("permission-denied", "Auto mode target not permitted");
+}
+
+async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, requestId, eventId }) {
+  const parsed = parseAutoExpRequestId(requestId);
+  const givenRuleKey = typeof ruleKey === "string" ? ruleKey : "";
+  const effectiveRuleKey = givenRuleKey || parsed?.ruleKey || "";
+  const givenEventId = typeof eventId === "string" ? eventId.trim().slice(0, 128) : "";
+  const targetEventId = givenEventId || parsed?.eventId || "";
+  const logBase = { callerUid, ruleKey: effectiveRuleKey, hasEventId: !!targetEventId };
+
+  if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(effectiveRuleKey)
+    || (givenRuleKey && parsed && parsed.ruleKey !== givenRuleKey)) {
+    throw denyAutoExp("rule_key", logBase);
+  }
+  if (effectiveRuleKey === "register_activity" && amount !== AUTO_EXP_REGISTER_ACTIVITY_AMOUNT) {
+    throw denyAutoExp("amount", logBase);
+  }
+  if ((effectiveRuleKey === "complete_activity" && amount <= 0)
+    || (effectiveRuleKey === "noshow_penalty" && amount >= 0)) {
+    throw denyAutoExp("amount", logBase);
+  }
+
+  const access = await getCallerAccessContext(request);
+  const callerRoleLevel = ROLE_LEVELS[access.role] || 0;
+  const denyBase = { ...logBase, callerRoleLevel };
+  let allowed = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
+  if (!allowed && targetEventId) {
+    const eventDoc = await getEventDocByPublicId(targetEventId);
+    allowed = !!eventDoc && canManageScopedEventForAccess(eventDoc.data() || {}, callerUid);
+  } else if (!allowed) {
+    const [delegateSnap, creatorSnap] = await Promise.all([
+      db.collection("events").where("delegateUids", "array-contains", callerUid).limit(1).get(),
+      db.collection("events").where("creatorUid", "==", callerUid).limit(1).get(),
+    ]);
+    allowed = !delegateSnap.empty || !creatorSnap.empty;
+  }
+  if (!allowed) throw denyAutoExp("caller", denyBase);
+
+  if (effectiveRuleKey !== "register_activity") {
+    const rulesSnap = await db.collection("siteConfig").doc("autoExpRules").get();
+    const ruleAmount = rulesSnap.exists ? (rulesSnap.data() || {})[effectiveRuleKey] : null;
+    if (typeof ruleAmount !== "number" || !Number.isFinite(ruleAmount)
+      || Math.sign(ruleAmount) !== Math.sign(amount) || Math.abs(amount) > Math.abs(ruleAmount)) {
+      throw denyAutoExp("amount", denyBase);
+    }
+  }
+}
+
 exports.adjustExp = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
   async (request) => {
@@ -3644,20 +3725,14 @@ exports.adjustExp = onCall(
     }
 
     const callerUid = request.auth.uid;
-    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey } = request.data || {};
+    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey, eventId } = request.data || {};
 
-    // ── 冪等性保護（可選） ──
-    if (typeof requestId === "string" && requestId.length > 0) {
-      const dedupRef = db.collection("_expDedupe").doc(requestId);
-      try {
-        await dedupRef.create({ callerUid, createdAt: FieldValue.serverTimestamp() });
-      } catch (e) {
-        if (e.code === 6 || e.code === "already-exists") {
-          return { success: true, deduplicated: true };
-        }
-        // 其他錯誤不阻塞（dedup 失敗不影響主流程）
-      }
-    }
+    // ── 冪等性保護（可選）：參數與權限檢查全部通過後才建立，並與 EXP 寫入同一個 batch ──
+    const dedupRef = (typeof requestId === "string" && requestId.length > 0)
+      ? db.collection("_expDedupe").doc(requestId)
+      : null;
+    const dedupData = { callerUid, createdAt: FieldValue.serverTimestamp() };
+    const isDedupConflict = (e) => !!e && (e.code === 6 || e.code === "already-exists");
 
     // ── 參數驗證 ──
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) {
@@ -3677,6 +3752,16 @@ exports.adjustExp = onCall(
       // auto 模式：任何已登入用戶可觸發，限制幅度 ±100 + 冪等性保護
       if (amount < -100 || amount > 100) {
         throw new HttpsError("invalid-argument", "Auto mode amount must be between -100 and +100");
+      }
+      if (!Array.isArray(targets) || targets.length !== 1) {
+        throw new HttpsError("invalid-argument", "Auto mode requires exactly 1 target");
+      }
+      if (typeof targets[0] !== "string" || !targets[0]) {
+        throw new HttpsError("invalid-argument", "Auto mode target must be a non-empty string");
+      }
+      // 目標是本人照舊；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
+      if (targets[0] !== callerUid) {
+        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, requestId, eventId });
       }
     } else {
       // manual / batch / team / teamExp：需要 admin.exp.entry 權限
@@ -3721,7 +3806,13 @@ exports.adjustExp = onCall(
       const batch = db.batch();
       batch.update(teamRef, { teamExp: newExp, updatedAt: FieldValue.serverTimestamp() });
       batch.create(db.collection("teamExpLogs").doc(), log);
-      await batch.commit();
+      if (dedupRef) batch.create(dedupRef, dedupData);
+      try {
+        await batch.commit();
+      } catch (e) {
+        if (dedupRef && isDedupConflict(e)) return { success: true, deduplicated: true };
+        throw e;
+      }
 
       return { success: true, teamId, oldExp, newExp, teamName: teamData.name || teamId };
     }
@@ -3730,10 +3821,7 @@ exports.adjustExp = onCall(
     const targetList = [];
 
     if (mode === "auto") {
-      // auto 模式：單一目標，targets[0] 為 uid
-      if (!Array.isArray(targets) || targets.length !== 1) {
-        throw new HttpsError("invalid-argument", "Auto mode requires exactly 1 target");
-      }
+      // auto 模式：單一目標，targets[0] 為 uid（數量與型別已在權限檢查驗過）
       targetList.push(targets[0]);
     } else if (mode === "batch" || mode === "team") {
       if (!Array.isArray(targets) || targets.length === 0) {
@@ -3751,6 +3839,17 @@ exports.adjustExp = onCall(
       targetList.push(targets[0]);
     }
 
+    // 多目標模式各目標分批寫入，去重鍵維持一次建立；單一目標模式併入該目標的 batch。
+    const multiTarget = mode === "batch" || mode === "team";
+    if (dedupRef && multiTarget) {
+      try {
+        await dedupRef.create(dedupData);
+      } catch (e) {
+        if (isDedupConflict(e)) return { success: true, deduplicated: true };
+        // 其他錯誤不阻塞（dedup 失敗不影響主流程）
+      }
+    }
+
     const results = [];
     for (const targetId of targetList) {
       if (typeof targetId !== "string" || !targetId) continue;
@@ -3761,6 +3860,10 @@ exports.adjustExp = onCall(
       }
 
       const userData = targetUser.data || {};
+      if (mode === "auto" && !autoExpRequestIdOwnedBy(requestId,
+        [targetId, targetUser.docId, userData.uid, userData.lineUserId])) {
+        throw denyAutoExp("request_id_owner", { callerUid, ruleKey, hasEventId: false });
+      }
       const oldExp = typeof userData.exp === "number" ? userData.exp : 0;
       const newExp = Math.max(0, oldExp + amount);
 
@@ -3782,7 +3885,13 @@ exports.adjustExp = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       });
       batch.create(db.collection("expLogs").doc(), log);
-      await batch.commit();
+      if (dedupRef && !multiTarget) batch.create(dedupRef, dedupData);
+      try {
+        await batch.commit();
+      } catch (e) {
+        if (dedupRef && !multiTarget && isDedupConflict(e)) return { success: true, deduplicated: true };
+        throw e;
+      }
 
       results.push({
         targetId,
