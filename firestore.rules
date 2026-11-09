@@ -2303,10 +2303,17 @@ service cloud.firestore {
       }
 
       // ── Education: Students（學員）──
-      // 認證可讀；一般用戶只能建 pending 學員；幹部（含教練）可建任意狀態+改刪
+      // 該隊幹部、canManageAnyTeam、學員本人或家長可讀；一般用戶只能建 pending 學員；幹部（含教練）可建任意狀態+改刪
       // 學員本人/代理人可退學（僅限 enrollStatus → inactive）
+      // 課程資料讀取權限收斂：取代原本「認證可讀」；非幹部的列表查詢要帶 where selfUid／parentUid == 自己
       match /students/{studentId} {
-        allow read: if isAuth();
+        function isEduStudentOwnedByAuth(data) {
+          return isAuth()
+            && (data.get('selfUid', null) == request.auth.uid
+              || data.get('parentUid', null) == request.auth.uid);
+        }
+
+        allow read: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam() || isEduStudentOwnedByAuth(resource.data);
         allow create: if isAuth()
           && hasString('name')
           && (
@@ -3033,7 +3040,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Education Attendance（教育簽到）
-    //  認證可讀；職員可寫；本人/家長僅可建立與移除自己的請假
+    //  職員、名冊代理、本人/家長可讀；職員可寫；本人/家長僅可建立與移除自己的請假
     // ═══════════════════════════════════════════
     match /eduAttendance/{recordId} {
       function canManageEduAttendance(data) {
@@ -3101,7 +3108,12 @@ service cloud.firestore {
           && request.resource.data.status in ['active', 'removed'];
       }
 
-      allow read: if isAuth();
+      // 課程資料讀取權限收斂：取代原本「認證可讀」，比照 coursePlans/{planId}/enrollments 的讀取寫法；
+      // canManageEduAttendance 已含名冊代理（isEduCourseRosterAgent）
+      allow read: if isAuth()
+        && (canManageEduAttendance(resource.data)
+          || isEduAttendanceOwnedByAuth(resource.data)
+          || isEduAttendanceStudentOwnedByAuth(resource.data));
       allow create: if canManageEduAttendance(request.resource.data) || isOwnEduLeaveCreate();
       allow update: if canManageEduAttendance(resource.data) || isOwnEduLeaveStatusUpdate();
       allow delete: if canManageEduAttendance(resource.data);
