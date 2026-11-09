@@ -1,14 +1,15 @@
 "use strict";
 
 /**
- * 活動留言通知（計畫書 event-comment-notify-plan-2026-11-09 v3，批 0）：純函式，不接觸發器、不寫正式資料。
+ * 活動留言通知（計畫書 event-comment-notify-plan-2026-11-09 v3）。
+ * 批 0：純函式。批 1：createOnEventCommentCreatedHandler（index.js 只接線，Firestore 與 LINE helper 由 index.js 注入）。
  * - 收件人與 Rules isCommentManager 逐字一致（admin／super_admin、creatorUid、ownerUid、captainUid、delegateUids）。
  * - 管理者自己留言整則不通知（站長 Q6）；同一場活動 30 分鐘一則、首則立即、尾端不補發（Q1）；私密一律立即發。
  * - 每日上限（_daily_）、_config 讀取（fail-closed）、文案與淨化。
- * Firestore 讀寫、LINE 資格解析等 I/O 一律由呼叫端注入（批 1 的 onEventCommentCreated wiring）。
  */
 
-const { stripControlChars, taipeiDayKey } = require("./notification-fields");
+const { stripControlChars, taipeiDayKey, formatTaipeiDateTime } = require("./notification-fields");
+const { buildInboxMessageDoc } = require("./inbox-message-doc");
 
 const COMMENT_NOTIFY_COLLECTION = "eventCommentNotify";
 const COMMENT_NOTIFY_CONFIG_DOC_ID = "_config";
@@ -606,7 +607,293 @@ function buildCommentNotifyMessages({ eventTitle, authorName, body, isPrivate, b
   return { title, body: text };
 }
 
+// ─── 觸發器 handler（批 1；index.js 只接線） ───
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STATE_EXPIRE_AFTER_END_MS = 7 * DAY_MS;
+const DAILY_EXPIRE_MS = 3 * DAY_MS;
+const LOG_LABEL = "[onEventCommentCreated]";
+
+function requireDependencies(deps, names) {
+  for (const name of names) {
+    if (!deps || deps[name] === undefined || deps[name] === null) throw new TypeError(`${name} is required`);
+  }
+}
+
+function isAlreadyExists(error) {
+  return error?.code === 6 || error?.code === "already-exists" || /ALREADY_EXISTS/.test(String(error?.message));
+}
+
+// log 用：只留錯誤碼與截短訊息，不帶 uid 原值或留言內文。
+function describeError(error) {
+  return {
+    code: String(error?.code ?? "unknown").slice(0, 80),
+    message: String(error?.message ?? error ?? "unknown").slice(0, 200),
+  };
+}
+
+function countBy(list, keyOf) {
+  const out = {};
+  for (const item of list) {
+    const key = keyOf(item);
+    out[key] = (out[key] || 0) + 1;
+  }
+  return out;
+}
+
+/**
+ * onEventCommentCreated（events/{eventId}/comments/{commentId}）的 handler。
+ * 順序（計畫 v3 §3.1～§3.5）：_config → 留言前置過濾 → 活動前置過濾 → 收件人（含 Q6）→ 狀態 transaction（視窗）
+ * → LINE 資格預篩 → _daily_ transaction（站內信上限＋LINE 額度）→ 投遞（allSettled）。
+ * 每次觸發只寫一行結構化 log（uid 一律遮罩、不印內文）；投遞失敗只記錄不拋（R-CF-003），
+ * 主流程意外錯誤記錄後重拋（R-CF-002；觸發器不設 retry，不會重送）。
+ */
+function createOnEventCommentCreatedHandler(deps) {
+  requireDependencies(deps, [
+    "db", "FieldValue", "logger", "enqueueLineFromServer", "resolveLineNotificationRecipient",
+    "parseEventEndDateInTaipei", "getAuthUidFromUserDoc", "maskUid",
+  ]);
+  const {
+    db, FieldValue, logger, enqueueLineFromServer, resolveLineNotificationRecipient,
+    parseEventEndDateInTaipei, getAuthUidFromUserDoc, maskUid,
+  } = deps;
+  const now = typeof deps.now === "function" ? deps.now : Date.now;
+  const configCache = {};
+  const collection = () => db.collection(COMMENT_NOTIFY_COLLECTION);
+
+  return async function onEventCommentCreated(event) {
+    const eventDocId = event?.params?.eventId;
+    const commentId = event?.params?.commentId;
+    const log = { eventDocId: maskUid(eventDocId), commentId: maskUid(commentId) };
+    const finish = (outcome, extra = {}) => {
+      Object.assign(log, { outcome }, extra);
+      const degraded = Boolean(
+        log.inbox?.failed
+        || (log.line && Object.keys(log.line.failed).length)
+        || log.capsTxFailed
+        || log.resolveErrors
+        || log.configError,
+      );
+      (degraded ? logger.warn : logger.info)(LOG_LABEL, log);
+    };
+
+    try {
+      const snap = event?.data;
+      if (!snap || typeof snap.data !== "function") return finish("skip", { skipReason: "no_snapshot" });
+
+      const config = await readConfigWithFallback({
+        readConfigDoc: async () => {
+          const configSnap = await collection().doc(COMMENT_NOTIFY_CONFIG_DOC_ID).get();
+          return configSnap.exists ? configSnap.data() : null;
+        },
+        nowMs: now(),
+        cache: configCache,
+      });
+      log.configStatus = config.status;
+      if (config.status !== "ok") log.configNote = "config_missing_line_disabled";
+      if (config.error) log.configError = describeError(config.error);
+      if (!config.enabled) return finish("skip", { skipReason: "disabled" });
+
+      const comment = snap.data();
+      const commentCheck = precheckComment(comment);
+      if (!commentCheck.ok) return finish("skip", { skipReason: commentCheck.reason });
+      const isPrivate = commentCheck.isPrivate;
+      log.kind = isPrivate ? "private" : "public";
+
+      // 視窗與每日鍵用留言 createdAt（Rules 強制等於 request.time，重送時基準不變）；缺值才用觸發當下時間。
+      const createdAtFromDoc = timestampToMs(comment.createdAt);
+      const createdAtMs = createdAtFromDoc ?? now();
+      if (createdAtFromDoc === null) log.nowSource = "trigger_time";
+
+      const keys = buildCommentNotifyKeys({ eventDocId, commentId, nowMs: createdAtMs });
+      if (!keys.stateDocId) return finish("skip", { skipReason: "reserved_event_doc_id" });
+
+      const eventSnap = await db.collection("events").doc(eventDocId).get();
+      const eventData = eventSnap.exists ? eventSnap.data() : null;
+      const eventCheck = precheckCommentEvent({ eventData, commentCreatedAtMs: createdAtMs, parseEventEndDateInTaipei });
+      if (!eventCheck.ok) return finish("skip", { skipReason: eventCheck.reason });
+
+      // 管理員不快取（降級者不殘留；管理員 2 人，每次 2 讀）。
+      const adminSnap = await db.collection("users").where("role", "in", ["admin", "super_admin"]).get();
+      const adminEntries = adminSnap.docs.map((doc) => ({
+        docId: doc.id,
+        uid: getAuthUidFromUserDoc({ docId: doc.id, data: doc.data() || {} }, doc.id),
+      }));
+      const resolved = resolveCommentNotifyRecipients({ eventData, authorUid: comment.authorUid, adminEntries });
+      Object.assign(log, {
+        recipients: resolved.recipients.length,
+        managers: resolved.managers.length,
+        admins: resolved.admins.length,
+        adminDocIdMismatch: resolved.adminDocIdMismatch,
+        recipientsCapped: resolved.recipientsCapped,
+        undeliverable: resolved.undeliverable,
+      });
+      // Q6：管理者自己留言整則不通知、不寫狀態（不佔視窗）。
+      if (resolved.skip) return finish("skip", { skipReason: resolved.skip });
+      if (resolved.recipients.length === 0) return finish("skip", { skipReason: "no_recipients" });
+
+      // 狀態文件 expireAt：活動結束＋7 天；活動沒有可判讀的結束時間時用留言時間＋7 天（TTL policy 不在本案，只預留欄位）。
+      const stateExpireAtMs = (eventCheck.endMs ?? createdAtMs) + STATE_EXPIRE_AFTER_END_MS;
+      const stateRef = collection().doc(keys.stateDocId);
+      const decision = await db.runTransaction(async (tx) => {
+        const stateSnap = await tx.get(stateRef);
+        const result = decideCommentNotify({
+          state: stateSnap.exists ? stateSnap.data() : null,
+          nowMs: createdAtMs,
+          commentId,
+          isPrivate,
+        });
+        if (result.nextState) {
+          tx.set(stateRef, {
+            ...result.nextState,
+            updatedAt: FieldValue.serverTimestamp(),
+            expireAt: new Date(stateExpireAtMs),
+          });
+        }
+        return result;
+      });
+      log.action = decision.action;
+      if (decision.action === "skip_duplicate") return finish("skip", { skipReason: "duplicate" });
+      if (decision.action === "accumulate") return finish("accumulate");
+      log.batchCount = decision.batchCount;
+
+      // LINE 資格預篩（不扣額度）；shadowEligible 不管 _config，供升級前 shadow 回報。
+      const eligibility = await filterLineEligibleRecipients({
+        recipients: resolved.recipients,
+        admins: resolved.admins,
+        config,
+        resolveRecipient: resolveLineNotificationRecipient,
+      });
+      log.shadowEligible = eligibility.shadowEligible;
+      log.lineSkipped = eligibility.skipped;
+      if (eligibility.resolveErrors.length) {
+        log.resolveErrors = eligibility.resolveErrors.slice(0, 5).map(({ uid, error }) => ({
+          uid: maskUid(uid), ...describeError(error),
+        }));
+      }
+
+      const dailyRef = collection().doc(keys.dailyDocId);
+      let caps;
+      try {
+        caps = await db.runTransaction(async (tx) => {
+          const dailySnap = await tx.get(dailyRef);
+          const result = decideCommentLineCaps({
+            daily: dailySnap.exists ? dailySnap.data() : null,
+            authorUid: comment.authorUid,
+            lineCandidates: eligibility.lineCandidates,
+            caps: config.caps,
+          });
+          // 整份 set（uid 是 map 鍵，不用 update 的點號路徑）；shouldWrite=false 時完全不寫。
+          if (result.shouldWrite) {
+            tx.set(dailyRef, {
+              ...result.nextDaily,
+              updatedAt: FieldValue.serverTimestamp(),
+              expireAt: new Date(createdAtMs + DAILY_EXPIRE_MS),
+            });
+          }
+          return result;
+        });
+      } catch (error) {
+        // fail-closed：本次不發 LINE；站內信照寫（§3.4 第 5 步），但這則不會計入 inboxByAuthor（log capsTxFailed 可查）。
+        log.capsTxFailed = describeError(error);
+        caps = {
+          inboxAllowed: true,
+          lineRecipients: [],
+          lineCapped: eligibility.lineCandidates.map((uid) => ({ uid, reason: "comment_cap_tx_failed" })),
+          reason: "comment_cap_tx_failed",
+        };
+      }
+      if (caps.lineCapped.length) log.lineCapped = countBy(caps.lineCapped, (item) => item.reason);
+      if (caps.reason) log.capReason = caps.reason;
+      if (!caps.inboxAllowed) return finish("skip", { skipReason: "inbox_author_capped" });
+
+      const messages = buildCommentNotifyMessages({
+        eventTitle: eventData.title,
+        authorName: comment.authorName,
+        body: comment.body,
+        isPrivate,
+        batchCount: decision.batchCount,
+      });
+      const inboxDoc = buildInboxMessageDoc({
+        id: keys.inboxMessageId,
+        title: messages.title,
+        body: messages.body,
+        type: "activity",
+        typeName: "活動",
+        time: formatTaipeiDateTime(now()),
+        senderName: "系統",
+        fromUid: "system",
+        actionType: "event_comment",
+        // 必須是 null：'pending' 會讓 B 當成待審核（Opus P2-2）。
+        actionStatus: null,
+        meta: {
+          eventDocId,
+          eventId: typeof eventData.id === "string" && eventData.id ? eventData.id : eventDocId,
+          commentId,
+          eventTitle: typeof eventData.title === "string" ? eventData.title.slice(0, 100) : "",
+        },
+      }, { createdAt: FieldValue.serverTimestamp() });
+
+      // 只寫 users/{uid}/inbox：舊路徑 messages/{auto} 的 recipientUid 查無 A 前端與 Rules 讀取者（同 team-join-review）。
+      const inboxOps = resolved.recipients.map(async (uid) => {
+        try {
+          await db.collection("users").doc(uid).collection("inbox").doc(keys.inboxMessageId).create(inboxDoc);
+          return "written";
+        } catch (error) {
+          if (isAlreadyExists(error)) return "duplicate";
+          throw error;
+        }
+      });
+      // requestedByRole 'admin' 是刻意的：改 'system' 會落到 user 池、所有留言共用 system 呼叫者 100/日上限（Opus P3-5）。
+      // 走 staff 池不受 targetPerDay 12；濫用由 _daily_ 上限承擔；source 足以追查。
+      const lineOps = caps.lineRecipients.map((uid) => enqueueLineFromServer({
+        uid,
+        title: messages.title,
+        body: messages.body,
+        category: COMMENT_NOTIFY_CATEGORY,
+        source: COMMENT_NOTIFY_SOURCE,
+        dedupeKey: keys.dedupeKey,
+        requestedByUid: "system",
+        requestedByRole: "admin",
+      }));
+      const [inboxResults, lineResults] = await Promise.all([
+        Promise.allSettled(inboxOps),
+        Promise.allSettled(lineOps),
+      ]);
+
+      log.inbox = { written: 0, duplicate: 0, failed: 0 };
+      inboxResults.forEach((outcome) => {
+        if (outcome.status === "fulfilled") {
+          log.inbox[outcome.value] += 1;
+        } else {
+          log.inbox.failed += 1;
+          if (!log.inboxError) log.inboxError = describeError(outcome.reason);
+        }
+      });
+      log.line = { queued: 0, skipped: {}, failed: {} };
+      lineResults.forEach((outcome) => {
+        if (outcome.status === "rejected") {
+          const detail = describeError(outcome.reason);
+          const key = /RATE_LIMITED/.test(detail.message) ? "rate_limited" : detail.code;
+          log.line.failed[key] = (log.line.failed[key] || 0) + 1;
+        } else if (outcome.value?.queued) {
+          log.line.queued += 1;
+        } else {
+          const reason = String(outcome.value?.reason || "unknown");
+          log.line.skipped[reason] = (log.line.skipped[reason] || 0) + 1;
+        }
+      });
+      return finish("sent");
+    } catch (error) {
+      Object.assign(log, { outcome: "error", error: describeError(error) });
+      logger.error(LOG_LABEL, log);
+      throw error;
+    }
+  };
+}
+
 module.exports = {
+  createOnEventCommentCreatedHandler,
   COMMENT_NOTIFY_COLLECTION,
   COMMENT_NOTIFY_CONFIG_DOC_ID,
   COMMENT_NOTIFY_DAILY_PREFIX,
