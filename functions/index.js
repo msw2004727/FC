@@ -3636,14 +3636,22 @@ exports.commitSecondaryIdentityAvatar = onCall(
 // ═══════════════════════════════════════════════════
 const ADMIN_EXP_PERMISSION = "admin.exp.entry";
 
-// ── 積分調整授權強化：auto 模式目標不是本人時的條件 ──
-// 只放行代發型規則；金額方向與上限依規則固定（register_activity 同 adjustExpInternal 的 +10，
-// 其餘上限取 siteConfig/autoExpRules 現值，A auto-exp 與 B 結算都讀同一份）。
+// ── 積分調整授權強化：auto 模式的 requestId 與「目標不是本人」條件 ──
+// 代發只放行三種規則：complete_activity 正值、register_activity 固定 +10（同 adjustExpInternal）、
+// noshow_penalty 依呼叫者分級；金額上限一律沿用 auto 的 ±100，不另讀規則設定。
 const AUTO_EXP_DELEGATED_RULE_KEYS = new Set(["complete_activity", "noshow_penalty", "register_activity"]);
 const AUTO_EXP_REGISTER_ACTIVITY_AMOUNT = 10;
-const AUTO_EXP_REQUEST_ID_RE = /^autoexp_(.+?)_(complete_activity|noshow_penalty|register_activity)(?:_(.+))?$/;
+// 格式：autoexp_<目標 uid>_<規則>[_<尾段>]；uid 段不含底線（LINE／QA uid 皆然），以此切段完全比對。
+const AUTO_EXP_REQUEST_ID_RE = /^autoexp_([A-Za-z0-9-]{1,128})_(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_([^\s/]{1,160}))?$/;
 // A 的尾段是時間戳或「預期總額_時間戳_段號」（可為負數），不是活動 ID。
 const AUTO_EXP_NUMERIC_TAIL_RE = /^-?\d+(?:_-?\d+)*$/;
+// A 沒帶活動 ID 時的退回查詢：依序查，命中即停。
+const AUTO_EXP_RELATION_FALLBACK_QUERIES = Object.freeze([
+  ["creatorUid", "=="],
+  ["ownerUid", "=="],
+  ["captainUid", "=="],
+  ["delegateUids", "array-contains"],
+]);
 
 // requestId 形狀：B `autoexp_<uid>_complete_activity_<eventId>`；A `autoexp_<uid>_<ruleKey>_<時間戳…>`。
 function parseAutoExpRequestId(requestId) {
@@ -3651,21 +3659,14 @@ function parseAutoExpRequestId(requestId) {
   const match = AUTO_EXP_REQUEST_ID_RE.exec(requestId);
   if (!match) return null;
   const tail = match[3] || "";
-  return { ruleKey: match[2], eventId: tail && !AUTO_EXP_NUMERIC_TAIL_RE.test(tail) ? tail : "" };
+  return {
+    ownerUid: match[1],
+    ruleKey: match[2],
+    eventId: tail && !AUTO_EXP_NUMERIC_TAIL_RE.test(tail) ? tail : "",
+  };
 }
 
-// auto 模式的去重鍵必須是 `autoexp_<目標 docId 或 uid>_<規則>…`；uid 段之後必須緊接規則名，前綴相同的 uid 不算吻合。
-const AUTO_EXP_RULE_KEY_PREFIX_RE = /^(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_|$)/;
-function autoExpRequestIdOwnedBy(requestId, ids) {
-  if (typeof requestId !== "string" || requestId.length === 0) return true;
-  return ids.some((id) => {
-    if (typeof id !== "string" || !id) return false;
-    const prefix = `autoexp_${id}_`;
-    return requestId.startsWith(prefix) && AUTO_EXP_RULE_KEY_PREFIX_RE.test(requestId.slice(prefix.length));
-  });
-}
-
-function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEventId = false }) {
+function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEventId = false }, code = "permission-denied") {
   logger.warn("autoexp_denied", {
     reason,
     ruleKey: typeof ruleKey === "string" ? ruleKey.slice(0, 40) : "",
@@ -3673,27 +3674,28 @@ function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEv
     hasEventId,
     caller: maskUid(callerUid),
   });
-  return new HttpsError("permission-denied", "Auto mode target not permitted");
+  return new HttpsError(code, "Auto mode target not permitted");
 }
 
-async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, requestId, eventId }) {
-  const parsed = parseAutoExpRequestId(requestId);
-  const givenRuleKey = typeof ruleKey === "string" ? ruleKey : "";
-  const effectiveRuleKey = givenRuleKey || parsed?.ruleKey || "";
-  const givenEventId = typeof eventId === "string" ? eventId.trim().slice(0, 128) : "";
-  const targetEventId = givenEventId || parsed?.eventId || "";
-  const logBase = { callerUid, ruleKey: effectiveRuleKey, hasEventId: !!targetEventId };
+async function hasAnyEventRelationForUid(uid) {
+  for (const [field, op] of AUTO_EXP_RELATION_FALLBACK_QUERIES) {
+    const snap = await db.collection("events").where(field, op, uid).limit(1).get();
+    if (!snap.empty) return true;
+  }
+  return false;
+}
 
-  // 代發一律要有可解析的去重鍵（歸屬目標另於讀到目標文件後嚴格比對）
-  if (!parsed) throw denyAutoExp("request_id", logBase);
-  if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(effectiveRuleKey)
-    || (givenRuleKey && parsed.ruleKey !== givenRuleKey)) {
+async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed, eventId }) {
+  const givenRuleKey = typeof ruleKey === "string" ? ruleKey : "";
+  const givenEventId = typeof eventId === "string" ? eventId.trim().slice(0, 128) : "";
+  const targetEventId = givenEventId || parsed.eventId;
+  const logBase = { callerUid, ruleKey: parsed.ruleKey, hasEventId: !!targetEventId };
+
+  if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(parsed.ruleKey) || (givenRuleKey && givenRuleKey !== parsed.ruleKey)) {
     throw denyAutoExp("rule_key", logBase);
   }
-  if (effectiveRuleKey === "register_activity" && amount !== AUTO_EXP_REGISTER_ACTIVITY_AMOUNT) {
-    throw denyAutoExp("amount", logBase);
-  }
-  if (effectiveRuleKey === "complete_activity" && amount <= 0) {
+  if ((parsed.ruleKey === "register_activity" && amount !== AUTO_EXP_REGISTER_ACTIVITY_AMOUNT)
+    || (parsed.ruleKey === "complete_activity" && amount <= 0)) {
     throw denyAutoExp("amount", logBase);
   }
 
@@ -3701,29 +3703,18 @@ async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, 
   const callerRoleLevel = ROLE_LEVELS[access.role] || 0;
   const denyBase = { ...logBase, callerRoleLevel };
   const privileged = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
+  // 只靠活動關係通過者，放鴿子只能扣分；管理者可雙向（A 對帳與補正會退分）
+  if (parsed.ruleKey === "noshow_penalty" && !privileged && amount >= 0) {
+    throw denyAutoExp("amount", denyBase);
+  }
   let allowed = privileged;
   if (!allowed && targetEventId) {
     const eventDoc = await getEventDocByPublicId(targetEventId);
     allowed = !!eventDoc && canManageScopedEventForAccess(eventDoc.data() || {}, callerUid);
   } else if (!allowed) {
-    const [delegateSnap, creatorSnap] = await Promise.all([
-      db.collection("events").where("delegateUids", "array-contains", callerUid).limit(1).get(),
-      db.collection("events").where("creatorUid", "==", callerUid).limit(1).get(),
-    ]);
-    allowed = !delegateSnap.empty || !creatorSnap.empty;
+    allowed = await hasAnyEventRelationForUid(callerUid);
   }
   if (!allowed) throw denyAutoExp("caller", denyBase);
-
-  if (effectiveRuleKey !== "register_activity") {
-    const rulesSnap = await db.collection("siteConfig").doc("autoExpRules").get();
-    const ruleAmount = rulesSnap.exists ? (rulesSnap.data() || {})[effectiveRuleKey] : null;
-    const withinRule = typeof ruleAmount === "number" && Number.isFinite(ruleAmount)
-      && Math.sign(ruleAmount) === Math.sign(amount) && Math.abs(amount) <= Math.abs(ruleAmount)
-      && (effectiveRuleKey !== "noshow_penalty" || amount < 0);
-    if (!withinRule) {
-      throw denyAutoExp("amount", denyBase);
-    }
-  }
 }
 
 exports.adjustExp = onCall(
@@ -3768,9 +3759,19 @@ exports.adjustExp = onCall(
       if (typeof targets[0] !== "string" || !targets[0]) {
         throw new HttpsError("invalid-argument", "Auto mode target must be a non-empty string");
       }
+      // requestId：本人可不帶；有帶（或代發）就必須是白名單格式，且 uid 段等於目標
+      const parsedRequestId = parseAutoExpRequestId(requestId);
+      const autoLog = { callerUid, ruleKey, hasEventId: false };
+      const hasRequestId = requestId !== undefined && requestId !== null && requestId !== "";
+      if ((hasRequestId || targets[0] !== callerUid) && !parsedRequestId) {
+        throw denyAutoExp("request_id", autoLog, "invalid-argument");
+      }
+      if (parsedRequestId && parsedRequestId.ownerUid !== targets[0]) {
+        throw denyAutoExp("request_id_owner", autoLog);
+      }
       // 目標是本人照舊；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
       if (targets[0] !== callerUid) {
-        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, requestId, eventId });
+        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed: parsedRequestId, eventId });
       }
     } else {
       // manual / batch / team / teamExp：需要 admin.exp.entry 權限
@@ -3869,12 +3870,9 @@ exports.adjustExp = onCall(
       }
 
       const userData = targetUser.data || {};
-      if (mode === "auto" && targetId === callerUid
-        && targetUser.docId !== callerUid && userData.uid !== callerUid) {
+      // auto 只認 users docId：查到的文件必須就是目標本身（不經 uid／lineUserId 欄位轉換）
+      if (mode === "auto" && targetUser.docId !== targetId) {
         throw denyAutoExp("target_mismatch", { callerUid, ruleKey, hasEventId: false });
-      }
-      if (mode === "auto" && !autoExpRequestIdOwnedBy(requestId, [targetUser.docId, userData.uid])) {
-        throw denyAutoExp("request_id_owner", { callerUid, ruleKey, hasEventId: false });
       }
       const oldExp = typeof userData.exp === "number" ? userData.exp : 0;
       const newExp = Math.max(0, oldExp + amount);
