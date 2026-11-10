@@ -110,6 +110,7 @@ describe('recordProfileView callable（人氣指數：不同的人看過）', ()
       { targetUid: 'a/b' },
       { targetUid: '../x' },
       { targetUid: 'x'.repeat(129) },
+      { targetUid: '__reserved__' },
     ]) {
       await expect(h.call('viewer-a', data)).rejects.toMatchObject({ code: 'invalid-argument' });
     }
@@ -217,6 +218,19 @@ describe('recordProfileView callable（人氣指數：不同的人看過）', ()
     expect(logged).not.toContain('viewer-secret');
     expect(logged).not.toContain('target-secret');
     expect(logged).toContain('aborted');
+  });
+
+  test('commit 時 create 去重文件遇到 already-exists（並發）：回 already，不當成錯誤、不記 error log', async () => {
+    for (const code of ['already-exists', 6]) {
+      const h = createHarness();
+      h.db.runTransaction.mockImplementationOnce(async () => {
+        const error = new Error('already exists');
+        error.code = code;
+        throw error;
+      });
+      await expect(h.call()).resolves.toEqual({ status: 'already' });
+      expect(h.logger.error).not.toHaveBeenCalled();
+    }
   });
 
   test('createRecordProfileViewCallable 用 asia-east1、最小執行個體 0 呼叫 onCall', () => {
