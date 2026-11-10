@@ -14,6 +14,7 @@ const logger = require("firebase-functions/logger");
 const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
+const { createRecordProfileViewCallable } = require("./profile-view-count");
 const { createIssueQaTestTokenCallable } = require("./qa-test-mode");
 const { createAutoPromoteTeamRoleCallable } = require("./team-role-promotion");
 const { createRoleGraphLoader } = require("./role-hierarchy");
@@ -85,6 +86,12 @@ exports.listUserDirectory = createListUserDirectoryCallable({
 });
 
 exports.incrementEventViewCount = createIncrementEventViewCountCallable({
+  onCall,
+  HttpsError,
+  db,
+});
+
+exports.recordProfileView = createRecordProfileViewCallable({
   onCall,
   HttpsError,
   db,
