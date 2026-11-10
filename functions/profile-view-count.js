@@ -3,6 +3,8 @@
 const crypto = require("crypto");
 
 const TARGET_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+// Firestore 保留的文件 ID（前後各兩個底線，如 __x__）不能用，擋在這裡回 invalid-argument。
+const RESERVED_ID_PATTERN = /^__.*__$/;
 const PROFILE_POPULARITY_COLLECTION = "profilePopularity";
 const PROFILE_VIEWERS_SUBCOLLECTION = "viewers";
 const USERS_COLLECTION = "users";
@@ -12,7 +14,7 @@ const USERS_COLLECTION = "users";
 // 沒有管理員／新帳號排除（站長拿掉）；去重文件不設 expireAt、永久保留。
 function sanitizeTargetUid(value, HttpsError) {
   const normalized = typeof value === "string" ? value.trim() : "";
-  if (!TARGET_UID_PATTERN.test(normalized)) {
+  if (!TARGET_UID_PATTERN.test(normalized) || RESERVED_ID_PATTERN.test(normalized)) {
     throw new HttpsError("invalid-argument", "targetUid is invalid");
   }
   return normalized;
@@ -98,6 +100,11 @@ function createRecordProfileViewHandler({
       });
     } catch (error) {
       if (error instanceof HttpsError) throw error;
+      // 同一觀看者同時送出兩次：commit 時 create 去重文件遇到「已存在」（gRPC 6／already-exists）。
+      // 計數沒有重複，視為已看過，不要回錯誤。
+      if (error?.code === 6 || error?.code === "already-exists") {
+        return { status: "already" };
+      }
       if (logger && typeof logger.error === "function") {
         logger.error("[recordProfileView] transaction failed", {
           key: hashProfileViewKey(viewerUid, targetUid),

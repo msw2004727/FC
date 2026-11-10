@@ -3803,9 +3803,11 @@ service cloud.firestore {
     match /userAttendanceStatsQueue/{uid} {
       allow read, write: if false;
     }
-    // 人氣指數：父文件公開唯讀；觀看去重只由伺服器讀寫（不使用遞迴萬用字元）。
+    // 人氣指數：父文件只開放單筆讀取（get），不開放列舉（list，避免任何人列出所有被看過的 uid）；
+    // 觀看去重只由伺服器讀寫（不使用遞迴萬用字元）。
     match /profilePopularity/{uid} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if false;
       allow write: if false;
       match /viewers/{viewerUid} {
         allow read, write: if false;

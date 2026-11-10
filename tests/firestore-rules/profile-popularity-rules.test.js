@@ -5,7 +5,7 @@ const {
   assertFails,
   assertSucceeds,
 } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, collectionGroup } = require('firebase/firestore');
 
 // projectId 只能小寫（見 rules-budget skill）。
 const PROJECT_ID = 'demo-profile-popularity-rules';
@@ -48,6 +48,12 @@ describe('profilePopularity（人氣指數）', () => {
     await assertSucceeds(getDoc(doc(member('uidA'), 'profilePopularity', 'uidA')));
   });
 
+  test('不能列舉整個 profilePopularity 集合（避免任何人列出所有被看過的 uid）', async () => {
+    for (const db of [guest(), member('uidZ'), member('uidA'), member('adminX', 'admin')]) {
+      await assertFails(getDocs(collection(db, 'profilePopularity')));
+    }
+  });
+
   test('任何人（含登入者、本人、admin）都不能寫計數文件', async () => {
     for (const db of [guest(), member('uidZ'), member('uidA'), member('adminX', 'admin'), member('rootX', 'super_admin')]) {
       await assertFails(setDoc(doc(db, 'profilePopularity', 'uidA'), { views: 9999 }));
@@ -63,6 +69,7 @@ describe('profilePopularity（人氣指數）', () => {
       await assertFails(getDocs(collection(db, 'profilePopularity', 'uidA', 'viewers')));
       await assertFails(setDoc(doc(db, 'profilePopularity', 'uidA', 'viewers', 'uidNew'), { viewerUid: 'uidNew' }));
       await assertFails(deleteDoc(doc(db, 'profilePopularity', 'uidA', 'viewers', 'uidB')));
+      await assertFails(getDocs(collectionGroup(db, 'viewers')));
     }
   });
 });
