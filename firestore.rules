@@ -3803,6 +3803,14 @@ service cloud.firestore {
     match /userAttendanceStatsQueue/{uid} {
       allow read, write: if false;
     }
+    // 人氣指數：父文件公開唯讀；觀看去重只由伺服器讀寫（不使用遞迴萬用字元）。
+    match /profilePopularity/{uid} {
+      allow read: if true;
+      allow write: if false;
+      match /viewers/{viewerUid} {
+        allow read, write: if false;
+      }
+    }
     // 通知發送授權強化：計數與去重標記只由 Admin SDK 讀寫
     match /notificationGuardCounters/{docId} {
       allow read, write: if false;
