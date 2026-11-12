@@ -105,6 +105,7 @@ exports.listUserDirectory = createListUserDirectoryCallable({
 exports.incrementEventViewCount = createIncrementEventViewCountCallable({
   onCall,
   HttpsError,
+  FieldValue,
   db,
 });
 
