@@ -22,7 +22,7 @@ paths:
 | 每次修改即 bump vs release batch／獨立內容頁 | R-REL-006～009 | POLICY_CLARIFIED |
 | UI 禁硬編色碼 vs modal 固定值 | R-UI-005、R-UI-010～011 | CONFLICT_RESOLVED |
 | 必須用 `ui-*` vs 尚未實作 | R-UI-012～014 | STALE_FACT_CORRECTED |
-| event-share 真人去 Mini App vs網站 | R-SHARE-004～006 | FINAL_BEHAVIOR |
+| event-share 真人去 Mini App vs網站（2026-11-12 取代原「一律網站」：改為 LINE 內 → Mini App、其他 → 網站，站長 11-11 選①②都做、顧問 §3.117） | R-SHARE-004～006 | FINAL_BEHAVIOR |
 | 所有 QR 都用分享 URL | R-SHARE-004 | SCOPE_CORRECTED |
 | skip 規則衝突 | R-QA-004～007 | CONFLICT_RESOLVED |
 | review 與 tests 順序 | R-REVIEW-001～006、R-SHIP-014～015 | ORDER_CANONICALIZED |

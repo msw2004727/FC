@@ -18,11 +18,11 @@ paths:
 
 ## 13. Exact Contract Registry：分享
 
-- **R-SHARE-001 [A/HARD]**：LINE 分享 builder 統一 `MINI_APP_BASE_URL`，禁散落 base URL。query：`?event=`、`?team=`、`?tournament=`、`?profile=`。
+- **R-SHARE-001 [A/HARD]**：LINE 分享 builder 統一 `MINI_APP_BASE_URL`（Functions 端統一 `SHARE_MINI_APP_BASE_URL`，2026-11-12 補，原 `teamShareOg` 區域 `MINI_APP_ID` 已併入），禁散落 base URL。query：`?event=`、`?team=`、`?tournament=`、`?profile=`。
 - **R-SHARE-002 [B/HARD]**：根網址 `toosterx.com/?event|team|tournament|profile=...` 保留中繼至 Mini App。
 - **R-SHARE-003 [B/HARD]**：舊 `liff.line.me` 相容，新分享禁生成；分享模組 `[備用]` 舊 URL 註解保留。
-- **R-SHARE-004 [A/HARD]**：LINE 好友／群組、`shareTargetPicker`、Flex、分享／邀請 QR 用 Mini App URL。`page-qrcode`／身份簽到 QR 必須 raw LINE UID，禁套分享 URL。
-- **R-SHARE-005 [A/HARD]**：活動複製連結 `_buildEventShareOgUrl(eventId)` → `/event-share/{id}`；crawler 留預覽，真人到網站 `/events/{id}`，不 Mini App、不顯手動開啟。
+- **R-SHARE-004 [A/HARD]**：LINE 好友／群組、`shareTargetPicker`、Flex、分享／邀請 QR 用 Mini App URL。`page-qrcode`／身份簽到 QR 必須 raw LINE UID，禁套分享 URL。新站的 LINE 純文字分享與系統分享可改用活動 OG 中繼 `/event-share/{id}`（真人在 LINE 內由 R-SHARE-005 導向 Mini App）；`shareTargetPicker` 的 Flex 按鈕與 altText 仍用 Mini App URL。（2026-11-12 補：取代原「LINE 分享只能直接帶 Mini App URL」的隱含限制，為了讓社群純文字分享也有活動預覽圖；站長 11-11 選①②都做，顧問 §3.117。）
+- **R-SHARE-005 [A/HARD]**：活動複製連結 `_buildEventShareOgUrl(eventId)` → `/event-share/{id}`；crawler 留預覽、不跳轉，輸出不含跳轉腳本。活動存在時真人頁對所有 UA 回同一份 HTML，由 `<head>` 內腳本以 `EVENT_SHARE_LINE_USER_AGENT_RE`（`/\bLine\//i`）判斷：LINE App 內 → Mini App `SHARE_MINI_APP_BASE_URL` + `?event=`；其他瀏覽器、腳本例外或 `<noscript>` → 網站 `/events/{id}`；一律 `location.replace`，不顯手動開啟。查無活動或讀取失敗 → `/`，不給 Mini App。腳本內嵌值一律經 `toInlineScriptJson`。（2026-11-12 取代原「真人到網站 `/events/{id}`、不 Mini App」：站長 11-11 選①②都做、顧問 §3.117 裁定乙案頁面內判斷，讓 LINE 內點分享連結直接開 Mini App、爬蟲輸出不變；這是導向調整，不是放寬安全規則。）
 - **R-SHARE-006 [B/HARD]**：`/team-share/{id}` 真人目前到 Mini App。其他實體啟用 OG copy-link 時同批 builder、worker route、CF handler、tests。
 - **R-SHARE-007 [B/HARD]**：優先序：`liff.shareTargetPicker()` Flex → copy-link → `navigator.share()`／`_copyToClipboard()` fallback。
 - **R-SHARE-008 [B/HARD]**：新增分享比照 `event-share.js`：Action Sheet、Flex、防連點、altText 最長 400 字、逐級 fallback。
