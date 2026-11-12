@@ -57,9 +57,6 @@ jobs:
       - run: npm run test:rules
 
   e2e-smoke-tests:
-    # 積極版（2026-11-12）：PR 不跑 e2e（PR 多為 Functions／Rules 後端改動，舊站前端凍結），
-    # main push 照跑；取代原本 PR 與 main push 都跑。
-    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04  # 2026-11-07：ubuntu-latest 已是 26.04，Playwright 1.59.1 不支援，釘 24.04
     timeout-minutes: 35
     steps:
