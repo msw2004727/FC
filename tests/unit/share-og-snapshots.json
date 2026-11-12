@@ -1,0 +1,150 @@
+{
+  "_note": "改前快照：由 origin/main 86450431b 的 functions/index.js 以 share-og-test-harness.js 產生（SC-2）；爬蟲、查無活動的真人、隊伍版輸出必須逐位元組相同。",
+  "baseSha": "86450431b",
+  "cases": {
+    "event crawler ev_share facebookexternalhit/1.1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta property=\"og:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_share?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta name=\"twitter:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_share facebookexternalhit/1.1;line-poker/1.0": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta property=\"og:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_share?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta name=\"twitter:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_sport facebookexternalhit/1.1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>週三足球｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"週三足球｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"2026/11/21\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/sports/football.jpg?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_sport?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"週三足球｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"2026/11/21\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/sports/football.jpg?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_sport facebookexternalhit/1.1;line-poker/1.0": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>週三足球｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"週三足球｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"2026/11/21\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/sports/football.jpg?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_sport?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"週三足球｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"2026/11/21\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/sports/football.jpg?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_cover facebookexternalhit/1.1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>網球交流｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"網球交流｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"新北\">\n  <meta property=\"og:image\" content=\"https://firebasestorage.googleapis.com/v0/b/demo/o/cover-tennis\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_cover?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"網球交流｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"新北\">\n  <meta name=\"twitter:image\" content=\"https://firebasestorage.googleapis.com/v0/b/demo/o/cover-tennis\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_cover facebookexternalhit/1.1;line-poker/1.0": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>網球交流｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"網球交流｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"新北\">\n  <meta property=\"og:image\" content=\"https://firebasestorage.googleapis.com/v0/b/demo/o/cover-tennis\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_cover?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"網球交流｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"新北\">\n  <meta name=\"twitter:image\" content=\"https://firebasestorage.googleapis.com/v0/b/demo/o/cover-tennis\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_default facebookexternalhit/1.1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>路跑｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"路跑｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_default?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"路跑｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_default facebookexternalhit/1.1;line-poker/1.0": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>路跑｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"路跑｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_default?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"路跑｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_missing facebookexternalhit/1.1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 活動</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 活動\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_missing?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 活動\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_missing facebookexternalhit/1.1;line-poker/1.0": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 活動</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 活動\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_missing?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 活動\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler ev_share 帶 v 與 query eventId": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta property=\"og:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_share?v=abc1\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"Share &lt;Title&gt; &amp; &quot;Q&quot; &#39;s｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"2026/11/20 19:00 · 台北市 &lt;場地&gt; · 3/12 人\">\n  <meta name=\"twitter:image\" content=\"https://cdn.example.com/share.jpg\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event crawler 空 eventId": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 活動</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 活動\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 活動\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n\n</head>\n<body>\n  <main aria-hidden=\"true\" hidden></main>\n</body>\n</html>"
+    },
+    "event human ev_missing（LINE）": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 活動</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 活動\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_missing?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 活動\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://toosterx.com/\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://toosterx.com/\");\n  </script>\n</body>\n</html>"
+    },
+    "event human ev_missing（Safari）": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 活動</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 活動\">\n  <meta property=\"og:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/event-share/ev_missing?v=20260707\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 活動\">\n  <meta name=\"twitter:description\" content=\"在 ToosterX Hub 上瀏覽並報名運動活動\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://toosterx.com/\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://toosterx.com/\");\n  </script>\n</body>\n</html>"
+    },
+    "team human tm_1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"這是在ToosterX Hub上創立的「測試&lt;俱樂部&gt;」俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta property=\"og:image\" content=\"https://cdn.example.com/team.jpg\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/team-share/tm_1\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"這是在ToosterX Hub上創立的「測試&lt;俱樂部&gt;」俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta name=\"twitter:image\" content=\"https://cdn.example.com/team.jpg\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://miniapp.line.me/2009525300-AuPGQ0sh?team=tm_1\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://miniapp.line.me/2009525300-AuPGQ0sh?team=tm_1\");\n  </script>\n</body>\n</html>"
+    },
+    "team crawler tm_1": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub</title>\n  <meta property=\"og:title\" content=\"加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub\">\n  <meta property=\"og:description\" content=\"這是在ToosterX Hub上創立的「測試&lt;俱樂部&gt;」俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta property=\"og:image\" content=\"https://cdn.example.com/team.jpg\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/team-share/tm_1\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"加入「測試&lt;俱樂部&gt;」俱樂部｜ToosterX Hub\">\n  <meta name=\"twitter:description\" content=\"這是在ToosterX Hub上創立的「測試&lt;俱樂部&gt;」俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta name=\"twitter:image\" content=\"https://cdn.example.com/team.jpg\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://miniapp.line.me/2009525300-AuPGQ0sh?team=tm_1\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://miniapp.line.me/2009525300-AuPGQ0sh?team=tm_1\");\n  </script>\n</body>\n</html>"
+    },
+    "team human tm_missing": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 俱樂部邀請</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 俱樂部邀請\">\n  <meta property=\"og:description\" content=\"這是在ToosterX Hub上創立的俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/team-share/tm_missing\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 俱樂部邀請\">\n  <meta name=\"twitter:description\" content=\"這是在ToosterX Hub上創立的俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://toosterx.com/\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://toosterx.com/\");\n  </script>\n</body>\n</html>"
+    },
+    "team crawler tm_missing": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=60, s-maxage=300"
+      },
+      "body": "<!doctype html>\n<html lang=\"zh-Hant\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <title>ToosterX Hub 俱樂部邀請</title>\n  <meta property=\"og:title\" content=\"ToosterX Hub 俱樂部邀請\">\n  <meta property=\"og:description\" content=\"這是在ToosterX Hub上創立的俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta property=\"og:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta property=\"og:url\" content=\"https://toosterx.com/team-share/tm_missing\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta name=\"twitter:card\" content=\"summary_large_image\">\n  <meta name=\"twitter:title\" content=\"ToosterX Hub 俱樂部邀請\">\n  <meta name=\"twitter:description\" content=\"這是在ToosterX Hub上創立的俱樂部，誠摯邀請您加入俱樂部，跟我們一起享受活動~\">\n  <meta name=\"twitter:image\" content=\"https://toosterx.com/assets/og/default.png?v=20260707\">\n  <meta name=\"robots\" content=\"noindex,nofollow\">\n  <meta http-equiv=\"refresh\" content=\"0;url=https://toosterx.com/\">\n</head>\n<body>\n  <script>\n    location.replace(\"https://toosterx.com/\");\n  </script>\n</body>\n</html>"
+    }
+  }
+}

@@ -6478,3 +6478,28 @@ describe('cold-start batch 1(a): lazy Storage admin contract', () => {
       });
   });
 });
+
+// ===========================================================================
+// SC-2：分享 OG 中繼頁改前快照（爬蟲、查無活動的真人、隊伍版必須逐位元組不變）
+// ===========================================================================
+describe('share OG 中繼頁：改前快照逐位元組比對', () => {
+  const { renderShareOgSnapshotCases } = require('./share-og-test-harness');
+  const snapshots = require('./share-og-snapshots.json');
+
+  test('快照情境齊全（有指定分享圖、運動公版、封面、預設、活動不存在、隊伍版）', () => {
+    const names = Object.keys(snapshots.cases);
+    for (const id of ['ev_share', 'ev_sport', 'ev_cover', 'ev_default', 'ev_missing']) {
+      expect(names.some(name => name.startsWith(`event crawler ${id} `))).toBe(true);
+    }
+    expect(names).toContain('team human tm_1');
+    expect(names).toContain('team crawler tm_missing');
+  });
+
+  test('目前程式的輸出與改前快照逐位元組相同', async () => {
+    const rendered = await renderShareOgSnapshotCases();
+    for (const [name, expected] of Object.entries(snapshots.cases)) {
+      expect({ name, ...rendered[name] }).toEqual({ name, ...expected });
+      expect(Buffer.from(rendered[name].body, 'utf8').equals(Buffer.from(expected.body, 'utf8'))).toBe(true);
+    }
+  });
+});
