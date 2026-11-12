@@ -6430,3 +6430,51 @@ describe('event comment notify trigger contract', () => {
     expect(source.slice(toggleStart, source.indexOf(']);', toggleStart))).not.toContain('event_comment');
   });
 });
+
+describe('cold-start batch 1(a): lazy Storage admin contract', () => {
+  // 冷啟動計畫批 1(a)：Storage 實例改第一次使用時才建立（行為測試在 storage-admin-lazy.test.js）。
+  const readIndexSource = () => fs.readFileSync(path.join(__dirname, '..', '..', 'functions', 'index.js'), 'utf8')
+    .replace(/\r\n/g, '\n');
+
+  test('getStorage() is only called inside getStorageAdmin(), never at module top level', () => {
+    const source = readIndexSource();
+    expect(source).toContain('const { getStorage } = require("firebase-admin/storage");');
+    // 雙引號字串與 // 註解換成等長空白再比對（位置不變），避免 log 文字與註解誤判成呼叫。
+    const code = source.replace(/"(?:[^"\\\n]|\\.)*"|\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+    const getterStart = code.indexOf('\nfunction getStorageAdmin() {\n');
+    expect(getterStart).toBeGreaterThanOrEqual(0);
+    const getterEnd = code.indexOf('\n}\n', getterStart + 1);
+    const callSites = [...code.matchAll(/\bgetStorage\s*\(/g)].map((m) => m.index);
+    expect(callSites).toHaveLength(1);
+    expect(callSites[0]).toBeGreaterThan(getterStart);
+    expect(callSites[0]).toBeLessThan(getterEnd);
+    expect(code).not.toMatch(/^(?:const|let|var)\s+\w+\s*=\s*getStorage\s*\(/m);
+    // 舊的頂層常數名不得再被直接使用（只允許 getter 內部的 _storageAdmin）。
+    expect(code).not.toMatch(/(?<![\w$])storageAdmin\b/);
+  });
+
+  test('getStorageAdmin() logs structured error and rethrows when Storage cannot be created', () => {
+    const source = readIndexSource();
+    const getter = source.slice(
+      source.indexOf('\nfunction getStorageAdmin() {\n'),
+      source.indexOf('\n}\n', source.indexOf('\nfunction getStorageAdmin() {\n') + 1),
+    );
+    expect(getter).toContain('logger.error("[getStorageAdmin] getStorage() failed", {');
+    expect(getter).toContain('throw err;');
+    expect(readCloudFunctionSource('commitSecondaryIdentityAvatar')).toContain('const file = getStorageAdmin()');
+  });
+
+  test('CHANGE_WATCH_FUNCTION_OPTIONS default memory is 256MiB and all four watchers still pin 256MiB', () => {
+    const block = readSourceBetween('const CHANGE_WATCH_FUNCTION_OPTIONS = Object.freeze({', '});');
+    expect(block).toContain('memory: "256MiB"');
+    expect(block).not.toContain('128MiB');
+    expect(block).toContain('region: "asia-east1"');
+    expect(block).toContain('cpu: "gcf_gen1"');
+    ['watchUsersChanges', 'watchEventsChanges', 'watchRegistrationsChanges', 'watchAttendanceChanges']
+      .forEach((name) => {
+        const fnSource = readCloudFunctionSource(name);
+        expect(fnSource).toContain('...CHANGE_WATCH_FUNCTION_OPTIONS,');
+        expect(fnSource).toContain('memory: "256MiB"');
+      });
+  });
+});

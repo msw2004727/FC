@@ -77,7 +77,24 @@ const crypto = require("crypto");
 initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
-const storageAdmin = getStorage();
+// 2026-11-12 冷啟動批 1(a)：取代原本模組載入時就建立 Storage 實例（頂層 storageAdmin 常數）的寫法。
+// 建立實例會載入 @google-cloud/storage（本機量測約佔冷啟動 require 0.14 s），117 支函式只有
+// commitSecondaryIdentityAvatar 用到，改為第一次使用時才建立並重用同一實例；契約測試禁止頂層建立。
+let _storageAdmin;
+function getStorageAdmin() {
+  if (!_storageAdmin) {
+    try {
+      _storageAdmin = getStorage();
+    } catch (err) {
+      logger.error("[getStorageAdmin] getStorage() failed", {
+        code: err?.code || "",
+        message: err?.message || String(err),
+      });
+      throw err;
+    }
+  }
+  return _storageAdmin;
+}
 
 exports.listUserDirectory = createListUserDirectoryCallable({
   onCall,
@@ -401,10 +418,12 @@ const TRANSLATE_QUOTA = Object.freeze({
   MONTHLY_CHAR_LIMIT: 5_000_000,   // 每月上限字元數（500 萬）
   WARNING_THRESHOLD:  0.8,          // 警告閾值（80%）
 });
+// 2026-11-12 冷啟動批 1(a)：memory 128MiB→256MiB。四個使用處（watchUsers／Events／Registrations／AttendanceChanges）
+// 早已各自覆寫 256MiB，128MiB 是死設定（冷啟動載入 index.js 即貼上限會 OOM）；改預設不改變任何已部署設定。
 const CHANGE_WATCH_FUNCTION_OPTIONS = Object.freeze({
   region: "asia-east1",
   timeoutSeconds: 15,
-  memory: "128MiB",
+  memory: "256MiB",
   cpu: "gcf_gen1",
   maxInstances: 2,
 });
@@ -3599,7 +3618,7 @@ exports.commitSecondaryIdentityAvatar = onCall(
       return { success: true, cleared: true };
     }
 
-    const file = storageAdmin
+    const file = getStorageAdmin()
       .bucket(commit.avatarStorageBucket)
       .file(commit.avatarStoragePath);
     let metadata;

@@ -335,7 +335,8 @@ class HttpsError extends Error {
 }
 
 // 載入整份 functions/index.js；getFirestore() 回傳的 db 會轉給 harness.current（每個測試換一個假 DB）。
-function loadFunctionsIndex() {
+// options.stubs 可覆寫個別模組的假實作（例如 "firebase-admin/storage"），未指定者沿用預設。
+function loadFunctionsIndex(options = {}) {
   const file = path.join(__dirname, "..", "..", "functions", "index.js");
   const source = fs.readFileSync(file, "utf8");
   const realRequire = Module.createRequire(file);
@@ -383,6 +384,7 @@ function loadFunctionsIndex() {
     "firebase-admin/auth": { getAuth: () => inert() },
     "firebase-functions/logger": logger,
     "firebase-admin/storage": { getStorage: () => inert() },
+    ...(options.stubs || {}),
   };
   const localRequire = (name) => (stubs[name] ? stubs[name] : realRequire(name));
   const consoleProxy = {
