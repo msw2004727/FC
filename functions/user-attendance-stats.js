@@ -21,6 +21,10 @@ const SUMMARY_COLLECTION = "userAttendanceStats";
 const QUEUE_COLLECTION = "userAttendanceStatsQueue";
 const EVENT_ID_QUERY_CHUNK = 30;
 const WRITE_BATCH_SIZE = 400;
+// O4（顧問 §3.117）：retry: true 的觸發器失敗會被重送最長 7 天，遇到必定失敗的資料會一路重算。
+// 事件發生超過此年齡就記 log 放棄，由 reconcileUserAttendanceStatsWeekly 每週把相關 uid 全部重新入隊補算。
+// 只套用在週對帳補得到的觸發器（三支入隊觸發器與佇列重算）；旗標觸發器不套，週對帳不重算 eventAttendanceFlags。
+const MAX_RETRY_EVENT_AGE_MS = 2 * 60 * 60 * 1000;
 
 function safeUid(value) {
   const uid = normalizeText(value);
@@ -153,6 +157,27 @@ async function enqueueUserAttendanceStats({ db, FieldValue, uids, reason }) {
     await batch.commit();
   }
   return targets.length;
+}
+
+function eventAgeMs(event, nowMs = Date.now()) {
+  const eventMs = Date.parse(normalizeText(event?.time));
+  return Number.isFinite(eventMs) ? Math.max(0, nowMs - eventMs) : 0;
+}
+
+// 事件過舊就記 log 並回 true（呼叫端直接結束、不丟錯，觸發器便不再重試）；路徑參數一律遮罩。
+function dropStaleRetryEvent(fnName, event, nowMs = Date.now()) {
+  const ageMs = eventAgeMs(event, nowMs);
+  if (ageMs <= MAX_RETRY_EVENT_AGE_MS) return false;
+  const params = {};
+  Object.entries(event?.params || {}).forEach(([key, value]) => {
+    params[key] = maskUid(normalizeText(value));
+  });
+  console.warn(`[${fnName}] stale event dropped without retry; weekly reconcile will recompute`, {
+    params,
+    ageMinutes: Math.round(ageMs / 60000),
+    maxAgeMinutes: MAX_RETRY_EVENT_AGE_MS / 60000,
+  });
+  return true;
 }
 
 function changedRecordUids(event, uidField) {
@@ -335,27 +360,28 @@ function createUserAttendanceStatsExports({
     cpu: "gcf_gen1",
     retry: true,
   };
-  const enqueueChanged = (uidField, reason) => async (event) => (
-    enqueueUserAttendanceStats({
+  const enqueueChanged = (fnName, uidField, reason) => async (event) => {
+    if (dropStaleRetryEvent(fnName, event)) return 0;
+    return enqueueUserAttendanceStats({
       db,
       FieldValue,
       uids: changedRecordUids(event, uidField),
       reason,
-    })
-  );
+    });
+  };
 
   return {
     onUserAttendanceRegistrationWrite: onDocumentWritten(
       { ...sourceOptions, document: "events/{eventId}/registrations/{recordId}" },
-      enqueueChanged("userId", "registration_write"),
+      enqueueChanged("onUserAttendanceRegistrationWrite", "userId", "registration_write"),
     ),
     onUserAttendanceRecordWrite: onDocumentWritten(
       { ...sourceOptions, document: "events/{eventId}/attendanceRecords/{recordId}" },
-      enqueueChanged("uid", "attendance_write"),
+      enqueueChanged("onUserAttendanceRecordWrite", "uid", "attendance_write"),
     ),
     onUserAttendanceActivityWrite: onDocumentWritten(
       { ...sourceOptions, document: "events/{eventId}/activityRecords/{recordId}" },
-      enqueueChanged("uid", "activity_write"),
+      enqueueChanged("onUserAttendanceActivityWrite", "uid", "activity_write"),
     ),
     onUserAttendanceEventWrite: onDocumentWritten(
       { ...sourceOptions, document: "events/{eventId}", memory: "256MiB" },
@@ -417,11 +443,16 @@ function createUserAttendanceStatsExports({
       },
       async (event) => {
         if (!event?.data?.after?.exists) return;
+        if (dropStaleRetryEvent("rebuildUserAttendanceStatsFromQueue", event)) return;
         const uid = safeUid(event.params?.uid);
         const generation = Number(event.data.after.data()?.generation || 0);
         if (!uid || !generation) return;
-        const payload = await calculateUserAttendanceSummary({ db, Timestamp, uid });
         const queueRef = db.collection(QUEUE_COLLECTION).doc(uid);
+        // O4：一次報名同時寫 registration 與 activityRecord，佇列連被寫兩次；計算前先看佇列是否已是較新世代或已處理完，
+        // 是就交給較新的那次事件算。條件與下方交易的丟棄條件相同，只是提早到讀整份歷史之前。
+        const currentSnap = await queueRef.get();
+        if (!currentSnap.exists || Number(currentSnap.data()?.generation || 0) !== generation) return;
+        const payload = await calculateUserAttendanceSummary({ db, Timestamp, uid });
         await db.runTransaction(async (transaction) => {
           const queueSnap = await transaction.get(queueRef);
           if (!queueSnap.exists || Number(queueSnap.data()?.generation || 0) !== generation) return;
@@ -472,6 +503,7 @@ function createUserAttendanceStatsExports({
 
 module.exports = {
   ATTENDANCE_FLAG_COLLECTION,
+  MAX_RETRY_EVENT_AGE_MS,
   QUEUE_COLLECTION,
   SUMMARY_COLLECTION,
   calculateUserAttendanceSummary,
