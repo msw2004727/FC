@@ -16,9 +16,12 @@ on:
       - '.claude/skills/**'
       - '.claude/agent-dispatch.json'
 
+# main 的群組含 github.sha、每個 SHA 自成一組且不取消：cancel-in-progress: false 只保護執行中的 run，
+# 同群組「排隊中」的 run 仍會被更新的 run 擠掉，連推多次 main 時中間 SHA 會沒有紀錄（顧問 §3.119）。
+# PR 的 ref 是 refs/pull/N/merge（每個 PR 一組、新 push 取消舊 run）。
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   unit-tests:
