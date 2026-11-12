@@ -2430,20 +2430,20 @@ describe('Activity detail host contact and companion action labels', () => {
 
   test('host row resolves cached nickname instead of rendering raw uid', () => {
     const app = loadEventDetailModule();
-    app._findUserByUid = jest.fn(() => ({ uid: 'U7774e1410479bafff4997f51b2c47b95', displayName: 'Coach Ada' }));
+    app._findUserByUid = jest.fn(() => ({ uid: 'U_test_host', displayName: 'Coach Ada' }));
     app._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || fallback || uid);
     app._userTag = jest.fn(name => `<span class="user-capsule">${name}</span>`);
 
     const html = app._buildEventHostRowHtml({
       id: 'event-1',
-      creator: 'U7774e1410479bafff4997f51b2c47b95',
-      creatorUid: 'U7774e1410479bafff4997f51b2c47b95',
+      creator: 'U_test_host',
+      creatorUid: 'U_test_host',
     });
 
-    expect(app._findUserByUid).toHaveBeenCalledWith('U7774e1410479bafff4997f51b2c47b95');
-    expect(app._userTag).toHaveBeenCalledWith('Coach Ada', null, { uid: 'U7774e1410479bafff4997f51b2c47b95' });
+    expect(app._findUserByUid).toHaveBeenCalledWith('U_test_host');
+    expect(app._userTag).toHaveBeenCalledWith('Coach Ada', null, { uid: 'U_test_host' });
     expect(html).toContain('Coach Ada');
-    expect(html).not.toContain('>U7774e1410479bafff4997f51b2c47b95<');
+    expect(html).not.toContain('>U_test_host<');
   });
 
   test('companion signup and mixed cancel flows expose precise busy and warning states', () => {
