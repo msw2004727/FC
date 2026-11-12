@@ -1,10 +1,24 @@
 name: Test Suite
 
+# 2026-11-12 CI 省時（ci-cost-trim）：
+# - paths-ignore 只排除測試確定不讀的檔（.claude/skills、agent-dispatch 設定）；
+#   CLAUDE.md、.claude/rules、scripts/qa-test-mode/README.md 有測試讀取，不可排除。
+# - concurrency：同一 PR 新 push 取消舊 run；main push 不取消，每個 main SHA 都保留完整結果。
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '.claude/skills/**'
+      - '.claude/agent-dispatch.json'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '.claude/skills/**'
+      - '.claude/agent-dispatch.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   unit-tests:
