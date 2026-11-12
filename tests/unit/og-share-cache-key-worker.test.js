@@ -45,6 +45,22 @@ describe('OG share edge cache key（爬蟲／真人分開）', () => {
     ]);
   });
 
+  // SC-2 乙案：真人頁不依 LINE 內外分版本（頁面內判斷），所以 LINE 與非 LINE 真人共用同一快取項、worker 不必改鍵。
+  test('LINE 內與其他瀏覽器的真人共用同一個快取項', async () => {
+    const upstream = jest.fn(async () => new Response('human-version', { status: 200 }));
+    const { worker, store } = loadWorker(upstream);
+    const url = 'https://toosterx.com/event-share/ce_1?v=20260707';
+
+    const line = await worker.fetch(new Request(url, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone) Mobile/15E148 Safari Line/15.19.0' } }), { waitUntil() {} });
+    expect(await line.text()).toBe('human-version');
+    await new Promise(resolve => setImmediate(resolve));
+    const safari = await worker.fetch(new Request(url, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone) Version/18.1 Mobile/15E148 Safari/604.1' } }), { waitUntil() {} });
+    expect(await safari.text()).toBe('human-version');
+
+    expect(upstream).toHaveBeenCalledTimes(1);
+    expect([...store.keys()]).toEqual([`${url}&__ogbot=0`]);
+  });
+
   test('爬蟲正規式與 Functions 一致', () => {
     const pick = source => source.match(/const OG_CRAWLER_USER_AGENT_RE = (\/.*\/i);/)?.[1];
     expect(pick(read('_worker.js'))).toBeTruthy();

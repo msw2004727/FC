@@ -88,10 +88,16 @@ describe('event share OG assets', () => {
     expect(source).toContain('location.replace');
   });
 
-  test('event-share sends humans to the web event detail, not Mini App', () => {
+  // 測試同步更新（SC-2，站長 11-11 選①②都做，顧問 §3.117）：取代原「真人一律到網頁版、不得出現 Mini App」，
+  // 改為真人頁同時帶網頁版與 Mini App 兩個目標（頁面內判斷 LINE 內才去 Mini App），Mini App 只在活動存在時出現。
+  // 實際跳轉行為與 UA 樣本由 cloud-functions.test.js 的 SC-2 區塊在模擬瀏覽器執行驗證。
+  test('event-share human page carries web and Mini App targets; Mini App only when the event exists', () => {
     const source = readProjectFile('functions/index.js');
     expect(source).toContain('`${SHARE_SITE_ORIGIN}/events/${encodedEventId}`');
-    expect(source).not.toContain('`https://miniapp.line.me/${MINI_APP_ID}?event=${encodedEventId}`');
+    expect(source).toContain('const SHARE_MINI_APP_BASE_URL = "https://miniapp.line.me/2009525300-AuPGQ0sh"');
+    expect(source).toContain('const EVENT_SHARE_LINE_USER_AGENT_RE = /\\bLine\\//i');
+    expect(source).toMatch(/const miniAppUrl = \(eventId && event\)\s+\? `\$\{SHARE_MINI_APP_BASE_URL\}\?event=\$\{encodedEventId\}`\s+: "";/);
+    expect(source).toContain('<noscript><meta http-equiv="refresh"');
     expect(source).not.toContain('Open ToosterX');
   });
 

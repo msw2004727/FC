@@ -639,6 +639,14 @@ const EVENT_SPORT_SHARE_OG_IMAGES = Object.freeze({
   dodgeball: `${SHARE_SITE_ORIGIN}/assets/og/sports/dodgeball.jpg?v=${OG_ASSET_VERSION}`,
 });
 const OG_CRAWLER_USER_AGENT_RE = /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|whatsapp|pinterest|skypeuripreview|linespider|googlebot|google-inspectiontool|applebot|embedly|quora link preview|outbrain|vkshare|tumblr|threads)/i;
+// LINE Mini App 分享基底：Functions 內唯一出處（R-SHARE-001／R-SHARE-010），值與前端 MINI_APP_BASE_URL 相同。
+const SHARE_MINI_APP_BASE_URL = "https://miniapp.line.me/2009525300-AuPGQ0sh";
+// LINE App 內建瀏覽器判斷，與 FC-B event-share.ts 相同；只用於 event-share 真人頁的頁面內分流與 UA 分類記錄。
+const EVENT_SHARE_LINE_USER_AGENT_RE = /\bLine\//i;
+// SC-2 UA 取樣：只記分類＋UA 前 120 字（不記 IP／uid／query／eventId），預計 2026-11-13 部署、記 7 天，
+// 到 2026-11-20 00:00（台北）自動停記；部署日若晚於 11-13，部署前同批改成部署日＋7 天。
+const EVENT_SHARE_UA_LOG_UNTIL = "2026-11-20T00:00:00+08:00";
+const EVENT_SHARE_UA_LOG_UNTIL_MS = Date.parse(EVENT_SHARE_UA_LOG_UNTIL);
 
 function normalizeRole(role) {
   if (typeof role !== "string") return "user";
@@ -10488,10 +10496,9 @@ exports.teamShareOg = onRequest(
     const ogImage = sanitizeImageUrl(
       team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
     );
-    const MINI_APP_ID = "2009525300-AuPGQ0sh";
     // [備用] 舊 LIFF_ID：const LIFF_ID = "2009084941-zgn7tQOp";
     const redirectUrl = (teamId && team)
-      ? `https://miniapp.line.me/${MINI_APP_ID}?team=${encodedTeamId}`
+      ? `${SHARE_MINI_APP_BASE_URL}?team=${encodedTeamId}`
       : `${SHARE_SITE_ORIGIN}/`;
     // [備用] 舊 LIFF 跳轉：`https://liff.line.me/${LIFF_ID}?team=${encodedTeamId}`
     const html = buildTeamShareHtml({
@@ -10632,25 +10639,73 @@ function buildEventShareUrl(eventId, req) {
   return `${baseUrl}?v=${encodeURIComponent(getEventShareUrlVersion(req))}`;
 }
 
-function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectUrl, shouldRedirect = true }) {
+const INLINE_SCRIPT_UNSAFE_CHAR_RE = new RegExp(`[<>&${String.fromCharCode(0x2028, 0x2029)}]`, "g");
+
+// 放進 <script> 的值一律 JSON.stringify，再把 < > & 與 U+2028／U+2029 改成 \uXXXX，
+// 讓 "</script>" 之類的內容無法提前結束腳本。
+function toInlineScriptJson(value) {
+  return JSON.stringify(String(value ?? "")).replace(
+    INLINE_SCRIPT_UNSAFE_CHAR_RE,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`
+  );
+}
+
+function classifyEventShareUserAgent(userAgent, isCrawler) {
+  if (isCrawler) return "crawler";
+  return EVENT_SHARE_LINE_USER_AGENT_RE.test(String(userAgent || "")) ? "line" : "other";
+}
+
+function shouldLogEventShareUserAgent(nowMs = Date.now()) {
+  return Number.isFinite(EVENT_SHARE_UA_LOG_UNTIL_MS) && nowMs < EVENT_SHARE_UA_LOG_UNTIL_MS;
+}
+
+function logEventShareUserAgentSample(req, isCrawler, nowMs = Date.now()) {
+  if (!shouldLogEventShareUserAgent(nowMs)) return;
+  const userAgent = String(req.get?.("user-agent") || req.headers?.["user-agent"] || "").trim();
+  console.log("[eventShareOg] ua-sample", {
+    kind: classifyEventShareUserAgent(userAgent, isCrawler),
+    ua: userAgent.slice(0, 120),
+  });
+}
+
+// SC-2 乙案：爬蟲頁與查無活動的真人頁維持原樣；活動存在時，真人頁對 LINE 內外一律回同一份 HTML，
+// 由頁面內腳本判斷 LINE App 內 → Mini App，其他瀏覽器、判斷錯誤 → 網頁版，<noscript> → 網頁版；一律 location.replace。
+function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectUrl, miniAppUrl = "", shouldRedirect = true }) {
   const escapedTitle = escapeHtml(ogTitle);
   const escapedDescription = escapeHtml(ogDescription);
   const escapedImage = escapeHtml(ogImage);
   const escapedOgUrl = escapeHtml(ogUrl);
   const escapedRedirectUrl = escapeHtml(redirectUrl);
-  const scriptRedirectUrl = JSON.stringify(redirectUrl);
-  const redirectMeta = shouldRedirect
-    ? `  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">\n`
+  const scriptRedirectUrl = toInlineScriptJson(redirectUrl);
+  const splitByLine = shouldRedirect && !!miniAppUrl;
+  const lineSplitScript = splitByLine
+    ? `  <script>
+    (function () {
+      var webUrl = ${scriptRedirectUrl};
+      try {
+        location.replace(${EVENT_SHARE_LINE_USER_AGENT_RE}.test(navigator.userAgent || "") ? ${toInlineScriptJson(miniAppUrl)} : webUrl);
+      } catch (e) {
+        location.replace(webUrl);
+      }
+    })();
+  </script>\n`
     : "";
-  const redirectScript = shouldRedirect
-    ? `  <script>\n    location.replace(${scriptRedirectUrl});\n  </script>\n`
-    : `  <main aria-hidden="true" hidden></main>\n`;
+  const redirectMeta = !shouldRedirect
+    ? ""
+    : splitByLine
+      ? `  <noscript><meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}"></noscript>\n`
+      : `  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">\n`;
+  const redirectScript = !shouldRedirect
+    ? `  <main aria-hidden="true" hidden></main>\n`
+    : splitByLine
+      ? ""
+      : `  <script>\n    location.replace(${scriptRedirectUrl});\n  </script>\n`;
 
   return `<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+${lineSplitScript}  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${escapedTitle}</title>
   <meta property="og:title" content="${escapedTitle}">
   <meta property="og:description" content="${escapedDescription}">
@@ -10777,13 +10832,19 @@ exports.eventShareOg = onRequest(
     const redirectUrl = (eventId && event)
       ? `${SHARE_SITE_ORIGIN}/events/${encodedEventId}`
       : `${SHARE_SITE_ORIGIN}/`;
+    // Mini App 目標只在活動存在時給；查無活動沿用原行為（真人到首頁、不跳 Mini App）。
+    const miniAppUrl = (eventId && event)
+      ? `${SHARE_MINI_APP_BASE_URL}?event=${encodedEventId}`
+      : "";
     const shouldRedirect = !isOgCrawlerRequest(req);
+    logEventShareUserAgentSample(req, !shouldRedirect);
     const html = buildEventShareHtml({
       ogTitle,
       ogDescription,
       ogImage,
       ogUrl: eventShareUrl,
       redirectUrl,
+      miniAppUrl,
       shouldRedirect,
     });
 

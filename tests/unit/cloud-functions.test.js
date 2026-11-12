@@ -6503,3 +6503,225 @@ describe('share OG 中繼頁：改前快照逐位元組比對', () => {
     }
   });
 });
+
+// ===========================================================================
+// SC-2 乙案：eventShareOg 真人頁依 LINE 內外分流（頁面內判斷，伺服器回同一份 HTML）
+// ===========================================================================
+describe('eventShareOg 真人頁 LINE 分流（SC-2 乙案）', () => {
+  const {
+    SHARE_OG_FIXTURE_EVENTS,
+    createShareOgFakeDb,
+    loadShareOgHandlers,
+    createShareOgRequest,
+    runShareOgHandler,
+  } = require('./share-og-test-harness');
+
+  const MINI_APP = 'https://miniapp.line.me/2009525300-AuPGQ0sh';
+  const WEB = 'https://toosterx.com/events/';
+  const UA = {
+    lineIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/15.19.0',
+    lineAndroid: 'Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36 Line/15.19.1/IAB',
+    lineLiff: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Line/15.19.0 LIFF',
+    iosSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+    androidChrome: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+    desktopChrome: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    facebookApp: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/480.0.0.0]',
+    instagram: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0',
+    empty: '',
+    pipeline: 'Pipeline/1.0',
+    lineage: 'Lineage/2',
+  };
+  const CRAWLER_UAS = ['facebookexternalhit/1.1', 'linespider', 'facebookexternalhit/1.1;line-poker/1.0'];
+  const QUIET = { log() {}, warn() {}, error() {} };
+
+  function load(events = SHARE_OG_FIXTURE_EVENTS, consoleImpl = QUIET) {
+    return loadShareOgHandlers({ db: createShareOgFakeDb({ events }), consoleImpl });
+  }
+
+  async function render(handlers, eventId, userAgent) {
+    return runShareOgHandler(
+      handlers.eventShareOg,
+      createShareOgRequest({ path: `/${encodeURIComponent(eventId)}`, userAgent })
+    );
+  }
+
+  function inlineScripts(html) {
+    return [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]);
+  }
+
+  // 在模擬瀏覽器裡實際執行頁面腳本，回傳 location.replace 收到的目標。
+  function runPageScript(html, { userAgent, navigatorThrows = false, replaceThrowsOnce = false } = {}) {
+    const calls = [];
+    let thrown = false;
+    const navigator = {};
+    Object.defineProperty(navigator, 'userAgent', {
+      get() {
+        if (navigatorThrows) throw new Error('navigator 不可用');
+        return userAgent;
+      },
+    });
+    const location = {
+      replace(url) {
+        calls.push(url);
+        if (replaceThrowsOnce && !thrown) {
+          thrown = true;
+          throw new Error('replace 失敗');
+        }
+      },
+    };
+    for (const script of inlineScripts(html)) {
+      vm.runInNewContext(script, { navigator, location });
+    }
+    return calls;
+  }
+
+  test.each([
+    ['LINE iOS', UA.lineIos, 'mini'],
+    ['LINE Android IAB', UA.lineAndroid, 'mini'],
+    ['LINE LIFF', UA.lineLiff, 'mini'],
+    ['iOS Safari', UA.iosSafari, 'web'],
+    ['Android Chrome', UA.androidChrome, 'web'],
+    ['桌機 Chrome', UA.desktopChrome, 'web'],
+    ['Facebook App（FBAN/FBIOS）', UA.facebookApp, 'web'],
+    ['Instagram', UA.instagram, 'web'],
+    ['空字串', UA.empty, 'web'],
+    ['Pipeline/1.0（Line/ 前非字界不中）', UA.pipeline, 'web'],
+    ['Lineage/2（Line 後不是斜線不中）', UA.lineage, 'web'],
+  ])('真人 %s（UA：%s）→ %s', async (_label, userAgent, expected) => {
+    const handlers = load();
+    const response = await render(handlers, 'ev_cover', userAgent);
+    const calls = runPageScript(response.body, { userAgent });
+    expect(calls).toEqual([expected === 'mini' ? `${MINI_APP}?event=ev_cover` : `${WEB}ev_cover`]);
+    expect(handlers.internals.classifyEventShareUserAgent(userAgent, false)).toBe(expected === 'mini' ? 'line' : 'other');
+  });
+
+  test.each(CRAWLER_UAS)('爬蟲 %s 不跳轉、不含腳本與 Mini App', async userAgent => {
+    const handlers = load();
+    const response = await render(handlers, 'ev_cover', userAgent);
+    expect(inlineScripts(response.body)).toEqual([]);
+    expect(response.body).not.toContain('http-equiv="refresh"');
+    expect(response.body).not.toContain('miniapp.line.me');
+    expect(handlers.internals.classifyEventShareUserAgent(userAgent, true)).toBe('crawler');
+  });
+
+  test('活動存在時，LINE 內外的真人拿到同一份 HTML（邊緣快取不必分鍵）', async () => {
+    const handlers = load();
+    const bodies = await Promise.all(
+      [UA.lineIos, UA.lineAndroid, UA.iosSafari, UA.desktopChrome, UA.empty]
+        .map(async userAgent => (await render(handlers, 'ev_cover', userAgent)).body)
+    );
+    expect(new Set(bodies).size).toBe(1);
+    expect(bodies[0]).toContain(`${MINI_APP}?event=ev_cover`);
+    expect(bodies[0]).toContain(`<noscript><meta http-equiv="refresh" content="0;url=${WEB}ev_cover"></noscript>`);
+    expect(bodies[0].match(/http-equiv="refresh"/g)).toHaveLength(1);
+    // 腳本在 <head> 最前面（charset 之後），比 OG meta 先執行
+    expect(bodies[0].indexOf('<script>')).toBeLessThan(bodies[0].indexOf('<meta name="viewport"'));
+  });
+
+  test('判斷錯誤一律落網頁版：navigator 例外、replace 第一次失敗', async () => {
+    const response = await render(load(), 'ev_cover', UA.lineIos);
+    expect(runPageScript(response.body, { navigatorThrows: true })).toEqual([`${WEB}ev_cover`]);
+    expect(runPageScript(response.body, { userAgent: UA.lineIos, replaceThrowsOnce: true })).toEqual([
+      `${MINI_APP}?event=ev_cover`,
+      `${WEB}ev_cover`,
+    ]);
+  });
+
+  test('活動不存在或讀取失敗：不給 Mini App，真人只到首頁', async () => {
+    const missing = await render(load(), 'ev_missing', UA.lineIos);
+    expect(missing.body).not.toContain('miniapp.line.me');
+    expect(runPageScript(missing.body, { userAgent: UA.lineIos })).toEqual(['https://toosterx.com/']);
+
+    const brokenDb = {
+      collection() {
+        return {
+          doc: () => ({ get: async () => { throw new Error('firestore down'); } }),
+          where: () => ({ limit: () => ({ get: async () => { throw new Error('firestore down'); } }) }),
+        };
+      },
+    };
+    const handlers = loadShareOgHandlers({ db: brokenDb, consoleImpl: QUIET });
+    const failed = await render(handlers, 'ev_cover', UA.lineIos);
+    expect(failed.body).not.toContain('miniapp.line.me');
+    expect(runPageScript(failed.body, { userAgent: UA.lineIos })).toEqual(['https://toosterx.com/']);
+  });
+
+  test('</script> 注入：eventId 含 </script><script>alert(1)</script> 時輸出安全', async () => {
+    const evilId = '</script><script>alert(1)</script>';
+    const handlers = load({ evil: { id: evilId, title: '注入測試' } });
+    for (const userAgent of [UA.lineIos, UA.iosSafari]) {
+      const response = await render(handlers, evilId, userAgent);
+      expect(response.body).toContain('miniapp.line.me');
+      expect(response.body).not.toContain('alert(1)</script>');
+      expect(response.body).not.toContain('<script>alert');
+      expect(response.body.match(/<script>/g)).toHaveLength(1);
+      expect(response.body.match(/<\/script>/g)).toHaveLength(1);
+      const encoded = encodeURIComponent(evilId);
+      expect(runPageScript(response.body, { userAgent })).toEqual([
+        userAgent === UA.lineIos ? `${MINI_APP}?event=${encoded}` : `${WEB}${encoded}`,
+      ]);
+    }
+  });
+
+  test('toInlineScriptJson 把 < > & 與 U+2028／U+2029 改成 Unicode 跳脫且可還原', () => {
+    const { toInlineScriptJson } = load().internals;
+    const raw = `</script><script>alert("1")</script>&'${String.fromCharCode(0x2028, 0x2029)}`;
+    const output = toInlineScriptJson(raw);
+    const bs = String.fromCharCode(92);
+    expect(output).not.toMatch(/[<>&]/);
+    expect(output).not.toContain(String.fromCharCode(0x2028));
+    expect(output).not.toContain(String.fromCharCode(0x2029));
+    expect(output).toContain(`${bs}u003c/script${bs}u003e`);
+    expect(output).toContain(`${bs}u2028${bs}u2029`);
+    expect(JSON.parse(output)).toBe(raw);
+  });
+
+  test('引號類 eventId：腳本仍可執行且目標正確', async () => {
+    const quoteId = `a"b'c${String.fromCharCode(92)}d`;
+    const handlers = load({ quote: { id: quoteId, title: '引號' } });
+    const response = await render(handlers, quoteId, UA.lineAndroid);
+    expect(runPageScript(response.body, { userAgent: UA.lineAndroid })).toEqual([
+      `${MINI_APP}?event=${encodeURIComponent(quoteId)}`,
+    ]);
+  });
+
+  test('UA 取樣記錄：只記分類與 UA 前 120 字，不記 IP／uid／query，到期後停記', () => {
+    const { shouldLogEventShareUserAgent } = load().internals;
+    const until = Date.parse('2026-11-20T00:00:00+08:00');
+    expect(shouldLogEventShareUserAgent(until - 1)).toBe(true);
+    expect(shouldLogEventShareUserAgent(until)).toBe(false);
+    expect(shouldLogEventShareUserAgent(until + 86400000)).toBe(false);
+
+    const loggerSource = readSourceBetween('function logEventShareUserAgentSample', '// SC-2 乙案');
+    expect(loggerSource).not.toMatch(/\bip\b|x-forwarded|uid|query|eventId/i);
+
+    const logs = [];
+    const longUa = `${UA.lineIos} ${'x'.repeat(200)}`;
+    vm.runInNewContext(`
+      ${readSourceBetween('const EVENT_SHARE_LINE_USER_AGENT_RE', 'function normalizeRole')}
+      ${readSourceBetween('function classifyEventShareUserAgent', '// SC-2 乙案')}
+      logEventShareUserAgentSample(req, false, ${until - 1});
+      logEventShareUserAgentSample(req, true, ${until - 1});
+      logEventShareUserAgentSample(req, false, ${until});
+    `, {
+      console: { log: (...args) => logs.push(args) },
+      req: createShareOgRequest({ path: '/ev_cover', query: { eventId: 'ev_cover', v: '1' }, userAgent: longUa }),
+    });
+    expect(logs).toHaveLength(2);
+    expect(logs[0][0]).toBe('[eventShareOg] ua-sample');
+    expect(Object.keys(logs[0][1]).sort()).toEqual(['kind', 'ua']);
+    expect(logs[0][1]).toEqual({ kind: 'line', ua: longUa.slice(0, 120) });
+    expect(logs[1][1]).toEqual({ kind: 'crawler', ua: longUa.slice(0, 120) });
+    expect(JSON.stringify(logs)).not.toContain('ev_cover');
+  });
+
+  test('teamShareOg 改用 SHARE_MINI_APP_BASE_URL 常數，值不變（輸出另由改前快照逐位元組鎖住）', () => {
+    const source = readSourceBetween('exports.teamShareOg', 'function setRuntimeConfigHeaders');
+    expect(source).toContain('`${SHARE_MINI_APP_BASE_URL}?team=${encodedTeamId}`');
+    expect(source).not.toContain('MINI_APP_ID');
+    expect(readSourceBetween('const SHARE_SITE_ORIGIN', 'function normalizeRole'))
+      .toContain(`const SHARE_MINI_APP_BASE_URL = "${MINI_APP}";`);
+    const fnSource = fs.readFileSync(path.join(__dirname, '..', '..', 'functions', 'index.js'), 'utf8');
+    expect(fnSource.match(/https:\/\/miniapp\.line\.me\//g)).toHaveLength(1);
+  });
+});
