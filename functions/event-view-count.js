@@ -68,9 +68,8 @@ function createIncrementEventViewCountHandler({
   now = Date.now,
   logger = console,
 }) {
-  if (!db || typeof db.collection !== "function" || typeof db.runTransaction !== "function"
-    || typeof db.getAll !== "function" || typeof db.batch !== "function") {
-    throw new TypeError("Firestore transaction, getAll and batch support is required");
+  if (!db || typeof db.collection !== "function" || typeof db.runTransaction !== "function") {
+    throw new TypeError("Firestore transaction support is required");
   }
   if (typeof HttpsError !== "function") {
     throw new TypeError("HttpsError is required");
@@ -78,8 +77,11 @@ function createIncrementEventViewCountHandler({
   if (typeof now !== "function") {
     throw new TypeError("now is required");
   }
-  if (!FieldValue || typeof FieldValue.increment !== "function") {
-    throw new TypeError("FieldValue.increment is required");
+  // getAll／batch／FieldValue 改在呼叫時檢查（O3 回歸修正）：index.js 載入時就建立 handler，
+  // 若在這裡 throw，缺少時會讓整份 Functions 模組載入失敗、所有函式一起掛；缺少時只讓本函式回 internal。
+  function hasBatchSupport() {
+    return typeof db.getAll === "function" && typeof db.batch === "function"
+      && Boolean(FieldValue) && typeof FieldValue.increment === "function";
   }
 
   function assertEventIdentity(eventSnapshot, eventId) {
@@ -126,6 +128,16 @@ function createIncrementEventViewCountHandler({
 
     const eventId = sanitizeEventKey(request?.data?.eventId, "eventId", HttpsError);
     const docId = sanitizeEventKey(request?.data?.docId, "docId", HttpsError);
+    if (!hasBatchSupport()) {
+      if (logger && typeof logger.error === "function") {
+        logger.error("[incrementEventViewCount] missing dependency", {
+          hasGetAll: typeof db.getAll === "function",
+          hasBatch: typeof db.batch === "function",
+          hasIncrement: typeof FieldValue?.increment === "function",
+        });
+      }
+      throw new HttpsError("internal", "EVENT_VIEW_COUNT_MISCONFIGURED");
+    }
     const currentDate = new Date(now());
     const dayKey = getTaipeiDayKey(currentDate);
     const markerId = buildViewMarkerId(uid, eventId, dayKey);

@@ -416,8 +416,41 @@ describe('incrementEventViewCount callable', () => {
 
     expect(callable.options).toEqual({ region: 'asia-east1' });
     expect(typeof callable.handler).toBe('function');
-    expect(() => createIncrementEventViewCountHandler({ db, HttpsError: FakeHttpsError }))
-      .toThrow('FieldValue.increment is required');
+  });
+
+  test.each([
+    ['getAll', { omitGetAll: true, withFieldValue: true }],
+    ['batch', { omitBatch: true, withFieldValue: true }],
+    ['FieldValue', { withFieldValue: false }],
+  ])('missing %s does not throw at load time and returns internal when called', async (_label, options) => {
+    const db = {
+      collection: jest.fn(() => ({ doc: jest.fn(id => ({ id })) })),
+      runTransaction: jest.fn(),
+    };
+    if (!options.omitGetAll) db.getAll = jest.fn();
+    if (!options.omitBatch) db.batch = jest.fn();
+    const logger = { error: jest.fn() };
+    let handler;
+    expect(() => {
+      handler = createIncrementEventViewCountHandler({
+        db,
+        HttpsError: FakeHttpsError,
+        FieldValue: options.withFieldValue ? FakeFieldValue : undefined,
+        logger,
+      });
+    }).not.toThrow();
+
+    await expect(handler({
+      auth: { uid: 'viewer-secret' },
+      data: { eventId: 'event-public', docId: 'event-doc' },
+    })).rejects.toMatchObject({ code: 'internal', message: 'EVENT_VIEW_COUNT_MISCONFIGURED' });
+    expect(logger.error).toHaveBeenCalledWith(
+      '[incrementEventViewCount] missing dependency',
+      expect.objectContaining({ hasGetAll: expect.any(Boolean), hasBatch: expect.any(Boolean) }),
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('viewer-secret');
+    expect(db.runTransaction).not.toHaveBeenCalled();
+    if (db.getAll) expect(db.getAll).not.toHaveBeenCalled();
   });
 
   test('marker hashes are deterministic without exposing their inputs', () => {
