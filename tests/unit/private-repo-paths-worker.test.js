@@ -29,6 +29,7 @@ const PRIVATE_FILES = [
   '/storage.rules',
   '/firebase.json',
   '/.firebaserc',
+  '/.gitattributes',
   '/.gitignore',
   '/.node-version',
   '/.nojekyll',

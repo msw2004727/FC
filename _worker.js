@@ -37,6 +37,7 @@ const PRIVATE_REPO_FILES = new Set([
   "/storage.rules",
   "/firebase.json",
   "/.firebaserc",
+  "/.gitattributes",
   "/.gitignore",
   "/.node-version",
   "/.nojekyll",
