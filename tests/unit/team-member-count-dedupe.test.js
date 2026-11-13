@@ -103,6 +103,31 @@ describe.each(RECOUNT_PATHS)("%s：同一人多份 users 文件只算一次", (_
     const docs = baseDocs({ "users/legacy_anon": { displayName: "無身分", teamIds: [TEAM] } });
     await expect(recount(docs)).resolves.toEqual({ members: 6, stored: 6 });
   });
+
+  // 優先序不變：有 uid 欄位就用 uid 欄位（修正前後相同），lineUserId 只在缺 uid 時補位。
+  test("uid 欄位與 lineUserId 不一致的文件以 uid 欄位為準", async () => {
+    const docs = baseDocs({ "users/legacy_x": legacyDoc("U-m2", { uid: "U-m9" }) });
+    await expect(recount(docs)).resolves.toEqual({ members: 6, stored: 6 });
+  });
+
+  test("文件 id 與他人 lineUserId 相同的無身分文件，與該人算同一鍵（不重複）", async () => {
+    const docs = baseDocs({ "users/U-m3": { displayName: "只有文件 id", teamIds: [TEAM] }, "users/legacy_m3": legacyDoc("U-m3") });
+    await expect(recount(docs)).resolves.toEqual({ members: 6, stored: 6 });
+  });
+
+  // 幹部正本不在隊上（teamIds 空）、只有舊文件掛隊：幹部身分鍵與成員鍵一致，算 1 人。
+  test("幹部正本未掛隊、只有舊文件掛隊：幹部仍只算 1 人", async () => {
+    const docs = baseDocs({
+      "users/U-cap": { uid: "U-cap", lineUserId: "U-cap", displayName: "隊長", role: "captain", teamIds: [] },
+      "users/legacy_cap": legacyDoc("U-cap"),
+    });
+    await expect(recount(docs)).resolves.toEqual({ members: 5, stored: 5 });
+  });
+
+  test("幹部完全沒有掛隊文件時仍讀正本並計 1 人", async () => {
+    const docs = baseDocs({ "users/U-cap": { uid: "U-cap", lineUserId: "U-cap", displayName: "隊長", teamIds: [] } });
+    await expect(recount(docs)).resolves.toEqual({ members: 5, stored: 5 });
+  });
 });
 
 describe("removeTeamMember：剔除後人數與成員判斷", () => {
@@ -137,6 +162,14 @@ describe("removeTeamMember：剔除後人數與成員判斷", () => {
     expect(fake.get("users/U-m1")).toMatchObject({ teamId: null, teamIds: [] });
     // 其他人的兩份文件都不被動到
     expect(fake.get("users/U-m2")).toMatchObject({ teamIds: [TEAM] });
+    expect(fake.get("users/legacy_m2")).toMatchObject({ teamId: TEAM });
+  });
+
+  // 已知限制（另案）：剔除只改正本；被剔者另有掛隊的舊文件時，舊文件仍算 1 人（不會算成 2 人）。
+  test("被剔者另有舊文件掛隊：正本清空，舊文件不動，人數算 1 人不重複", async () => {
+    const { fake, call } = setup(baseDocs({ "users/legacy_m2": legacyDoc("U-m2") }));
+    await expect(call("U-m2")).resolves.toEqual({ ok: true, alreadyRemoved: false, memberCount: 5 });
+    expect(fake.get("users/U-m2")).toMatchObject({ teamId: null, teamIds: [] });
     expect(fake.get("users/legacy_m2")).toMatchObject({ teamId: TEAM });
   });
 
