@@ -54,10 +54,12 @@ beforeEach(async () => {
     createdAt: CREATED_AT,
     teamId: TEAM,
     teamName: "模擬隊",
-    isRestricted: true,
-    restrictedAt: Timestamp.fromMillis(Date.UTC(2026, 4, 1)),
-    restrictedByUid: "U_emu_admin",
-    restrictedByName: "模擬管理員",
+    // 曾被限制、已解除：限制紀錄欄位要原樣帶過去。
+    isRestricted: false,
+    restrictedAt: null,
+    restrictedByUid: null,
+    restrictedByName: null,
+    noShowCount: 2,
   });
   await batch.commit();
 });
@@ -73,15 +75,14 @@ test("代遷成功：正本內容正確、createdAt（Timestamp）／exp／level
   expect(doc).toMatchObject({
     uid: UID, lineUserId: UID, displayName: "模擬舊帳號", role: "user", exp: 320, level: 4,
     teamId: TEAM, teamName: "模擬隊", teamIds: [TEAM], teamNames: ["模擬隊"],
-    isRestricted: true, restrictedByUid: "U_emu_admin", restrictedByName: "模擬管理員",
+    isRestricted: false, restrictedAt: null, restrictedByUid: null, restrictedByName: null, noShowCount: 2,
   });
   expect(doc.createdAt).toBeInstanceOf(Timestamp);
   expect(doc.createdAt.isEqual(CREATED_AT)).toBe(true);
-  expect(doc.restrictedAt).toBeInstanceOf(Timestamp);
   expect(doc.lastLogin).toBeInstanceOf(Timestamp);
   expect(await read(`users/${LEGACY_ID}`)).toEqual(legacyBefore);
   const audit = await read(`${AUDIT_COLLECTION}/${auditDocId(UID)}`);
-  expect(audit).toMatchObject({ status: "migrated", teamCount: 1, restricted: true });
+  expect(audit).toMatchObject({ status: "migrated", teamCount: 1 });
   expect(JSON.stringify(audit)).not.toContain(UID);
 });
 
@@ -108,6 +109,14 @@ test("非 user 角色：不建正本、稽核列角色", async () => {
   await expect(call()).resolves.toEqual({ status: "not-migratable", reason: "role-not-user" });
   expect(await read(`users/${UID}`)).toBeUndefined();
   expect(await read(`${AUDIT_COLLECTION}/${auditDocId(UID)}`)).toMatchObject({ legacyRole: "coach" });
+});
+
+test("限制中的帳號先不遷：不建正本、舊文件限制原封不動", async () => {
+  await db.doc(`users/${LEGACY_ID}`).update({ isRestricted: true, restrictedByUid: "U_emu_admin" });
+  const before = await read(`users/${LEGACY_ID}`);
+  await expect(call()).resolves.toEqual({ status: "not-migratable", reason: "restricted" });
+  expect(await read(`users/${UID}`)).toBeUndefined();
+  expect(await read(`users/${LEGACY_ID}`)).toEqual(before);
 });
 
 test("代遷後俱樂部人數不重複（舊文件與正本並存）", async () => {

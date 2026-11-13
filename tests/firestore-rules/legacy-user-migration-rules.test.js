@@ -18,6 +18,7 @@ const {
 } = require("@firebase/rules-unit-testing");
 const {
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   setLogLevel,
@@ -123,6 +124,14 @@ describe("為什麼要後端代遷", () => {
     delete data.restrictedByUid;
     delete data.restrictedByName;
     await assertFails(setDoc(doc(authAs(FRESH), "users", FRESH), data));
+  });
+
+  test("代遷稽核集合 userMigrationAudits 前端讀寫一律被拒", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "userMigrationAudits", "lm_test"), { status: "migrated" });
+    });
+    await assertFails(getDoc(doc(authAs(UID), "userMigrationAudits", "lm_test")));
+    await assertFails(setDoc(doc(authAs(UID), "userMigrationAudits", "lm_self"), { status: "migrated" }));
   });
 
   test("本人不能改舊文件（文件 ID ≠ uid）", async () => {

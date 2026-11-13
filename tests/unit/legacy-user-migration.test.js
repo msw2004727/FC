@@ -132,13 +132,13 @@ describe("migrateLegacyUserDoc", () => {
     });
   });
 
-  test("限制類欄位原樣帶到正本，不被洗掉", async () => {
+  test("限制類欄位（已解除的紀錄）與放鴿子統計原樣帶到正本，不被洗掉", async () => {
     const restriction = {
-      isRestricted: true,
-      restricted: true,
-      restrictedAt: "2026-05-01T00:00:00.000Z",
-      restrictedByUid: "Uadmin00000000000",
-      restrictedByName: "管理員",
+      isRestricted: false,
+      restricted: false,
+      restrictedAt: null,
+      restrictedByUid: null,
+      restrictedByName: null,
       noShowCount: 4,
       endedRegCount: 12,
       lastEventWasNoShow: true,
@@ -146,7 +146,18 @@ describe("migrateLegacyUserDoc", () => {
     const { fake, call } = setup({ [LEGACY_PATH]: legacyDoc({ teamIds: ["tm_a"], teamNames: ["甲隊"], ...restriction }) });
     await expect(call(authed())).resolves.toEqual({ status: "migrated" });
     expect(fake.get(CANON)).toMatchObject(restriction);
-    expect(fake.get(AUDIT_PATH)).toMatchObject({ restricted: true });
+  });
+
+  test.each([
+    ["isRestricted", { isRestricted: true, restrictedAt: "2026-05-01T00:00:00.000Z", restrictedByUid: "Uadmin00000000000" }],
+    ["restricted 別名", { restricted: true }],
+  ])("限制中（%s）先不遷：不建正本、舊文件限制原封不動", async (_label, restriction) => {
+    const legacy = legacyDoc({ teamId: "tm_a", ...restriction });
+    const { fake, call } = setup({ [LEGACY_PATH]: legacy });
+    await expect(call(authed())).resolves.toEqual({ status: "not-migratable", reason: "restricted" });
+    expect(fake.has(CANON)).toBe(false);
+    expect(fake.get(LEGACY_PATH)).toEqual(legacy);
+    expect(fake.get(AUDIT_PATH)).toMatchObject({ status: "not-migratable", reason: "restricted" });
   });
 
   test("Rules 建立白名單內的欄位照帶（不含伺服器決定的欄位）", async () => {
@@ -176,6 +187,12 @@ describe("migrateLegacyUserDoc", () => {
     expect(JSON.stringify(audit)).not.toContain(UID);
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(UID);
     expect(Object.keys(audit)).not.toContain("uid");
+  });
+
+  test("舊文件與 token 都沒有名稱：displayName 用固定預設名，不用原始 uid", async () => {
+    const { fake, call } = setup({ [LEGACY_PATH]: legacyDoc({ displayName: "  " }) });
+    await expect(call(authed())).resolves.toEqual({ status: "migrated" });
+    expect(fake.get(CANON).displayName).toBe("用戶");
   });
 
   test("角色缺欄可遷，正本 role 寫 user", async () => {
@@ -268,7 +285,8 @@ describe("migrateLegacyUserDoc", () => {
 
   test("交易非預期失敗：記遮罩 log 並回 internal", async () => {
     const { fake, logger, call } = setup({ [LEGACY_PATH]: legacyDoc() });
-    fake.state.failCommit = () => Object.assign(new Error("boom"), { code: 13 });
+    // 錯誤訊息帶文件路徑（含 uid）時也要遮罩。
+    fake.state.failCommit = () => Object.assign(new Error(`boom at users/${UID}`), { code: 13 });
     await expect(call(authed())).rejects.toMatchObject({ code: "internal" });
     expect(logger.error).toHaveBeenCalled();
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain(UID);
@@ -284,9 +302,9 @@ describe("migrateLegacyUserDoc", () => {
 
 describe("assessLegacyUserDoc", () => {
   test("多個問題時全部列出，第一個是回傳 reason", () => {
-    const result = assessLegacyUserDoc(legacyDoc({ role: "admin", manualRole: "admin", extra: 1 }), UID);
+    const result = assessLegacyUserDoc(legacyDoc({ role: "admin", manualRole: "admin", isRestricted: true, extra: 1 }), UID);
     expect(result.ok).toBe(false);
-    expect(result.reasons).toEqual(["forbidden-keys", "role-not-user", "unknown-keys"]);
+    expect(result.reasons).toEqual(["forbidden-keys", "role-not-user", "restricted", "unknown-keys"]);
   });
 });
 

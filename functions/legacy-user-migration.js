@@ -9,7 +9,8 @@
  * 守則（顧問 §3.144）：
  *  - 只遷呼叫者本人：uid 一律取自 request.auth，不讀 request.data。
  *  - 交易內以 create 寫正本；正本已存在一律回 already、不覆寫。
- *  - createdAt／exp／level 照舊文件原值；限制類欄位（isRestricted 等）原樣帶過去。
+ *  - createdAt／exp／level 照舊文件原值；限制類欄位（isRestricted 等）原樣帶過去；
+ *    限制中（isRestricted／restricted 為 true）的帳號先不遷（原因見 assessLegacyUserDoc）。
  *  - role 缺欄或 'user' 才遷；其他角色、Rules 禁止的鍵、白名單外的鍵、型別不符一律回 not-migratable，
  *    不靜默改值；此函式不碰 custom claims。
  *  - 舊文件不刪不改。稽核紀錄與 log 只留遮罩後的 uid。
@@ -55,6 +56,7 @@ const SERVER_SET_KEYS = Object.freeze(["uid", "lineUserId", "displayName", "role
 
 const CARRY_KEYS = new Set([...RULES_CREATE_ALLOWED_KEYS, ...RESTRICTION_KEYS, ...SERVER_STAT_KEYS]);
 const MAX_TEAMS = 10;
+const DEFAULT_DISPLAY_NAME = "用戶";
 
 const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const isNullOr = (check) => (value) => value === null || check(value);
@@ -95,6 +97,11 @@ function maskUid(uid) {
   const text = String(uid || "");
   if (text.length <= 4) return "*".repeat(text.length);
   return `${text.slice(0, 2)}${"*".repeat(text.length - 4)}${text.slice(-2)}`;
+}
+
+// Firestore 錯誤訊息可能帶文件路徑（含 uid）：log 前換成遮罩值。
+function maskInText(text, uid, masked) {
+  return String(text).split(String(uid)).join(masked);
 }
 
 // 稽核文件 ID：uid 的 SHA-256 前 32 碼，同一人只有一份紀錄，文件 ID 不含原始 uid。
@@ -158,6 +165,9 @@ function assessLegacyUserDoc(legacy, uid) {
     reasons.push("role-not-user");
     detail.legacyRole = isString(data.role) ? data.role.slice(0, 40) : typeof data.role;
   }
+  // 限制中的帳號先不遷：遷了會變成正本＋舊文件兩份限制狀態，之後管理員解除只改正本（adminManageUser 先找正本），
+  // 舊文件殘留的限制會讓用戶目錄、自動升職繼續排除此人。解除限制（寫回舊文件）後下次進站即可正常代遷。
+  if (data.isRestricted === true || data.restricted === true) reasons.push("restricted");
   const unknownKeys = keys.filter((key) => !CARRY_KEYS.has(key) && !FORBIDDEN_KEYS.includes(key));
   if (unknownKeys.length > 0) {
     reasons.push("unknown-keys");
@@ -182,7 +192,8 @@ function assessLegacyUserDoc(legacy, uid) {
 }
 
 function buildMigratedUserDoc({ uid, legacy, base, teamIds, teamNames, authName, serverTimestamp }) {
-  const displayName = [legacy.displayName, authName].find(nonEmptyString) || uid;
+  // 沒有名稱時用固定預設名，不把原始 uid 放進公開名冊（之後前端登入更新會換成 LINE 名稱）。
+  const displayName = [legacy.displayName, authName].find(nonEmptyString) || DEFAULT_DISPLAY_NAME;
   const doc = {
     ...base,
     uid,
@@ -267,7 +278,6 @@ async function migrateLegacyUserDoc(request, { db, HttpsError, FieldValue, logge
         teamCount: ids.length,
         unresolvedTeamNames: unresolvedTeams.length,
         createdAtPreserved: "createdAt" in assessment.base,
-        restricted: legacy.isRestricted === true || legacy.restricted === true,
         updatedAt: serverTimestamp,
       }, { merge: true });
       return { status: "migrated", teamCount: ids.length, unresolvedTeams: unresolvedTeams.length };
@@ -279,7 +289,7 @@ async function migrateLegacyUserDoc(request, { db, HttpsError, FieldValue, logge
       logger.error("[migrateLegacyUserDoc] transaction failed", {
         uid: masked,
         code: error?.code ?? null,
-        message: error?.message || String(error),
+        message: maskInText(error?.message || String(error), uid, masked),
       });
       throw new HttpsError("internal", "Legacy user migration failed");
     }
@@ -312,7 +322,7 @@ async function migrateLegacyUserDoc(request, { db, HttpsError, FieldValue, logge
       logger.error("[migrateLegacyUserDoc] audit write failed", {
         uid: masked,
         code: error?.code ?? null,
-        message: error?.message || String(error),
+        message: maskInText(error?.message || String(error), uid, masked),
       });
     }
     return { status: "not-migratable", reason: outcome.reason };
