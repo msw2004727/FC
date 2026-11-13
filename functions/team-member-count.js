@@ -296,7 +296,8 @@ function createRecountTeamMembersHandler({
       const collectUserDoc = (d) => {
         if (!d || (typeof d.exists === "boolean" && !d.exists)) return;
         const data = d.data() || {};
-        userByDocId.set(d.id, { ...data, _docId: d.id, uid: data.uid || d.id });
+        // 舊格式文件（文件 ID ≠ uid）多半沒有 uid 欄位：以 lineUserId 當身分鍵，與正本合併成同一人。
+        userByDocId.set(d.id, { ...data, _docId: d.id, uid: data.uid || data.lineUserId || d.id });
       };
 
       (teamIdsSnap?.docs || []).forEach(collectUserDoc);
