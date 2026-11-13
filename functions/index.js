@@ -102,6 +102,13 @@ exports.listUserDirectory = createListUserDirectoryCallable({
   db,
 });
 
+// 健檢 C1-03 第二步：舊格式會員文件由後端代為轉成正本（見 legacy-user-migration.js）。
+// 極低頻一次性，不設 minInstances；模組在第一次呼叫時才載入，不加重其他函式的冷啟動（健檢 A1-09）。
+exports.migrateLegacyUserDoc = onCall(
+  { region: "asia-east1", timeoutSeconds: 15, memory: "256MiB", maxInstances: 5 },
+  (request) => require("./legacy-user-migration").migrateLegacyUserDoc(request, { db, HttpsError, FieldValue, logger }),
+);
+
 exports.incrementEventViewCount = createIncrementEventViewCountCallable({
   onCall,
   HttpsError,

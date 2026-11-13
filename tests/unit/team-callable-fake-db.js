@@ -4,7 +4,7 @@
  * team Callable 單元測試共用的記憶體版 Firestore（T-027 7b(A)）。
  * 只實作用得到的子集：doc／collection／subcollection、where(==, array-contains)、orderBy(documentId)＋limit＋startAfter、
  * batch（單批上限 500）、transaction（讀必須在寫之前、ABORTED 會重跑 callback）、
- * 文件 updateTime＋update 的 lastUpdateTime 前置條件、delete 的 exists 前置條件。
+ * 文件 updateTime＋update 的 lastUpdateTime 前置條件、delete 的 exists 前置條件、交易／批次的 create（已存在即 ALREADY_EXISTS）。
  *
  * 限制（不要假裝它有）：
  *  - 不模擬 transaction 隔離：交易內讀到的永遠是「目前值」，不會因為別人並發寫入而自動 ABORT；
@@ -70,6 +70,7 @@ function createFakeFirestore(seed = {}) {
         && versions.get(item.path) !== item.precondition.lastUpdateTime) {
         throw new FakeFirestoreError(9, `FAILED_PRECONDITION lastUpdateTime ${item.path}`);
       }
+      if (item.op === "create" && store.has(item.path)) throw new FakeFirestoreError(6, `ALREADY_EXISTS ${item.path}`);
       if (item.op === "delete" && item.precondition?.exists === true && !store.has(item.path)) {
         throw new FakeFirestoreError(5, `NOT_FOUND ${item.path}`);
       }
@@ -80,6 +81,7 @@ function createFakeFirestore(seed = {}) {
     validate(ops);
     ops.forEach((item) => {
       if (item.op === "update") store.set(item.path, { ...store.get(item.path), ...clone(item.data) });
+      else if (item.op === "create") store.set(item.path, clone(item.data));
       else if (item.op === "set") {
         store.set(item.path, item.merge ? { ...(store.get(item.path) || {}), ...clone(item.data) } : clone(item.data));
       } else store.delete(item.path);
@@ -178,6 +180,11 @@ function createFakeFirestore(seed = {}) {
       set: (ref, data, options) => {
         beforeWrite();
         ops.push({ op: "set", path: ref.path, data, merge: !!options?.merge });
+      },
+      // create：文件已存在時整個 commit 以 ALREADY_EXISTS（code 6）失敗，同 Admin SDK。
+      create: (ref, data) => {
+        beforeWrite();
+        ops.push({ op: "create", path: ref.path, data });
       },
       delete: (ref, precondition) => {
         beforeWrite();

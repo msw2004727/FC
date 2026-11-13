@@ -184,7 +184,8 @@ async function recountAndWriteTeamMembers({ db, FieldValue, teamRef }) {
     const data = doc.data() || {};
     // 只在計數副本中把安全別名對齊文件 id，保留 countTeamMembers 的文件 id 比對語意。
     const teamIds = getUserTeamIds(data).map((id) => membershipTeamIds.includes(id) ? teamDocId : id);
-    userByDocId.set(doc.id, { ...data, teamIds, _docId: doc.id, uid: data.uid || doc.id });
+    // 舊格式文件沒有 uid 欄位時以 lineUserId 當身分鍵，與正本算同一人（健檢 C1-03）。
+    userByDocId.set(doc.id, { ...data, teamIds, _docId: doc.id, uid: data.uid || data.lineUserId || doc.id });
   };
   userSnapshots.forEach((snapshot) => (snapshot?.docs || []).forEach(collectUser));
 
