@@ -1,0 +1,18 @@
+# 換行一律 LF：各機器 core.autocrlf 不同時，工作目錄不再出現 CRLF／混合換行（副機測試假紅的根因）。
+# text=auto 只對 git 判定為文字的檔生效，二進位照原樣；下面再明列常見二進位副檔名保險。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.bin binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
