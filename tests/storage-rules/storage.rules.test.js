@@ -5,9 +5,10 @@
  * 第二身份頭像為 images/users/<uid>/identities/secondary/avatar_<timestamp>。
  *
  * 驗證範圍（Storage Rules emulator）：
- *   - allow：登入者新增／覆寫一般圖片；本人新增／覆寫第二身份頭像。
- *   - allow：未登入公開讀取；非第二身份結構的圖片路徑不受排除條件誤傷。
+ *   - allow：登入者新增一般圖片；本人新增／覆寫第二身份頭像。
+ *   - allow：未登入公開讀取（get）；非第二身份結構的圖片路徑不受排除條件誤傷。
  *   - deny：未登入寫入、非圖片、大小達到或超過 2MB、任何人刪除任何檔案（含本人頭像，與正式版一致）。
+ *   - deny：任何人覆寫既有一般圖片；任何人列舉 images/ 底下檔案（2026-11-13 健檢 A3-01 收緊）。
  *   - deny：他人寫入／覆寫／刪除第二身份頭像；任何人寫入 secondary 深層路徑。
  *   - deny：images/ 以外路徑；第二 bucket 同樣禁止他人寫入第二身份頭像。
  *
@@ -22,6 +23,7 @@ const {
   assertFails,
   assertSucceeds,
 } = require("@firebase/rules-unit-testing");
+const { clearBuckets } = require("./clear-buckets");
 
 const PROJECT_ID = "demo-storage-rules-test";
 const RULES_PATH = path.resolve(__dirname, "..", "..", "storage.rules");
@@ -72,7 +74,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await testEnv.clearStorage();
+  await clearBuckets(testEnv, [SECOND_BUCKET]);
 });
 
 afterAll(async () => {
@@ -118,9 +120,28 @@ describe("一般圖片：公開讀取與登入上傳", () => {
     await assertFails(storageAs(USER_A).ref(EVENT_PATH).delete());
   });
 
-  test("allow：登入者可覆寫既有一般圖片，與正式版行為一致", async () => {
+  test("deny：登入者不能覆寫既有一般圖片（A3-01 收緊；兩站上傳都是新檔名）", async () => {
     await seedFile(EVENT_PATH);
-    await assertSucceeds(upload(storageAs(USER_A), EVENT_PATH));
+    await assertFails(upload(storageAs(USER_A), EVENT_PATH));
+    await assertFails(upload(storageAs(USER_B), EVENT_PATH));
+  });
+
+  test("deny：未登入者不能覆寫既有一般圖片", async () => {
+    await seedFile(EVENT_PATH);
+    await assertFails(upload(storageAs(null), EVENT_PATH));
+  });
+
+  test("deny：登入者不能修改既有一般圖片的 metadata；兩站都沒有用到", async () => {
+    await seedFile(EVENT_PATH);
+    await assertFails(
+      storageAs(USER_B).ref(EVENT_PATH).updateMetadata({ cacheControl: "no-store" }),
+    );
+  });
+
+  test("allow：覆寫被拒後，既有一般圖片仍可公開讀取", async () => {
+    await seedFile(EVENT_PATH);
+    await assertFails(upload(storageAs(USER_B), EVENT_PATH));
+    await assertSucceeds(storageAs(null).ref(EVENT_PATH).getMetadata());
   });
 });
 
@@ -217,9 +238,22 @@ describe("路徑邊界：只排除完整第二身份目錄結構", () => {
     );
   });
 
-  test("allow：未登入者可列舉 images/ 底下檔案，與正式版 read 含 list 一致", async () => {
+  test("deny：未登入者不能列舉 images/ 底下檔案（A3-01 收緊）", async () => {
     await seedFile(EVENT_PATH);
-    await assertSucceeds(storageAs(null).ref("images/events").listAll());
+    await assertFails(storageAs(null).ref("images/events").listAll());
+    await assertFails(storageAs(null).ref("images").listAll());
+  });
+
+  test("deny：登入者也不能列舉 images/ 底下檔案，前台沒有列舉需求", async () => {
+    await seedFile(EVENT_PATH);
+    await assertFails(storageAs(USER_A).ref("images/events").listAll());
+  });
+
+  test("deny：本人與未登入者都不能列舉第二身份頭像資料夾", async () => {
+    await seedFile(AVATAR_PATH);
+    const folder = "images/users/userA/identities/secondary";
+    await assertFails(storageAs(null).ref(folder).listAll());
+    await assertFails(storageAs(USER_A).ref(folder).listAll());
   });
 
   test("allow：登入者可寫 primary 頭像路徑，泛用規則不誤傷其他身份目錄", async () => {
@@ -245,10 +279,17 @@ describe("第二 bucket：套用相同 Storage 規則", () => {
     );
   });
 
-  test("allow：第二 bucket 允許登入者覆寫既有一般圖片", async () => {
+  test("deny：第二 bucket 同樣禁止覆寫既有一般圖片（A3-01 收緊）", async () => {
     await seedFile(EVENT_PATH, SECOND_BUCKET);
-    await assertSucceeds(
+    await assertFails(
       upload(storageAs(USER_A, SECOND_BUCKET), EVENT_PATH),
+    );
+  });
+
+  test("deny：第二 bucket 同樣禁止未登入列舉", async () => {
+    await seedFile(EVENT_PATH, SECOND_BUCKET);
+    await assertFails(
+      storageAs(null, SECOND_BUCKET).ref("images/events").listAll(),
     );
   });
 

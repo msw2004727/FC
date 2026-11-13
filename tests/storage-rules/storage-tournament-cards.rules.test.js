@@ -3,7 +3,7 @@
  *
  * B 上傳：裁切成 800×300 WebP 後 putString(data_url)，路徑 images/tournamentCards/{cardId}/cover_{時間}.webp，
  * cacheControl public, max-age=31536000；不刪舊檔。
- * 這裡釘住 storage.rules 現況（不改 Rules，沿用 images/** 泛用規則）：登入可上傳圖片、任何人都不能刪除。
+ * 這裡釘住 storage.rules 現況（沿用 images/** 泛用規則）：登入可上傳新圖片、任何人都不能刪除或覆寫既有圖片。
  * 權限只由 Firestore tournamentCards 把關（顧問 2026-11-02 裁定 Storage 不讀 Firestore）。
  * 泛用規則的大小、類型、未登入等細節由 storage.rules.test.js 覆蓋；本檔只鎖 B 依賴的這條路徑，
  * Storage Rules 之後若收緊 images/**，這裡會變紅，提醒同步改 B 的上傳流程。
@@ -16,6 +16,7 @@ const {
   assertFails,
   assertSucceeds,
 } = require("@firebase/rules-unit-testing");
+const { clearBuckets } = require("./clear-buckets");
 
 const PROJECT_ID = "demo-storage-tournament-cards-rules-test";
 const RULES_PATH = path.resolve(__dirname, "..", "..", "storage.rules");
@@ -49,7 +50,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await testEnv.clearStorage();
+  await clearBuckets(testEnv);
 });
 
 afterAll(async () => {
@@ -61,6 +62,14 @@ afterAll(async () => {
 describe("賽事卡片圖片 images/tournamentCards/{cardId}/{檔名}", () => {
   test("allow：登入者可上傳圖片", async () => {
     await assertSucceeds(upload(testEnv.authenticatedContext("uidAdmin").storage()));
+  });
+
+  test("deny：覆寫既有圖片一律被拒（A3-01；B 換圖上傳新檔名）", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await assertSucceeds(upload(ctx.storage()));
+    });
+    await assertFails(upload(testEnv.authenticatedContext("uidAdmin").storage()));
+    await assertFails(upload(testEnv.authenticatedContext("uidOther").storage()));
   });
 
   test("deny：刪除一律被拒（含上傳者本人）", async () => {

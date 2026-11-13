@@ -12,8 +12,10 @@ service firebase.storage {
       return request.resource.name.matches('(?s)images/users/[^/]+/identities/secondary/.*');
     }
 
+    // 讀取只開 get（公開顯示圖片）；list 一律關閉，前台沒有列舉需求（取代原 allow read 含 list，2026-11-13 健檢 A3-01）。
     match /images/users/{uid}/identities/secondary/{fileName} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if false;
       allow create, update: if request.auth != null
         && request.auth.uid == uid
         && isImageUpload();
@@ -23,10 +25,17 @@ service firebase.storage {
     }
 
     match /images/{allPaths=**} {
-      allow read: if true;
-      allow create, update: if request.auth != null
+      allow get: if true;
+      allow list: if false;
+      // 兩站上傳檔名都帶時間戳、每次都是新物件，用戶端不需要覆寫既有圖片
+      // （取代原「登入即可 create, update」，2026-11-13 健檢 A3-01）。
+      // 上傳到已存在的物件在 emulator 實測走 create 而不是 update，所以要用 resource == null 擋覆寫；
+      // update（只改 metadata）一併關閉。
+      allow create: if request.auth != null
+        && resource == null
         && !isSecondaryIdentityUpload()
         && isImageUpload();
+      allow update: if false;
       allow delete: if false;
     }
   }

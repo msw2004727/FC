@@ -5,10 +5,9 @@
  * 再 putString(data_url)，路徑 images/banners/ban1_<Date.now()>，cacheControl public, max-age=31536000。
  * 這裡釘住 storage.rules 現況（不改 Rules）：
  *   - allow：登入者上傳 < 2MB 的 image/webp、image/jpeg（降級）、image/png；未登入者公開讀取。
- *   - deny：未登入寫入、非圖片、達到或超過 2MB、任何人刪除。
- *   - 已知缺口（現況，非目標）：路徑 images/** 只要求「登入」，沒有限制 admin.banners.entry；
- *     所以任何登入者都能覆寫既有橫幅圖片的內容（要知道路徑，而路徑在公開的 banners 文件的圖片網址裡）。
- *     下面「已知缺口」那個案例把這個現況寫成 allow，Storage Rules 之後收緊時會變紅，提醒同步改 B 的上傳流程與這份測試。
+ *   - deny：未登入寫入、非圖片、達到或超過 2MB、任何人刪除、任何人覆寫既有橫幅（2026-11-13 健檢 A3-01）。
+ *   - 仍存在的缺口：新增上傳只要求「登入」，沒有限制 admin.banners.entry（Storage 不讀 Firestore，
+ *     顧問 2026-11-02 裁定）；換圖一律是新檔名，既有橫幅內容不會被換掉。
  */
 
 const fs = require("fs");
@@ -18,6 +17,7 @@ const {
   assertFails,
   assertSucceeds,
 } = require("@firebase/rules-unit-testing");
+const { clearBuckets } = require("./clear-buckets");
 
 const PROJECT_ID = "demo-storage-banners-rules-test";
 const RULES_PATH = path.resolve(__dirname, "..", "..", "storage.rules");
@@ -67,7 +67,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await testEnv.clearStorage();
+  await clearBuckets(testEnv);
 });
 
 afterAll(async () => {
@@ -116,9 +116,19 @@ describe("橫幅圖片：讀取與刪除", () => {
   });
 });
 
-describe("已知缺口（現況）：沒有限制 admin.banners.entry", () => {
-  test("allow（現況）：一般登入者也能覆寫既有橫幅圖片內容", async () => {
+describe("覆寫既有橫幅（A3-01 收緊）", () => {
+  test("deny：一般登入者不能覆寫既有橫幅圖片", async () => {
     await seedBanner();
-    await assertSucceeds(upload(storageAs(USER), BANNER_PATH));
+    await assertFails(upload(storageAs(USER), BANNER_PATH));
+  });
+
+  test("deny：管理員也不能覆寫同一路徑；B 換圖上傳新檔名", async () => {
+    await seedBanner();
+    await assertFails(upload(storageAs(ADMIN), BANNER_PATH));
+  });
+
+  test("allow：管理員換圖改傳新時間戳檔名", async () => {
+    await seedBanner();
+    await assertSucceeds(upload(storageAs(ADMIN), "images/banners/ban1_1760000000001"));
   });
 });

@@ -60,8 +60,10 @@ cd <scratch> && npx --prefix <FC> firebase emulators:exec --only storage --proje
 | `matches('(?s)...')` | 可用。RE2 的 `.` 預設不比對換行，排除用的 `.*` 要加 `(?s)`，否則檔名含 `\n` 可落入泛用區塊（T-015 有測試鎖住） |
 
 - `request.resource` 只在 create／update 存在，排除條件只能寫在 create／update；delete 要另外寫死。
-- `allow read` 含 get 與 list：`listAll()` 未登入也會成功（正式版即如此）。
+- `allow read` 含 get 與 list：`listAll()` 未登入也會成功（2026-11-13 前的正式版即如此；健檢 A3-01 起 repo 版改成 `allow get` 開、`allow list` 關）。
 
+- **上傳到已存在的物件（`put`／`uploadString` 同路徑重傳）在 emulator 走 `create`，不是 `update`**；`update` 只管 `updateMetadata`。要禁止覆寫，`create` 條件必須加 `resource == null`，只寫 `allow update: if false` 擋不住（2026-11-13 健檢 A3-01 實測）。
+- `testEnv.clearStorage()` 只刪預設 bucket 根目錄那一層，`images/**` 底下的檔與第二 bucket 都不會清；禁止覆寫後殘留檔會讓「新增」案例假紅，改用 `tests/storage-rules/clear-buckets.js` 的 `clearBuckets(testEnv, [第二 bucket])`。
 - 刪除時 `request.resource` 是 null：`allow write` 條件若讀 `request.resource.size` 會 Null value error → 刪除被拒。正式版因此實際上**任何路徑都不能刪**。
 - 多個 `match` 同時命中時任一 allow 成立就放行；專用區塊要限本人，泛用區塊必須真的排除該路徑。
 - 評估錯誤在 emulator 主控台印 `EvaluationException: Error: storage.rules line [n], column [m]`，測試端只看到 `storage/unauthorized`；**測試全拒時先看主控台有沒有 EvaluationException**，不要以為是條件寫太嚴。
