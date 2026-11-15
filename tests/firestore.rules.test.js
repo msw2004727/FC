@@ -2709,10 +2709,11 @@ describe("/events/{eventId}", () => {
 });
 
 describe("/events/{eventId}/registrationLocks/{lockId}", () => {
-  test("owner can create and delete own active registration lock", async () => {
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("owner can no longer create or delete own registration lock (system/admin only)", async () => {
     const lockId = "self_uidA";
     const ref = doc(memberA(), "events", "eventA", "registrationLocks", lockId);
-    await assertSucceeds(
+    await assertFails(
       setDoc(ref, {
         key: lockId,
         eventId: "eventA",
@@ -2723,7 +2724,16 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
         status: "active",
       })
     );
-    await assertSucceeds(deleteDoc(ref));
+    await seedPath(["events", "eventA", "registrationLocks", lockId], {
+      key: lockId,
+      eventId: "eventA",
+      userId: "uidA",
+      participantType: "self",
+      companionId: null,
+      registrationDocId: "regA",
+      status: "active",
+    });
+    await assertFails(deleteDoc(ref));
   });
 
   test("member cannot create another user's registration lock", async () => {
@@ -2752,7 +2762,8 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
     await assertSucceeds(deleteDoc(doc(admin(), "events", "eventA", "registrationLocks", "self_uidA_admin_delete")));
   });
 
-  test("private course-linked events allow ordinary client-owned registration locks", async () => {
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("private course-linked events no longer allow client-owned registration locks", async () => {
     await seedDoc("events", "event_course_private", {
       id: "event_course_private",
       title: "Course Private",
@@ -2764,7 +2775,7 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
       status: "open",
     });
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA"), {
         key: "self_uidA",
         eventId: "event_course_private",
@@ -2785,7 +2796,7 @@ describe("/events/{eventId}/registrationLocks/{lockId}", () => {
       registrationDocId: "regA",
       status: "active",
     });
-    await assertSucceeds(deleteDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA")));
+    await assertFails(deleteDoc(doc(memberA(), "events", "event_course_private", "registrationLocks", "self_uidA")));
   });
 });
 
@@ -3595,15 +3606,16 @@ describe("/linePushQueue/{docId}", () => {
 });
 
 describe("logs/records high-risk matrix", () => {
-  test("[SECURITY_GAP] /activityRecords: read/create/update are auth-wide; delete admin/super only", async () => {
+  test("/activityRecords: read auth-wide; create/update/delete admin/super only", async () => {
     await assertByRole(({ db }) => getDoc(doc(db, "activityRecords", "actB")), allowAuth);
+    // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
     await assertByRole(
       ({ db, role }) => setDoc(doc(db, "activityRecords", `act_create_${role}`), { uid: role }),
-      allowAuth
+      allowAdminAndSuper
     );
     await assertByRole(
       ({ db }) => updateDoc(doc(db, "activityRecords", "actB"), { status: "updated" }),
-      allowAuth
+      allowAdminAndSuper
     );
     await assertByRole(
       async ({ db, role }) => {
@@ -3615,15 +3627,16 @@ describe("logs/records high-risk matrix", () => {
     );
   });
 
-  test("[SECURITY_GAP] /attendanceRecords: read/create/update are auth-wide; delete denied for all", async () => {
+  test("/attendanceRecords: read auth-wide; create/update admin/super only; delete denied for all", async () => {
     await assertByRole(({ db }) => getDoc(doc(db, "attendanceRecords", "attB")), allowAuth);
+    // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
     await assertByRole(
       ({ db, role }) => setDoc(doc(db, "attendanceRecords", `att_create_${role}`), { uid: role }),
-      allowAuth
+      allowAdminAndSuper
     );
     await assertByRole(
       ({ db }) => updateDoc(doc(db, "attendanceRecords", "attB"), { status: "updated" }),
-      allowAuth
+      allowAdminAndSuper
     );
     await assertByRole(
       async ({ db, role }) => {
@@ -4138,8 +4151,9 @@ describe("Role usability smoke tests", () => {
     await assertSucceeds(getDoc(doc(user(), "attendanceRecords", "attA")));
   });
 
-  test("user can create attendance record", async () => {
-    await assertSucceeds(
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("user cannot create root attendance record", async () => {
+    await assertFails(
       setDoc(doc(user(), "attendanceRecords", "att_user_smoke"), {
         uid: "uidUser",
         status: "checkin",
@@ -4194,7 +4208,8 @@ describe("/attendanceRecords/{recordId}", () => {
     await assertFails(getDoc(doc(guest(), "attendanceRecords", "attA")));
   });
 
-  test("any authenticated user can create", async () => {
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("only admin/super can create", async () => {
     await assertByRole(
       ({ db, role }) =>
         setDoc(doc(db, "attendanceRecords", `att_cr_${role}`), {
@@ -4202,7 +4217,7 @@ describe("/attendanceRecords/{recordId}", () => {
           status: "checkin",
           eventId: "eventA",
         }),
-      allowAuth
+      allowAdminAndSuper
     );
   });
 
@@ -4227,8 +4242,9 @@ describe("/attendanceRecords/{recordId}", () => {
     );
   });
 
-  test("non-admin can update status fields only (isAttendanceStatusUpdate)", async () => {
-    await assertSucceeds(
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("non-admin cannot update status fields either", async () => {
+    await assertFails(
       updateDoc(doc(user(), "attendanceRecords", "att_existing"), {
         status: "checkout",
         checkOutTime: new Date(),
@@ -4237,8 +4253,9 @@ describe("/attendanceRecords/{recordId}", () => {
     );
   });
 
-  test("non-admin can update removedAt and removedByUid status fields", async () => {
-    await assertSucceeds(
+  // HC-A3-08（2026-11-15）測試同步更新：規則收緊為只限管理員，原斷言一般用戶可寫。
+  test("non-admin cannot update removedAt and removedByUid status fields", async () => {
+    await assertFails(
       updateDoc(doc(memberA(), "attendanceRecords", "att_existing"), {
         status: "removed",
         removedAt: new Date(),
