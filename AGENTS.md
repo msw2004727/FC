@@ -7,6 +7,7 @@
 
 | 要處理的範圍 | 先讀 |
 |------------|------|
+| 任何程式／設定／測試修改與 bug 調查（背景、目錄責任、永久地雷、調查與外科手術式修改、程式風格） | `.claude/rules/code-change.md` |
 | 模組新增／搬移、timeout／limit 等 tunables | `.claude/rules/architecture-tunables.md` |
 | `sw.js`、cache 版號、release、獨立內容頁 | `.claude/rules/release-sw.md` |
 | 任何 JS／CSS／HTML／Functions／Rules 變更的測試與 review 要求；任何 review／驗證回報（不論是否改程式） | `.claude/rules/testing-review.md` |
@@ -17,7 +18,7 @@
 | LINE 分享、Mini App、OG、QR | `.claude/rules/share.md` |
 | UI、modal、動畫、展示名單 | `.claude/rules/ui.md` |
 | SEO、sitemap、robots、`_headers` | `.claude/rules/seo.md` |
-| `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md` 本身 | `.claude/rules/governance-migration.md` |
+| `CLAUDE.md`、規則檔、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md` 本身 | `.claude/rules/rules-maintenance.md`、`.claude/rules/governance-migration.md` |
 
 3. 專案結構與檔案責任見 `NAVIGATION.md`。
 4. `.claude/skills/*/SKILL.md` 是 Claude Code 的固定流程 skill；非 Claude 工具不會自動載入，但可把 SKILL.md 當作該流程的步驟說明直接照做（例如 release bump、測試矩陣、編碼檢查、commit 流程）。

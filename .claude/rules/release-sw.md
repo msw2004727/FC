@@ -54,3 +54,7 @@ paths:
 
 ---
 
+### 上線豁免（2026-11-15 自 `CLAUDE.md` §8 移入，原文照搬；取代原常駐，因只在上線批次時用到）
+
+- **R-SHIP-003 [B/HARD]**：純 Markdown／local-only docs，以及符合 R-REL-009 的內容型 HTML，可免主站 bump 與完整 code review；HTML 仍需相稱 static／SEO／browser 驗證。所有文件仍需 diff／encoding 與 commit／push 授權。
+- **R-SHIP-004 [B/HARD]**：純 bump 可免完整 code review，但需四處一致性與 push 授權。

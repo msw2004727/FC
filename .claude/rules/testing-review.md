@@ -75,3 +75,11 @@ paths:
 
 ---
 
+### 7.3 交付狀態機 S1～S5、S9（2026-11-15 自 `CLAUDE.md` §8 移入，原文照搬；S0、S6～S8 仍在 `CLAUDE.md` §8。取代原整組常駐，因這幾步都是驗證與 review 流程，本檔本來就是任何驗證回報必讀）
+
+- **R-SHIP-011 [B/HARD] — S1 基線**：讀本檔、`git status`、相關 code／tests／history，識別鎖定域與同步觸發。
+- **R-SHIP-012 [B/HARD] — S2 證據**：確認根因、假設、影響；依 R-MODE-003 決定是否等修改確認。
+- **R-SHIP-013 [B/HARD] — S3 最小修改**：只改已授權必要範圍，保留入口與相容性。
+- **R-SHIP-014 [B/HARD] — S4 驗證**：跑 targeted 與要求的完整 tests、UI／encoding／diff。只有本次範圍涵蓋時才同步 architecture／tunables／memory／SEO；範圍外列待辦。只有準備上線批次才 bump。
+- **R-SHIP-015 [B/HARD] — S5 Review**：reviewer 讀 S4 證據；修正回 S4 再審。
+- **R-SHIP-019 [B/HARD] — S9 觀察**：查 CI／部署；Functions 依 R-CF-007 看 logs，回報實際完成／未完成。
