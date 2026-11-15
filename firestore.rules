@@ -190,10 +190,6 @@ service cloud.firestore {
       return isSuperAdmin() || hasEffectivePerm('admin.repair.no_show_adjust');
     }
 
-    function canManageEventBlocklist() {
-      return isSuperAdmin() || hasEffectivePerm('admin.repair.event_blocklist');
-    }
-
     function notificationToggleAllowedKeys() {
       return [
         'category_activity',
@@ -1182,6 +1178,83 @@ service cloud.firestore {
           );
       }
 
+      // HC-A3-03：報名投影欄位（isSignupFieldsOnly）原本不檢查操作者，任何登入者都能改別人活動的人數、名單、額滿與俱樂部保留摘要。
+      // 收緊為 isEventSiteOperatorForData(resource.data) || isAdmin()（與 registrations 候補遞補同一組身分）；正式報名流程走 Callable（Admin SDK）不受影響。
+      // 本 helper 與上式逐條同義，只把角色算一次、rolePermissions／userPermissionGrants 各讀一次（比照 isPublicToggleGranted），以免撞 1000 運算式上限：
+      // admin／super_admin 一律可；owner／委託人另可憑 coach／captain／venue_owner 角色、user 委託人、user＋user.activity.site_operate，
+      // 或 event.scan／event.manual_checkin／activity.manage.entry／event.edit_all（角色權限，不含 user 角色；或個人授權）；
+      // 非 owner／委託人只能憑 event.edit_all 且活動非私密（canBroadManageEventData）。
+      function isSignupProjectionActorAllowed() {
+        let role = authRole();
+        let uid = request.auth.uid;
+        let isOwner = resource.data.get('creatorUid', null) == uid
+          || resource.data.get('ownerUid', null) == uid
+          || resource.data.get('captainUid', null) == uid;
+        let isDelegate = resource.data.get('delegateUids', null) is list
+          && uid in resource.data.get('delegateUids', []);
+        let codes = (isOwner || isDelegate)
+          ? ['event.edit_all', 'event.scan', 'event.manual_checkin', 'activity.manage.entry']
+          : ['event.edit_all'];
+        let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+        let grantPath = /databases/$(database)/documents/userPermissionGrants/$(uid);
+        return role in ['admin', 'super_admin']
+          || (
+            (isOwner || isDelegate)
+            && (
+              role in ['coach', 'captain', 'venue_owner']
+              || (role == 'user' && (isDelegate || capListHas(userActivityCapData(), 'user.activity.site_operate')))
+            )
+          )
+          || (
+            (isOwner || isDelegate || resource.data.get('privateEvent', false) != true)
+            && (
+              (
+                role != 'user'
+                && exists(rpPath)
+                && get(rpPath).data.get('permissions', null) is list
+                && get(rpPath).data.permissions.hasAny(codes)
+              )
+              || (
+                exists(grantPath)
+                && get(grantPath).data.get('permissions', null) is list
+                && get(grantPath).data.get('enabled', true) == true
+                && get(grantPath).data.permissions.hasAny(codes)
+              )
+            )
+          );
+      }
+
+      // HC-A3-04：黑名單兩欄的獨立 allow 用（取代原全域 canManageEventBlocklist()＝isSuperAdmin() || hasEffectivePerm('admin.repair.event_blocklist')，已無其他呼叫端故移除）。
+      // 與原 OR 分支 (isBlocklistFieldsOnly() && canManageEventBlocklist()) 及
+      // 「isEventOwner() && hasEffectivePerm('event.edit_self') && eventCourseLinkRootFieldsUnchanged()」分支在只改黑名單兩欄時允許的範圍同義
+      // （後者原本就允許任意非課程欄位，此處是其子集、不擴權）：super_admin，或 admin.repair.event_blocklist（角色權限，不含 user 角色；或個人授權）；
+      // owner 且無 courseLinkId 時另可憑 event.edit_self。角色只算一次、兩份權限文件各讀一次。
+      function isBlocklistActorAllowed() {
+        let role = authRole();
+        let uid = request.auth.uid;
+        let isOwner = resource.data.get('creatorUid', null) == uid
+          || resource.data.get('ownerUid', null) == uid
+          || resource.data.get('captainUid', null) == uid;
+        let codes = (isOwner && !('courseLinkId' in resource.data))
+          ? ['admin.repair.event_blocklist', 'event.edit_self']
+          : ['admin.repair.event_blocklist'];
+        let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+        let grantPath = /databases/$(database)/documents/userPermissionGrants/$(uid);
+        return role == 'super_admin'
+          || (
+            role != 'user'
+            && exists(rpPath)
+            && get(rpPath).data.get('permissions', null) is list
+            && get(rpPath).data.permissions.hasAny(codes)
+          )
+          || (
+            exists(grantPath)
+            && get(grantPath).data.get('permissions', null) is list
+            && get(grantPath).data.get('enabled', true) == true
+            && get(grantPath).data.permissions.hasAny(codes)
+          );
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -1231,6 +1304,14 @@ service cloud.firestore {
       // T-006：獨立一條 allow，排在既有 allow update 之前、不併入其 OR 清單（運算式預算說明見 isPublicOnlyVisibilityUpdate）。
       // hasOnly(['isPublic','updatedAt']) 使 courseLinked／courseLinkId／viewCount 等受保護欄位都不可能經此變更。
       allow update: if isAuth() && isPublicOnlyVisibilityUpdate();
+      // HC-A3-03／A3-04：報名投影欄位與黑名單兩欄各自獨立一條 allow，排在既有大條之前、外層先放 hasOnly（理由同 T-006）。
+      // 兩者原本是既有大條 OR 清單裡的分支（報名投影在一般與課程連結活動都有），搬出後大條不再含它們。
+      // 欄位白名單（hasOnly）已排除 viewCount／id／creatorUid／courseLinked 等受保護欄位與加值欄位，所以大條的共同前置條件在此恆成立。
+      allow update: if isAuth() && isSignupFieldsOnly() && isSignupProjectionActorAllowed();
+      allow update: if isAuth()
+        && isBlocklistFieldsOnly()
+        && resource.data.get('courseLinked', false) != true
+        && isBlocklistActorAllowed();
       allow update: if isAuth()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'viewCount', 'id', 'clientRequestId', 'creatorUid', 'payloadRevision', 'payloadDigest'
@@ -1245,8 +1326,6 @@ service cloud.firestore {
               || isUserOwnerBasicUpdate()
               || canBroadManageEventUpdate()
               || (isEventOwner() && hasEffectivePerm('event.edit_self') && eventCourseLinkRootFieldsUnchanged())
-              || isSignupFieldsOnly()
-              || (isBlocklistFieldsOnly() && canManageEventBlocklist())
             )
           )
           || (
@@ -1260,10 +1339,6 @@ service cloud.firestore {
           || (
             resource.data.get('courseLinked', false) == true
             && isCourseLinkedManagerCancelUpdate()
-          )
-          || (
-            resource.data.get('courseLinked', false) == true
-            && isSignupFieldsOnly()
           )
         );
       allow delete: if isAdmin()
