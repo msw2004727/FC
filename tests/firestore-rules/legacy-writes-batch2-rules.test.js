@@ -46,6 +46,7 @@ beforeEach(async () => {
       ['uidOther', 'user'],
       ['uidAdmin', 'admin'],
       ['uidCoach', 'coach'],
+      ['uidCoachOther', 'coach'],
     ]) {
       await setDoc(doc(db, 'users', uid), { uid, lineUserId: uid, role });
     }
@@ -208,6 +209,26 @@ describe('events/{id}/activityRecords 不再允許本人直寫', () => {
   test('管理員更新已帶 courseLinkId 的活動紀錄仍被拒', async () => {
     await assertFails(updateDoc(doc(ctx('uidAdmin'), 'events', EVENT_ID, 'activityRecords', 'actCourse'), {
       status: 'cancelled',
+    }));
+  });
+
+  test('coach 但不是這場活動主辦：建立與只改 status 都被拒（對照組）', async () => {
+    const db = ctx('uidCoachOther');
+    await assertFails(setDoc(doc(db, 'events', EVENT_ID, 'activityRecords', 'actByOtherCoach'), {
+      eventId: EVENT_ID,
+      uid: 'uidOther',
+      status: 'registered',
+    }));
+    await assertFails(updateDoc(doc(db, 'events', EVENT_ID, 'activityRecords', 'actHost'), {
+      status: 'registered',
+      updatedAt: new Date(),
+    }));
+  });
+
+  test('活動主辦只改已帶 courseLinkId 紀錄的 status 仍被拒', async () => {
+    await assertFails(updateDoc(doc(ctx('uidCoach'), 'events', EVENT_ID, 'activityRecords', 'actCourse'), {
+      status: 'cancelled',
+      updatedAt: new Date(),
     }));
   });
 
