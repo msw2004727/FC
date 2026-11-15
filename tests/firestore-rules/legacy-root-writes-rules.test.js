@@ -3,7 +3,7 @@
  * events/{eventId}/registrationLocks 的建立與（鎖除外的）更新只准管理員。
  * 報名鎖的 update 維持全拒。子集合 events/{id}/attendanceRecords 不在本卡。
  *
- * 本檔只新增斷言。既有「一般用戶可直寫」的測試不改，列在 REPORT。
+ * 舊大檔 tests/firestore.rules.test.js 中原本斷言「一般用戶可直寫」的 8 則測試，已在另一個 commit 同步改為只限管理員。
  */
 const fs = require('fs');
 const path = require('path');
