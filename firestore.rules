@@ -3380,10 +3380,10 @@ service cloud.firestore {
 
     match /events/{eventId}/registrationLocks/{lockId} {
       allow read: if isAuth();
-      // HC-A3-08（2026-11-15）：報名與簽到改走系統後，一般用戶不再直寫此路徑，收緊為只限管理員；取代原本任何登入者可寫。
+      // HC-A3-08（2026-11-15）：報名與簽到改走系統後，一般用戶不再直寫此路徑，收緊為只限管理員；取代原本本人可寫自己的鎖。
       allow create: if isAdmin();
       allow update: if false;
-      // HC-A3-08（2026-11-15）：報名與簽到改走系統後，一般用戶不再直寫此路徑，收緊為只限管理員；取代原本任何登入者可寫。
+      // HC-A3-08（2026-11-15）：報名與簽到改走系統後，一般用戶不再直寫此路徑，收緊為只限管理員；取代原本本人可寫自己的鎖。
       allow delete: if isAdmin();
     }
 
