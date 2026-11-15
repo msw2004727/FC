@@ -3227,7 +3227,8 @@ describe("course-linked event direct write guards", () => {
         title: "Course Lifecycle User Edited",
       })
     );
-    await assertSucceeds(
+    // HC-A3-03：報名投影欄位改限活動現場營運者或管理員；memberA 與此活動無關 → 由允許改為拒絕。
+    await assertFails(
       updateDoc(doc(memberA(), "events", "event_course_lifecycle"), {
         current: 10,
         realCurrent: 10,

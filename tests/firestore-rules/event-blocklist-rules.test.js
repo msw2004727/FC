@@ -61,10 +61,6 @@ const entry = (by, action = "add") => ({
 const writeBlocklist = (uid, extra = {}, eventId = "evtA") => updateDoc(doc(database(uid), "events", eventId), {
   blockedUids: arrayUnion("targetA"), blockedUidsLog: arrayUnion(entry(uid)), ...extra,
 });
-// 現況：一般 user 靠 userPermissionGrants 個別授權時，events update 規則會超過 1000 個運算式而被擋（專案已知上限）。
-async function assertBudgetDenied(promise) {
-  await expect(promise).rejects.toThrow(/maximum of 1000 expressions/);
-}
 async function seed(pathParts, data) {
   await env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), ...pathParts), data));
 }
@@ -82,9 +78,10 @@ describe("blocklist-only effective permission allow／deny", () => {
     await assertFails(writeBlocklist(null));
   });
 
-  test.each([true, undefined])("一般 user 個別授權 enabled=%s：現況被 1000 運算式上限擋下（deny）", async (enabled) => {
+  // HC-A3-04：黑名單兩欄改為獨立 allow 後不再撞 1000 運算式上限，由「被上限擋下」改為允許（R-EVT-018 個別授權契約）。
+  test.each([true, undefined])("一般 user 個別授權 enabled=%s allow（A3-04 救回，原被 1000 運算式上限擋下）", async (enabled) => {
     await seed(["userPermissionGrants", "uidB"], { permissions: [PERMISSION], ...(enabled === undefined ? {} : { enabled }) });
-    await assertBudgetDenied(writeBlocklist("uidB"));
+    await assertSucceeds(writeBlocklist("uidB"));
   });
 
   test("個別授權停用 deny", async () => {
@@ -119,8 +116,10 @@ describe("blocklist-only effective permission allow／deny", () => {
     }));
   });
 
-  test("現況：只改 updatedAt（黑名單欄位不變）的更新目前放行", async () => {
-    await assertSucceeds(updateDoc(doc(database("captainA"), "events", "evtA"), { updatedAt: serverTimestamp() }));
+  // HC-A3-03：只改 updatedAt 原本經無身分檢查的報名投影分支（白名單含 updatedAt）放行；該分支改限活動現場營運者或管理員後，
+  // 與活動無關的 captainA 由允許改為拒絕。
+  test("只改 updatedAt（黑名單欄位不變）：與活動無關者 deny（A3-03 收緊，原放行）", async () => {
+    await assertFails(updateDoc(doc(database("captainA"), "events", "evtA"), { updatedAt: serverTimestamp() }));
   });
 
   test.each(["blockedUids", "blockedUidsLog"])("只寫 %s 一欄 allow（角色權限）", async (field) => {
@@ -149,9 +148,9 @@ describe("其他 OR 分支的現況，不把 blocklist-only 限制誤稱為全�
     await assertSucceeds(writeBlocklist(uid, { updatedAt: serverTimestamp() }));
   });
 
-  test("owner 的 event.edit_self 個別授權：現況同樣被 1000 運算式上限擋下（deny）", async () => {
+  test("owner 的 event.edit_self 個別授權 allow（A3-04 救回，原被 1000 運算式上限擋下）", async () => {
     await seed(["userPermissionGrants", "uidA"], { permissions: ["event.edit_self"], enabled: true });
-    await assertBudgetDenied(writeBlocklist("uidA"));
+    await assertSucceeds(writeBlocklist("uidA"));
   });
 
   test("現況只驗欄位集合，不驗 blockedUidsLog 的 by／內容", async () => {
