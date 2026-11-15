@@ -2598,7 +2598,7 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("subcollection activity record writes are limited to participant owner or event operator", async () => {
+  test("subcollection activity record writes are limited to the event operator; the participant cannot self-write", async () => {
     await seedDoc("events", "event_user_activity_record", {
       id: "event_user_activity_record",
       title: "User Activity Record",
@@ -2612,7 +2612,8 @@ describe("/events/{eventId}", () => {
       status: "registered",
     });
 
-    await assertSucceeds(
+    // HC-A3-08（2026-11-15）測試同步更新：本人不再可建自己的活動紀錄，原斷言 assertSucceeds。
+    await assertFails(
       setDoc(doc(memberA(), "events", "event_user_activity_record", "activityRecords", "act_self"), {
         eventId: "event_user_activity_record",
         uid: "uidA",
@@ -3648,11 +3649,12 @@ describe("logs/records high-risk matrix", () => {
     );
   });
 
-  test("[SECURITY_GAP] /expLogs: read/create are auth-wide; update/delete denied for all", async () => {
+  test("/expLogs: read is auth-wide; create/update/delete denied for all", async () => {
     await assertByRole(({ db }) => getDoc(doc(db, "expLogs", "expB")), allowAuth);
+    // HC-A3-08（2026-11-15）測試同步更新：create 全拒，原斷言 allowAuth（一般用戶可建）。
     await assertByRole(
       ({ db, role }) => setDoc(doc(db, "expLogs", `exp_create_${role}`), { actor: role }),
-      allowAuth
+      denyAll
     );
     await assertByRole(({ db }) => updateDoc(doc(db, "expLogs", "expB"), { amount: 99 }), denyAll);
     await assertByRole(
@@ -3665,11 +3667,12 @@ describe("logs/records high-risk matrix", () => {
     );
   });
 
-  test("[SECURITY_GAP] /teamExpLogs: read/create are auth-wide; update/delete denied for all", async () => {
+  test("/teamExpLogs: read is auth-wide; create/update/delete denied for all", async () => {
     await assertByRole(({ db }) => getDoc(doc(db, "teamExpLogs", "teamExpB")), allowAuth);
+    // HC-A3-08（2026-11-15）測試同步更新：create 全拒，原斷言 allowAuth（一般用戶可建）。
     await assertByRole(
       ({ db, role }) => setDoc(doc(db, "teamExpLogs", `team_exp_create_${role}`), { actor: role }),
-      allowAuth
+      denyAll
     );
     await assertByRole(
       ({ db }) => updateDoc(doc(db, "teamExpLogs", "teamExpB"), { amount: 99 }),
