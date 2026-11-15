@@ -26,6 +26,7 @@ paths:
   - "firestore.indexes.json"
   - "_headers"
   - "playwright.config.js"
+  - "manifest.json"
   - "package.json"
   - ".github/workflows/**"
   - ".gitignore"
