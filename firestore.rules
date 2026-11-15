@@ -734,16 +734,6 @@ service cloud.firestore {
         ));
     }
 
-    function isUserFieldOwnerResource() {
-      return isResourceOwnerByField('uid')
-        || isResourceOwnerByField('userId');
-    }
-
-    function isUserFieldOwnerRequest() {
-      return isRequestOwnerByField('uid')
-        || isRequestOwnerByField('userId');
-    }
-
     function isOpLogOwnerResource() {
       return isResourceOwnerByField('actorUid')
         || isResourceOwnerByField('uid')
@@ -1892,10 +1882,11 @@ service cloud.firestore {
         allow write: if isOwner(userId);
       }
 
-      // ── GrowthGames 互動收件匣（任何已登入用戶可建立，自己可讀刪） ──
+      // ── GrowthGames 互動收件匣（用戶端不可建立，自己可讀可刪） ──
       match /gameInbox/{msgId} {
         allow read: if isOwner(userId);
-        allow create: if isAuth();
+        // HC-A3-08 第二批（2026-11-15）：一般用戶不再直寫此路徑，收緊；取代原本任何登入者／本人可寫。
+        allow create: if false;
         allow delete: if isOwner(userId);
         allow update: if false;
       }
@@ -2773,17 +2764,20 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
-    //  Logs（日誌）— 登入可讀可新增
-    //  放寬 create 給所有登入用戶（auto-exp 等功能需要）
+    //  Logs（日誌）— 登入可讀
+    //  expLogs／teamExpLogs：用戶端不可新增（Functions 用 Admin SDK，不受此限）
+    //  operationLogs 等其餘日誌仍見各自 match
     // ═══════════════════════════════════════════
     match /expLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      // HC-A3-08 第二批（2026-11-15）：一般用戶不再直寫此路徑，收緊；取代原本任何登入者／本人可寫。
+      allow create: if false;
       allow update, delete: if false;
     }
     match /teamExpLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      // HC-A3-08 第二批（2026-11-15）：一般用戶不再直寫此路徑，收緊；取代原本任何登入者／本人可寫。
+      allow create: if false;
       allow update, delete: if false;
     }
     match /operationLogs/{logId} {
@@ -3431,13 +3425,15 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
+      // HC-A3-08 第二批（2026-11-15）：一般用戶不再直寫此路徑，收緊；取代原本任何登入者／本人可寫。
       allow create: if !hasCourseLinkedSideEffectData(request.resource.data)
         && requestEventIdMatchesPath(eventId)
-        && (isUserFieldOwnerRequest() || isEventSiteOperatorForPath(eventId));
+        && isEventSiteOperatorForPath(eventId);
+      // HC-A3-08 第二批（2026-11-15）：一般用戶不再直寫此路徑，收緊；取代原本任何登入者／本人可寫。
       allow update: if isAuth()
         && !hasCourseLinkedSideEffectData(resource.data)
         && !hasCourseLinkedSideEffectData(request.resource.data)
-        && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventSiteOperatorForPath(eventId)));
+        && (isAdmin() || (isSubActivityStatusOnly() && isEventSiteOperatorForPath(eventId)));
       allow delete: if !hasCourseLinkedSideEffectData(resource.data)
         && isAdmin();
     }

@@ -902,14 +902,15 @@ describe("/users/{uid}/gameInbox/{msgId}", () => {
     );
   });
 
-  test("create: any authenticated user can create (send message to another user)", async () => {
-    await assertSucceeds(
+  test("create: authenticated users cannot create gameInbox messages", async () => {
+    // HC-A3-08（2026-11-15）測試同步更新：任何登入者都不可建，原斷言 assertSucceeds。
+    await assertFails(
       setDoc(doc(memberB(), "users", "uidA", "gameInbox", "msg_from_b"), {
         fromUid: "uidB",
         body: "gift",
       })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(user(), "users", "uidA", "gameInbox", "msg_from_user"), {
         fromUid: "uidUser",
         body: "hi",
