@@ -15,6 +15,17 @@ paths:
   - "_worker.js"
   - "_routes.json"
   - "*.html"
+  - "**/*.html"
+  - "inventory/**"
+  - "valuation/**"
+  - "permissions/**"
+  - "roles/**"
+  - "changelog/**"
+  - "blog/**"
+  - "seo/**"
+  - "firestore.indexes.json"
+  - "_headers"
+  - "playwright.config.js"
   - "package.json"
   - ".github/workflows/**"
   - ".gitignore"
@@ -96,12 +107,12 @@ ToosterX 是運動活動報名與管理系統，包含活動、俱樂部、錦�
 - **R-EXEC-013 [C/DEFAULT]**：沿用目標檔風格。風格統一或大規模整理須獨立任務／commit。
 - **R-EXEC-014 [B/HARD]**：本次造成的孤兒 import／variable／function／CSS 必須清；既有孤兒保留並回報。
 - **R-EXEC-015 [B/HARD]**：diff 每一行須直接對應需求、必要驗證或本次造成的清理。
-- **R-EXEC-016 [A/HARD]**：修改 `js/firebase-crud.js`、`js/modules/event/event-detail-signup.js`、`event-detail-companion.js`、`event-create-waitlist.js`、`event-manage-noshow.js`、`event-manage-confirm.js`、`js/modules/achievement/stats.js`、`js/modules/leaderboard.js`、`js/firebase-service.js` 時，連相鄰非鎖定函式也避免變動。
+- R-EXEC-016（A/HARD 鎖定檔）定義在 `CLAUDE.md` §2，常駐。
 
 ### 3.3 程式風格與信任邊界
 
 - **R-CODE-001 [B/HARD]**：新增或實質改寫的業務流程統一使用 `async/await`，不得新增 `.then()` chain；未觸及的 legacy chain 可保留。若修改既有 Promise DOM callback，仍須遵守 R-NAV-005。
-- **R-CODE-002 [A/HARD]**：不可信動態內容寫 HTML 用 `escapeHTML()` 或 `textContent`；URL、attribute、JSON、CSS 依各自 context 驗證，不能只做通用 HTML escape。
+- R-CODE-002（A/HARD 不可信內容寫 HTML）定義在 `CLAUDE.md` §2，常駐。
 - **R-CODE-003 [B/HARD]**：模組資料操作走 `ApiService`，不得任意操作 `FirebaseService._cache`。R-REG-008／010 所要求且已有測試的既有 registration／optimistic cache 同步可保留；新路徑優先封裝既有 service／core helper，禁止擴散 direct mutation。
 - **R-CODE-004 [B/HARD]**：新模組必須用 `Object.assign(App, { ... })` 掛載，不建立新全域變數。
 - **R-CODE-005 [B/HARD]**：改 CSS／JS／HTML 前確認 LINE WebView、Chrome、Safari 相容；必要時保留 `-webkit-backdrop-filter`、`dvh` 的 `vh` fallback、以 `replace(/…/g)` 取代不相容 `replaceAll`、clipboard 降級。

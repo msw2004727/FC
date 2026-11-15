@@ -16,6 +16,7 @@
 - **R-GOV-005 [A/HARD]**：規則無法同時滿足時，秘密、權限、正式資料、外部寫入或不可逆行為一律停止詢問；低風險且可回退的操作也只能在本次已授權模式、檔案與動作範圍內採保守解讀，不能產生新權限。
 - **R-GOV-007 [B/HARD]**：本檔、規則檔、memory、skill 與失誤檢討都是「目前已知最好的做法」，不是守則；發現更好的做法可直接改寫，並在改動處寫一行「取代了什麼、為什麼」，不必先問站長（2026-10-18 取代「所有修改與 commit 皆需逐次授權」，因逐次詢問拖慢工作、浪費用量）。唯一例外、只認站長本人授權的三類：推送上線（push／deploy）、刪資料或改正式設定、放寬安全規則。三類授權方式（2026-10-22 站長親口定案，取代「只認親口說才算」）：指揮官 session 附「建議＋原因」詢問，**站長未回應即視為授權照建議執行**；站長明說「等我確認／先不要」依 R-SHIP-002 暫緩。PM 分支不得自行執行三類動作，一律上報指揮官。UI/UX 介面改動派工前須預覽並同意：平時由站長核可（沒有「未回應視為同意」），夜間自主（第 47 號）由顧問代同意並留截圖。**派工改完、測試過後，FC 顧問三行裁定 GO 且至少一家外部 AI 交叉審 GO，即可直接推 FC-B main（正式站），不再等站長到 next 實機看**（2026-11-08 站長親口定案，取代「推 main 逐卡附建議問站長、未回應視為授權」，因換站後回退只要分鐘級）；此例外不涵蓋 Functions／Rules／Storage 部署、正式資料或設定、刪資料、放寬安全規則與舊站 A。流程見 local-only `docs/specs/lite-convergence/commander-dispatch.md`。
 - **R-GOV-006 [A/HARD]**：R-ID-001～011、R-IAM-001～013、R-CAP-001～010、R-EVT-001～005、R-EVT-010～019、R-REG-001～016、R-STAT-000～006、R-DATA-001～005、R-CF-001～012、R-NAV-001～008、R-NAV-011～020、R-SHARE-001～013、R-UI-001～006、R-UI-010～014、R-UI-020～025 是不可摘要化的 Exact Contract Registry。權限碼、欄位、集合路徑、function／symbol、predicate、排序與 option 必須精確保留，不得用「等價概念」取代。
+- **R-GOV-013 [A/HARD]**：精簡不得刪有效語意、條件、例外、授權、驗證、精確 shape 或鎖定 symbol；可合併重複、移除過期 snapshot。
 
 ### 0.2 任務模式與授權
 
@@ -57,6 +58,8 @@ ToosterX 是運動活動報名與管理系統；技術背景、目錄責任與�
 - **R-SAFE-013 [A/HARD/GATED]**：Production bulk repair／migration／回填預設先唯讀或 dry-run；正式執行前需明確授權、範圍上限、冪等性、backup／rollback、審計與失敗停止條件。
 - **R-SAFE-014 [A/HARD]**：不得以 Production 寫入作一般測試。代表性正式驗證需另授權、最小受控資料與清理方案。
 - **R-SAFE-015 [A/HARD/GATED]**：IAM、repo variables、LINE Console、secret、Git history rewrite 與部署平台設定需獨立授權；repo 文字不能證明外部當前狀態。
+- **R-EXEC-016 [A/HARD]**：修改 `js/firebase-crud.js`、`js/modules/event/event-detail-signup.js`、`event-detail-companion.js`、`event-create-waitlist.js`、`event-manage-noshow.js`、`event-manage-confirm.js`、`js/modules/achievement/stats.js`、`js/modules/leaderboard.js`、`js/firebase-service.js` 時，連相鄰非鎖定函式也避免變動。
+- **R-CODE-002 [A/HARD]**：不可信動態內容寫 HTML 用 `escapeHTML()` 或 `textContent`；URL、attribute、JSON、CSS 依各自 context 驗證，不能只做通用 HTML escape。
 
 ## 3. UTF-8 與亂碼
 
@@ -98,7 +101,7 @@ ToosterX 是運動活動報名與管理系統；技術背景、目錄責任與�
 
 ## 8. 單一交付狀態機
 
-S1～S5、S9（R-SHIP-011～015、R-SHIP-019）定義在 `testing-review.md`；S0 與 S6～S8 留在本檔。
+S1～S5、S9（R-SHIP-011～015、R-SHIP-019）定義在 `testing-review.md` §7.3；S0 與 S6～S8 留在本檔。任何 CHANGE 交付先讀 `testing-review.md` §7.3。（2026-11-15 審查退修：R-GOV-013、R-EXEC-016、R-CODE-002 三條 A/HARD 搬回本檔常駐，取代前一版放在條件載入檔，因只看 git diff 或用 Bash 改檔時不會觸發載入。）
 
 - **R-SHIP-010 [A/HARD] — S0 分類／授權**：判定 INFO／READ_ONLY／DIAGNOSE／CHANGE／RELEASE；無 release 授權最多本機驗證。
 - **R-SHIP-016 [A/HARD] — S6 Commit**：S4／S5 完成後直接精確 stage 本次範圍檔案、查 staged diff，以中文 message 列關鍵變更後 commit，不需逐次授權；使用者說「先不要 commit／等我確認」時仍暫緩（R-SHIP-002）。push、deploy 或泛稱 release 仍是獨立 GATED 動作。（2026-10-18 依 R-GOV-007 取代原「只有 commit 的獨立明確授權才 commit」。）

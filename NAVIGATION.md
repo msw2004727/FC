@@ -273,7 +273,7 @@
 - `tests/e2e/` — Playwright E2E 與靜態伺服器
 - tests/fixtures/ — 測試共用 fixtures；此目錄**未進 Git**（local-only，fresh clone 與 worktree 不存在），故不以路徑形式引用
 - `tests/archive/` — 歷史 Rules 測試封存
-- 測試指令表見 `CLAUDE.md` §7 與 `package.json` scripts，本檔不複製。
+- 測試指令表見 `.claude/rules/testing-review.md` §7 與 `package.json` scripts，本檔不複製。
 - 已知 drift：`tests/firestore-rules/tournament-match-rules.test.js` 未被 aggregate 收錄（R-QA-008）。
 
 ## 1.12 `scripts/`
@@ -311,9 +311,9 @@
 `paths` 與各規則檔的 frontmatter 一致，以規則檔為準；`.claude/rules/`、`GEMINI.md`、`NAVIGATION.md` 為 2026-10-18 拆分時新建。
 | 規則檔 | 管哪些路徑（`paths`） | 主要 Rule ID 區間 |
 |---|---|---|
-| `CLAUDE.md` | 常駐核心（每次 session 必讀） | R-GOV-001～003、R-GOV-005～007、R-MODE-001～004、R-CTX-001、R-CTX-005、R-CTX-007～009、R-SAFE-001～015、R-ENC-001～007、R-DOC-001～005、R-SHIP-001～002、R-SHIP-005～006、R-SHIP-010、R-SHIP-016～018、R-LOG-001～005、R-COM-001～005 |
-| `.claude/rules/code-change.md` | `js/**`、`css/**`、`pages/**`、`functions/**`、`tests/**`、`scripts/**`、`index.html`、`app.js`、`sw.js`、`firestore.rules`、`storage.rules`、`firebase.json`、`_worker.js`、`_routes.json`、`*.html`、`package.json`、`.github/workflows/**`、`.gitignore` | R-CTX-002～003、R-CTX-006、R-EXEC-001～016、R-CODE-001～005、R-DOC-006 |
-| `.claude/rules/rules-maintenance.md` | `CLAUDE.md`、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md`、`.claude/rules/**`、`scripts/check-rules-integrity.js`、`scripts/check-rules-integrity.lib.js` | R-GOV-004、R-GOV-010～015、R-CTX-004 |
+| `CLAUDE.md` | 常駐核心（每次 session 必讀） | R-GOV-001～003、R-GOV-005～007、R-GOV-013、R-EXEC-016、R-CODE-002、R-MODE-001～004、R-CTX-001、R-CTX-005、R-CTX-007～009、R-SAFE-001～015、R-ENC-001～007、R-DOC-001～005、R-SHIP-001～002、R-SHIP-005～006、R-SHIP-010、R-SHIP-016～018、R-LOG-001～005、R-COM-001～005 |
+| `.claude/rules/code-change.md` | `js/**`、`css/**`、`pages/**`、`functions/**`、`tests/**`、`scripts/**`、`index.html`、`app.js`、`sw.js`、`firestore.rules`、`storage.rules`、`firebase.json`、`_worker.js`、`_routes.json`、`*.html`、`**/*.html`、`inventory/**`、`valuation/**`、`permissions/**`、`roles/**`、`changelog/**`、`blog/**`、`seo/**`、`firestore.indexes.json`、`_headers`、`playwright.config.js`、`package.json`、`.github/workflows/**`、`.gitignore` | R-CTX-002～003、R-CTX-006、R-EXEC-001～015、R-CODE-001、R-CODE-003～005、R-DOC-006 |
+| `.claude/rules/rules-maintenance.md` | `CLAUDE.md`、`AGENTS.md`、`GEMINI.md`、`NAVIGATION.md`、`.claude/rules/**`、`scripts/check-rules-integrity.js`、`scripts/check-rules-integrity.lib.js`、`.claude/skills/**` | R-GOV-004、R-GOV-010～012、R-GOV-014～015、R-CTX-004 |
 | `.claude/rules/architecture-tunables.md` | `js/**`、`css/**`、`pages/**`、`index.html`、`app.js`、`sw.js`、`functions/**` | R-ARCH-001～005、R-TUNE-001～002 |
 | `.claude/rules/release-sw.md` | `sw.js`、`app.js`、`js/**`、`css/**`、`pages/**`、`index.html`、`scripts/bump-version.js`、`_worker.js`、`_routes.json`、`_headers`、`404.html`、`manual.html`、`privacy.html`、`terms.html`、`game-lab.html`、`GrowthGames.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**` | R-REL-001～017、R-SHIP-003～004 |
 | `.claude/rules/testing-review.md` | `js/**`、`css/**`、`pages/**`、`functions/**`、`tests/**`、`firestore.rules`、`storage.rules`、`sw.js`、`app.js`、`_worker.js`、`index.html`、`*.html`、`permissions/**`、`roles/**`、`blog/**`、`seo/**`、`inventory/**`、`package.json`、`playwright.config.js`、`.github/workflows/**` | R-QA-001～013、R-REVIEW-001～006、R-REVIEW-010～014、R-SHIP-011～015、R-SHIP-019 |
