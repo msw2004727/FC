@@ -128,8 +128,8 @@ async function runDecide({ source, keys, ctx, queries, classify = classifyRelati
   try {
     const safeKeys = pickKeys(keys);
     const rel = classify(source, safeKeys);
-    // 未知 source：維持第 1 批「只記錄、不擋」，不在這裡加 log gate。
-    if (!rel) return outcomeOf("allow", null, "unknown_source");
+    // 取代「未知 source 回 allow、gate null、不寫 log」（2026-11-16 顧問 §3.180／方案 §2）：改 record（reason unknown_source），gate 沿用 record→relation_missing_key，行為仍照送，才能被節流 log 計數。
+    if (!rel) return outcomeOf("record", null, "unknown_source");
     relationId = rel.id;
     mode = modeOf(rel.id) === "enforce" ? "enforce" : "log";
     const assignmentRole = rel.id === "R5" ? assignmentRoleOf(source, safeKeys) : "";

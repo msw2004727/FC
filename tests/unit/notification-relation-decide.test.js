@@ -77,16 +77,29 @@ describe("decideRelation 結果形狀", () => {
 });
 
 describe("decideRelation 未知 source", () => {
-  test("classify 回 null：allow、relationId null、gate null，不查詢", async () => {
+  test("classify 回 null：record、reason unknown_source、relationId null、gate relation_missing_key，不查詢", async () => {
     const queries = makeQueries();
     const result = await decide("brand_new_source", {}, queries);
-    expect(result).toMatchObject({ outcome: "allow", relationId: null, gate: null });
+    expect(result).toEqual({
+      outcome: "record",
+      relationId: null,
+      gate: "relation_missing_key",
+      reason: "unknown_source",
+      flags: {},
+    });
     expect(calledNames(queries)).toEqual([]);
   });
 
-  test("空白或非字串 source 也是 allow／null（沿用第 1 批只記錄）", async () => {
-    expect(await decide("", {}, makeQueries())).toMatchObject({ outcome: "allow", relationId: null, gate: null });
-    expect(await decide(undefined, {}, makeQueries())).toMatchObject({ outcome: "allow", relationId: null, gate: null });
+  test("空白或非字串 source 也是 record／unknown_source（classify 回 null，行為仍照送）", async () => {
+    const expected = {
+      outcome: "record",
+      relationId: null,
+      gate: "relation_missing_key",
+      reason: "unknown_source",
+      flags: {},
+    };
+    expect(await decide("", {}, makeQueries())).toEqual(expected);
+    expect(await decide(undefined, {}, makeQueries())).toEqual(expected);
   });
 });
 
@@ -940,7 +953,7 @@ describe("decideRelation query_error 暫時性重試（顧問 §3.180）", () =>
     });
   });
 
-  test("log 的 reason 是 query_error，和 missing_key 分開；gate 仍相同，同分鐘同呼叫者會被節流吃掉", async () => {
+  test("log 的 reason 是 query_error，和 missing_key 分開；gate 仍相同，同分鐘同呼叫者因 reason 不同各寫一筆，同 reason 第二筆仍節流", async () => {
     const queries = makeQueries();
     const probe = installCaller(queries, () => { throw queryError("unavailable"); });
     const recorded = await decide(source, keys, queries);
@@ -969,7 +982,9 @@ describe("decideRelation query_error 暫時性重試（顧問 §3.180）", () =>
     const shared = { warn: jest.fn() };
     const logShared = createRelationLogger({ logger: shared, now: () => 1700000000000 });
     expect(logShared(missing, { ...meta, callerUid: "uid-same-caller-0001" })).toBe(true);
+    expect(logShared(recorded, { ...meta, callerUid: "uid-same-caller-0001" })).toBe(true);
     expect(logShared(recorded, { ...meta, callerUid: "uid-same-caller-0001" })).toBe(false);
-    expect(shared.warn).toHaveBeenCalledTimes(1);
+    expect(shared.warn).toHaveBeenCalledTimes(2);
+    expect(shared.warn.mock.calls.map((call) => call[1].reason)).toEqual(["missing_key", "query_error"]);
   });
 });

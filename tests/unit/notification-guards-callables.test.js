@@ -371,14 +371,28 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
     expect(env.db.read('linePushQueue/auto_1').source).toBe('client:unknown');
   });
 
-  test('未知 source 照常處理，只記遮罩後的 warn（不含 title／body／完整 UID）', async () => {
+  test('未知 source 照常入列恰好一筆，並記遮罩後的 warn 與 relation log（不含 title／body／完整 UID）', async () => {
     const env = load();
     await expect(env.call(payload({ source: 'brand_new_source' }))).resolves.toMatchObject({ queued: true });
+    expect(queued(env.db)).toHaveLength(1);
     expect(env.db.read('linePushQueue/auto_1').source).toBe('brand_new_source');
-    expect(env.consoleImpl.out.warns).toEqual([[
-      '[enqueuePrivilegedLineNotification] unknown source',
-      { callerUid: fields.maskUid(CALLER), source: 'brand_new_source', category: 'activity' },
-    ]]);
+    expect(env.consoleImpl.out.warns).toEqual([
+      [
+        '[enqueuePrivilegedLineNotification] unknown source',
+        { callerUid: fields.maskUid(CALLER), source: 'brand_new_source', category: 'activity' },
+      ],
+      [
+        '[notificationGuards] gate triggered',
+        {
+          gate: 'relation_missing_key',
+          kind: 'enqueue',
+          caller: fields.maskUid(CALLER),
+          source: 'brand_new_source',
+          relation: null,
+          reason: 'unknown_source',
+        },
+      ],
+    ]);
     const serialized = JSON.stringify(env.consoleImpl.out.warns);
     expect(serialized).not.toContain(CALLER);
     expect(serialized).not.toContain('標題');
@@ -576,10 +590,19 @@ describe('enqueuePrivilegedLineNotification 防護', () => {
       });
     });
 
-    test('未知 source 不額外加 relation log（只有第 1 批的 unknown source）', async () => {
+    test('未知 source：relation log 一筆（reason unknown_source、relation null），入列仍恰好一筆', async () => {
       const env = load();
       await env.call(payload({ source: 'brand_new_source' }));
-      expect(relationWarns(env.consoleImpl)).toHaveLength(0);
+      expect(queued(env.db)).toHaveLength(1);
+      const logs = relationWarns(env.consoleImpl);
+      expect(logs).toHaveLength(1);
+      expect(logs[0][1]).toMatchObject({
+        gate: 'relation_missing_key',
+        kind: 'enqueue',
+        source: 'brand_new_source',
+        relation: null,
+        reason: 'unknown_source',
+      });
     });
 
     test('同一呼叫者同一分鐘同一類別的 relation log 只寫一筆；換分鐘再寫', async () => {
@@ -1353,6 +1376,25 @@ describe('deliverToInbox 防護（顯示欄位由伺服器決定與節流）', (
       const env = load({ users: baseUsers() });
       await env.call({ message: msg({ source: 'template:welcome' }), targetUid: TARGET }).catch(() => {});
       expect(relationWarns(env.consoleImpl)).toHaveLength(1);
+      const serialized = JSON.stringify(env.consoleImpl.out.warns);
+      [CALLER, TARGET, '標題', '內文'].forEach((text) => expect(serialized).not.toContain(text));
+    });
+
+    test('未知 source：照常寫入恰好一筆 inbox，relation log reason unknown_source、relation null', async () => {
+      const env = load({ users: baseUsers() });
+      await expect(env.call({ message: msg({ source: 'brand_new_source' }), targetUid: TARGET }))
+        .resolves.toEqual({ success: true, delivered: 1 });
+      expect(env.db.paths('users/').filter((p) => p.includes('/inbox/'))).toHaveLength(1);
+      const logs = relationWarns(env.consoleImpl);
+      expect(logs).toHaveLength(1);
+      expect(logs[0][1]).toEqual({
+        gate: 'relation_missing_key',
+        kind: 'inbox',
+        caller: fields.maskUid(CALLER),
+        source: 'brand_new_source',
+        relation: null,
+        reason: 'unknown_source',
+      });
       const serialized = JSON.stringify(env.consoleImpl.out.warns);
       [CALLER, TARGET, '標題', '內文'].forEach((text) => expect(serialized).not.toContain(text));
     });

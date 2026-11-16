@@ -4,7 +4,7 @@
  * 通知發送授權強化（第 2 批）：關係檢查的鍵整理、log 與組裝（無查詢、無 Firestore；決策函式與查詢由呼叫端注入）。
  * log 沿用 `[notificationGuards] gate triggered` 的形狀：gate／kind／caller（遮罩）／source（格式合格才輸出）／
  * relation（代號）／reason／flags（只有布林或固定短字串）。不含 title、body、完整 uid、關聯鍵的值。
- * 節流：每（閘, 種類, 類別, source, 分鐘, 呼叫者）最多一筆，避免批次通知時每封都寫 log。
+ * 節流：每（閘, 種類, 類別, source, 分鐘, 呼叫者, reason）最多一筆，避免批次通知時每封都寫 log。
  */
 
 const { maskUid, logSafeSource } = require("./notification-fields");
@@ -43,7 +43,8 @@ function createRelationLogger({ logger, now }) {
   // 決策沒有 gate（allow）時不記；回傳是否實際寫出一筆
   return function logRelationOutcome(decision, { kind, callerUid, source }) {
     if (!decision || !decision.gate) return false;
-    const key = [decision.gate, kind, decision.relationId, logSafeSource(source), Math.floor(now() / 60000), callerUid].join("|");
+    // 取代「節流鍵不含 reason、同閘同呼叫者會把不同 reason 吃成一筆」（2026-11-16 顧問 §3.180：log reason 要能和缺鍵分開計數）。
+    const key = [decision.gate, kind, decision.relationId, logSafeSource(source), Math.floor(now() / 60000), callerUid, decision.reason].join("|");
     if (loggedKeys.has(key)) return false;
     if (loggedKeys.size >= LOGGED_KEYS_MAX) loggedKeys.clear();
     loggedKeys.add(key);
