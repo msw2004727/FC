@@ -2191,7 +2191,7 @@ function verifyLineAccessTokenChannel(accessToken) {
     timer = setTimeout(() => {
       finish({ clientId: "", error: "timeout" });
       try { req.destroy(); } catch (e) {}
-    }, 3000);
+    }, 2000); // Opus 終審 F2：3 秒縮為 2 秒，verify 卡住時成功登入最多多等 2 秒；維持 await 以確保 log 不被凍結
 
     req.end();
   });

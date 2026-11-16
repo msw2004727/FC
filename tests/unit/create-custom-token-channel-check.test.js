@@ -163,3 +163,22 @@ describe("maskLineUserIdForLog", () => {
     expect(maskLineUserIdForLog("")).toBe("***");
   });
 });
+
+describe("createCustomToken 呼叫順序契約（Opus 終審 F1）", () => {
+  test("近期拒絕檢查 → 發 verify → await profile → await verify → 簽發 custom token", () => {
+    const source = fs.readFileSync(path.join(__dirname, "../../functions/index.js"), "utf8");
+    const start = source.indexOf("exports.createCustomToken = onCall(");
+    const end = source.indexOf("exports.issueQaTestToken = ");
+    const block = source.slice(start, end);
+    const order = [
+      "assertLineAccessTokenNotRecentlyRejected(accessToken)",
+      "verifyLineAccessTokenChannel(accessToken)",
+      "await getLineUserIdByAccessToken(accessToken)",
+      "await channelCheck",
+      "authAdmin.createCustomToken(lineUserId)",
+    ].map((needle) => block.indexOf(needle));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(block).not.toMatch(/console\.[a-z]+\([^)]*accessToken/);
+  });
+});
