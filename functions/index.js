@@ -2157,6 +2157,7 @@ function verifyLineAccessTokenChannel(accessToken) {
 
     const options = {
       hostname: "api.line.me",
+      // LINE 官方驗 access token 只有 GET＋query 這一種；不得把 options 或 path 寫進 log。
       path: `/oauth2/v2.1/verify?access_token=${encodeURIComponent(String(accessToken || ""))}`,
       method: "GET",
     };
@@ -3226,10 +3227,12 @@ exports.createCustomToken = onCall(
 
     let lineUserId;
     let accessTokenFingerprint = "";
-    // 取代了只驗 profile 就簽 token 的流程；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
-    const channelCheck = verifyLineAccessTokenChannel(accessToken);
+    let channelCheck = null;
     try {
       accessTokenFingerprint = assertLineAccessTokenNotRecentlyRejected(accessToken);
+      // 取代了只驗 profile 就簽 token 的流程；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
+      // 放在近期拒絕檢查之後（MiMo 審查 P2）：已知壞 token 不再多打一次 verify。
+      channelCheck = verifyLineAccessTokenChannel(accessToken);
       lineUserId = await getLineUserIdByAccessToken(accessToken);
     } catch (err) {
       console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
@@ -3253,7 +3256,7 @@ exports.createCustomToken = onCall(
       throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
-    const channelCheckResult = await channelCheck;
+    const channelCheckResult = channelCheck ? await channelCheck : { clientId: "", error: "skipped" };
     console.log("[createCustomToken] channel check", {
       channelId: channelCheckResult.clientId || "",
       matched: LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(channelCheckResult.clientId),
