@@ -2135,6 +2135,74 @@ async function shouldAutoUnbindLineRecipient(client, recipientUid, pushErr) {
   }
 }
 
+// 本站 LINE channel（Mini App／LIFF 與舊 LIFF）；第一步只用來記錄是否相符，觀察至少 3 天再決定第二步。
+const LINE_LOGIN_ALLOWED_CHANNEL_IDS = Object.freeze(["2009525300", "2009084941"]);
+
+// 取代了原本只靠 /v2/profile 判斷 token 有效性的做法；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
+function verifyLineAccessTokenChannel(accessToken) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let req;
+    let timer;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      resolve(result);
+    };
+
+    const options = {
+      hostname: "api.line.me",
+      path: `/oauth2/v2.1/verify?access_token=${encodeURIComponent(String(accessToken || ""))}`,
+      method: "GET",
+    };
+
+    try {
+      req = https.request(options, (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => {
+          if (res.statusCode !== 200) {
+            finish({ clientId: "", error: `http_${res.statusCode}` });
+            return;
+          }
+          try {
+            const json = JSON.parse(data);
+            finish({ clientId: String(json.client_id || "") });
+          } catch (e) {
+            finish({ clientId: "", error: "parse" });
+          }
+        });
+      });
+    } catch (e) {
+      finish({ clientId: "", error: "network" });
+      return;
+    }
+
+    req.on("error", () => {
+      finish({ clientId: "", error: "network" });
+    });
+
+    timer = setTimeout(() => {
+      finish({ clientId: "", error: "timeout" });
+      try { req.destroy(); } catch (e) {}
+    }, 3000);
+
+    req.end();
+  });
+}
+
+// 取代了成功 log 直接印出完整 lineUserId 的做法；為什麼：避免日誌洩漏識別碼，且符合授權強化只記錄不擋的第一步。
+function maskLineUserIdForLog(id) {
+  const text = String(id || "");
+  if (text.length < 8) return "***";
+  return `${text.slice(0, 4)}***${text.slice(-2)}`;
+}
+
 /**
  * getLineUserIdByAccessToken
  * 用 LINE Access Token 呼叫 /v2/profile 取得 lineUserId（有效期 30 天，不會過期）
@@ -3158,6 +3226,8 @@ exports.createCustomToken = onCall(
 
     let lineUserId;
     let accessTokenFingerprint = "";
+    // 取代了只驗 profile 就簽 token 的流程；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
+    const channelCheck = verifyLineAccessTokenChannel(accessToken);
     try {
       accessTokenFingerprint = assertLineAccessTokenNotRecentlyRejected(accessToken);
       lineUserId = await getLineUserIdByAccessToken(accessToken);
@@ -3183,12 +3253,19 @@ exports.createCustomToken = onCall(
       throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
+    const channelCheckResult = await channelCheck;
+    console.log("[createCustomToken] channel check", {
+      channelId: channelCheckResult.clientId || "",
+      matched: LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(channelCheckResult.clientId),
+      error: channelCheckResult.error || undefined,
+    });
+
     await ensureAuthUser(lineUserId);
     const role = await getUserRoleFromFirestore(lineUserId);
     await setRoleClaimMerged(lineUserId, role);
 
     const customToken = await authAdmin.createCustomToken(lineUserId);
-    console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", lineUserId, "role=", role);
+    console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", maskLineUserIdForLog(lineUserId), "role=", role);
     return { customToken, role };
   }
 );
