@@ -5,8 +5,16 @@
  * - createMemoryDb：以路徑為鍵的記憶體 Firestore，支援 doc().get、collection().where(==、array-contains).limit().get，
  *   並記錄每次讀取（reads），可用 faults 讓指定文件或查詢丟錯。
  * - createHelpers：複製 functions/index.js 內注入給查詢模組的純邏輯 helper 行為（查詢模組不 require index.js）。
+ * - bindReviewAccess：把 index.js 的 getCallerAccessContext／assertCallerCanReviewGroupActionDocs 綁到同一份記憶體 db，
+ *   讓 R4 通知與審核動作用同一套權限函式（2026-11-16 顧問 §3.180）。
  * uid 一律用假值（uidA、uidB…），不放真實識別資料。
  */
+
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+const { parse } = require("@babel/parser");
+const { isUserCreatedTeamOwner, resolveTeamSnapshot } = require("../../functions/team-membership-core");
 
 const clone = (value) => (value === undefined ? value : JSON.parse(JSON.stringify(value)));
 
@@ -139,7 +147,120 @@ function createHelpers({ db, legacyDefaults = {} } = {}) {
       if (!Object.prototype.hasOwnProperty.call(data, "permissions")) return (legacyDefaults[role] || []).includes(code);
       return Array.isArray(data.permissions) && data.permissions.includes(code);
     },
+    // 與 index.js helpers.callableAccess 相同的 request 形狀，裡頭是真正的 getCallerAccessContext。
+    callableAccess: (ctx) => bindReviewAccess(db).getCallerAccessContext({
+      auth: {
+        uid: typeof ctx?.callerUid === "string" ? ctx.callerUid.trim() : "",
+        token: { role: typeof ctx?.callerRole === "string" ? ctx.callerRole : "" },
+      },
+    }),
   };
+}
+
+const REVIEW_CONSTS = [
+  "VALID_ROLES",
+  "DISABLED_PERMISSION_CODES",
+  "LEGACY_PERMISSION_CODE_REPLACEMENTS",
+  "SECONDARY_IDENTITY_PERMISSION",
+  "ROLE_LEVELS",
+  "INHERENT_ROLE_PERMISSIONS",
+  "DEFAULT_ROLE_ENTRY_PERMISSION_RULES",
+  "DEFAULT_ADMIN_PERMISSION_CODES",
+  "USER_PERMISSION_GRANT_ALLOWED_CODES",
+  "ROLE_ACTIVITY_CAPABILITY_CODES",
+  "DEFAULT_USER_ACTIVITY_CAPABILITIES",
+];
+const REVIEW_FNS = [
+  "normalizeRole",
+  "normalizeBuiltInRole",
+  "normalizePermissionCode",
+  "sanitizePermissionCodeList",
+  "sanitizeUserPermissionGrantCodeList",
+  "getDefaultRolePermissions",
+  "sanitizeRoleActivityCapabilityList",
+  "findUserDocByUidOrLineUserId",
+  "getUserRoleFromFirestore",
+  "getCallerRoleWithFallback",
+  "getRolePermissionsFromFirestore",
+  "getUserPermissionGrantsFromFirestore",
+  "getRoleActivityCapabilitiesFromFirestore",
+  "getCallerAccessContext",
+  "isRoleAdminOrAbove",
+  "isTeamStaffForData",
+  "getTeamDocByTeamId",
+  "assertCallerCanReviewGroupActionDocs",
+];
+
+let reviewScript = null;
+
+function buildReviewSource() {
+  const file = path.join(__dirname, "../../functions/index.js");
+  const source = fs.readFileSync(file, "utf8");
+  const ast = parse(source, { sourceType: "script" });
+  const consts = [];
+  const fns = new Map();
+  for (const node of ast.program.body) {
+    if (node.type === "VariableDeclaration") {
+      for (const declarator of node.declarations) {
+        if (declarator.id.type === "Identifier" && REVIEW_CONSTS.includes(declarator.id.name)) {
+          consts.push(`${node.kind} ${source.slice(declarator.start, declarator.end)};`);
+        }
+      }
+    }
+    if (node.type === "FunctionDeclaration" && node.id && REVIEW_FNS.includes(node.id.name)) {
+      fns.set(node.id.name, source.slice(node.start, node.end));
+    }
+  }
+  const missing = REVIEW_FNS.filter((name) => !fns.has(name));
+  const missingConsts = REVIEW_CONSTS.filter((name) => !consts.some((line) => line.includes(` ${name} `) || line.startsWith(`const ${name} `) || line.startsWith(`let ${name} `)));
+  if (missing.length > 0 || missingConsts.length > 0) {
+    throw new Error(`R4 review sandbox missing: ${[...missingConsts, ...missing].join(", ")}`);
+  }
+  return `${consts.join("\n")}\n${REVIEW_FNS.map((name) => fns.get(name)).join("\n")}`;
+}
+
+class ReviewHttpsError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+    this.name = "HttpsError";
+  }
+}
+
+const reviewSandboxes = new WeakMap();
+
+// 同一 db 只組一次。callableAccess 與 mayReviewAction 共用這份 getCallerAccessContext。
+function bindReviewAccess(db) {
+  if (reviewSandboxes.has(db)) return reviewSandboxes.get(db);
+  if (!reviewScript) reviewScript = new vm.Script(buildReviewSource(), { filename: "r4-review-access.vm.js" });
+  const sandbox = {
+    db,
+    console: { warn() {}, log() {}, error() {}, info() {} },
+    resolveTeamSnapshot,
+    isUserCreatedTeamOwner,
+    HttpsError: ReviewHttpsError,
+  };
+  reviewScript.runInNewContext(sandbox);
+  const api = {
+    getCallerAccessContext: sandbox.getCallerAccessContext,
+    // 入隊審核動作的布林結果：可審核 true；permission-denied false；其他錯誤往外丟。
+    async mayReviewAction(uid, teamId = "t1") {
+      const docs = [{ data: () => ({ actionType: "team_join_request", meta: { teamId } }) }];
+      try {
+        await sandbox.assertCallerCanReviewGroupActionDocs(
+          { auth: { uid, token: {} } },
+          docs,
+          "g1",
+        );
+        return true;
+      } catch (err) {
+        if (err && err.code === "permission-denied") return false;
+        throw err;
+      }
+    },
+  };
+  reviewSandboxes.set(db, api);
+  return api;
 }
 
 // 常用 ctx 組裝器：預設呼叫者 uidA（role user），收件者 uidB。
@@ -156,4 +277,4 @@ function makeCtx(overrides = {}) {
   };
 }
 
-module.exports = { createMemoryDb, createHelpers, makeCtx };
+module.exports = { createMemoryDb, createHelpers, makeCtx, bindReviewAccess };

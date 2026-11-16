@@ -190,6 +190,13 @@ const notificationRelation = createRelationChecker({
       getEventDocByPublicId,
       canOperatePrivateEventForAccess,
       legacyHasPermission: async (role, code) => (await getRolePermissionsFromFirestore(role)).includes(code),
+      // R4 通知對齊審核 Callable（2026-11-16 顧問 §3.180）：同一支 getCallerAccessContext。
+      callableAccess: (ctx) => getCallerAccessContext({
+        auth: {
+          uid: typeof ctx?.callerUid === "string" ? ctx.callerUid.trim() : "",
+          token: { role: typeof ctx?.callerRole === "string" ? ctx.callerRole : "" },
+        },
+      }),
     },
   }),
 });

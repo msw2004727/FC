@@ -6,9 +6,11 @@
  * 取代「id 欄位不一致或只有 where(id) 找得到即查無、不得用來授權」。
  */
 
+const fs = require("fs");
+const path = require("path");
 const { createRelationQueries } = require("../../functions/notification-relation-queries");
 const { decideRelation } = require("../../functions/notification-relation-decide");
-const { createMemoryDb, createHelpers, makeCtx } = require("./notification-relation-test-kit");
+const { createMemoryDb, createHelpers, makeCtx, bindReviewAccess } = require("./notification-relation-test-kit");
 
 const boom = () => Object.assign(new Error("14 UNAVAILABLE"), { code: 14 });
 const TEAM = {
@@ -23,7 +25,7 @@ const TEAM = {
 function setup(seed = {}, faults = {}) {
   const db = createMemoryDb({ seed: { "teams/t1": TEAM, ...seed }, faults });
   const helpers = createHelpers({ db, legacyDefaults: {} });
-  return { db, queries: createRelationQueries({ db, helpers }) };
+  return { db, queries: createRelationQueries({ db, helpers }), review: bindReviewAccess(db) };
 }
 
 describe("callerIsApplicant", () => {
@@ -97,42 +99,136 @@ describe("callerMayReviewJoin", () => {
   const ctxFor = (callerUid, extra = {}) => makeCtx({
     source: "team_join_review:approve", keys: { teamId: "t1", applicantUid: "uidB" }, callerUid, ...extra,
   });
+  const captain = { "users/uidCap": { role: "captain" } };
 
-  test("幹部 + team.review_join（Rules 對齊）：通過；team.manage.entry 也可", async () => {
+  test("幹部 + 角色文件含 team.review_join 或 team.manage.entry：通過", async () => {
     for (const code of ["team.review_join", "team.manage.entry"]) {
-      const { queries } = setup({ "rolePermissions/captain": { permissions: [code] } });
+      const { queries } = setup({ ...captain, "rolePermissions/captain": { permissions: [code] } });
       expect(await queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).toBe(true);
     }
   });
 
-  test("幹部但沒有權限碼（文件缺漏不回退預設）：拒絕", async () => {
-    const { queries } = setup();
+  test("無 rolePermissions/captain 文件的 captain 幹部：回退預設權限，allow", async () => {
+    const { queries, db } = setup(captain);
+    expect(await queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).toBe(true);
+    expect(db.readsOf("rolePermissions/captain").length).toBeGreaterThan(0);
+  });
+
+  test("角色文件沒有 permissions 欄位：回退預設，captain 幹部 allow", async () => {
+    const { queries } = setup({ ...captain, "rolePermissions/captain": { note: "no permissions field" } });
+    expect(await queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).toBe(true);
+  });
+
+  test("角色文件存在但沒有該權限碼：deny", async () => {
+    const { queries } = setup({ ...captain, "rolePermissions/captain": { permissions: ["x.y"] } });
     expect(await queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).toBe(false);
-    const empty = setup({ "rolePermissions/captain": { permissions: ["x.y"] } });
-    expect(await empty.queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).toBe(false);
   });
 
   test("有權限碼但不是該隊幹部：拒絕", async () => {
-    const { queries } = setup({ "rolePermissions/captain": { permissions: ["team.review_join"] } });
+    const { queries } = setup({
+      "users/uidX": { role: "captain" },
+      "rolePermissions/captain": { permissions: ["team.review_join"] },
+    });
     expect(await queries.callerMayReviewJoin(ctxFor("uidX", { callerRole: "captain" }))).toBe(false);
   });
 
-  test("admin／super_admin 角色：通過，不需幹部欄位也不讀權限文件；但隊伍必須存在", async () => {
-    const { queries, db } = setup();
+  test("admin 照舊 allow（無角色文件時預設含 team.manage.entry，不必是幹部）；隊伍必須存在", async () => {
+    const { queries } = setup({ "users/uidX": { role: "admin" } });
     expect(await queries.callerMayReviewJoin(ctxFor("uidX", { callerRole: "admin" }))).toBe(true);
-    expect(await queries.callerMayReviewJoin(ctxFor("uidX", { callerRole: "super_admin" }))).toBe(true);
-    expect(db.readsOf("rolePermissions")).toEqual([]);
-    expect(await queries.callerMayReviewJoin(makeCtx({ keys: { teamId: "t404" }, callerUid: "uidX", callerRole: "admin" }))).toBe(false);
+    expect(await queries.callerMayReviewJoin(makeCtx({
+      keys: { teamId: "t404" }, callerUid: "uidX", callerRole: "admin",
+    }))).toBe(false);
   });
 
-  test("個別授權（user 角色的幹部）通過", async () => {
+  test("super_admin 照舊 allow，且不讀 rolePermissions", async () => {
+    const { queries, db } = setup({ "users/uidX": { role: "super_admin" } });
+    expect(await queries.callerMayReviewJoin(ctxFor("uidX", { callerRole: "super_admin" }))).toBe(true);
+    expect(db.readsOf("rolePermissions")).toEqual([]);
+  });
+
+  test("非幹部一般用戶：deny", async () => {
+    const { queries } = setup({ "users/uidX": { role: "user" } });
+    expect(await queries.callerMayReviewJoin(ctxFor("uidX", { callerRole: "user" }))).toBe(false);
+  });
+
+  test("個別授權（user 角色的幹部）通過；enabled false 不通過", async () => {
     const { queries } = setup({ "userPermissionGrants/uidCoach": { permissions: ["team.review_join"] } });
     expect(await queries.callerMayReviewJoin(ctxFor("uidCoach"))).toBe(true);
+    const off = setup({ "userPermissionGrants/uidCoach": { permissions: ["team.review_join"], enabled: false } });
+    expect(await off.queries.callerMayReviewJoin(ctxFor("uidCoach"))).toBe(false);
   });
 
   test("讀權限文件丟錯：往外丟", async () => {
     const { queries } = setup({}, { get: (path) => (path.startsWith("userPermissionGrants/") ? boom() : null) });
     await expect(queries.callerMayReviewJoin(ctxFor("uidCap", { callerRole: "captain" }))).rejects.toThrow("UNAVAILABLE");
+  });
+
+  test("index.js 注入 callableAccess，queries 檔不 require index.js", () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, "../../functions/index.js"), "utf8");
+    const teamSource = fs.readFileSync(path.join(__dirname, "../../functions/notification-relation-queries-team.js"), "utf8");
+    expect(indexSource).toContain("callableAccess: (ctx) => getCallerAccessContext({");
+    expect(indexSource).toContain('uid: typeof ctx?.callerUid === "string" ? ctx.callerUid.trim() : ""');
+    expect(indexSource).toContain('token: { role: typeof ctx?.callerRole === "string" ? ctx.callerRole : "" }');
+    expect(teamSource).not.toContain("require(\"./index\")");
+    expect(teamSource).not.toContain("require('./index')");
+  });
+});
+
+describe("動作 vs 通知同答案", () => {
+  const ctxFor = (callerUid, role, teamId = "t1") => makeCtx({
+    source: "team_join_review:approve",
+    keys: { teamId, applicantUid: "uidB" },
+    callerUid,
+    callerRole: role,
+  });
+
+  // 角色以 users 文件為準（與 getCallerAccessContext 相同）。隊伍 id 與文件 id 一致，避開另一張卡的讀法。
+  const CASES = [
+    ["無 rolePermissions/captain、captain 幹部", { "users/uidCap": { role: "captain" } }, "uidCap", "captain", true],
+    ["角色文件存在但沒有該權限碼", {
+      "users/uidCap": { role: "captain" },
+      "rolePermissions/captain": { permissions: ["team.create"] },
+    }, "uidCap", "captain", false],
+    ["角色文件沒有 permissions 欄位、回退預設", {
+      "users/uidCap": { role: "captain" },
+      "rolePermissions/captain": { updatedAt: 1 },
+    }, "uidCap", "captain", true],
+    ["admin 無角色文件、非幹部", { "users/uidX": { role: "admin" } }, "uidX", "admin", true],
+    ["admin 角色文件沒有審核碼", {
+      "users/uidX": { role: "admin" },
+      "rolePermissions/admin": { permissions: ["team.create"] },
+    }, "uidX", "admin", false],
+    ["super_admin 非幹部", { "users/uidX": { role: "super_admin" } }, "uidX", "super_admin", true],
+    ["非幹部一般用戶", { "users/uidX": { role: "user" } }, "uidX", "user", false],
+    ["幹部 + 個別授權", {
+      "users/uidCoach": { role: "user" },
+      "userPermissionGrants/uidCoach": { permissions: ["team.review_join"] },
+    }, "uidCoach", "user", true],
+    ["非幹部但有個別授權", {
+      "users/uidX": { role: "user" },
+      "userPermissionGrants/uidX": { permissions: ["team.manage.entry"] },
+    }, "uidX", "user", false],
+    ["個別授權 enabled false", {
+      "users/uidCoach": { role: "user" },
+      "userPermissionGrants/uidCoach": { permissions: ["team.review_join"], enabled: false },
+    }, "uidCoach", "user", false],
+    ["legacy 碼 team.approve_join 回寫成 team.review_join", {
+      "users/uidCap": { role: "captain" },
+      "rolePermissions/captain": { permissions: ["team.approve_join"] },
+    }, "uidCap", "captain", true],
+    ["自建俱樂部擁有者、無審核權限", {
+      "teams/t1": { id: "t1", createdVia: "user_capability", ownerUid: "uidOwn", captainUid: "uidOwn" },
+      "users/uidOwn": { role: "user" },
+    }, "uidOwn", "user", true],
+  ];
+
+  test.each(CASES)("%s：可審核 ⇔ 通知 allow", async (_name, seed, uid, role, allow) => {
+    const { queries, review } = setup(seed);
+    const notified = await queries.callerMayReviewJoin(ctxFor(uid, role));
+    const reviewed = await review.mayReviewAction(uid);
+    expect(notified).toBe(allow);
+    expect(reviewed).toBe(allow);
+    expect(notified).toBe(reviewed);
   });
 });
 

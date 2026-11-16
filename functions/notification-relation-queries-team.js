@@ -60,6 +60,13 @@ function createTeamQueries({ db, helpers, readAccess }) {
     }));
     return [...ids];
   });
+  // 同一次決策只解析一次 Callable 權限（R4）。失敗的 Promise 也快取，避免重試變成放行。
+  const loadCallableAccess = memoByCtx(async (ctx) => {
+    if (typeof helpers.callableAccess !== "function") {
+      throw new TypeError("callableAccess helper is required");
+    }
+    return helpers.callableAccess(ctx);
+  });
   const mayReceiveAssignment = memoByCtx(async (ctx) => {
     const team = await loadTeam(ctx);
     if (!team) return false;
@@ -121,18 +128,26 @@ function createTeamQueries({ db, helpers, readAccess }) {
       return identities.some((uid) => helpers.isTeamStaffForData(team.data, uid) === true);
     },
 
-    // 隊伍存在，且 admin／super_admin，或「幹部欄位 + Rules 對齊的 team.review_join／team.manage.entry」。
+    // 原則：觸發動作由 Firestore Rules 把關者（R1 活動編輯）用 Rules 對齊權限；
+    // 由 Callable 把關者（R4 入隊審核）用該 Callable 的權限函式。通知不比動作嚴，也不比動作寬。
+    // 取代了什麼、為什麼（2026-11-16 顧問 §3.180）：取代 Rules 對齊的 createRulesAlignedAccess
+    // （rolePermissions 不存在或沒有 permissions 欄位時不回退），改為 getCallerAccessContext.hasPermission
+    // （同一情況回退 getDefaultRolePermissions，含個別授權）＋幹部或 isRoleAdminOrAbove。
+    // 只改 R4。自建俱樂部 OWNER_FIELDS 本人仍先放行、不讀權限，與 assertCallerCanReviewGroupActionDocs 相同。
     async callerMayReviewJoin(ctx) {
       const caller = str(ctx?.callerUid);
       if (!caller) return false;
       const team = await loadTeam(ctx);
       if (!team) return false;
       if (isUserCreatedTeamOwner(team.data, caller)) return true;
-      const role = str(ctx?.callerRole);
-      if (role === "admin" || role === "super_admin") return true;
-      if (helpers.isTeamStaffForData(team.data, caller) !== true) return false;
-      const access = await readAccess(ctx);
-      return access.hasPermission("team.review_join") || access.hasPermission("team.manage.entry");
+      const access = await loadCallableAccess(ctx);
+      const hasPerm = access.hasPermission("team.review_join")
+        || access.hasPermission("team.manage.entry");
+      if (!hasPerm) return false;
+      const role = str(access.role);
+      return helpers.isTeamStaffForData(team.data, caller) === true
+        || role === "admin"
+        || role === "super_admin";
     },
 
     // approve／reject：收件者等於 applicantUid。broadcast：收件者是該隊幹部且不是呼叫者。
