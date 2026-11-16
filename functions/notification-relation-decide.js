@@ -10,7 +10,8 @@
  *   flags    只放布林或固定字串（hasEventId 這類只記「有沒有鍵」，不放鍵的值）
  *
  * 模式只來自 modeOf(relationId)；沒有任何可由客戶端傳入的 mode 參數，payload 的 mode 也不會被讀。
- * 失敗不准放行：查詢丟錯、查無、查詢函式缺失一律 deny。
+ * 查無、查詢函式缺失一律 deny。查詢丟錯：暫時性代碼 unavailable、deadline_exceeded、aborted（以 errCodeOf 正規化後比對）先用新 ctx 整段重查一次；重試仍失敗且該類別為 log、relationId 不是 null／R0／R7 時 record（reason query_error，flags 含 errCode 與 retried）照送；enforce、非暫時性錯誤，以及 null／R0／R7，維持 deny。
+ * 取代「失敗不准放行：查詢丟錯一律 deny」（2026-11-16 顧問 §3.180）：log 模式對暫時性錯誤一律拒絕不增加安全性，只會在 Firestore 抖動時吞掉合法通知；其餘錯誤仍 deny，避免用不合法的鍵繞過。
  */
 
 const { classifyRelation } = require("./notification-relation-table");
@@ -30,6 +31,9 @@ function errCodeOf(error) {
   const code = raw.toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
   return code || "unknown";
 }
+
+// 只跟 errCodeOf 的結果比對，不看原始 code 的大小寫或連字號。
+const TRANSIENT_ERR_CODES = new Set(["unavailable", "deadline_exceeded", "aborted"]);
 
 function outcomeOf(outcome, relationId, reason, flags = {}) {
   const gates = {
@@ -113,15 +117,21 @@ async function decideBroadcastPermission(rel, ctx, queries, mode) {
     : outcomeOf("allow", rel.id, "not_aligned_log_mode");
 }
 
-async function decideRelation({ source, keys, ctx, queries, classify = classifyRelation, modeOf = relationMode } = {}) {
+async function decideRelation(args = {}) {
+  return runDecide(args, 1);
+}
+
+// attempt 1 先查。暫時性錯誤且 relationId 不是 null／R0／R7 時，用新 ctx 再跑一次（attempt 2 不再重試）。
+async function runDecide({ source, keys, ctx, queries, classify = classifyRelation, modeOf = relationMode } = {}, attempt) {
   let relationId = null;
+  let mode = null;
   try {
     const safeKeys = pickKeys(keys);
     const rel = classify(source, safeKeys);
     // 未知 source：維持第 1 批「只記錄、不擋」，不在這裡加 log gate。
     if (!rel) return outcomeOf("allow", null, "unknown_source");
     relationId = rel.id;
-    const mode = modeOf(rel.id) === "enforce" ? "enforce" : "log";
+    mode = modeOf(rel.id) === "enforce" ? "enforce" : "log";
     const assignmentRole = rel.id === "R5" ? assignmentRoleOf(source, safeKeys) : "";
     const ctx2 = { ...(ctx && typeof ctx === "object" ? ctx : {}), source, keys: safeKeys, assignmentRole };
 
@@ -207,8 +217,20 @@ async function decideRelation({ source, keys, ctx, queries, classify = classifyR
     }
     return outcomeOf("deny", rel.id, "recipient_not_in_relation", flags);
   } catch (error) {
-    // 查詢丟錯（含讀權限文件失敗）一律拒絕，失敗不准改放行。errCode 只留固定格式的短代碼，讓 log 分得出暫時性錯誤。
-    return outcomeOf("deny", relationId, "query_error", { errCode: errCodeOf(error) });
+    // 取代「查詢丟錯一律 deny」：2026-11-16 顧問 §3.180。暫時性代碼先換新 ctx 整段重查一次
+    // （memo 以 ctx 物件為鍵，沿用同一個會拿到快取的失敗 promise）。重試仍失敗且為 log：record 照送；其餘 deny。
+    const errCode = errCodeOf(error);
+    const transient = TRANSIENT_ERR_CODES.has(errCode);
+    const exempt = relationId == null || relationId === "R0" || relationId === "R7";
+    if (attempt === 1 && transient && !exempt) {
+      const base = ctx && typeof ctx === "object" ? ctx : {};
+      return runDecide({ source, keys, ctx: { ...base }, queries, classify, modeOf }, 2);
+    }
+    const retried = attempt === 2 && transient && !exempt;
+    if (retried && mode === "log") {
+      return outcomeOf("record", relationId, "query_error", { errCode, retried: true });
+    }
+    return outcomeOf("deny", relationId, "query_error", retried ? { errCode, retried: true } : { errCode });
   }
 }
 

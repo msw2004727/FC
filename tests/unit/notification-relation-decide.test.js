@@ -8,6 +8,7 @@
 const { decideRelation } = require("../../functions/notification-relation-decide");
 const { classifyRelation } = require("../../functions/notification-relation-table");
 const { RELATION_ENFORCEMENT } = require("../../functions/notification-relation-enforcement");
+const { memoByCtx } = require("../../functions/notification-relation-queries-shared");
 
 const QUERY_NAMES = [
   "callerIsAuthenticated", "recipientIsCaller", "callerMayManageEvent", "recipientHasActiveRegistration",
@@ -679,5 +680,296 @@ describe("T-090f B3 俱樂部範圍收斂（不信 source／template 分類）",
     const r3 = notScoped();
     expect(await decide("team_join_request", { teamId: "t1" }, r3)).toMatchObject({ outcome: "allow", relationId: "R3" });
     expect(r3.teamScopedDeliveryAllowed).not.toHaveBeenCalled();
+  });
+});
+
+describe("decideRelation query_error 暫時性重試（顧問 §3.180）", () => {
+  const source = "template:event_changed";
+  const keys = { eventId: "ev1" };
+  const TRANSIENT = ["unavailable", "deadline_exceeded", "aborted"];
+
+  function queryError(code) {
+    return Object.assign(new Error("query failed"), { code });
+  }
+
+  // 查詢函式本身用 memoByCtx。reads 是內層真正執行的次數；沿用同一個 ctx 時不會增加。
+  function memoizedQuery(run) {
+    const seen = [];
+    let reads = 0;
+    const fn = memoByCtx(async (got) => {
+      reads += 1;
+      seen.push(got);
+      return run(reads, got);
+    });
+    return { fn, seen, reads: () => reads };
+  }
+
+  function installCaller(queries, run) {
+    const probe = memoizedQuery(run);
+    queries.callerMayManageEvent = probe.fn;
+    return probe;
+  }
+
+  describe("log 模式（R1 常數）", () => {
+    test.each(TRANSIENT)("%s 兩次：record、reason query_error、errCode、retried，不是 missing_key", async (code) => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, () => { throw queryError(code); });
+      const result = await decide(source, keys, queries);
+      expect(result).toEqual({
+        outcome: "record",
+        relationId: "R1",
+        gate: "relation_missing_key",
+        reason: "query_error",
+        flags: { errCode: code, retried: true },
+      });
+      expect(result.reason).not.toBe("missing_key");
+      expect(probe.reads()).toBe(2);
+      expect(probe.seen[0]).not.toBe(probe.seen[1]);
+      expect(queries.recipientHasActiveRegistration).not.toHaveBeenCalled();
+    });
+
+    test.each(TRANSIENT)("%s 一次後查詢成功：照重試結果 allow", async (code) => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, (reads) => {
+        if (reads === 1) throw queryError(code);
+        return true;
+      });
+      const result = await decide(source, keys, queries);
+      expect(result).toMatchObject({ outcome: "allow", relationId: "R1", gate: null, reason: "ok" });
+      expect(result.flags).toEqual({ hasEventId: true });
+      expect(probe.reads()).toBe(2);
+      expect(probe.seen[0]).not.toBe(probe.seen[1]);
+      expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
+    });
+
+    test("unavailable 一次後呼叫者不合：照重試結果 deny，不是 record", async () => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, (reads) => {
+        if (reads === 1) throw queryError("unavailable");
+        return false;
+      });
+      const result = await decide(source, keys, queries);
+      expect(result).toMatchObject({ outcome: "deny", relationId: "R1", reason: "caller_not_allowed" });
+      expect(probe.reads()).toBe(2);
+      expect(queries.recipientHasActiveRegistration).not.toHaveBeenCalled();
+    });
+
+    test("DEADLINE-EXCEEDED 經 errCodeOf 正規化後也會重試", async () => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, () => { throw queryError("DEADLINE-EXCEEDED"); });
+      const result = await decide(source, keys, queries);
+      expect(result).toMatchObject({
+        outcome: "record", reason: "query_error", flags: { errCode: "deadline_exceeded", retried: true },
+      });
+      expect(probe.reads()).toBe(2);
+    });
+
+    test("permission-denied：deny 且只查一次", async () => {
+      const queries = makeQueries();
+      queries.recipientHasActiveRegistration = jest.fn(async () => { throw queryError("permission-denied"); });
+      const result = await decide(source, keys, queries);
+      expect(result).toEqual({
+        outcome: "deny",
+        relationId: "R1",
+        gate: "relation_denied",
+        reason: "query_error",
+        flags: { errCode: "permission_denied" },
+      });
+      expect(queries.callerMayManageEvent).toHaveBeenCalledTimes(1);
+      expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
+    });
+
+    test("未知錯誤（沒有 code、數字 14、firestore/unavailable）：deny 且只查一次", async () => {
+      for (const error of [new Error("x"), queryError(14), queryError("firestore/unavailable")]) {
+        const queries = makeQueries();
+        queries.recipientHasActiveRegistration = jest.fn(async () => { throw error; });
+        const result = await decide(source, keys, queries);
+        expect(result.outcome).toBe("deny");
+        expect(result.reason).toBe("query_error");
+        expect(result.flags.retried).toBeUndefined();
+        expect(queries.callerMayManageEvent).toHaveBeenCalledTimes(1);
+        expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
+      }
+    });
+
+    test("第一次 unavailable、第二次 permission-denied：deny，不 record", async () => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, (reads) => {
+        if (reads === 1) throw queryError("unavailable");
+        throw queryError("permission-denied");
+      });
+      const result = await decide(source, keys, queries);
+      expect(result).toEqual({
+        outcome: "deny",
+        relationId: "R1",
+        gate: "relation_denied",
+        reason: "query_error",
+        flags: { errCode: "permission_denied" },
+      });
+      expect(probe.reads()).toBe(2);
+    });
+  });
+
+  describe("enforce 模式", () => {
+    const inject = { modeOf: enforceAll };
+
+    test.each(TRANSIENT)("%s 兩次：deny，不是 record", async (code) => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, () => { throw queryError(code); });
+      const result = await decide(source, keys, queries, { inject });
+      expect(result).toEqual({
+        outcome: "deny",
+        relationId: "R1",
+        gate: "relation_denied",
+        reason: "query_error",
+        flags: { errCode: code, retried: true },
+      });
+      expect(probe.reads()).toBe(2);
+      expect(probe.seen[0]).not.toBe(probe.seen[1]);
+    });
+
+    test.each(TRANSIENT)("%s 一次後成功：allow", async (code) => {
+      const queries = makeQueries();
+      const probe = installCaller(queries, (reads) => {
+        if (reads === 1) throw queryError(code);
+        return true;
+      });
+      const result = await decide(source, keys, queries, { inject });
+      expect(result).toMatchObject({ outcome: "allow", relationId: "R1", gate: null, reason: "ok" });
+      expect(probe.reads()).toBe(2);
+    });
+
+    test("非暫時性 permission-denied：deny 且不重試", async () => {
+      const queries = makeQueries();
+      queries.recipientHasActiveRegistration = jest.fn(async () => { throw queryError("permission-denied"); });
+      const result = await decide(source, keys, queries, { inject });
+      expect(result).toMatchObject({ outcome: "deny", reason: "query_error", flags: { errCode: "permission_denied" } });
+      expect(result.flags.retried).toBeUndefined();
+      expect(queries.callerMayManageEvent).toHaveBeenCalledTimes(1);
+      expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
+    });
+
+    test("未知錯誤：deny 且不重試", async () => {
+      const queries = makeQueries();
+      queries.recipientHasActiveRegistration = jest.fn(async () => { throw new Error("x"); });
+      const result = await decide(source, keys, queries, { inject });
+      expect(result).toMatchObject({ outcome: "deny", reason: "query_error", flags: { errCode: "unknown" } });
+      expect(queries.callerMayManageEvent).toHaveBeenCalledTimes(1);
+      expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("重試用新 ctx：memo 不會回放第一次的失敗 promise（內層計數＝2）", async () => {
+    const queries = makeQueries();
+    const probe = installCaller(queries, (reads) => {
+      if (reads === 1) throw queryError("unavailable");
+      return true;
+    });
+    const result = await decide(source, keys, queries);
+    expect(result.outcome).toBe("allow");
+    expect(probe.reads()).toBe(2);
+    expect(probe.seen).toHaveLength(2);
+    expect(probe.seen[0]).not.toBe(probe.seen[1]);
+  });
+
+  describe("relationId null／R0／R7 維持 deny，不重試", () => {
+    test("R0 unavailable：即使第二次會成功也 deny，只查一次", async () => {
+      let reads = 0;
+      const queries = makeQueries();
+      queries.recipientIsCaller = jest.fn(async () => {
+        reads += 1;
+        if (reads === 1) throw queryError("unavailable");
+        return true;
+      });
+      const result = await decide("template:welcome", {}, queries);
+      expect(result).toEqual({
+        outcome: "deny",
+        relationId: "R0",
+        gate: "relation_denied",
+        reason: "query_error",
+        flags: { errCode: "unavailable" },
+      });
+      expect(reads).toBe(1);
+      expect(queries.callerIsAuthenticated).toHaveBeenCalledTimes(1);
+    });
+
+    test("R0 即使 modeOf 注入成 log，暫時性錯誤仍 deny 且不重試", async () => {
+      let reads = 0;
+      const queries = makeQueries();
+      queries.recipientIsCaller = jest.fn(async () => {
+        reads += 1;
+        throw queryError("aborted");
+      });
+      const result = await decide("template:welcome", {}, queries, { inject: { modeOf: () => "log" } });
+      expect(result).toMatchObject({ outcome: "deny", relationId: "R0", reason: "query_error" });
+      expect(result.outcome).not.toBe("record");
+      expect(reads).toBe(1);
+    });
+
+    test("R7 unavailable：不重試，仍 deny", async () => {
+      let reads = 0;
+      const queries = makeQueries();
+      queries.recipientRoleIsAdmin = jest.fn(async () => {
+        reads += 1;
+        if (reads === 1) throw queryError("deadline_exceeded");
+        return true;
+      });
+      const result = await decide("template:role_application", {}, queries);
+      expect(result).toMatchObject({ outcome: "deny", relationId: "R7", reason: "query_error", flags: { errCode: "deadline_exceeded" } });
+      expect(result.flags.retried).toBeUndefined();
+      expect(reads).toBe(1);
+    });
+
+    test("classify 丟暫時性錯誤：relationId null，deny，不重試", async () => {
+      let reads = 0;
+      const classify = () => {
+        reads += 1;
+        throw queryError("unavailable");
+      };
+      const queries = makeQueries();
+      const result = await decide("template:welcome", {}, queries, { inject: { classify } });
+      expect(result).toEqual({
+        outcome: "deny",
+        relationId: null,
+        gate: "relation_denied",
+        reason: "query_error",
+        flags: { errCode: "unavailable" },
+      });
+      expect(reads).toBe(1);
+      expect(calledNames(queries)).toEqual([]);
+    });
+  });
+
+  test("log 的 reason 是 query_error，和 missing_key 分開；gate 仍相同，同分鐘同呼叫者會被節流吃掉", async () => {
+    const queries = makeQueries();
+    const probe = installCaller(queries, () => { throw queryError("unavailable"); });
+    const recorded = await decide(source, keys, queries);
+    expect(probe.reads()).toBe(2);
+    expect(recorded.reason).toBe("query_error");
+    expect(recorded.outcome).toBe("record");
+    expect(recorded.gate).toBe("relation_missing_key");
+
+    const missing = await decide(source, {}, makeQueries());
+    expect(missing).toMatchObject({ outcome: "missing_key", gate: "relation_missing_key", reason: "missing_key" });
+
+    const { createRelationLogger } = require("../../functions/notification-relation-log");
+    const logger = { warn: jest.fn() };
+    const log = createRelationLogger({ logger, now: () => 1700000000000 });
+    const meta = { kind: "enqueue", source };
+    expect(log(recorded, { ...meta, callerUid: "uid-query-error-0001" })).toBe(true);
+    expect(log(missing, { ...meta, callerUid: "uid-missing-key-0001" })).toBe(true);
+    expect(logger.warn.mock.calls.map((call) => call[1].reason)).toEqual(["query_error", "missing_key"]);
+    expect(logger.warn.mock.calls[0][1]).toEqual(expect.objectContaining({
+      gate: "relation_missing_key",
+      reason: "query_error",
+      errCode: "unavailable",
+      retried: true,
+    }));
+
+    const shared = { warn: jest.fn() };
+    const logShared = createRelationLogger({ logger: shared, now: () => 1700000000000 });
+    expect(logShared(missing, { ...meta, callerUid: "uid-same-caller-0001" })).toBe(true);
+    expect(logShared(recorded, { ...meta, callerUid: "uid-same-caller-0001" })).toBe(false);
+    expect(shared.warn).toHaveBeenCalledTimes(1);
   });
 });
