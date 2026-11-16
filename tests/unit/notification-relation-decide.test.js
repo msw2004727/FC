@@ -34,7 +34,8 @@ function makeQueries(overrides = {}) {
   return queries;
 }
 
-const boom = () => Object.assign(new Error("14 UNAVAILABLE"), { code: 14 });
+// 一般（非暫時性）查詢錯誤：用 gRPC 7。14／4／10 是 C4 白名單，會重試，另有專門測試。
+const boom = () => Object.assign(new Error("7 PERMISSION_DENIED"), { code: 7 });
 const enforceAll = () => "enforce";
 const ctxBase = { callerUid: "uidA", callerRole: "user", recipientUid: "uidB", recipientFound: null, extra: {} };
 
@@ -130,9 +131,9 @@ describe("decideRelation R0／R7（正式 enforce，沒有關聯鍵）", () => {
     expect(result).toMatchObject({ outcome: "deny", relationId: "R0", gate: "relation_denied", reason: "query_error" });
   });
 
-  test("查詢丟錯：flags.errCode 是固定格式短代碼（小寫與底線），不含錯誤訊息；沒有字串 code 為 unknown", async () => {
+  test("查詢丟錯：flags.errCode 是固定格式短代碼（小寫與底線），不含錯誤訊息；gRPC 數字碼只收 14／4／10，其他數字為 unknown", async () => {
     const coded = (code) => Object.assign(new Error("secret detail uidSecret123"), { code });
-    const cases = [["unavailable", "unavailable"], ["permission-denied", "permission_denied"], ["DEADLINE_EXCEEDED", "deadline_exceeded"], [14, "unknown"], ["", "unknown"], ["12345", "unknown"]];
+    const cases = [["unavailable", "unavailable"], ["permission-denied", "permission_denied"], ["DEADLINE_EXCEEDED", "deadline_exceeded"], [14, "unavailable"], [4, "deadline_exceeded"], [10, "aborted"], [7, "unknown"], ["", "unknown"], ["12345", "unknown"]];
     for (const [code, expected] of cases) {
       const result = await decide("template:welcome", {}, makeQueries({ recipientIsCaller: coded(code) }));
       expect(result).toMatchObject({ outcome: "deny", reason: "query_error", flags: { errCode: expected } });
@@ -792,8 +793,17 @@ describe("decideRelation query_error 暫時性重試（顧問 §3.180）", () =>
       expect(queries.recipientHasActiveRegistration).toHaveBeenCalledTimes(1);
     });
 
-    test("未知錯誤（沒有 code、數字 14、firestore/unavailable）：deny 且只查一次", async () => {
-      for (const error of [new Error("x"), queryError(14), queryError("firestore/unavailable")]) {
+    test.each([[14, "unavailable"], [4, "deadline_exceeded"], [10, "aborted"]])(
+      "gRPC 數字碼 %s（Admin SDK 形狀）兩次：record，errCode %s、retried", async (num, code) => {
+        const queries = makeQueries();
+        const probe = installCaller(queries, () => { throw queryError(num); });
+        const result = await decide(source, keys, queries);
+        expect(result).toMatchObject({ outcome: "record", reason: "query_error", flags: { errCode: code, retried: true } });
+        expect(probe.reads()).toBe(2);
+      });
+
+    test("未知錯誤（沒有 code、白名單外數字 7／2、firestore/unavailable）：deny 且只查一次", async () => {
+      for (const error of [new Error("x"), queryError(7), queryError(2), queryError("firestore/unavailable")]) {
         const queries = makeQueries();
         queries.recipientHasActiveRegistration = jest.fn(async () => { throw error; });
         const result = await decide(source, keys, queries);

@@ -2,14 +2,14 @@
 
 /**
  * 通知發送授權強化（第 2 批）：R3／R4／R5 俱樂部關係查詢。
- * T-062 C2：loadTeam 改接 readTeamById（import 別名仍叫 readTeamByDocId）。
+ * T-062 C2：loadTeam 改接 readTeamById。
  * 取代「查無或 id 欄位不一致都回 false」。只改找到哪份文件，成員比對仍只認文件 id。
  * 每個函式 async (ctx) => boolean；讀取失敗直接丟出，由決策層轉 deny。
  */
 
 const { isUserCreatedTeam, isUserCreatedTeamOwner, normalizeId } = require("./team-membership-core");
 // T-062 C2：改接 readTeamById。取代嚴格 readTeamByDocId（id 欄位不同即查無、不退回 where）。
-const { str, memoByCtx, recipientIdentities, readTeamById: readTeamByDocId } = require("./notification-relation-queries-shared");
+const { str, memoByCtx, recipientIdentities, readTeamById } = require("./notification-relation-queries-shared");
 
 const ASSIGNMENT_SOURCE_RE = /^team_role_assignment:(captain|leader|coach|member)$/;
 
@@ -30,7 +30,7 @@ function trimmedList(value) {
 }
 
 function createTeamQueries({ db, helpers, readAccess }) {
-  const loadTeam = memoByCtx((ctx) => readTeamByDocId(db, ctx?.keys?.teamId));
+  const loadTeam = memoByCtx((ctx) => readTeamById(db, ctx?.keys?.teamId));
   // LINE 重用伺服器已讀的 recipientFound；站內信至多多讀一份 users 文件（同一次決策內共用）。
   const loadRecipientData = memoByCtx(async (ctx) => {
     if (ctx?.recipientFound) return ctx.recipientFound.data || null;

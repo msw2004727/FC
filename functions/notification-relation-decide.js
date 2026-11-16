@@ -26,7 +26,12 @@ const ASSIGNMENT_ROLES = new Set(["captain", "leader", "coach", "member"]);
 const ASSIGNMENT_SOURCE_RE = /^team_role_assignment:(captain|leader|coach|member)$/;
 
 // 錯誤代碼轉成固定格式的短字串（小寫英文與底線、最長 24）；不是字串或轉出來是空的就是 unknown。不含錯誤訊息。
+// Admin SDK（@google-cloud/firestore）丟的是 gRPC 數字碼；只收 C4 白名單的三個，其他數字仍為 unknown。
+// 2026-11-16 Opus 終審 P2：原本只認字串 code，正式環境的暫時性錯誤全部變 unknown、C4 重試不會觸發。
+const GRPC_TRANSIENT_CODES = Object.freeze({ 14: "unavailable", 4: "deadline_exceeded", 10: "aborted" });
+
 function errCodeOf(error) {
+  if (typeof error?.code === "number") return GRPC_TRANSIENT_CODES[error.code] || "unknown";
   const raw = typeof error?.code === "string" ? error.code : "";
   const code = raw.toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
   return code || "unknown";
