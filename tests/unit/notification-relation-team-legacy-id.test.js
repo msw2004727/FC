@@ -134,6 +134,8 @@ describe("R3／R4／R5 舊格式隊伍 deny 轉 allow", () => {
       seed: {
         "teams/docR4": { id: "logicR4", captainUid: "uidCap" },
         "rolePermissions/captain": { permissions: ["team.manage.entry"] },
+        // C3 起 R4 權限走 getCallerAccessContext，角色以 users 文件為準。
+        "users/uidCap": { role: "captain" },
       },
     });
     expect(await readTeamByDocId(db, "logicR4")).toBeNull();
