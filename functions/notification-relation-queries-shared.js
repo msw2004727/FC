@@ -5,7 +5,7 @@
  * 不 require("./index")，不讀 request，不記 log。讀取失敗一律往外丟，由決策層轉成 deny。
  */
 
-const { normalizeId } = require("./team-membership-core");
+const { isUserCreatedTeam, normalizeId } = require("./team-membership-core");
 const { createRulesAlignedAccess } = require("./team-permission");
 
 function str(value) {
@@ -33,8 +33,7 @@ function recipientIdentities(ctx) {
   return [...new Set(raw.map(str).filter(Boolean))];
 }
 
-// 隊伍一律以「文件 id」為準（resolveTeamSnapshot 口徑）：文件 id 命中才算；
-// 文件有 id 欄位且與文件 id 不一致視為查無；不退回 where("id","==")。
+// 嚴格版（R8 主辦隊仍用）：文件 id 命中才算；id 欄位與文件 id 不一致視為查無；不退回 where("id","==")。
 async function readTeamByDocId(db, teamId) {
   const id = normalizeId(teamId);
   if (!id) return null;
@@ -45,6 +44,26 @@ async function readTeamByDocId(db, teamId) {
   const docId = snap.id || id;
   if (fieldId !== undefined && fieldId !== null && fieldId !== "" && String(fieldId) !== docId) return null;
   return { docId, data };
+}
+
+// 排除自建後要能同時看見「兩筆非自建」（多於兩筆仍可能被截掉）。本卡硬性 limit(3)，不沿用 resolveTeamSnapshot 的 limit(2)。
+const LEGACY_ID_QUERY_LIMIT = 3;
+
+// T-062 C2（顧問 §3.180②）：取代「文件 id 命中但 id 欄位不同即查無、且不退回 where」。
+// 舊格式俱樂部兩種鍵都會查無。鍵先過 normalizeId，不合格式當查無、不查、不丟錯。
+// 文件 id 命中即用；查無才 where("id")，排除自建（createdVia === "user_capability"）後恰好一筆才用。
+// 零筆或兩筆以上回 null，不丟 TEAM_ID_AMBIGUOUS（那會變成 query_error deny）。只改找到哪份文件。
+async function readTeamById(db, teamId) {
+  const id = normalizeId(teamId);
+  if (!id) return null;
+  const snap = await db.collection("teams").doc(id).get();
+  if (snap && snap.exists) return { docId: snap.id || id, data: snap.data() || {} };
+  const found = await db.collection("teams").where("id", "==", id).limit(LEGACY_ID_QUERY_LIMIT).get();
+  const docs = Array.isArray(found?.docs) ? found.docs : [];
+  const candidates = docs.filter((doc) => !isUserCreatedTeam(typeof doc?.data === "function" ? (doc.data() || {}) : {}));
+  if (candidates.length !== 1) return null;
+  const doc = candidates[0];
+  return { docId: doc.id, data: (typeof doc.data === "function" ? doc.data() : {}) || {} };
 }
 
 // Rules 對齊的權限讀取（createRulesAlignedAccess）：只看 rolePermissions／userPermissionGrants 兩份文件，
@@ -69,6 +88,7 @@ module.exports = {
   memoByCtx,
   recipientIdentities,
   readTeamByDocId,
+  readTeamById,
   createAccessReader,
   userDataInTeam,
 };

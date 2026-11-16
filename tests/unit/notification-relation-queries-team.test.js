@@ -2,7 +2,8 @@
 
 /**
  * 通知發送授權強化（第 2 批）：R3／R4／R5 俱樂部關係查詢。
- * 隊伍一律以文件 id 為準：id 欄位不一致或只有 where("id") 能找到的視為查無，不得用來授權。
+ * T-062 C2：舊格式改為文件 id 命中即用；查無才 where("id")，排除自建後恰好一筆才用。
+ * 取代「id 欄位不一致或只有 where(id) 找得到即查無、不得用來授權」。
  */
 
 const { createRelationQueries } = require("../../functions/notification-relation-queries");
@@ -68,14 +69,16 @@ describe("recipientIsTeamStaff", () => {
     expect(await queries.recipientIsTeamStaff(makeCtx({ keys: { teamId: "t404" }, recipientUid: "uidCap" }))).toBe(false);
   });
 
-  test("以文件 id 為準：id 欄位與文件 id 不一致視為查無；只有 where(id) 找得到的也視為查無", async () => {
+  // T-062 C2：取代「id 欄位不一致或只有 where(id) 即查無」。文件 id 命中即用；查無才接受唯一非自建舊 id。
+  test("舊格式俱樂部：文件 id 命中（id 欄位不同）與唯一舊 id 都讀得到", async () => {
     const { queries, db } = setup({
       "teams/t2": { id: "tX", captainUid: "uidCap" },
       "teams/docOnly": { id: "t3", captainUid: "uidCap" },
     });
-    expect(await queries.recipientIsTeamStaff(makeCtx({ keys: { teamId: "t2" }, recipientUid: "uidCap" }))).toBe(false);
-    expect(await queries.recipientIsTeamStaff(makeCtx({ keys: { teamId: "t3" }, recipientUid: "uidCap" }))).toBe(false);
+    expect(await queries.recipientIsTeamStaff(makeCtx({ keys: { teamId: "t2" }, recipientUid: "uidCap" }))).toBe(true);
     expect(db.reads.some((item) => item.startsWith("query:teams"))).toBe(false);
+    expect(await queries.recipientIsTeamStaff(makeCtx({ keys: { teamId: "t3" }, recipientUid: "uidCap" }))).toBe(true);
+    expect(db.reads.some((item) => item.startsWith("query:teams:id==t3"))).toBe(true);
   });
 
   test("teamId 含 / 或空：false，不丟 TypeError", async () => {
