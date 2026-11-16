@@ -60,7 +60,8 @@ function createTeamQueries({ db, helpers, readAccess }) {
     }));
     return [...ids];
   });
-  // 同一次決策只解析一次 Callable 權限（R4）。失敗的 Promise 也快取，避免重試變成放行。
+  // 同一次決策（同一個 ctx）只解析一次 Callable 權限（R4），失敗的 Promise 也快取。
+  // C4 的暫時性錯誤重試會建新 ctx、因此會重新解析；這是預期行為，不靠本快取擋重試。
   const loadCallableAccess = memoByCtx(async (ctx) => {
     if (typeof helpers.callableAccess !== "function") {
       throw new TypeError("callableAccess helper is required");
