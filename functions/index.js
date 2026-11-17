@@ -13,7 +13,6 @@ const { getAuth } = require("firebase-admin/auth");
 const logger = require("firebase-functions/logger");
 const { getStorage } = require("firebase-admin/storage");
 const { createListUserDirectoryCallable } = require("./user-directory");
-const { createProfilePrivateMirror } = require("./profile-private-mirror");
 const { createIncrementEventViewCountCallable } = require("./event-view-count");
 const { createRecordProfileViewCallable } = require("./profile-view-count");
 const { createIssueQaTestTokenCallable } = require("./qa-test-mode");
@@ -10267,8 +10266,7 @@ exports.onEventCommentCreated = onDocumentCreated(
     maskUid,
   }),
 );
-// 會員資料讀取強化：四欄有變才鏡像到 users/{userId}/profilePrivate/profile（不新增函式、不重試；漏掉由回填 --verify 對帳）。
-const mirrorProfilePrivate = createProfilePrivateMirror({ db, FieldValue, logger });
+// 會員資料讀取強化第二版：四欄只存 profilePrivate，根文件不再有四欄，已停用根→私密鏡像。
 
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
   {
@@ -10299,11 +10297,6 @@ exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
         error: err?.message || String(err),
       });
     }
-    await mirrorProfilePrivate({
-      userId: event?.params?.userId || "",
-      beforeData,
-      afterData,
-    });
     return watchResult;
   },
 );
