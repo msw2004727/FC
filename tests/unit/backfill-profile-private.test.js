@@ -12,6 +12,7 @@ const {
 
 const FieldValue = {
   serverTimestamp: () => ({ __serverTimestamp: true }),
+  delete: () => ({ __delete: true }),
 };
 const FieldPath = {
   documentId: () => "__name__",
@@ -31,6 +32,7 @@ function createFakeDb(seed) {
     privateStore[uid] = { ...data };
   }
   const writes = [];
+  const updates = [];
   let reads = 0;
   let writeCount = 0;
 
@@ -76,6 +78,7 @@ function createFakeDb(seed) {
     users: seedUsers,
     privateStore,
     writes,
+    updates,
     get readCount() { return reads; },
     get writeCount() { return writeCount; },
     collection(name) {
@@ -109,13 +112,15 @@ function createFakeDb(seed) {
       return api;
     },
     async runTransaction(fn) {
-      const staged = [];
+      const stagedSets = [];
+      const stagedUpdates = [];
       const tx = {
         async get(ref) { return ref.get(); },
-        set(ref, data, opts) { staged.push({ ref, data, opts: opts || {} }); },
+        set(ref, data, opts) { stagedSets.push({ ref, data, opts: opts || {} }); },
+        update(ref, data) { stagedUpdates.push({ ref, data }); },
       };
       const result = await fn(tx);
-      for (const op of staged) {
+      for (const op of stagedSets) {
         const m = /^users\/([^/]+)\/profilePrivate\/profile$/.exec(op.ref.path);
         if (!m) throw new Error("bad ref path " + op.ref.path);
         const userId = m[1];
@@ -125,6 +130,23 @@ function createFakeDb(seed) {
           privateStore[userId] = { ...op.data };
         }
         writes.push({ path: op.ref.path, data: op.data, merge: !!op.opts.merge });
+        writeCount += 1;
+      }
+      for (const op of stagedUpdates) {
+        const m = /^users\/([^/]+)$/.exec(op.ref.path);
+        if (!m) throw new Error("bad update ref path " + op.ref.path);
+        const userId = m[1];
+        const list = freshUsers || seedUsers;
+        const target = list.find((u) => u.id === userId);
+        if (!target) throw new Error("update target missing " + userId);
+        for (const [key, value] of Object.entries(op.data)) {
+          if (value && value.__delete === true) {
+            delete target.data[key];
+          } else {
+            target.data[key] = value;
+          }
+        }
+        updates.push({ path: op.ref.path, data: op.data });
         writeCount += 1;
       }
       return result;
@@ -623,5 +645,118 @@ describe("legacyNoCanonicalReliable", () => {
     const db = createFakeDb({ users: [{ id: "u1", data: { email: "u1@x.com" } }], private: {} });
     const report = await runBackfill({ db, ...baseArgs({ mode: "dry-run" }) });
     expect(report.legacyNoCanonicalReliable).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// --purge-root
+// ---------------------------------------------------------------------------
+
+describe("--purge-root", () => {
+  test("dry-run 零寫入且計數正確", async () => {
+    const db = createFakeDb({
+      users: [
+        { id: "u1", data: { phone: "0900000001", email: "a@b.c" } },
+        { id: "u2", data: { phone: "0900000002" } },
+        { id: "u3", data: { phone: "0900000003" } },
+        { id: "u4", data: { phone: 12345 } },
+        { id: "u5", data: {} },
+        { id: "u6", data: { phone: "0900000006", lineUserId: "missingDoc" } },
+      ],
+      private: {
+        u1: { phone: "0900000001", email: "a@b.c" },
+        u3: { phone: "9999999999" },
+        u6: { phone: "0900000006" },
+      },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root", limit: 1 }),
+    });
+    expect(db.writeCount).toBe(0);
+    expect(report.scanned).toBe(6);
+    expect(report.alreadyClean).toBe(1);
+    expect(report.purgeable).toBe(1);
+    expect(report.purged).toBe(0);
+    expect(report.skipNoPrivate).toBe(1);
+    expect(report.skipMismatch).toBe(1);
+    expect(report.skipTypeAnomaly).toBe(1);
+    expect(report.skipLegacyNoCanonical).toBe(1);
+    expect(report.stoppedAt).toBe(null);
+  });
+
+  test("--apply 只清完全一致者，且只刪根上存在的鍵", async () => {
+    const db = createFakeDb({
+      users: [
+        { id: "u1", data: { phone: "0900000001", email: "a@b.c" } },
+        { id: "u2", data: { phone: "0900000002" } },
+      ],
+      private: {
+        u1: { phone: "0900000001", email: "a@b.c" },
+        u2: { phone: "9999999999" },
+      },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(1);
+    expect(report.skipMismatch).toBe(1);
+    expect(db.updates).toHaveLength(1);
+    const update = db.updates[0];
+    expect(update.path).toBe("users/u1");
+    expect(Object.keys(update.data).sort()).toEqual(["email", "phone"]);
+    expect(update.data.phone).toEqual({ __delete: true });
+    expect(update.data.email).toEqual({ __delete: true });
+    expect(update.data.updatedAt).toBeUndefined();
+    const u1 = db.users.find((u) => u.id === "u1");
+    expect(u1.data.phone).toBeUndefined();
+    expect(u1.data.email).toBeUndefined();
+  });
+
+  test("交易內變不一致時不清", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001" } }],
+      freshUsers: [{ id: "u1", data: { phone: "0900000009" } }],
+      private: { u1: { phone: "0900000001" } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.skipMismatchAtApply).toBe(1);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  test("limit 停止與 resume", async () => {
+    const users = [];
+    for (let i = 1; i <= 4; i += 1) users.push({ id: `u${i}`, data: { phone: `090000000${i}` } });
+    const privateData = {};
+    for (const u of users) privateData[u.id] = { phone: u.data.phone };
+    const db = createFakeDb({ users, private: privateData });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply", limit: 2 }),
+    });
+    expect(report.purged).toBe(2);
+    expect(report.stoppedAt).toBe("limit");
+    expect(report.nextStartAfter).toBe(maskId("u2"));
+    expect(report.resume.startAfter).toBe("u2");
+    expect(db.updates).toHaveLength(2);
+
+    const resumeReport = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply", startAfter: report.resume.startAfter }),
+    });
+    expect(resumeReport.purged).toBe(2);
+    expect(resumeReport.stoppedAt).toBe(null);
+  });
+
+  test("與 --repair、--verify 互斥，且模式解析正確", () => {
+    expect(parseArgs(["node", "x", "--purge-root"], {}).mode).toBe("purge-root");
+    expect(parseArgs(["node", "x", "--purge-root", "--apply"], {}).mode).toBe("purge-root-apply");
+    expect(() => parseArgs(["node", "x", "--purge-root", "--repair"], {})).toThrow();
+    expect(() => parseArgs(["node", "x", "--purge-root", "--verify"], {})).toThrow();
   });
 });

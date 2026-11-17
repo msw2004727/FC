@@ -103,6 +103,7 @@ function parseArgs(argv, env) {
   let apply = false;
   let repair = false;
   let verify = false;
+  let purgeRoot = false;
   let limit = DEFAULT_LIMIT;
   let onlyDoc = null;
   let startAfter = null;
@@ -116,6 +117,8 @@ function parseArgs(argv, env) {
       repair = true;
     } else if (token === "--verify") {
       verify = true;
+    } else if (token === "--purge-root") {
+      purgeRoot = true;
     } else if (token === "--limit") {
       const value = tokens[i + 1];
       if (typeof value === "undefined" || value === "") throw new Error("MISSING_LIMIT");
@@ -146,9 +149,13 @@ function parseArgs(argv, env) {
 
   if (verify && apply) throw new Error("VERIFY_CONFLICTS_APPLY");
   if (verify && repair) throw new Error("VERIFY_CONFLICTS_REPAIR");
+  if (purgeRoot && repair) throw new Error("PURGE_ROOT_CONFLICTS_REPAIR");
+  if (purgeRoot && verify) throw new Error("PURGE_ROOT_CONFLICTS_VERIFY");
 
   let mode;
-  if (verify) mode = "verify";
+  if (purgeRoot && apply) mode = "purge-root-apply";
+  else if (purgeRoot) mode = "purge-root";
+  else if (verify) mode = "verify";
   else if (repair && apply) mode = "repair-apply";
   else if (repair) mode = "repair";
   else if (apply) mode = "apply";
@@ -161,7 +168,7 @@ function parseArgs(argv, env) {
     throw new Error("OUT_NOT_LOCAL_ONLY");
   }
 
-  return { mode, limit, onlyDoc, startAfter, outDir, apply, repair, verify };
+  return { mode, limit, onlyDoc, startAfter, outDir, apply, repair, verify, purgeRoot };
 }
 
 // ---------------------------------------------------------------------------
@@ -359,8 +366,12 @@ async function readOneDoc({ db, mode, docId, report, samples, sampleLimit = 5 })
 // 報告
 // ---------------------------------------------------------------------------
 
+function isPurgeRootMode(mode) {
+  return mode === "purge-root" || mode === "purge-root-apply";
+}
+
 function initReport(mode) {
-  return {
+  const report = {
     mode,
     scanned: 0,
     withValue: { phone: 0, email: 0, companions: 0, eduChildren: 0 },
@@ -384,9 +395,42 @@ function initReport(mode) {
     samples: [],
     resume: null,
   };
+  if (isPurgeRootMode(mode)) {
+    report.alreadyClean = 0;
+    report.purgeable = 0;
+    report.purged = 0;
+    report.skipNoPrivate = 0;
+    report.skipMismatch = 0;
+    report.skipTypeAnomaly = 0;
+    report.skipLegacyNoCanonical = 0;
+    report.skipMismatchAtApply = 0;
+  }
+  return report;
 }
 
 function summarizeForStdout(report) {
+  if (isPurgeRootMode(report.mode)) {
+    return {
+      mode: report.mode,
+      scanned: report.scanned,
+      alreadyClean: report.alreadyClean,
+      purgeable: report.purgeable,
+      purged: report.purged,
+      skipNoPrivate: report.skipNoPrivate,
+      skipMismatch: report.skipMismatch,
+      skipTypeAnomaly: report.skipTypeAnomaly,
+      skipLegacyNoCanonical: report.skipLegacyNoCanonical,
+      skipMismatchAtApply: report.skipMismatchAtApply,
+      legacyNoCanonicalReliable: report.legacyNoCanonicalReliable,
+      legacyNoCanonicalWarning: report.legacyNoCanonicalReliable ? null : "不可信",
+      stoppedAt: report.stoppedAt,
+      nextStartAfter: report.nextStartAfter,
+      reads: report.reads,
+      writes: report.writes,
+      samples: report.samples,
+      resume: report.resume,
+    };
+  }
   return {
     mode: report.mode,
     scanned: report.scanned,
@@ -413,6 +457,264 @@ function summarizeForStdout(report) {
 }
 
 // ---------------------------------------------------------------------------
+// --purge-root
+// ---------------------------------------------------------------------------
+
+async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
+  const rootRef = db.collection("users").doc(docId);
+  const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
+
+  return db.runTransaction(async (tx) => {
+    const rootSnap = await tx.get(rootRef);
+    report.reads += 1;
+    const privateSnap = await tx.get(privateRef);
+    report.reads += 1;
+
+    const rootData = rootSnap.exists ? (rootSnap.data() || {}) : null;
+    const currentFields = [];
+    if (rootData) {
+      for (const field of PROFILE_PRIVATE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(rootData, field)) currentFields.push(field);
+      }
+    }
+
+    let consistent = rootSnap.exists && currentFields.length > 0;
+    if (consistent) {
+      for (const field of currentFields) {
+        if (!isFieldTypeValid(field, rootData[field])) {
+          consistent = false;
+          break;
+        }
+      }
+    }
+
+    if (!consistent || !privateSnap.exists) {
+      report.skipMismatchAtApply += 1;
+      addSample("skipMismatchAtApply", docId);
+      return "skipMismatchAtApply";
+    }
+
+    const privateData = privateSnap.data() || {};
+    for (const field of currentFields) {
+      if (!Object.prototype.hasOwnProperty.call(privateData, field)
+          || !isDeepStrictEqual(privateData[field], rootData[field])) {
+        consistent = false;
+        break;
+      }
+    }
+
+    if (!consistent) {
+      report.skipMismatchAtApply += 1;
+      addSample("skipMismatchAtApply", docId);
+      return "skipMismatchAtApply";
+    }
+
+    const payload = {};
+    for (const field of currentFields) payload[field] = FieldValue.delete();
+    tx.update(rootRef, payload);
+    report.writes += 1;
+    addSample("purged", docId, { fieldsPurged: currentFields.slice() });
+    return "purged";
+  });
+}
+
+async function runPurgeRoot({
+  db,
+  FieldValue,
+  FieldPath,
+  mode,
+  limit,
+  onlyDoc,
+  startAfter,
+  writeReport,
+  log,
+  nowMs,
+}) {
+  const report = initReport(mode);
+  report.legacyNoCanonicalReliable = !(onlyDoc || startAfter);
+  const isApply = mode === "purge-root-apply";
+  const samplesByCategory = {};
+  let resumeDocId = null;
+
+  function addSample(category, docId, extra) {
+    if (!samplesByCategory[category]) samplesByCategory[category] = [];
+    if (samplesByCategory[category].length >= 5) return;
+    samplesByCategory[category].push({
+      docId: maskId(docId),
+      outcome: category,
+      ...(extra || {}),
+    });
+  }
+
+  try {
+    const userDocs = await readAllUsers(db, FieldPath, onlyDoc, startAfter);
+    report.reads += userDocs.length;
+    const knownIds = new Set(userDocs.map((d) => d.id));
+
+    for (const entry of userDocs) {
+      if (isApply && report.purged >= limit) {
+        report.stoppedAt = "limit";
+        break;
+      }
+
+      report.scanned += 1;
+      const docId = entry.id;
+      const data = entry.data || {};
+
+      const presentKeys = [];
+      let typeAnomaly = false;
+      for (const field of PROFILE_PRIVATE_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(data, field)) continue;
+        presentKeys.push(field);
+        if (!isFieldTypeValid(field, data[field])) typeAnomaly = true;
+      }
+
+      if (presentKeys.length === 0) {
+        report.alreadyClean += 1;
+        resumeDocId = docId;
+        continue;
+      }
+
+      if (typeAnomaly) {
+        report.skipTypeAnomaly += 1;
+        addSample("skipTypeAnomaly", docId);
+        resumeDocId = docId;
+        continue;
+      }
+
+      const uid = data.uid;
+      const lineUserId = data.lineUserId;
+      const uidMismatch = typeof uid === "string" && uid.length > 0 && uid !== docId;
+      const lineMismatch = typeof lineUserId === "string" && lineUserId.length > 0 && lineUserId !== docId;
+      const idMismatch = uidMismatch || lineMismatch;
+
+      let legacyMissing = false;
+      if (typeof uid === "string" && uid.length > 0 && uid !== docId && !knownIds.has(uid)) {
+        legacyMissing = true;
+      }
+      if (typeof lineUserId === "string" && lineUserId.length > 0
+          && lineUserId !== docId && !knownIds.has(lineUserId)) {
+        legacyMissing = true;
+      }
+
+      if (report.legacyNoCanonicalReliable) {
+        if (legacyMissing) {
+          report.skipLegacyNoCanonical += 1;
+          addSample("skipLegacyNoCanonical", docId);
+          resumeDocId = docId;
+          continue;
+        }
+      } else if (idMismatch) {
+        report.skipLegacyNoCanonical += 1;
+        addSample("skipLegacyNoCanonical", docId);
+        resumeDocId = docId;
+        continue;
+      }
+
+      const rootRef = db.collection("users").doc(docId);
+      const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
+      const privateSnap = await privateRef.get();
+      report.reads += 1;
+
+      if (!privateSnap.exists) {
+        report.skipNoPrivate += 1;
+        addSample("skipNoPrivate", docId);
+        resumeDocId = docId;
+        continue;
+      }
+
+      const privateData = privateSnap.data() || {};
+      let mismatch = false;
+      for (const field of presentKeys) {
+        if (!Object.prototype.hasOwnProperty.call(privateData, field)
+            || !isDeepStrictEqual(privateData[field], data[field])) {
+          mismatch = true;
+          break;
+        }
+      }
+
+      if (mismatch) {
+        report.skipMismatch += 1;
+        addSample("skipMismatch", docId);
+        resumeDocId = docId;
+        continue;
+      }
+
+      report.purgeable += 1;
+      if (!isApply) {
+        addSample("purgeable", docId, { fields: presentKeys.slice() });
+        resumeDocId = docId;
+        continue;
+      }
+
+      try {
+        const outcome = await purgeRootOneDoc({
+          db,
+          FieldValue,
+          docId,
+          report,
+          addSample,
+        });
+        if (outcome === "purged") {
+          report.purged += 1;
+          resumeDocId = docId;
+          if (report.purged >= limit) {
+            report.stoppedAt = "limit";
+            break;
+          }
+        } else {
+          resumeDocId = docId;
+        }
+      } catch (err) {
+        report.stoppedAt = "error";
+        let rawCode = "unknown";
+        if (err && (err.code || err.name)) rawCode = String(err.code || err.name);
+        report.errorCode = rawCode.slice(0, 40);
+        break;
+      }
+    }
+  } catch (err) {
+    report.stoppedAt = "error";
+    let rawCode = "unknown";
+    if (err && (err.code || err.name)) rawCode = String(err.code || err.name);
+    report.errorCode = rawCode.slice(0, 40);
+  }
+
+  if ((report.stoppedAt === "limit" || report.stoppedAt === "error") && resumeDocId) {
+    report.nextStartAfter = maskId(resumeDocId);
+    report.resume = { startAfter: resumeDocId };
+  } else {
+    report.nextStartAfter = null;
+    report.resume = null;
+  }
+
+  report.samples = [];
+  for (const list of Object.values(samplesByCategory)) {
+    for (const item of list) report.samples.push(item);
+  }
+
+  const summary = summarizeForStdout(report);
+  if (typeof log === "function") {
+    log(JSON.stringify(summary, null, 2));
+  }
+
+  if (typeof writeReport === "function") {
+    try {
+      await writeReport({
+        ...summary,
+        samples: report.samples,
+        resume: report.resume,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[backfill-profile-private] writeReport failed:", String(err && (err.message || err)));
+    }
+  }
+
+  return report;
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 
@@ -428,6 +730,21 @@ async function runBackfill({
   log,
   nowMs,
 }) {
+  if (isPurgeRootMode(mode)) {
+    return runPurgeRoot({
+      db,
+      FieldValue,
+      FieldPath,
+      mode,
+      limit,
+      onlyDoc,
+      startAfter,
+      writeReport,
+      log,
+      nowMs,
+    });
+  }
+
   const report = initReport(mode);
   report.legacyNoCanonicalReliable = !(onlyDoc || startAfter);
   const samples = [];
