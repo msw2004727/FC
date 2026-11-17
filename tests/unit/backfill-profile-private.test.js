@@ -27,10 +27,12 @@ function createFakeDb(seed) {
   const freshUsers = seed.freshUsers
     ? seed.freshUsers.map((u) => ({ id: u.id, data: { ...u.data } }))
     : null;
+  const freshPrivate = seed.freshPrivate || null;
   const privateStore = {};
   for (const [uid, data] of Object.entries(seed.private || {})) {
     privateStore[uid] = { ...data };
   }
+  const state = { inTransaction: false };
   const writes = [];
   const updates = [];
   let reads = 0;
@@ -42,8 +44,16 @@ function createFakeDb(seed) {
       path: `users/${userId}/profilePrivate/profile`,
       async get() {
         reads += 1;
-        const stored = privateStore[userId];
-        if (stored === undefined) {
+        let stored;
+        let exists;
+        if (state.inTransaction && freshPrivate && Object.prototype.hasOwnProperty.call(freshPrivate, userId)) {
+          stored = freshPrivate[userId];
+          exists = stored !== null && stored !== undefined;
+        } else {
+          stored = privateStore[userId];
+          exists = stored !== undefined;
+        }
+        if (!exists) {
           return { exists: false, id: PROFILE_DOC_ID, data: () => undefined };
         }
         return { exists: true, id: PROFILE_DOC_ID, data: () => ({ ...stored }) };
@@ -119,7 +129,13 @@ function createFakeDb(seed) {
         set(ref, data, opts) { stagedSets.push({ ref, data, opts: opts || {} }); },
         update(ref, data) { stagedUpdates.push({ ref, data }); },
       };
-      const result = await fn(tx);
+      state.inTransaction = true;
+      let result;
+      try {
+        result = await fn(tx);
+      } finally {
+        state.inTransaction = false;
+      }
       for (const op of stagedSets) {
         const m = /^users\/([^/]+)\/profilePrivate\/profile$/.exec(op.ref.path);
         if (!m) throw new Error("bad ref path " + op.ref.path);
@@ -851,5 +867,135 @@ describe("--purge-root", () => {
     expect(parseArgs(["node", "x", "--purge-root", "--apply"], {}).mode).toBe("purge-root-apply");
     expect(() => parseArgs(["node", "x", "--purge-root", "--repair"], {})).toThrow();
     expect(() => parseArgs(["node", "x", "--purge-root", "--verify"], {})).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// --stale-after 與 --include-stale
+// ---------------------------------------------------------------------------
+
+describe("--stale-after 與 --include-stale", () => {
+  test("parseArgs: --stale-after 接受 ISO 字串，非 ISO 丟錯", () => {
+    const args = parseArgs(["node", "x", "--purge-root", "--stale-after", "2026-11-17T06:00:00Z"], {});
+    expect(args.staleAfter).toBe("2026-11-17T06:00:00Z");
+    expect(args.includeStale).toBe(false);
+    expect(() => parseArgs(["node", "x", "--purge-root", "--stale-after", "not-a-date"], {})).toThrow("INVALID_STALE_AFTER");
+  });
+
+  test("parseArgs: --stale-after 僅限 purge-root", () => {
+    expect(() => parseArgs(["node", "x", "--stale-after", "2026-11-17T06:00:00Z"], {})).toThrow("STALE_AFTER_REQUIRES_PURGE_ROOT");
+  });
+
+  test("parseArgs: --include-stale 需 --stale-after，且僅限 purge-root", () => {
+    expect(() => parseArgs(["node", "x", "--purge-root", "--include-stale"], {})).toThrow("INCLUDE_STALE_REQUIRES_STALE_AFTER");
+    expect(() => parseArgs(["node", "x", "--include-stale", "--stale-after", "2026-11-17T06:00:00Z"], {})).toThrow(/REQUIRES_PURGE_ROOT/);
+    const args = parseArgs(["node", "x", "--purge-root", "--stale-after", "2026-11-17T06:00:00Z", "--include-stale"], {});
+    expect(args.includeStale).toBe(true);
+  });
+
+  test("purge-root dry-run 甲乙分類正確", async () => {
+    const staleAfter = "2026-11-17T06:00:00Z";
+    const staleAfterMs = Date.parse(staleAfter);
+    const db = createFakeDb({
+      users: [
+        { id: "u1", data: { phone: "0900000001" } },
+        { id: "u2", data: { phone: "0900000002" } },
+        { id: "u3", data: { phone: "0900000003" } },
+        { id: "u4", data: { phone: "0900000004" } },
+        { id: "u5", data: { phone: "0900000005" } },
+      ],
+      private: {
+        u1: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs + 1000 } },
+        u2: {},
+        u3: { phone: "9999999999" },
+        u4: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs - 1000 } },
+        u5: { phone: "0900000005" },
+      },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root", staleAfter, includeStale: false }),
+    });
+    expect(db.writeCount).toBe(0);
+    expect(report.skipMismatchStale).toBe(1);
+    expect(report.skipMismatchOther).toBe(3);
+    expect(report.skipMismatch).toBe(4);
+    expect(report.purgeable).toBe(1);
+    expect(report.purged).toBe(0);
+    expect(report.staleAfter).toBe(staleAfter);
+    const staleSamples = report.samples.filter((s) => s.outcome === "skipMismatchStale");
+    expect(staleSamples).toHaveLength(1);
+    expect(staleSamples[0].docId).toBe(maskId("u1"));
+    const otherSamples = report.samples.filter((s) => s.outcome === "skipMismatchOther");
+    expect(otherSamples).toHaveLength(3);
+  });
+
+  test("未給 --include-stale 時甲類不刪", async () => {
+    const staleAfter = "2026-11-17T06:00:00Z";
+    const staleAfterMs = Date.parse(staleAfter);
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001" } }],
+      private: { u1: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs + 1000 } } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply", staleAfter, includeStale: false }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.purgedStale).toBe(0);
+    expect(report.skipMismatchStale).toBe(1);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  test("給 --include-stale 時甲類刪除，且交易內重驗仍屬甲類才刪", async () => {
+    const staleAfter = "2026-11-17T06:00:00Z";
+    const staleAfterMs = Date.parse(staleAfter);
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001" } }],
+      private: { u1: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs + 1000 } } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply", staleAfter, includeStale: true }),
+    });
+    expect(report.purged).toBe(1);
+    expect(report.purgedStale).toBe(1);
+    expect(report.skipMismatchStale).toBe(0);
+    expect(db.updates).toHaveLength(1);
+    expect(db.updates[0].path).toBe("users/u1");
+  });
+
+  test("給 --include-stale 但交易內變成乙類（updatedAt 變早）則不刪", async () => {
+    const staleAfter = "2026-11-17T06:00:00Z";
+    const staleAfterMs = Date.parse(staleAfter);
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001" } }],
+      private: { u1: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs + 1000 } } },
+      freshPrivate: {
+        u1: { phone: "9999999999", updatedAt: { toMillis: () => staleAfterMs - 1000 } },
+      },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply", staleAfter, includeStale: true }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.purgedStale).toBe(0);
+    expect(report.skipMismatchAtApply).toBe(1);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  test("未給 --stale-after 時所有不一致皆為乙類", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001" } }],
+      private: { u1: { phone: "9999999999", updatedAt: { toMillis: () => Date.now() } } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root", staleAfter: null, includeStale: false }),
+    });
+    expect(report.skipMismatchStale).toBe(0);
+    expect(report.skipMismatchOther).toBe(1);
+    expect(report.skipMismatch).toBe(1);
   });
 });

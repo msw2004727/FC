@@ -108,6 +108,8 @@ function parseArgs(argv, env) {
   let onlyDoc = null;
   let startAfter = null;
   let outDirRaw = null;
+  let staleAfter = null;
+  let includeStale = false;
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
@@ -142,6 +144,14 @@ function parseArgs(argv, env) {
       if (!value) throw new Error("MISSING_OUT");
       outDirRaw = value;
       i += 1;
+    } else if (token === "--stale-after") {
+      const value = tokens[i + 1];
+      if (typeof value === "undefined" || value === "") throw new Error("MISSING_STALE_AFTER");
+      i += 1;
+      if (Number.isNaN(Date.parse(value))) throw new Error("INVALID_STALE_AFTER");
+      staleAfter = value;
+    } else if (token === "--include-stale") {
+      includeStale = true;
     } else {
       throw new Error("UNKNOWN_FLAG");
     }
@@ -151,6 +161,9 @@ function parseArgs(argv, env) {
   if (verify && repair) throw new Error("VERIFY_CONFLICTS_REPAIR");
   if (purgeRoot && repair) throw new Error("PURGE_ROOT_CONFLICTS_REPAIR");
   if (purgeRoot && verify) throw new Error("PURGE_ROOT_CONFLICTS_VERIFY");
+  if (staleAfter !== null && !purgeRoot) throw new Error("STALE_AFTER_REQUIRES_PURGE_ROOT");
+  if (includeStale && staleAfter === null) throw new Error("INCLUDE_STALE_REQUIRES_STALE_AFTER");
+  if (includeStale && !purgeRoot) throw new Error("INCLUDE_STALE_REQUIRES_PURGE_ROOT");
 
   let mode;
   if (purgeRoot && apply) mode = "purge-root-apply";
@@ -168,7 +181,7 @@ function parseArgs(argv, env) {
     throw new Error("OUT_NOT_LOCAL_ONLY");
   }
 
-  return { mode, limit, onlyDoc, startAfter, outDir, apply, repair, verify, purgeRoot };
+  return { mode, limit, onlyDoc, startAfter, outDir, apply, repair, verify, purgeRoot, staleAfter, includeStale };
 }
 
 // ---------------------------------------------------------------------------
@@ -403,9 +416,13 @@ function initReport(mode) {
     report.purgedEmptyOnly = 0;
     report.skipNoPrivate = 0;
     report.skipMismatch = 0;
+    report.skipMismatchStale = 0;
+    report.skipMismatchOther = 0;
     report.skipTypeAnomaly = 0;
     report.skipLegacyNoCanonical = 0;
     report.skipMismatchAtApply = 0;
+    report.purgedStale = 0;
+    report.staleAfter = null;
   }
   return report;
 }
@@ -422,9 +439,13 @@ function summarizeForStdout(report) {
       purgedEmptyOnly: report.purgedEmptyOnly,
       skipNoPrivate: report.skipNoPrivate,
       skipMismatch: report.skipMismatch,
+      skipMismatchStale: report.skipMismatchStale,
+      skipMismatchOther: report.skipMismatchOther,
       skipTypeAnomaly: report.skipTypeAnomaly,
       skipLegacyNoCanonical: report.skipLegacyNoCanonical,
       skipMismatchAtApply: report.skipMismatchAtApply,
+      purgedStale: report.purgedStale,
+      staleAfter: report.staleAfter,
       legacyNoCanonicalReliable: report.legacyNoCanonicalReliable,
       legacyNoCanonicalWarning: report.legacyNoCanonicalReliable ? null : "不可信",
       stoppedAt: report.stoppedAt,
@@ -464,7 +485,7 @@ function summarizeForStdout(report) {
 // --purge-root
 // ---------------------------------------------------------------------------
 
-async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
+async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample, staleAfterMs, includeStale }) {
   const rootRef = db.collection("users").doc(docId);
   const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
 
@@ -497,6 +518,7 @@ async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
       return "skipMismatchAtApply";
     }
 
+    let isStalePurge = false;
     if (valueKeys.length > 0) {
       const privateSnap = await tx.get(privateRef);
       report.reads += 1;
@@ -507,9 +529,34 @@ async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
       }
 
       const privateData = privateSnap.data() || {};
+      const mismatched = [];
       for (const field of valueKeys) {
         if (!Object.prototype.hasOwnProperty.call(privateData, field)
             || !isDeepStrictEqual(privateData[field], rootData[field])) {
+          mismatched.push(field);
+        }
+      }
+
+      if (mismatched.length > 0) {
+        let isStale = false;
+        if (staleAfterMs !== null) {
+          const updatedAt = privateData.updatedAt;
+          const isUpdatedAtValid = updatedAt && typeof updatedAt.toMillis === "function";
+          if (isUpdatedAtValid && updatedAt.toMillis() > staleAfterMs) {
+            let allHaveField = true;
+            for (const field of mismatched) {
+              if (!Object.prototype.hasOwnProperty.call(privateData, field)) {
+                allHaveField = false;
+                break;
+              }
+            }
+            if (allHaveField) isStale = true;
+          }
+        }
+
+        if (isStale && includeStale) {
+          isStalePurge = true;
+        } else {
           report.skipMismatchAtApply += 1;
           addSample("skipMismatchAtApply", docId);
           return "skipMismatchAtApply";
@@ -522,9 +569,11 @@ async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
     tx.update(rootRef, payload);
     report.writes += 1;
     if (valueKeys.length === 0) report.purgedEmptyOnly += 1;
+    if (isStalePurge) report.purgedStale += 1;
     addSample("purged", docId, {
       fieldsPurged: currentFields.slice(),
       ...(valueKeys.length === 0 ? { emptyOnly: true } : {}),
+      ...(isStalePurge ? { stale: true } : {}),
     });
     return "purged";
   });
@@ -538,11 +587,15 @@ async function runPurgeRoot({
   limit,
   onlyDoc,
   startAfter,
+  staleAfter,
+  includeStale,
   writeReport,
   log,
   nowMs,
 }) {
   const report = initReport(mode);
+  report.staleAfter = staleAfter;
+  const staleAfterMs = staleAfter ? Date.parse(staleAfter) : null;
   report.legacyNoCanonicalReliable = !(onlyDoc || startAfter);
   const isApply = mode === "purge-root-apply";
   const samplesByCategory = {};
@@ -629,6 +682,7 @@ async function runPurgeRoot({
       }
       const emptyOnly = valueKeys.length === 0;
 
+      let isStalePurge = false;
       if (!emptyOnly) {
         const rootRef = db.collection("users").doc(docId);
         const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
@@ -643,29 +697,56 @@ async function runPurgeRoot({
         }
 
         const privateData = privateSnap.data() || {};
-        let mismatch = false;
+        const mismatched = [];
         for (const field of valueKeys) {
           if (!Object.prototype.hasOwnProperty.call(privateData, field)
               || !isDeepStrictEqual(privateData[field], data[field])) {
-            mismatch = true;
-            break;
+            mismatched.push(field);
           }
         }
 
-        if (mismatch) {
-          report.skipMismatch += 1;
-          addSample("skipMismatch", docId);
-          resumeDocId = docId;
-          continue;
+        if (mismatched.length > 0) {
+          let isStale = false;
+          if (staleAfterMs !== null) {
+            const updatedAt = privateData.updatedAt;
+            const isUpdatedAtValid = updatedAt && typeof updatedAt.toMillis === "function";
+            if (isUpdatedAtValid && updatedAt.toMillis() > staleAfterMs) {
+              let allHaveField = true;
+              for (const field of mismatched) {
+                if (!Object.prototype.hasOwnProperty.call(privateData, field)) {
+                  allHaveField = false;
+                  break;
+                }
+              }
+              if (allHaveField) isStale = true;
+            }
+          }
+
+          if (isStale && includeStale) {
+            isStalePurge = true;
+          } else if (isStale) {
+            report.skipMismatchStale += 1;
+            report.skipMismatch += 1;
+            addSample("skipMismatchStale", docId);
+            resumeDocId = docId;
+            continue;
+          } else {
+            report.skipMismatchOther += 1;
+            report.skipMismatch += 1;
+            addSample("skipMismatchOther", docId);
+            resumeDocId = docId;
+            continue;
+          }
         }
       }
 
       report.purgeable += 1;
       if (emptyOnly) report.purgeableEmptyOnly += 1;
       if (!isApply) {
-        addSample("purgeable", docId, emptyOnly
-          ? { fields: presentKeys.slice(), emptyOnly: true }
-          : { fields: presentKeys.slice() });
+        const extra = { fields: presentKeys.slice() };
+        if (emptyOnly) extra.emptyOnly = true;
+        if (isStalePurge) extra.stale = true;
+        addSample("purgeable", docId, extra);
         resumeDocId = docId;
         continue;
       }
@@ -677,6 +758,8 @@ async function runPurgeRoot({
           docId,
           report,
           addSample,
+          staleAfterMs,
+          includeStale,
         });
         if (outcome === "purged") {
           report.purged += 1;
@@ -749,6 +832,8 @@ async function runBackfill({
   limit,
   onlyDoc,
   startAfter,
+  staleAfter,
+  includeStale,
   writeReport,
   log,
   nowMs,
@@ -762,6 +847,8 @@ async function runBackfill({
       limit,
       onlyDoc,
       startAfter,
+      staleAfter,
+      includeStale,
       writeReport,
       log,
       nowMs,
@@ -924,6 +1011,8 @@ async function main() {
     limit: args.limit,
     onlyDoc: args.onlyDoc,
     startAfter: args.startAfter,
+    staleAfter: args.staleAfter,
+    includeStale: args.includeStale,
     writeReport,
     log: (line) => process.stdout.write(line + "\n"),
     nowMs,
