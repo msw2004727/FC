@@ -1926,6 +1926,46 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // 會員資料讀取強化：私密子文件（phone、email、companions、eduChildren）。過渡期根文件為準，本文件為鏡像。
+      // 讀取只給本人與 isAdmin()；寫入只給本人且限白名單；Functions／回填以 Admin SDK 寫入（含 backfilledAt）。
+      // collectionGroup 規則依子集合名稱全域生效：profilePrivate 只准用於 users/{uid}/profilePrivate/profile，其他集合不得建立同名子集合。
+      match /profilePrivate/{docId} {
+        function isProfilePrivateValueOk(data, field) {
+          return !(field in data)
+            || (field == 'phone' && (data[field] == null || data[field] is string))
+            || (field == 'email' && (data[field] == null || (data[field] is string && data[field].size() > 0 && data[field].size() <= 254)))
+            || ((field == 'companions' || field == 'eduChildren') && (data[field] == null || data[field] is list));
+        }
+
+        function isSafeProfilePrivateCreate() {
+          let data = request.resource.data;
+          return data.keys().hasOnly(['phone','email','companions','eduChildren','createdAt','updatedAt'])
+            && 'updatedAt' in data
+            && data.updatedAt == request.time
+            && (!('createdAt' in data) || data.createdAt == request.time)
+            && isProfilePrivateValueOk(data, 'phone')
+            && isProfilePrivateValueOk(data, 'email')
+            && isProfilePrivateValueOk(data, 'companions')
+            && isProfilePrivateValueOk(data, 'eduChildren');
+        }
+
+        function isSafeProfilePrivateUpdate() {
+          let changed = request.resource.data.diff(resource.data).affectedKeys();
+          return changed.hasOnly(['phone','email','companions','eduChildren','updatedAt'])
+            && request.resource.data.updatedAt == request.time
+            && (!changed.hasAny(['phone']) || isProfilePrivateValueOk(request.resource.data, 'phone'))
+            && (!changed.hasAny(['email']) || isProfilePrivateValueOk(request.resource.data, 'email'))
+            && (!changed.hasAny(['companions']) || isProfilePrivateValueOk(request.resource.data, 'companions'))
+            && (!changed.hasAny(['eduChildren']) || isProfilePrivateValueOk(request.resource.data, 'eduChildren'));
+        }
+
+        allow get: if docId == 'profile' && (isOwner(userId) || isAdmin());
+        allow list: if false;
+        allow create: if docId == 'profile' && isOwner(userId) && isSafeProfilePrivateCreate();
+        allow update: if docId == 'profile' && isOwner(userId) && isSafeProfilePrivateUpdate();
+        allow delete: if false;
+      }
+
       // Per-user achievement progress subcollection
       match /achievements/{achId} {
         allow read: if isAuth();
@@ -3889,6 +3929,11 @@ service cloud.firestore {
     }
     match /{path=**}/activityRecords/{recId} {
       allow read: if request.auth != null;
+    }
+
+    // 會員資料讀取強化：管理員名單一次讀取私密子文件。collectionGroup 依名稱全域生效，見 users/{userId}/profilePrivate 註解。
+    match /{path=**}/profilePrivate/{docId} {
+      allow list: if isAdmin();
     }
 
     // 營運儀表板彙總。只新增，不改既有 allow。opsDailyStats 含每場放鴿子，前端不可讀。
