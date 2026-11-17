@@ -255,6 +255,41 @@ describe('私密子文件：寫入', () => {
       updatedAt: serverTimestamp(),
     }));
   });
+
+  test('未登入不可對他人 profilePrivate/profile 做 set', async () => {
+    await assertFails(setDoc(profilePathFor(guest(), 'uidA'), {
+      phone: 'test-phone-7',
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
+  test('admin 不可對他人 profilePrivate/profile 做 set', async () => {
+    await assertFails(setDoc(profilePathFor(as('uidAdmin'), 'uidA'), {
+      phone: 'test-phone-8',
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
+  test('本人 create 時 createdAt 固定時間不可寫', async () => {
+    await assertFails(setDoc(doc(as('uidNew'), 'users', 'uidNew', 'profilePrivate', 'profile'), {
+      phone: 'test-phone-9',
+      email: 'new@example.com',
+      companions: [],
+      eduChildren: null,
+      createdAt: Timestamp.fromMillis(1700000000000),
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
+  test('本人 create 時 updatedAt 固定時間不可寫', async () => {
+    await assertFails(setDoc(doc(as('uidNew'), 'users', 'uidNew', 'profilePrivate', 'profile'), {
+      phone: 'test-phone-10',
+      email: 'new@example.com',
+      companions: [],
+      eduChildren: null,
+      updatedAt: Timestamp.fromMillis(1700000000000),
+    }));
+  });
 });
 
 describe('私密子文件：docId 限制', () => {
