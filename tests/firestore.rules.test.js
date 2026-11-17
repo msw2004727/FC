@@ -4400,6 +4400,39 @@ describe("/users/{userId} self-update security boundaries", () => {
     );
   });
 
+  // 顧問 §3.217 (2)：本人更新是差分式白名單——清根前根上還留著四鍵時，改其他欄位不會被拒；清根後同樣可改。
+  test("[會員資料讀取強化] before purge: owner with phone/email/companions still on root can update displayName", async () => {
+    await seedDoc("users", "uidPrePurge", {
+      uid: "uidPrePurge",
+      displayName: "Pre Purge",
+      role: "user",
+      phone: "0912345678",
+      email: "pre@example.com",
+      companions: [{ name: "Friend" }],
+      eduChildren: [],
+    });
+    await assertSucceeds(
+      updateDoc(doc(user("uidPrePurge"), "users", "uidPrePurge"), {
+        displayName: "Renamed",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[會員資料讀取強化] after purge: owner without the four keys on root can update displayName", async () => {
+    await seedDoc("users", "uidPostPurge", {
+      uid: "uidPostPurge",
+      displayName: "Post Purge",
+      role: "user",
+    });
+    await assertSucceeds(
+      updateDoc(doc(user("uidPostPurge"), "users", "uidPostPurge"), {
+        displayName: "Renamed",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   test("[會員資料讀取強化] owner CANNOT write phone/email/companions/eduChildren to user root", async () => {
     const cases = { phone: "0912345678", email: "member@example.com", companions: [{ name: "Friend" }], eduChildren: [] };
     for (const [field, value] of Object.entries(cases)) {
