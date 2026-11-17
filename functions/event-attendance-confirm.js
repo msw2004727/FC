@@ -1,5 +1,69 @@
 "use strict";
 
+const MODULE_LOAD_H = process.hrtime.bigint();
+let PERF_FIRST_CALL_DONE = false;
+
+// 測試用：重置模組層級的 perf 狀態（僅測試使用，不影響正式邏輯）
+function _resetPerfStateForTest() {
+  PERF_FIRST_CALL_DONE = false;
+}
+
+function _elapsedMs(fromH) {
+  return Number(process.hrtime.bigint() - fromH) / 1e6;
+}
+
+function _round1(n) {
+  if (n == null || !Number.isFinite(n)) return null;
+  return Math.round(n * 10) / 10;
+}
+
+function _computeRegBucket(count) {
+  if (!Number.isFinite(count) || count < 0) return null;
+  if (count <= 9) return "0-9";
+  if (count <= 29) return "10-29";
+  if (count <= 59) return "30-59";
+  if (count <= 99) return "60-99";
+  return "100+";
+}
+
+// 一行 JSON 效能 log；位於獨立 try/catch，寫 log 失敗不得影響結果或拋錯
+function _emitPerfLog(perf, err, logger) {
+  try {
+    const ms = perf && perf.ms ? perf.ms : {};
+    const log = {
+      tag: "perf_confirm_attendance",
+      ms: {
+        access: _round1(ms.access),
+        txReadEvent: _round1(ms.txReadEvent),
+        txReadRegs: _round1(ms.txReadRegs),
+        txReadAttendance: _round1(ms.txReadAttendance),
+        txPlan: _round1(ms.txPlan),
+        txCommit: _round1(ms.txCommit),
+        afterTx: _round1(ms.afterTx),
+        total: _round1(ms.total),
+      },
+      attempts: perf && Number.isFinite(perf.attempts) ? perf.attempts : 0,
+      firstCallOnInstance: !!(perf && perf.firstCall),
+      msSinceModuleLoad: _round1(_elapsedMs(MODULE_LOAD_H)),
+      regBucket: perf ? perf.regBucket : null,
+      outcome: err ? "error" : "ok",
+    };
+    if (err) {
+      log.errorCode = String((err && err.code) || "unknown");
+    }
+    const line = JSON.stringify(log);
+    if (logger && typeof logger.info === "function") {
+      logger.info(line);
+    } else if (logger && typeof logger.log === "function") {
+      logger.log(line);
+    } else {
+      console.log(line);
+    }
+  } catch (_) {
+    // log 失敗不得影響結算結果或拋錯
+  }
+}
+
 /**
  * confirmEventAttendance — 活動現場出席確認（伺服器端移植自 event-manage-confirm.js#_confirmAllAttendance + batchWriteAttendance）
  *
@@ -494,27 +558,71 @@ function createConfirmEventAttendanceHandler({
     if (request.data?.warmup === true) {
       return { warmup: true };
     }
+
+    const startH = process.hrtime.bigint();
+    const perf = {
+      firstCall: !PERF_FIRST_CALL_DONE,
+      attempts: 0,
+      regBucket: null,
+      ms: {
+        access: null,
+        txReadEvent: null,
+        txReadRegs: null,
+        txReadAttendance: null,
+        txPlan: null,
+        txCommit: null,
+        afterTx: null,
+        total: null,
+      },
+    };
+    PERF_FIRST_CALL_DONE = true;
+
     const callerUid = request.auth.uid;
     const { eventId, desired } = request.data || {};
 
     if (typeof eventId !== "string" || !eventId.trim()) {
+      perf.ms.total = _elapsedMs(startH);
+      _emitPerfLog(perf, { code: "invalid-argument" }, logger);
       throw new HttpsError("invalid-argument", "eventId is required");
     }
     const safeEventId = eventId.trim();
 
     if (!desired || typeof desired !== "object") {
+      perf.ms.total = _elapsedMs(startH);
+      _emitPerfLog(perf, { code: "invalid-argument" }, logger);
       throw new HttpsError("invalid-argument", "desired attendance state is required");
     }
 
-    const callerAccess = await getCallerAccessContext(request);
+    const accessStartH = process.hrtime.bigint();
+    let callerAccess;
+    try {
+      callerAccess = await getCallerAccessContext(request);
+    } catch (err) {
+      perf.ms.access = _elapsedMs(accessStartH);
+      perf.ms.total = _elapsedMs(startH);
+      _emitPerfLog(perf, err, logger);
+      throw err;
+    }
+    perf.ms.access = _elapsedMs(accessStartH);
 
     try {
+      let cbEndH = null;
+      const txStartH = process.hrtime.bigint();
       const txResult = await db.runTransaction(async (transaction) => {
+        perf.attempts += 1;
+        // 每次嘗試重新計交易內各段（只保留最後一次嘗試的數字）
+        perf.ms.txReadEvent = null;
+        perf.ms.txReadRegs = null;
+        perf.ms.txReadAttendance = null;
+        perf.ms.txPlan = null;
+
         // T1: 解析活動 public id -> docRef（R-ID-009 / R-ID-010）
+        const t1H = process.hrtime.bigint();
         const eventDoc = typeof getEventDocByPublicIdInTransaction === "function"
           ? await getEventDocByPublicIdInTransaction(transaction, safeEventId)
           : await defaultGetEventDocByPublicIdInTransaction(transaction, db, safeEventId);
 
+        perf.ms.txReadEvent = _elapsedMs(t1H);
         if (!eventDoc || (typeof eventDoc.exists === "boolean" && !eventDoc.exists)) {
           throw new HttpsError("not-found", "EVENT_NOT_FOUND");
         }
@@ -528,19 +636,25 @@ function createConfirmEventAttendanceHandler({
         }
 
         // T2: 讀取子集合 registrations & attendanceRecords（R-REG-014：只讀 events/{docId}/* 子集合）
+        const t2aH = process.hrtime.bigint();
         const regsSnap = await transaction.get(eventRef.collection("registrations"));
+        perf.ms.txReadRegs = _elapsedMs(t2aH);
         const allRegs = (regsSnap?.docs || []).map((d) => ({
           ...(d.data() || {}),
           _docId: d.id,
         }));
+        perf.regBucket = _computeRegBucket(allRegs.length);
 
+        const t2bH = process.hrtime.bigint();
         const attSnap = await transaction.get(eventRef.collection("attendanceRecords"));
+        perf.ms.txReadAttendance = _elapsedMs(t2bH);
         const currentRecords = (attSnap?.docs || []).map((d) => ({
           ...(d.data() || {}),
           _docId: d.id,
         }));
 
         // T3: 規劃變更
+        const t3H = process.hrtime.bigint();
         const plan = planAttendanceConfirm({
           eventData: ed,
           registrations: allRegs,
@@ -548,6 +662,7 @@ function createConfirmEventAttendanceHandler({
           desired,
           timeStr: formatTimeStr(new Date()),
         });
+        perf.ms.txPlan = _elapsedMs(t3H);
 
         const attColRef = eventRef.collection("attendanceRecords");
 
@@ -587,12 +702,27 @@ function createConfirmEventAttendanceHandler({
           removedCount += 1;
         }
 
+        cbEndH = process.hrtime.bigint();
         return {
           added: addedCount,
           removed: removedCount,
           expTargets: computeCompleteActivityTargets(plan.people, currentRecords, plan),
         };
       });
+
+      const txEndH = process.hrtime.bigint();
+      if (cbEndH != null) {
+        perf.ms.txCommit = _elapsedMs(cbEndH);
+      } else {
+        const innerSum = (perf.ms.txReadEvent || 0)
+          + (perf.ms.txReadRegs || 0)
+          + (perf.ms.txReadAttendance || 0)
+          + (perf.ms.txPlan || 0);
+        perf.ms.txCommit = Math.max(0, _elapsedMs(txStartH) - innerSum);
+      }
+      perf.ms.afterTx = 0;
+      perf.ms.total = _elapsedMs(startH);
+      _emitPerfLog(perf, null, logger);
 
       return {
         success: true,
@@ -601,6 +731,9 @@ function createConfirmEventAttendanceHandler({
         expTargets: txResult.expTargets,
       };
     } catch (err) {
+      perf.ms.afterTx = 0;
+      perf.ms.total = _elapsedMs(startH);
+      _emitPerfLog(perf, err, logger);
       if (err instanceof HttpsError) {
         throw err;
       }
@@ -634,4 +767,5 @@ module.exports = {
   computeCompleteActivityTargets,
   createConfirmEventAttendanceHandler,
   createConfirmEventAttendanceCallable,
+  _resetPerfStateForTest,
 };

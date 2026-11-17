@@ -7,6 +7,7 @@ const {
   planAttendanceConfirm,
   computeCompleteActivityTargets,
   createConfirmEventAttendanceHandler,
+  _resetPerfStateForTest,
 } = require("../../functions/event-attendance-confirm");
 
 class MockHttpsError extends Error {
@@ -430,6 +431,8 @@ describe("confirmEventAttendance — pure function & callable", () => {
         runTransaction: jest.fn(async (fn) => fn(transaction)),
       };
 
+      const logger = { error: jest.fn(), info: jest.fn(), log: jest.fn() };
+
       const handler = createConfirmEventAttendanceHandler({
         HttpsError: MockHttpsError,
         db,
@@ -440,16 +443,162 @@ describe("confirmEventAttendance — pure function & callable", () => {
           publicId === "evt_public_1" ? eventDoc : null
         ),
         formatTimeStr: () => "2026/05/01 12:00",
-        logger: { error: jest.fn() },
+        logger,
       });
 
-      return { handler, setCalls, updateCalls };
+      return { handler, setCalls, updateCalls, logger, db, transaction };
     }
 
     test("rejects unauthenticated requests", async () => {
       const { handler } = createMockEnvironment();
       await expect(handler({ auth: null, data: { eventId: "evt_public_1", desired: {} } }))
         .rejects.toMatchObject({ code: "unauthenticated" });
+    });
+
+    // ===== perf log（施工卡 PERF-SETTLE-LOG）=====
+
+    test("perf log：正常結算後恰好輸出 perf_confirm_attendance 一行，欄位齊全、型別正確、不含 uid/活動 id", async () => {
+      _resetPerfStateForTest();
+      const { handler, logger } = createMockEnvironment({
+        regs: [
+          { _docId: "r1", userId: "U_LINE_PERF_TEST_ABCDEF", userName: "Alice", participantType: "self", status: "confirmed" },
+        ],
+      });
+      const res = await handler({
+        auth: { uid: "operator_perf_test_XYZ" },
+        data: {
+          eventId: "evt_public_1",
+          desired: { U_LINE_PERF_TEST_ABCDEF: { checkin: true, checkout: true } },
+        },
+      });
+      expect(res.success).toBe(true);
+      expect(res.added).toBeGreaterThan(0);
+
+      const perfCalls = logger.info.mock.calls
+        .map((c) => c[0])
+        .filter((s) => {
+          try { return JSON.parse(s).tag === "perf_confirm_attendance"; } catch (_) { return false; }
+        });
+      expect(perfCalls).toHaveLength(1);
+      const log = JSON.parse(perfCalls[0]);
+      expect(log.tag).toBe("perf_confirm_attendance");
+      expect(typeof log.ms).toBe("object");
+      expect(typeof log.ms.access).toBe("number");
+      expect(typeof log.ms.txReadEvent).toBe("number");
+      expect(typeof log.ms.txReadRegs).toBe("number");
+      expect(typeof log.ms.txReadAttendance).toBe("number");
+      expect(typeof log.ms.txPlan).toBe("number");
+      expect(typeof log.ms.txCommit).toBe("number");
+      expect(typeof log.ms.afterTx).toBe("number");
+      expect(typeof log.ms.total).toBe("number");
+      expect(typeof log.attempts).toBe("number");
+      expect(log.attempts).toBe(1);
+      expect(typeof log.firstCallOnInstance).toBe("boolean");
+      expect(typeof log.msSinceModuleLoad).toBe("number");
+      expect(["0-9", "10-29", "30-59", "60-99", "100+"]).toContain(log.regBucket);
+      expect(log.outcome).toBe("ok");
+      const serialized = JSON.stringify(log);
+      expect(serialized).not.toContain("U_LINE_PERF_TEST_ABCDEF");
+      expect(serialized).not.toContain("evt_public_1");
+      expect(serialized).not.toContain("operator_perf_test_XYZ");
+    });
+
+    test("perf log：回傳值與加 log 前完全相同（既有案例金標）", async () => {
+      _resetPerfStateForTest();
+      const { handler } = createMockEnvironment({
+        regs: [
+          { _docId: "r1", userId: "U_LINE_1", userName: "Alice", participantType: "self", status: "confirmed" },
+        ],
+        attRecords: [
+          {
+            _docId: "old_out_doc",
+            id: "att_old_out",
+            eventId: "evt_public_1",
+            uid: "U_LINE_1",
+            userName: "Alice",
+            participantType: "self",
+            type: "checkout",
+            status: "active",
+          },
+        ],
+      });
+      const res = await handler({
+        auth: { uid: "operator_uid" },
+        data: { eventId: "evt_public_1", desired: { U_LINE_1: { checkin: true, checkout: false, note: "遲到5分鐘" } } },
+      });
+      expect(res).toEqual({ success: true, added: 2, removed: 1, expTargets: [] });
+    });
+
+    test("perf log：log 函式拋錯時結算仍成功、回傳不變", async () => {
+      _resetPerfStateForTest();
+      const { handler, logger } = createMockEnvironment({
+        regs: [
+          { _docId: "r1", userId: "U_LINE_1", userName: "Alice", participantType: "self", status: "confirmed" },
+        ],
+      });
+      logger.info.mockImplementation(() => { throw new Error("log boom"); });
+      logger.log.mockImplementation(() => { throw new Error("log boom"); });
+      const res = await handler({
+        auth: { uid: "operator_uid" },
+        data: { eventId: "evt_public_1", desired: { U_LINE_1: { checkin: true, checkout: true } } },
+      });
+      expect(res.success).toBe(true);
+      expect(res).toMatchObject({ success: true, added: 2, removed: 0 });
+    });
+
+    test("perf log：firstCallOnInstance 第一次 true、第二次 false", async () => {
+      _resetPerfStateForTest();
+      const { handler, logger } = createMockEnvironment({
+        regs: [
+          { _docId: "r1", userId: "U_LINE_1", userName: "Alice", participantType: "self", status: "confirmed" },
+        ],
+      });
+      const req = {
+        auth: { uid: "operator_uid" },
+        data: { eventId: "evt_public_1", desired: { U_LINE_1: { checkin: true, checkout: false } } },
+      };
+      await handler(req);
+      await handler(req);
+      const logs = logger.info.mock.calls.map((c) => JSON.parse(c[0]));
+      expect(logs).toHaveLength(2);
+      expect(logs[0].firstCallOnInstance).toBe(true);
+      expect(logs[1].firstCallOnInstance).toBe(false);
+    });
+
+    test("perf log：warmup:true 不輸出日誌", async () => {
+      _resetPerfStateForTest();
+      const { handler, logger } = createMockEnvironment();
+      const res = await handler({ auth: { uid: "op" }, data: { warmup: true } });
+      expect(res).toEqual({ warmup: true });
+      expect(logger.info).not.toHaveBeenCalled();
+      expect(logger.log).not.toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    test("perf log：交易重試（交易函式被呼叫兩次）時 attempts 為 2", async () => {
+      _resetPerfStateForTest();
+      const env = createMockEnvironment({
+        regs: [
+          { _docId: "r1", userId: "U_RETRY_1", userName: "Alice", participantType: "self", status: "confirmed" },
+        ],
+      });
+      let runCount = 0;
+      env.db.runTransaction = jest.fn(async (fn) => {
+        runCount += 1;
+        const r1 = await fn(env.transaction);
+        if (runCount === 1) {
+          return await fn(env.transaction);
+        }
+        return r1;
+      });
+      const res = await env.handler({
+        auth: { uid: "operator_uid" },
+        data: { eventId: "evt_public_1", desired: { U_RETRY_1: { checkin: true } } },
+      });
+      expect(res.success).toBe(true);
+      const logs = env.logger.info.mock.calls.map((c) => JSON.parse(c[0]));
+      expect(logs).toHaveLength(1);
+      expect(logs[0].attempts).toBe(2);
     });
 
     test("rejects when caller lacks site operation permission", async () => {
