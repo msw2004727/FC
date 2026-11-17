@@ -1395,7 +1395,8 @@ service cloud.firestore {
 
       function userRootCreateAllowedKeys() {
         return [
-          'uid', 'lineUserId', 'displayName', 'photoURL', 'pictureUrl', 'phone', 'email',
+          // 會員資料讀取強化：phone、email、companions、eduChildren 改存 users/{uid}/profilePrivate/profile，根文件不再接受。
+          'uid', 'lineUserId', 'displayName', 'photoURL', 'pictureUrl',
           'role', 'exp', 'level',
           'gender', 'birthday', 'region', 'sports',
           'teamId', 'teamName', 'teamIds', 'teamNames',
@@ -1404,7 +1405,7 @@ service cloud.firestore {
           'profileCompleted',
           'createdAt', 'lastLogin', 'updatedAt',
           'termsAcceptedAt', 'privacyAcceptedAt', 'termsVersion', 'privacyVersion', 'legalAcceptedSource',
-          'favorites', 'socialLinks', 'lineNotify', 'companions', 'eduChildren', 'stealth'
+          'favorites', 'socialLinks', 'lineNotify', 'stealth'
         ];
       }
 
@@ -1536,14 +1537,13 @@ service cloud.firestore {
       function isSafeSelfProfileUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-            'displayName', 'photoURL', 'pictureUrl', 'phone', 'email', 'updatedAt',
+            // 會員資料讀取強化：四欄改由 profilePrivate 寫入，根文件不再接受本人改。
+            'displayName', 'photoURL', 'pictureUrl', 'updatedAt',
             'gender', 'birthday', 'region', 'sports',
             'termsAcceptedAt', 'privacyAcceptedAt', 'termsVersion', 'privacyVersion', 'legalAcceptedSource',
             'favorites', 'socialLinks',
             'titleBig', 'titleNormal',
             'lineNotify',
-            'companions',
-            'eduChildren',
             'stealth'
           ])
           && !changed.hasAny(['uid', 'lineUserId', 'role', 'claims', 'isAdmin', 'exp', 'level', 'createdAt', 'manualRole'])
@@ -1698,7 +1698,8 @@ service cloud.firestore {
 
       function isSafeSuperAdminUserUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return !changed.hasAny(['uid', 'lineUserId', 'createdAt']);
+        // 會員資料讀取強化：super_admin 也不得把四欄寫回根文件。
+        return !changed.hasAny(['uid', 'lineUserId', 'createdAt', 'phone', 'email', 'companions', 'eduChildren']);
       }
 
       function isSafeTeamMembershipUpdateByStaff() {

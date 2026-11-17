@@ -515,7 +515,6 @@ function newUserPayload(uid, overrides = {}) {
     lineUserId: uid,
     displayName: `New ${uid}`,
     pictureUrl: null,
-    email: null,
     role: "user",
     exp: 0,
     level: 1,
@@ -525,7 +524,6 @@ function newUserPayload(uid, overrides = {}) {
     sports: null,
     teamId: null,
     teamName: null,
-    phone: null,
     titleBig: null,
     titleNormal: null,
     totalGames: 0,
@@ -603,6 +601,18 @@ function teamScopedEventPayload(id, creatorUid, teamIds) {
 }
 
 describe("/users/{userId}", () => {
+
+  // 預期行為：舊站建檔仍帶 email／phone，在會員資料讀取強化第二版 Rules 下會被拒（舊站凍結不改，站長已知悉）。
+  test("[會員資料讀取強化] legacy-style root create with email/phone/companions/eduChildren is rejected", async () => {
+    for (const [field, value] of Object.entries({ email: null, phone: null, companions: [], eduChildren: [] })) {
+      await assertFails(
+        setDoc(
+          doc(user(`uidLegacy_${field}`), "users", `uidLegacy_${field}`),
+          newUserPayload(`uidLegacy_${field}`, { [field]: value })
+        )
+      );
+    }
+  });
 
   test("[SECONDARY_IDENTITY] root create permits only login/profile seed fields", async () => {
     await assertSucceeds(
@@ -1004,7 +1014,6 @@ describe("/users/{userId}", () => {
   test("[SECURITY_HARDENED] super_admin can directly update another user's profile and role", async () => {
     await assertSucceeds(
       updateDoc(doc(superAdmin(), "users", "uidUser"), {
-        phone: "0912345678",
         role: "coach",
         manualRole: "coach",
         claims: { role: "coach" },
@@ -1012,6 +1021,18 @@ describe("/users/{userId}", () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  test("[會員資料讀取強化] super_admin CANNOT write phone/email/companions/eduChildren back to user root", async () => {
+    for (const field of ["phone", "email", "companions", "eduChildren"]) {
+      const value = field === "companions" || field === "eduChildren" ? [] : "x@example.com";
+      await assertFails(
+        updateDoc(doc(superAdmin(), "users", "uidUser"), {
+          [field]: value,
+          updatedAt: serverTimestamp(),
+        })
+      );
+    }
   });
 });
 
@@ -4317,12 +4338,10 @@ describe("/attendanceRecords/{recordId}", () => {
 // ═══════════════════════════════════════════════════════════════
 describe("/users/{userId} self-update security boundaries", () => {
   // --- isSafeSelfProfileUpdate path ---
-  test("owner can update safe profile fields (displayName, phone, gender, etc.)", async () => {
+  test("owner can update safe profile fields (displayName, gender, etc.)", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
         displayName: "New Name",
-        phone: "0912345678",
-        email: "member@example.com",
         gender: "male",
         birthday: "1990-01-01",
         region: "Taipei",
@@ -4370,23 +4389,32 @@ describe("/users/{userId} self-update security boundaries", () => {
     );
   });
 
-  test("owner can update titleBig, titleNormal, lineNotify, companions", async () => {
+  test("owner can update titleBig, titleNormal, lineNotify", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
         titleBig: "MVP",
         titleNormal: "Player",
         lineNotify: { enabled: true },
-        companions: [{ name: "Friend" }],
         updatedAt: serverTimestamp(),
       })
     );
   });
 
+  test("[會員資料讀取強化] owner CANNOT write phone/email/companions/eduChildren to user root", async () => {
+    const cases = { phone: "0912345678", email: "member@example.com", companions: [{ name: "Friend" }], eduChildren: [] };
+    for (const [field, value] of Object.entries(cases)) {
+      await assertFails(
+        updateDoc(doc(user(), "users", "uidUser"), {
+          [field]: value,
+          updatedAt: serverTimestamp(),
+        })
+      );
+    }
+  });
+
   test("owner can set nullable profile fields to null", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
-        phone: null,
-        email: null,
         gender: null,
         birthday: null,
         photoURL: null,
@@ -4398,7 +4426,6 @@ describe("/users/{userId} self-update security boundaries", () => {
         titleBig: null,
         titleNormal: null,
         lineNotify: null,
-        companions: null,
         updatedAt: serverTimestamp(),
       })
     );
