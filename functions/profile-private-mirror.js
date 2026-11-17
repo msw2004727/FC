@@ -53,13 +53,9 @@ function planProfilePrivatePatch({ isCreate, fields, rootData, privateData }) {
     const rootValue = readField(rootData, field);
     const privateHasField = hasOwnField(privateData, field);
 
-    if (isCreate) {
-      if (!privateHasField && rootValue !== null) {
-        patch[field] = rootValue;
-        hasPatch = true;
-      }
-      continue;
-    }
+    // 新建（含刪除後重建）一樣以根為準：只略過「私密沒有此欄且根也是 null」，其餘與更新同樣比對覆寫。
+    // 欄位清單取自本次事件，值取交易內當下根；事件亂序時各欄最終仍收斂到最新根值。
+    if (isCreate && !privateHasField && rootValue === null) continue;
 
     if (!privateHasField || !isDeepStrictEqual(privateData[field], rootValue)) {
       patch[field] = rootValue;

@@ -187,7 +187,7 @@ test("根欄位清為 null 或刪除鍵時，私密文件保留鍵並寫 null", 
   expect(Object.prototype.hasOwnProperty.call(privateData, "email")).toBe(true);
 });
 
-test("根文件新建時只補私密文件缺少且根值非 null 的欄位", async () => {
+test("根文件新建（含刪除後重建）以根為準覆寫不一致欄位，根為 null 且私密無此欄時不寫", async () => {
   const { db, store, writes } = createFakeDb({
     "users/uidA": {
       email: "root@example.test",
@@ -210,9 +210,9 @@ test("根文件新建時只補私密文件缺少且根值非 null 的欄位", as
     },
   });
 
-  expect(first).toEqual({ outcome: "written", fieldCount: 1 });
+  expect(first).toEqual({ outcome: "written", fieldCount: 2 });
   const afterFirst = store.get("users/uidA/profilePrivate/profile");
-  expect(afterFirst.email).toBe("private@example.test");
+  expect(afterFirst.email).toBe("root@example.test");
   expect(afterFirst.companions).toEqual(["c1"]);
   expect(Object.prototype.hasOwnProperty.call(afterFirst, "phone")).toBe(false);
 
@@ -402,7 +402,7 @@ test("純函式處理深比較、undefined/null、新建補值與寫 null 的邊
     fields: ["phone", "email"],
     rootData: { phone: "p", email: null },
     privateData: { email: "old@example.test" },
-  })).toEqual({ phone: "p" });
+  })).toEqual({ phone: "p", email: null });
 
   expect(planProfilePrivatePatch({
     isCreate: false,
