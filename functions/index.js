@@ -3631,8 +3631,28 @@ exports.adminManageUser = onCall(
       throw new HttpsError("invalid-argument", "No supported updates requested");
     }
 
+    // 會員資料讀取強化第二版：電話、信箱只寫 users/{docId}/profilePrivate/profile，不再寫回根文件。
+    const privateUpdates = {};
+    ["phone", "email"].forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(nextUpdates, field)) {
+        privateUpdates[field] = nextUpdates[field];
+        delete nextUpdates[field];
+      }
+    });
+    const targetRootRef = db.collection("users").doc(targetUser.docId);
     nextUpdates.updatedAt = FieldValue.serverTimestamp();
-    await db.collection("users").doc(targetUser.docId).update(nextUpdates);
+    if (hasAnyOwnKeys(privateUpdates)) {
+      const batch = db.batch();
+      batch.update(targetRootRef, nextUpdates);
+      batch.set(
+        targetRootRef.collection("profilePrivate").doc("profile"),
+        { ...privateUpdates, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+      await batch.commit();
+    } else {
+      await targetRootRef.update(nextUpdates);
+    }
 
     if (typeof nextUpdates.role === "string") {
       await ensureAuthUser(resolvedTargetUid);

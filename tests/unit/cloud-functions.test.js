@@ -3324,7 +3324,10 @@ describe('adminManageUser source contract', () => {
     const decisionIndex = source.indexOf('decideAdminManageUser(');
     expect(decisionIndex).toBeGreaterThanOrEqual(0);
     [
-      'await db.collection("users").doc(targetUser.docId).update(nextUpdates)',
+      // 會員資料讀取強化第二版：電話、信箱另寫 profilePrivate，根文件寫入改由 targetRootRef／batch 進行。
+      'await targetRootRef.update(nextUpdates)',
+      'await batch.commit()',
+      'targetRootRef.collection("profilePrivate").doc("profile")',
       'await ensureAuthUser(resolvedTargetUid)',
       'await setRoleClaimMerged(resolvedTargetUid, nextUpdates.role)',
     ].forEach(write => {
