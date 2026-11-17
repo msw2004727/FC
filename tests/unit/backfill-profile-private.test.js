@@ -239,6 +239,32 @@ describe("dry-run", () => {
     expect(report.wouldWrite).toBe(2);
     expect(report.maxLen.phone).toBe("0912345678".length);
   });
+
+  test("文件數大於 limit 時仍完整掃描：全量統計、wouldWrite 全量、不寫入、stoppedAt 不因 limit 中止", async () => {
+    const db = createFakeDb({
+      users: [
+        { id: "u1", data: { phone: "0900000001", companions: [{ name: "a" }, { name: "b" }, { name: "c" }] } },
+        { id: "u2", data: { email: "a@b.c", lineUserId: "missingDoc" } },
+        { id: "u3", data: { phone: "0900000003", uid: "otherDoc" } },
+        { id: "u4", data: { eduChildren: [{}, {}, {}, {}] } },
+        { id: "u5", data: {} },
+      ],
+      private: {},
+    });
+    const report = await runBackfill({ db, ...baseArgs({ mode: "dry-run", limit: 1 }) });
+    expect(db.writeCount).toBe(0);
+    expect(report.scanned).toBe(5);
+    expect(report.withValue.phone).toBe(2);
+    expect(report.withValue.email).toBe(1);
+    expect(report.withValue.companions).toBe(1);
+    expect(report.withValue.eduChildren).toBe(1);
+    expect(report.idFieldMismatchWithValue).toBe(2);
+    expect(report.legacyNoCanonicalWithValue).toBe(1);
+    expect(report.maxItems.companions).toBe(3);
+    expect(report.maxItems.eduChildren).toBe(4);
+    expect(report.wouldWrite).toBe(4);
+    expect(report.stoppedAt).toBe(null);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -418,6 +444,19 @@ describe("硬上限", () => {
     expect(report.resume.startAfter).toBe("u2");
     expect(db.writeCount).toBe(2);
   });
+
+  test("整批跑完不輸出 resume／nextStartAfter", async () => {
+    const users = [
+      { id: "u1", data: { phone: "0900000001" } },
+      { id: "u2", data: { phone: "0900000002" } },
+    ];
+    const db = createFakeDb({ users, private: {} });
+    const report = await runBackfill({ db, ...baseArgs({ mode: "apply", limit: 10 }) });
+    expect(report.written).toBe(2);
+    expect(report.stoppedAt).toBe(null);
+    expect(report.resume).toBeNull();
+    expect(report.nextStartAfter).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -492,7 +531,7 @@ describe("遮罩", () => {
     expect(maskEmail("bad")).toBe("***");
   });
 
-  test("stdout 與報告檔不含完整敏感值（resume.startAfter 例外）", async () => {
+  test("stdout 與報告檔不含完整敏感值（stoppedAt=limit 時 resume.startAfter 例外）", async () => {
     const db = createFakeDb({
       users: [{
         id: "secretDocId123",
@@ -501,6 +540,9 @@ describe("遮罩", () => {
           email: "user@example.com",
           companions: [{ name: "AliceCompanion" }],
         },
+      }, {
+        id: "zzzOtherDoc",
+        data: { phone: "0900000000" },
       }],
       private: {},
     });
@@ -510,6 +552,7 @@ describe("遮罩", () => {
       db,
       ...baseArgs({
         mode: "apply",
+        limit: 1,
         log: (line) => logs.push(line),
         writeReport: (r) => { captured = r; },
       }),
@@ -524,8 +567,8 @@ describe("遮罩", () => {
     expect(reportStr).not.toContain("0912345678");
     expect(reportStr).not.toContain("user@example.com");
     expect(reportStr).not.toContain("AliceCompanion");
-    // resume.startAfter 是唯一允許放完整 docId 的欄位
-    const withoutResume = JSON.stringify({ ...captured, resume: {} });
+    // stoppedAt=limit 時，resume.startAfter 是唯一允許放完整 docId 的欄位
+    const withoutResume = JSON.stringify({ ...captured, resume: null });
     expect(withoutResume).not.toContain("secretDocId123");
     expect(captured.resume.startAfter).toBe("secretDocId123");
   });
@@ -550,5 +593,35 @@ describe("--only-doc", () => {
     expect(db.writes.find((w) => w.path === "users/u2/profilePrivate/profile")).toBeDefined();
     expect(db.writes.find((w) => w.path === "users/u1/profilePrivate/profile")).toBeUndefined();
     expect(db.writes.find((w) => w.path === "users/u3/profilePrivate/profile")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 續跑可信度
+// ---------------------------------------------------------------------------
+
+describe("legacyNoCanonicalReliable", () => {
+  test("帶 startAfter 時 knownIds 不完整，標示不可信且 stdout 有提示", async () => {
+    const db = createFakeDb({
+      users: [
+        { id: "u1", data: { email: "u1@x.com", lineUserId: "missing1" } },
+        { id: "u2", data: { email: "u2@x.com", lineUserId: "missing2" } },
+        { id: "u3", data: { email: "u3@x.com", lineUserId: "missing3" } },
+      ],
+      private: {},
+    });
+    const logs = [];
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "dry-run", startAfter: "u1", log: (line) => logs.push(line) }),
+    });
+    expect(report.legacyNoCanonicalReliable).toBe(false);
+    expect(logs.join("\n")).toContain("不可信");
+  });
+
+  test("全量掃描時 legacyNoCanonicalReliable 為 true", async () => {
+    const db = createFakeDb({ users: [{ id: "u1", data: { email: "u1@x.com" } }], private: {} });
+    const report = await runBackfill({ db, ...baseArgs({ mode: "dry-run" }) });
+    expect(report.legacyNoCanonicalReliable).toBe(true);
   });
 });

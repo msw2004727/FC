@@ -10268,7 +10268,7 @@ exports.onEventCommentCreated = onDocumentCreated(
   }),
 );
 // 會員資料讀取強化：四欄有變才鏡像到 users/{userId}/profilePrivate/profile（不新增函式、不重試；漏掉由回填 --verify 對帳）。
-const mirrorProfilePrivate = createProfilePrivateMirror({ db, FieldValue, logger: console });
+const mirrorProfilePrivate = createProfilePrivateMirror({ db, FieldValue, logger });
 
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
   {

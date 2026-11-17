@@ -305,7 +305,7 @@ async function applyOneDoc({ db, FieldValue, mode, docId, report, samples }) {
   });
 }
 
-async function readOneDoc({ db, mode, docId, report, samples }) {
+async function readOneDoc({ db, mode, docId, report, samples, sampleLimit = 5 }) {
   const rootRef = db.collection("users").doc(docId);
   const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
 
@@ -329,16 +329,16 @@ async function readOneDoc({ db, mode, docId, report, samples }) {
   if (mode === "verify") {
     if (missing.length > 0 || diff.length > 0) {
       report.inconsistent += 1;
-      if (samples.length < 5) samples.push({ docId: maskId(docId), outcome: "inconsistent" });
-    } else if (samples.length < 5) {
+      if (samples.length < sampleLimit) samples.push({ docId: maskId(docId), outcome: "inconsistent" });
+    } else if (samples.length < sampleLimit) {
       samples.push({ docId: maskId(docId), outcome: "unchanged" });
     }
   } else if (mode === "repair") {
     if (missing.length > 0 || diff.length > 0) {
       report.inconsistent += 1;
       report.wouldWrite += 1;
-      if (samples.length < 5) samples.push({ docId: maskId(docId), outcome: "wouldWrite" });
-    } else if (samples.length < 5) {
+      if (samples.length < sampleLimit) samples.push({ docId: maskId(docId), outcome: "wouldWrite" });
+    } else if (samples.length < sampleLimit) {
       samples.push({ docId: maskId(docId), outcome: "unchanged" });
     }
   } else {
@@ -346,10 +346,10 @@ async function readOneDoc({ db, mode, docId, report, samples }) {
     if (diff.length > 0) report.inconsistent += 1;
     if (missing.length > 0) {
       report.wouldWrite += 1;
-      if (samples.length < 5) samples.push({ docId: maskId(docId), outcome: "wouldWrite" });
-    } else if (diff.length > 0 && samples.length < 5) {
+      if (samples.length < sampleLimit) samples.push({ docId: maskId(docId), outcome: "wouldWrite" });
+    } else if (diff.length > 0 && samples.length < sampleLimit) {
       samples.push({ docId: maskId(docId), outcome: "inconsistent" });
-    } else if (samples.length < 5) {
+    } else if (samples.length < sampleLimit) {
       samples.push({ docId: maskId(docId), outcome: "unchanged" });
     }
   }
@@ -369,6 +369,7 @@ function initReport(mode) {
     typeAnomaly: { phone: 0, email: 0, companions: 0, eduChildren: 0 },
     idFieldMismatch: 0,
     legacyNoCanonical: 0,
+    legacyNoCanonicalReliable: true,
     idFieldMismatchWithValue: 0,
     legacyNoCanonicalWithValue: 0,
     inconsistent: 0,
@@ -381,7 +382,7 @@ function initReport(mode) {
     reads: 0,
     writes: 0,
     samples: [],
-    resume: {},
+    resume: null,
   };
 }
 
@@ -397,6 +398,8 @@ function summarizeForStdout(report) {
     legacyNoCanonical: report.legacyNoCanonical,
     idFieldMismatchWithValue: report.idFieldMismatchWithValue,
     legacyNoCanonicalWithValue: report.legacyNoCanonicalWithValue,
+    legacyNoCanonicalReliable: report.legacyNoCanonicalReliable,
+    legacyNoCanonicalWarning: report.legacyNoCanonicalReliable ? null : "不可信",
     inconsistent: report.inconsistent,
     wouldWrite: report.wouldWrite,
     written: report.written,
@@ -426,8 +429,10 @@ async function runBackfill({
   nowMs,
 }) {
   const report = initReport(mode);
+  report.legacyNoCanonicalReliable = !(onlyDoc || startAfter);
   const samples = [];
   const applyMode = mode === "apply" || mode === "repair-apply";
+  const readSampleLimit = applyMode ? 5 : Math.min(5, limit);
   let resumeDocId = null;
 
   try {
@@ -436,8 +441,7 @@ async function runBackfill({
     const knownIds = new Set(userDocs.map((d) => d.id));
 
     for (const entry of userDocs) {
-      const currentCount = applyMode ? report.written : report.wouldWrite;
-      if (currentCount >= limit) {
+      if (applyMode && report.written >= limit) {
         report.stoppedAt = "limit";
         break;
       }
@@ -495,7 +499,7 @@ async function runBackfill({
         if (applyMode) {
           await applyOneDoc({ db, FieldValue, mode, docId, report, samples });
         } else {
-          await readOneDoc({ db, mode, docId, report, samples });
+          await readOneDoc({ db, mode, docId, report, samples, sampleLimit: readSampleLimit });
         }
         resumeDocId = docId;
       } catch (err) {
@@ -506,8 +510,7 @@ async function runBackfill({
         break;
       }
 
-      const afterCount = applyMode ? report.written : report.wouldWrite;
-      if (afterCount >= limit) {
+      if (applyMode && report.written >= limit) {
         report.stoppedAt = "limit";
         break;
       }
@@ -519,9 +522,12 @@ async function runBackfill({
     report.errorCode = rawCode.slice(0, 40);
   }
 
-  if (resumeDocId) {
+  if ((report.stoppedAt === "limit" || report.stoppedAt === "error") && resumeDocId) {
     report.nextStartAfter = maskId(resumeDocId);
     report.resume = { startAfter: resumeDocId };
+  } else {
+    report.nextStartAfter = null;
+    report.resume = null;
   }
   report.samples = samples.slice(0, 5);
 
