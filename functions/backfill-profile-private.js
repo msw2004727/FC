@@ -398,7 +398,9 @@ function initReport(mode) {
   if (isPurgeRootMode(mode)) {
     report.alreadyClean = 0;
     report.purgeable = 0;
+    report.purgeableEmptyOnly = 0;
     report.purged = 0;
+    report.purgedEmptyOnly = 0;
     report.skipNoPrivate = 0;
     report.skipMismatch = 0;
     report.skipTypeAnomaly = 0;
@@ -415,7 +417,9 @@ function summarizeForStdout(report) {
       scanned: report.scanned,
       alreadyClean: report.alreadyClean,
       purgeable: report.purgeable,
+      purgeableEmptyOnly: report.purgeableEmptyOnly,
       purged: report.purged,
+      purgedEmptyOnly: report.purgedEmptyOnly,
       skipNoPrivate: report.skipNoPrivate,
       skipMismatch: report.skipMismatch,
       skipTypeAnomaly: report.skipTypeAnomaly,
@@ -467,53 +471,61 @@ async function purgeRootOneDoc({ db, FieldValue, docId, report, addSample }) {
   return db.runTransaction(async (tx) => {
     const rootSnap = await tx.get(rootRef);
     report.reads += 1;
-    const privateSnap = await tx.get(privateRef);
-    report.reads += 1;
+    if (!rootSnap.exists) {
+      report.skipMismatchAtApply += 1;
+      addSample("skipMismatchAtApply", docId);
+      return "skipMismatchAtApply";
+    }
 
-    const rootData = rootSnap.exists ? (rootSnap.data() || {}) : null;
+    const rootData = rootSnap.data() || {};
     const currentFields = [];
-    if (rootData) {
-      for (const field of PROFILE_PRIVATE_FIELDS) {
-        if (Object.prototype.hasOwnProperty.call(rootData, field)) currentFields.push(field);
+    const valueKeys = [];
+    let typeAnomaly = false;
+    for (const field of PROFILE_PRIVATE_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(rootData, field)) continue;
+      currentFields.push(field);
+      if (!isFieldTypeValid(field, rootData[field])) {
+        typeAnomaly = true;
+      } else if (isFieldValuePresent(field, rootData[field])) {
+        valueKeys.push(field);
       }
     }
 
-    let consistent = rootSnap.exists && currentFields.length > 0;
-    if (consistent) {
-      for (const field of currentFields) {
-        if (!isFieldTypeValid(field, rootData[field])) {
-          consistent = false;
-          break;
+    if (currentFields.length === 0 || typeAnomaly) {
+      report.skipMismatchAtApply += 1;
+      addSample("skipMismatchAtApply", docId);
+      return "skipMismatchAtApply";
+    }
+
+    if (valueKeys.length > 0) {
+      const privateSnap = await tx.get(privateRef);
+      report.reads += 1;
+      if (!privateSnap.exists) {
+        report.skipMismatchAtApply += 1;
+        addSample("skipMismatchAtApply", docId);
+        return "skipMismatchAtApply";
+      }
+
+      const privateData = privateSnap.data() || {};
+      for (const field of valueKeys) {
+        if (!Object.prototype.hasOwnProperty.call(privateData, field)
+            || !isDeepStrictEqual(privateData[field], rootData[field])) {
+          report.skipMismatchAtApply += 1;
+          addSample("skipMismatchAtApply", docId);
+          return "skipMismatchAtApply";
         }
       }
-    }
-
-    if (!consistent || !privateSnap.exists) {
-      report.skipMismatchAtApply += 1;
-      addSample("skipMismatchAtApply", docId);
-      return "skipMismatchAtApply";
-    }
-
-    const privateData = privateSnap.data() || {};
-    for (const field of currentFields) {
-      if (!Object.prototype.hasOwnProperty.call(privateData, field)
-          || !isDeepStrictEqual(privateData[field], rootData[field])) {
-        consistent = false;
-        break;
-      }
-    }
-
-    if (!consistent) {
-      report.skipMismatchAtApply += 1;
-      addSample("skipMismatchAtApply", docId);
-      return "skipMismatchAtApply";
     }
 
     const payload = {};
     for (const field of currentFields) payload[field] = FieldValue.delete();
     tx.update(rootRef, payload);
     report.writes += 1;
-    addSample("purged", docId, { fieldsPurged: currentFields.slice() });
+    if (valueKeys.length === 0) report.purgedEmptyOnly += 1;
+    addSample("purged", docId, {
+      fieldsPurged: currentFields.slice(),
+      ...(valueKeys.length === 0 ? { emptyOnly: true } : {}),
+    });
     return "purged";
   });
 }
@@ -611,38 +623,49 @@ async function runPurgeRoot({
         continue;
       }
 
-      const rootRef = db.collection("users").doc(docId);
-      const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
-      const privateSnap = await privateRef.get();
-      report.reads += 1;
-
-      if (!privateSnap.exists) {
-        report.skipNoPrivate += 1;
-        addSample("skipNoPrivate", docId);
-        resumeDocId = docId;
-        continue;
-      }
-
-      const privateData = privateSnap.data() || {};
-      let mismatch = false;
+      const valueKeys = [];
       for (const field of presentKeys) {
-        if (!Object.prototype.hasOwnProperty.call(privateData, field)
-            || !isDeepStrictEqual(privateData[field], data[field])) {
-          mismatch = true;
-          break;
+        if (isFieldValuePresent(field, data[field])) valueKeys.push(field);
+      }
+      const emptyOnly = valueKeys.length === 0;
+
+      if (!emptyOnly) {
+        const rootRef = db.collection("users").doc(docId);
+        const privateRef = rootRef.collection(PROFILE_PRIVATE_COLLECTION).doc(PROFILE_PRIVATE_DOC_ID);
+        const privateSnap = await privateRef.get();
+        report.reads += 1;
+
+        if (!privateSnap.exists) {
+          report.skipNoPrivate += 1;
+          addSample("skipNoPrivate", docId);
+          resumeDocId = docId;
+          continue;
+        }
+
+        const privateData = privateSnap.data() || {};
+        let mismatch = false;
+        for (const field of valueKeys) {
+          if (!Object.prototype.hasOwnProperty.call(privateData, field)
+              || !isDeepStrictEqual(privateData[field], data[field])) {
+            mismatch = true;
+            break;
+          }
+        }
+
+        if (mismatch) {
+          report.skipMismatch += 1;
+          addSample("skipMismatch", docId);
+          resumeDocId = docId;
+          continue;
         }
       }
 
-      if (mismatch) {
-        report.skipMismatch += 1;
-        addSample("skipMismatch", docId);
-        resumeDocId = docId;
-        continue;
-      }
-
       report.purgeable += 1;
+      if (emptyOnly) report.purgeableEmptyOnly += 1;
       if (!isApply) {
-        addSample("purgeable", docId, { fields: presentKeys.slice() });
+        addSample("purgeable", docId, emptyOnly
+          ? { fields: presentKeys.slice(), emptyOnly: true }
+          : { fields: presentKeys.slice() });
         resumeDocId = docId;
         continue;
       }

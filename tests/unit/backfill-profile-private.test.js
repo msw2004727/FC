@@ -753,6 +753,99 @@ describe("--purge-root", () => {
     expect(resumeReport.stoppedAt).toBe(null);
   });
 
+  test("只有空值鍵且無私密文件時可清並刪除", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: null, email: "", companions: [], eduChildren: [] } }],
+      private: {},
+    });
+    const dry = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root" }),
+    });
+    expect(db.writeCount).toBe(0);
+    expect(dry.purgeable).toBe(1);
+    expect(dry.purgeableEmptyOnly).toBe(1);
+    expect(dry.skipNoPrivate).toBe(0);
+
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(1);
+    expect(report.purgedEmptyOnly).toBe(1);
+    expect(report.skipNoPrivate).toBe(0);
+    expect(db.updates).toHaveLength(1);
+    expect(db.updates[0].path).toBe("users/u1");
+    expect(Object.keys(db.updates[0].data).sort()).toEqual(["companions", "eduChildren", "email", "phone"]);
+    const u1 = db.users.find((u) => u.id === "u1");
+    expect(u1.data.phone).toBeUndefined();
+    expect(u1.data.email).toBeUndefined();
+    expect(u1.data.companions).toBeUndefined();
+    expect(u1.data.eduChildren).toBeUndefined();
+  });
+
+  test("空值鍵與一致的有值鍵可一起清除", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001", email: null, companions: [] } }],
+      private: { u1: { phone: "0900000001" } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(1);
+    expect(report.purgedEmptyOnly).toBe(0);
+    expect(db.updates).toHaveLength(1);
+    expect(Object.keys(db.updates[0].data).sort()).toEqual(["companions", "email", "phone"]);
+  });
+
+  test("空值鍵搭配不一致的有值鍵時整份跳過", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: "0900000001", email: null } }],
+      private: { u1: { phone: "9999999999" } },
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.skipMismatch).toBe(1);
+    expect(db.updates).toHaveLength(0);
+    const u1 = db.users.find((u) => u.id === "u1");
+    expect(u1.data.phone).toBe("0900000001");
+    expect(u1.data.email).toBeNull();
+  });
+
+  test("型別異常仍跳過，即使其他鍵為空值", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: 12345, email: null } }],
+      private: {},
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.skipTypeAnomaly).toBe(1);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  test("交易內重驗：空值鍵變有值且無私密文件時不清", async () => {
+    const db = createFakeDb({
+      users: [{ id: "u1", data: { phone: null, email: null } }],
+      freshUsers: [{ id: "u1", data: { phone: "0900000001", email: null } }],
+      private: {},
+    });
+    const report = await runBackfill({
+      db,
+      ...baseArgs({ mode: "purge-root-apply" }),
+    });
+    expect(report.purged).toBe(0);
+    expect(report.purgedEmptyOnly).toBe(0);
+    expect(report.skipMismatchAtApply).toBe(1);
+    expect(db.updates).toHaveLength(0);
+  });
+
   test("與 --repair、--verify 互斥，且模式解析正確", () => {
     expect(parseArgs(["node", "x", "--purge-root"], {}).mode).toBe("purge-root");
     expect(parseArgs(["node", "x", "--purge-root", "--apply"], {}).mode).toBe("purge-root-apply");
