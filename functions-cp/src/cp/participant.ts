@@ -48,8 +48,11 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
     tx.set(ref, {
       reporterUid: caller.uid, // 只有管理員可讀（Rules reports: isAdmin）；處理檢舉需要回查
       reason, detail, count: FieldValue.increment(1),
-      lastAt: FieldValue.serverTimestamp(), status: 'open',
-      ...(prev.exists ? {} : { firstAt: FieldValue.serverTimestamp() })
+      lastAt: FieldValue.serverTimestamp(),
+      // 不覆寫管理員已處理的狀態（Flash 交叉審 P2）；已處理過又被檢舉時標 reopened 讓管理員看到
+      ...(prev.exists
+        ? (prev.get('status') !== 'open' ? { reopened: true } : {})
+        : { status: 'open', firstAt: FieldValue.serverTimestamp() })
     }, { merge: true });
   });
   return { cid, reported: true };

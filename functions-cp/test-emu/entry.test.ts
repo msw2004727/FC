@@ -231,6 +231,10 @@ describe('代表代填無帳號球員（addRosterByRep，§4.4）', () => {
     await fails(add(TESTER, { birthday: undefined }), 'FIELD_REQUIRED');
     await fails(add(TESTER, { birthday: birthdayForAge(9, fm) }), 'AGE_NOT_ELIGIBLE');
   });
+  it('同隊同真名不能重複代填（換背號也一樣）', async () => {
+    await ok(add());
+    await fails(add(TESTER, { number: 4 }), 'PLAYER_DUPLICATE', 'already-exists');
+  });
   it('代表可移除代填球員；球員本人以外的會員不能移除', async () => {
     const r = await ok<{ plId: string }>(add());
     await fails(call(handleCpEntry, TESTER2, { action: 'leaveRoster', cid, plId: r.plId }), 'NOT_ROSTER_OWNER');

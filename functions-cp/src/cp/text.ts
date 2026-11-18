@@ -98,7 +98,7 @@ export function surnameOf(realName: string): string {
 
 /**
  * 未成年公開顯示名可接受的候選（球員或代表可修正姓氏判斷，但只能在這幾種之中選，
- * 防止把全名寫進公開投影）：中文第一字、前兩字；外文最後一個詞、第一個詞。
+ * 防止把全名寫進公開投影）：中文第一字、前兩字（複姓）；外文只取最後一個詞。
  */
 export function minorPublicNameCandidates(realName: string): string[] {
   const s = cleanLine(realName) ?? '';
@@ -109,10 +109,8 @@ export function minorPublicNameCandidates(realName: string): string[] {
     const chars = [...s.replace(/\s+/g, '')];
     out.add(chars[0]);
     if (chars.length >= 3) out.add(chars.slice(0, 2).join(''));
-  } else {
-    const words = s.split(' ').filter(Boolean);
-    if (words.length >= 2) out.add(words[0]);
   }
+  // 外文名只允許最後一個詞（姓）；名字通常比姓更好辨識，不列入（Flash 交叉審 P3）
   out.delete('');
   return [...out];
 }

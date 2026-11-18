@@ -309,6 +309,8 @@ export async function setCompetitionStatus(deps: CpDeps, caller: Caller, gate: G
     assertCompVisible(comp, gate);
     await assertHostOrCo(deps, tx, cid, comp, caller);
     if (comp.endedAt) throw pre('COMPETITION_CLOSED');
+    // 下架期間主辦不能改狀態（Flash 交叉審 P2；與 update 一致）
+    if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
     if (!(TRANSITIONS[comp.status] ?? []).includes(status)) throw pre('STATUS_TRANSITION', { from: comp.status, to: status });
     tx.update(deps.db.doc(`competitions/${cid}`), {
       status, statusReason: reason,
@@ -323,18 +325,34 @@ export async function setCompetitionStatus(deps: CpDeps, caller: Caller, gate: G
 export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid']);
   const cid = requireId(input.cid, CID_RE, 'cid');
-  const comp: CompDoc = await loadComp(deps, null, cid);
-  assertCompVisible(comp, gate);
   const admin = isAdmin(caller);
-  // 只有 hostUid 本人（不含共同主辦、俱樂部其他代表）或管理員
-  if (!admin && comp.hostUid !== caller.uid) throw deny('NOT_PRIMARY_HOST');
-  if (!admin && deps.now().getTime() >= comp.firstMatchAt.toMillis()) throw pre('DELETE_AFTER_START');
-
-  // 1. 先寫頂層稽核（賽事內 audits 會跟著刪掉）；冪等：同一 cid 重跑只覆寫同一份
-  await deps.db.doc(`cpAudits/del_${cid}`).set({
-    action: 'deleteCompetition', cid, actor: actorHash(cid, caller.uid), actorIsAdmin: admin,
-    name: comp.name, at: FieldValue.serverTimestamp()
+  let comp: CompDoc | null = null;
+  // 1. 交易內判斷權限並先封鎖：下架＋deletingAt，讓並行的報隊、登錄、編輯全部被擋（Flash 交叉審 P2：
+  //    避免 recursiveDelete 期間新寫入成為孤兒）；同時寫頂層稽核（賽事內 audits 會跟著刪）。
+  await deps.db.runTransaction(async tx => {
+    const c = await loadComp(deps, tx, cid);
+    assertCompVisible(c, gate);
+    // §5.1：主辦＝hostUid，俱樂部主辦時含該隊代表；共同主辦不能刪（Flash 交叉審 P1）
+    const primary = c.hostUid === caller.uid
+      || (c.hostType === 'club' && typeof c.hostTeamId === 'string'
+        && (await isClubRep(deps, tx, c.hostTeamId, caller.uid)).ok);
+    if (!admin && !primary) throw deny('NOT_PRIMARY_HOST');
+    if (!admin && deps.now().getTime() >= c.firstMatchAt.toMillis()) throw pre('DELETE_AFTER_START');
+    const auditRef = deps.db.doc(`cpAudits/del_${cid}`);
+    const audit = await readDoc(deps, tx, auditRef);
+    if (audit.exists) {
+      // 重跑（前次中途失敗）：保留第一次的紀錄，只記重試
+      tx.update(auditRef, { retries: FieldValue.increment(1), lastRetryAt: FieldValue.serverTimestamp() });
+    } else {
+      tx.create(auditRef, {
+        action: 'deleteCompetition', cid, actor: actorHash(cid, caller.uid), actorIsAdmin: admin,
+        name: c.name, at: FieldValue.serverTimestamp(), retries: 0
+      });
+    }
+    tx.update(deps.db.doc(`competitions/${cid}`), { hidden: true, deletingAt: FieldValue.serverTimestamp() });
+    comp = c;
   });
+  if (!comp) throw pre('DELETE_FAILED');
   // 2. 清 cpMine 索引（從私密名單與報隊者推導；不信用戶端）
   const uids = new Set<string>();
   const rp = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/rosterPrivate`).select('uid'));

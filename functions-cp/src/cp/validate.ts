@@ -103,6 +103,7 @@ export function venuesOf(v: unknown): VenueInput[] {
   return v.map((x, i) => {
     if (!x || typeof x !== 'object') throw bad('FIELD_TYPE', { field: `venues.${i}` });
     const o = x as Record<string, unknown>;
+    onlyKeys(o, ['name', 'address']);
     return {
       name: requireLine(o.name, `venues.${i}.name`, 1, LIMITS.venueNameMax),
       address: optionalLine(o.address, `venues.${i}.address`, LIMITS.venueAddressMax)
@@ -133,6 +134,7 @@ export function divisionOf(v: unknown, i: number): DivisionInput {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('FIELD_TYPE', { field: `divisions.${i}` });
   const o = v as Record<string, unknown>;
   const p = `divisions.${i}`;
+  onlyKeys(o, ['dvId', 'name', 'playersOnField', 'maxTeams', 'rosterMin', 'rosterMax', 'minAge', 'maxAge', 'requireRealName']);
   const playersOnField = o.playersOnField;
   if (!(PLAYERS_ON_FIELD as readonly unknown[]).includes(playersOnField)) throw bad('FIELD_ENUM', { field: `${p}.playersOnField` });
   const maxTeams = intIn(o.maxTeams, `${p}.maxTeams`, LIMITS.teamsMin, LIMITS.teamsMax);

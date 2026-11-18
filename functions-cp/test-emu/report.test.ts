@@ -34,6 +34,18 @@ describe('檢舉', () => {
     const t2 = docs.docs.find(d => d.get('reporterUid') === 'tester2')!;
     expect(t2.get('count')).toBe(2);
     expect(t2.get('reason')).toBe('fake');
+    expect(t2.get('status')).toBe('open');
+  });
+  it('管理員已處理的檢舉，再被檢舉時不覆寫狀態、標 reopened', async () => {
+    await ok(call(handleCpHost, ADMIN, { action: 'publish', cid }));
+    await ok(report());
+    const ref = (await adminDb().collection(`competitions/${cid}/reports`).get()).docs[0].ref;
+    await ref.update({ status: 'closed', adminNote: '已查證' });
+    await ok(report(TESTER2, {}, makeDeps(DAY + 60_000)));
+    const d = (await ref.get()).data()!;
+    expect(d.status).toBe('closed');
+    expect(d.adminNote).toBe('已查證');
+    expect(d.reopened).toBe(true);
   });
   it('原因列舉、其他須附說明、內部期一般會員被擋', async () => {
     await ok(call(handleCpHost, ADMIN, { action: 'publish', cid }));

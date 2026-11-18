@@ -40,12 +40,13 @@ describe('取姓氏（§4.3）', () => {
     ['司馬光', '司馬'], ['諸葛亮', '諸葛'], ['林', '林'], ['歐陽', '歐'],
     ['John Smith', 'Smith'], ['Mary Ann Lee', 'Lee'], ['Neymar', 'Neymar'], ['', '']
   ])('%s → %s', (name, sur) => { expect(surnameOf(name)).toBe(sur); });
-  it('未成年公開名候選：中文第一字與前兩字、外文首末詞', () => {
+  it('未成年公開名候選：中文第一字與前兩字、外文只取姓', () => {
     expect(minorPublicNameCandidates('王小明').sort()).toEqual(['王', '王小'].sort());
     expect(minorPublicNameCandidates('歐陽娜娜')).toContain('歐陽');
     expect(minorPublicNameCandidates('歐陽娜娜')).toContain('歐');
     expect(minorPublicNameCandidates('歐陽娜娜')).not.toContain('歐陽娜娜');
-    expect(minorPublicNameCandidates('John Smith').sort()).toEqual(['John', 'Smith']);
+    // 外文只取最後一個詞（名字比姓好辨識，不列入）
+    expect(minorPublicNameCandidates('John Smith')).toEqual(['Smith']);
   });
 });
 
@@ -100,12 +101,14 @@ describe('建賽輸入驗證', () => {
     expect(reasonOf(() => divisionOf({ ...base, rosterMin: 17 }, 0))).toBe('FIELD_RANGE');
     expect(reasonOf(() => divisionOf({ ...base, minAge: 12, maxAge: 10 }, 0))).toBe('FIELD_RANGE');
     expect(reasonOf(() => divisionOf({ ...base, requireRealName: 'yes' }, 0))).toBe('FIELD_TYPE');
+    expect(reasonOf(() => divisionOf({ ...base, fee: 100 }, 0))).toBe('UNKNOWN_FIELD');
     expect(reasonOf(() => divisionsOf([base, base]))).toBe('DIVISION_NAME_DUPLICATE');
     expect(reasonOf(() => divisionsOf([]))).toBe('FIELD_RANGE');
   });
   it('場地、直播連結白名單、繳費說明只限俱樂部', () => {
     expect(venuesOf([{ name: 'A 場' }])).toEqual([{ name: 'A 場', address: null }]);
     expect(reasonOf(() => venuesOf([]))).toBe('FIELD_RANGE');
+    expect(reasonOf(() => venuesOf([{ name: 'A', note: '停車' }]))).toBe('UNKNOWN_FIELD');
     expect(liveLinksOf(['https://www.youtube.com/watch?v=x'])).toHaveLength(1);
     expect(reasonOf(() => liveLinksOf(['http://youtube.com/x']))).toBe('LIVE_LINK_NOT_ALLOWED');
     expect(reasonOf(() => liveLinksOf(['https://evil.example/youtube.com']))).toBe('LIVE_LINK_NOT_ALLOWED');

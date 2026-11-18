@@ -373,6 +373,10 @@ export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateRes
     });
     const names = resolveNames(p, age.isMinor, true, p.realName);
     await assertNumberFree(deps, tx, cid, enId, p.number);
+    // 同隊同真名不重複代填（Flash 交叉審 P2：連按兩次或換背號重填）
+    const dupName = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
+      .where('enId', '==', enId).where('realName', '==', p.realName).limit(1));
+    if (!dupName.empty) throw new CpError('already-exists', 'PLAYER_DUPLICATE');
 
     const now = FieldValue.serverTimestamp();
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {

@@ -202,16 +202,16 @@ describe('編輯、發布、狀態', () => {
 describe('刪除（§6.1 必修 7）', () => {
   beforeEach(() => resetAll());
 
-  it('首場前 hostUid 可刪，連同子集合與 cpMine，頂層留稽核', async () => {
+  it('首場前主辦（含俱樂部其他代表）可刪，連同子集合與 cpMine，頂層留稽核', async () => {
     const { cid, dvIds } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
     await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
     const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
     await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 9, privacyAck: true }));
     expect((await adminDb().doc(`cpMine/tester2/items/${cid}`).get()).exists).toBe(true);
-    // 俱樂部其他代表（非 hostUid）不能刪
+    // 非代表的俱樂部成員不能刪；俱樂部其他代表（非 hostUid）屬主辦（§5.1），可刪
+    await fails(call(handleCpHost, TESTER2, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
     await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester', 'tester3'] });
-    await fails(call(handleCpHost, TESTER3, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
-    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    await ok(call(handleCpHost, TESTER3, { action: 'delete', cid }));
     expect((await adminDb().doc(`competitions/${cid}`).get()).exists).toBe(false);
     expect((await adminDb().collection(`competitions/${cid}/rosterPrivate`).get()).size).toBe(0);
     expect((await adminDb().collection(`competitions/${cid}/divisions`).get()).size).toBe(0);
@@ -231,5 +231,30 @@ describe('刪除（§6.1 必修 7）', () => {
   it('不存在的賽事回 not-found；id 形狀錯回 BAD_ID', async () => {
     await fails(call(handleCpHost, TESTER, { action: 'delete', cid: 'cp_' + 'n'.repeat(20) }), 'COMPETITION_NOT_FOUND', 'not-found');
     await fails(call(handleCpHost, TESTER, { action: 'delete', cid: 'cp_../x' }), 'BAD_ID');
+  });
+});
+
+describe('刪除的封鎖與重跑、下架後的狀態變更', () => {
+  beforeEach(() => resetAll());
+
+  it('刪除中途失敗：根文件已下架並標 deletingAt，並行報隊被擋；重跑保留第一次稽核', async () => {
+    const { cid, dvIds } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    // 模擬「第 1 步已完成、後續失敗」：只做交易那一段（下架＋稽核）
+    await adminDb().doc(`competitions/${cid}`).update({ hidden: true, deletingAt: new Date() });
+    await adminDb().doc(`cpAudits/del_${cid}`).set({ action: 'deleteCompetition', cid, retries: 0, actor: 'first' });
+    await fails(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }), 'COMPETITION_HIDDEN');
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    const audit = (await adminDb().doc(`cpAudits/del_${cid}`).get()).data()!;
+    expect(audit.actor).toBe('first');
+    expect(audit.retries).toBe(1);
+    expect((await adminDb().doc(`competitions/${cid}`).get()).exists).toBe(false);
+  });
+  it('下架期間主辦不能改狀態，管理員可以', async () => {
+    const { cid } = await create(TESTER);
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    await adminDb().doc(`competitions/${cid}`).update({ hidden: true });
+    await fails(call(handleCpHost, TESTER, { action: 'setStatus', cid, status: 'cancelled', reason: '主辦自行取消' }), 'COMPETITION_HIDDEN');
+    await ok(call(handleCpHost, ADMIN, { action: 'setStatus', cid, status: 'cancelled', reason: '管理員處理' }));
   });
 });
