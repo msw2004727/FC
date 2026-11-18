@@ -122,13 +122,16 @@ export interface NoticeBoard {
 }
 
 /**
- * 同一筆交易附加一則系統公告。給取消場次等動作呼叫。
+ * 同一筆交易附加一則系統公告。給取消場次、改期等動作呼叫。
  * 不另讀文件：呼叫端已經讀過賽事根文件。不占手動 20 則額度。
+ * `patch` 與公告併成對賽事根文件的同一次 update（Firestore 同一文件不能在一筆交易裡各寫一次）。
+ * 公告的 `notices`、`updatedAt` 以這裡為準，patch 不要覆寫這兩欄。
  */
 export function appendSystemNotice(
   tx: Transaction,
   comp: NoticeBoard,
-  input: { kind: 'system'; text: string }
+  input: { kind: 'system'; text: string },
+  patch?: Record<string, unknown>
 ): { id: string } {
   if (input.kind !== 'system') throw bad('FIELD_ENUM', { field: 'kind' });
   const text = clipText(input.text, NOTICE_LIMITS.textMax).trim();
@@ -141,6 +144,6 @@ export function appendSystemNotice(
     by: typeof comp.by === 'string' && comp.by.length > 0 ? comp.by : null
   };
   const notices = pushNotice(noticesOf(comp.notices), notice);
-  tx.update(comp.ref, { notices, updatedAt: FieldValue.serverTimestamp() });
+  tx.update(comp.ref, { ...(patch ?? {}), notices, updatedAt: FieldValue.serverTimestamp() });
   return { id: notice.id };
 }

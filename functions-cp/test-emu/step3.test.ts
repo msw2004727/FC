@@ -203,8 +203,12 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     expect(others.docs.filter(d => d.id !== 'tbd').flatMap(d => Object.keys(d.get('m')))).not.toContain(m.id);
     const comp = (await adminDb().doc(`competitions/${c.cid}`).get()).data()!;
     const k = comp.firstMatchAt.toMillis() + 3600_000;
-    await fails(call(handleCpHost, ADMIN, { action: 'rescheduleMatch', cid: c.cid, mtId: m.id, expectedRev: 1, kickoffAt: k + 10 * DAY, venueIdx: 1 }), 'SCHEDULE_OUT_OF_RANGE');
-    await act(c, ADMIN, { action: 'rescheduleMatch', mtId: m.id, expectedRev: 1, kickoffAt: k, venueIdx: 1 }, makeDeps());
+    // F2：原末場後 60 天內可以延後。加 70 天仍超過上限。
+    await fails(call(handleCpHost, ADMIN, { action: 'rescheduleMatch', cid: c.cid, mtId: m.id, expectedRev: 1, kickoffAt: k + 70 * DAY, venueIdx: 1 }), 'SCHEDULE_OUT_OF_RANGE');
+    // 排回首場日 06:00（賽程從 08:00 起），新的撞期檢查不會擋下「再排回時間」。
+    const first = comp.firstMatchAt.toMillis();
+    const back = first - (first + 8 * 3600_000) % DAY + 6 * 3600_000;
+    await act(c, ADMIN, { action: 'rescheduleMatch', mtId: m.id, expectedRev: 1, kickoffAt: back, venueIdx: 1 }, makeDeps());
     const doc = (await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).get()).data()!;
     expect(doc).toMatchObject({ status: 'scheduled', venueName: 'B 場', rev: 2 });
     expect((await adminDb().doc(`competitions/${c.cid}/summary/tbd`).get()).exists).toBe(false);

@@ -117,6 +117,12 @@ export interface CompDoc {
   regCloseAt: Timestamp;
   firstMatchAt: Timestamp;
   lastMatchAt: Timestamp;
+  /**
+   * F2：第一次把末場日延後之前的 lastMatchAt。
+   * 沒有這個欄位代表還沒延後，60 天上限從目前 lastMatchAt 的台北日算。
+   * updateCompetition 重寫賽期時會刪掉，讓新的末場重新當基準。
+   */
+  lastMatchOriginAt?: Timestamp | null;
   endedAt: Timestamp | null;
   /** confirm＝末場已解決；host＝主辦手動結束；auto＝每日自動結束（本步只恢復、不寫入） */
   endedBy?: 'confirm' | 'host' | 'auto' | null;

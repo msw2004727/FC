@@ -1,6 +1,7 @@
 /**
  * cpHost 第 3 步動作：排賽程、改期、主辦登錄比分、比分確認、棄權、重置、積分全量重算。
  * F1（§3.272）：取消單場、主辦手動結束、管理員恢復。取消場次同一筆交易發一則系統公告。
+ * F2（§3.272）：單場改期可延後末場（原末場後 60 天）、撞期、整天順延、兩場對調。同交易發系統公告。
  * F3（§3.272）：同分裁定 resolveTie、撤銷 clearTieDecision、逐項比較 explainTie（唯讀，不寫稽核）。
  * F4（§3.272）：主辦公告 postNotice、刪除公告 deleteNotice（系統公告也可刪）。
  * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）、.grok-input/contract.md §3.272。
@@ -67,6 +68,24 @@ import {
   removeNotice,
   type Notice
 } from './notice.js';
+import {
+  DAY_MATCH_MAX,
+  conflictWindowOfKickoff,
+  findSlotConflict,
+  firstMoveConflict,
+  isYmd,
+  kickoffOutOfRange,
+  nextLastMatchDayStart,
+  rescheduleNoticeText,
+  shiftDayNoticeText,
+  shiftKickoffToDate,
+  slotEndMs,
+  swapNoticeText,
+  taipeiDayWindow,
+  taipeiYmd as taipeiYmdOf,
+  type ScheduleConflict,
+  type SlotView
+} from './schedule-flex.js';
 
 export const MTID_RE = /^mt_[A-Za-z0-9]{20}$/;
 export const SCHEDULE_LIMITS = Object.freeze({
@@ -83,7 +102,6 @@ const UTC_OFFSET = '+08:00';
 const ACTION_REASON_MAX = 100;
 /** 一場比分對帳最多讀的事件數（一場正常約 20～60 筆） */
 const TIMELINE_MAX = 500;
-const DAY = 86400_000;
 const EDITABLE_SCHEDULE = ['scheduled', 'postponed'];
 
 function int(v: unknown, field: string, min: number, max: number, dflt?: number): number {
@@ -382,32 +400,313 @@ function scoreInput(v: unknown): { home: number; away: number } {
 
 const CLEAR_CLOCK = { startedAt: null, pausedSec: 0, running: false, period: 'pre' };
 
+// ── F2 賽程彈性 ────────────────────────────────────────────────────────
+// 摘要片不在這裡搬。cpOnMatchWritten 看到 kickoffAt／venueName 變更會自己搬。
+// 賽事根文件只透過 appendSystemNotice 的 patch 寫一次（末場延後與公告同一筆）。
+// 撞期查整場賽事：場地跨組共用。組別只決定這場的比賽分鐘與緩衝。
+
+interface SlotMinutes { match: number; buffer: number }
+
+function forceOf(v: unknown): boolean {
+  if (v == null) return false;
+  if (typeof v !== 'boolean') throw bad('FIELD_TYPE', { field: 'force' });
+  return v;
+}
+
+function ymdOf(v: unknown, field: string): string {
+  if (v == null || v === '') throw bad('FIELD_REQUIRED', { field });
+  if (typeof v !== 'string') throw bad('FIELD_TYPE', { field });
+  if (!isYmd(v)) throw bad('FIELD_FORMAT', { field });
+  return v;
+}
+
+/** 60 天上限的基準：還沒延後過就用目前末場。 */
+function originLastMs(comp: CompDoc): number {
+  const origin = comp.lastMatchOriginAt;
+  if (origin && typeof origin.toMillis === 'function') return origin.toMillis();
+  return comp.lastMatchAt.toMillis();
+}
+
+/** 新開賽的台北日比目前末場日更晚才延後。同一日或更早不改，也不能提前。 */
+function extensionPatch(comp: CompDoc, kickoffs: readonly (number | null)[]): Record<string, unknown> {
+  const day = nextLastMatchDayStart(comp.lastMatchAt.toMillis(), kickoffs);
+  if (day == null) return {};
+  const patch: Record<string, unknown> = {
+    lastMatchAt: ts(day),
+    stateVersion: FieldValue.increment(1)
+  };
+  if (!(comp.lastMatchOriginAt && typeof comp.lastMatchOriginAt.toMillis === 'function')) {
+    patch.lastMatchOriginAt = comp.lastMatchAt;
+  }
+  return patch;
+}
+
+function assertKickoffInWindow(kickoffMs: number, comp: CompDoc, field: string): void {
+  const range = kickoffOutOfRange(kickoffMs, comp.firstMatchAt.toMillis(), originLastMs(comp));
+  if (range) throw bad('SCHEDULE_OUT_OF_RANGE', { field, min: range.min, max: range.max });
+}
+
+function kickoffMsOf(snap: DocumentSnapshot): number | null {
+  const k = snap.get('kickoffAt') as { toMillis?: () => number } | null;
+  return k && typeof k.toMillis === 'function' ? k.toMillis() : null;
+}
+
+function teamIdsOf(snap: DocumentSnapshot): string[] {
+  const raw = snap.get('teamIds');
+  if (Array.isArray(raw)) return raw.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const ids = [snap.get('home.teamId'), snap.get('away.teamId')];
+  return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+function venueIdxOfSnap(snap: DocumentSnapshot): number | null {
+  const v = snap.get('venueIdx');
+  return typeof v === 'number' && Number.isInteger(v) ? v : null;
+}
+
+function venueNameOfSnap(snap: DocumentSnapshot): string | null {
+  const name = snap.get('venueName');
+  return typeof name === 'string' ? name : null;
+}
+
+function divisionIdOf(snap: DocumentSnapshot): string {
+  const id = snap.get('divisionId');
+  return typeof id === 'string' ? id : '';
+}
+
+function revOfSnap(snap: DocumentSnapshot): number {
+  const rev = snap.get('rev');
+  if (typeof rev !== 'number' || !Number.isInteger(rev)) throw pre('MATCH_CORRUPT');
+  return rev;
+}
+
+function noticeBoard(deps: CpDeps, cid: string, comp: CompDoc, caller: Caller) {
+  return {
+    ref: deps.db.doc(`competitions/${cid}`),
+    notices: comp.notices,
+    at: Timestamp.fromMillis(deps.now().getTime()),
+    by: actorHash(cid, caller.uid)
+  };
+}
+
+function rejectConflict(hit: ScheduleConflict | null, force: boolean): void {
+  if (hit && !force) throw pre('SCHEDULE_CONFLICT', { mtId: hit.mtId, type: hit.type });
+}
+
+/** 只有真的放行一筆衝突才寫進稽核。沒撞期不記 force。 */
+function conflictAudit(hit: ScheduleConflict | null, force: boolean): Record<string, unknown> {
+  if (!hit || !force) return {};
+  return { force: true, conflictMtId: hit.mtId, conflictType: hit.type };
+}
+
+async function divisionMinutes(deps: CpDeps, tx: Transaction, cid: string): Promise<Map<string, SlotMinutes>> {
+  const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
+  const map = new Map<string, SlotMinutes>();
+  for (const doc of snap.docs) {
+    const raw = doc.get('schedule');
+    const o = raw && typeof raw === 'object' ? raw as { matchMinutes?: unknown; bufferMinutes?: unknown } : {};
+    const match = typeof o.matchMinutes === 'number' && Number.isInteger(o.matchMinutes) && o.matchMinutes > 0 ? o.matchMinutes : 0;
+    const buffer = typeof o.bufferMinutes === 'number' && Number.isInteger(o.bufferMinutes) && o.bufferMinutes > 0 ? o.bufferMinutes : 0;
+    map.set(doc.id, { match, buffer });
+  }
+  return map;
+}
+
+function occupySlot(
+  mtId: string, startMs: number, divisionId: string, teamIds: readonly string[], venueIdx: number | null,
+  durations: Map<string, SlotMinutes>
+): SlotView {
+  const dur = durations.get(divisionId) ?? { match: 0, buffer: 0 };
+  return { mtId, startMs, endMs: slotEndMs(startMs, dur.match, dur.buffer), teamIds, venueIdx };
+}
+
+/** 當日（或撞期窗）場次。超過上限就失敗關閉，避免截斷後漏判撞期或只搬走一部分。 */
+async function matchesInWindow(deps: CpDeps, tx: Transaction, cid: string, startMs: number, endMs: number) {
+  const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
+    .where('kickoffAt', '>=', ts(startMs)).where('kickoffAt', '<', ts(endMs)).limit(DAY_MATCH_MAX + 1));
+  if (snap.size > DAY_MATCH_MAX) throw pre('SCHEDULE_DAY_TOO_LARGE', { count: snap.size, max: DAY_MATCH_MAX });
+  return snap.docs;
+}
+
+function slotsOf(docs: readonly DocumentSnapshot[], durations: Map<string, SlotMinutes>, skip: ReadonlySet<string>): SlotView[] {
+  const out: SlotView[] = [];
+  const seen = new Set<string>();
+  for (const doc of docs) {
+    if (skip.has(doc.id) || seen.has(doc.id)) continue;
+    if (doc.get('status') === 'cancelled') continue;
+    const start = kickoffMsOf(doc);
+    if (start == null) continue;
+    seen.add(doc.id);
+    out.push(occupySlot(doc.id, start, divisionIdOf(doc), teamIdsOf(doc), venueIdxOfSnap(doc), durations));
+  }
+  return out;
+}
+
 export async function rescheduleMatch(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
-  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'kickoffAt', 'venueIdx']);
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'kickoffAt', 'venueIdx', 'force']);
   const { cid, mtId, expectedRev } = matchIds(input);
   const kickoffAt = input.kickoffAt == null ? null : int(input.kickoffAt, 'kickoffAt', 0, 8_640_000_000_000);
+  const force = forceOf(input.force);
   return deps.db.runTransaction(async tx => {
     const comp = await hostComp(deps, tx, caller, gate, cid);
     assertNotEnded(deps, comp, caller);
-    if (!['draft', 'published'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+    // 改期收緊為已發布。草稿回 STATUS_NOT_EDITABLE（原先 draft 也可以改）。
+    assertResultEditable(comp);
     const venues = Array.isArray(comp.venues) ? (comp.venues as Array<{ name?: unknown }>) : [];
     if (input.venueIdx != null && venues.length === 0) throw bad('FIELD_RANGE', { field: 'venueIdx', min: 0, max: 0 });
     const venueIdx = input.venueIdx == null ? null : int(input.venueIdx, 'venueIdx', 0, venues.length - 1);
-    if (kickoffAt != null) {
-      const lo = comp.firstMatchAt.toMillis() - (comp.firstMatchAt.toMillis() + 8 * 3600_000) % DAY;
-      const hi = comp.lastMatchAt.toMillis() - (comp.lastMatchAt.toMillis() + 8 * 3600_000) % DAY + DAY;
-      if (kickoffAt < lo || kickoffAt >= hi) throw bad('SCHEDULE_OUT_OF_RANGE', { field: 'kickoffAt' });
-    }
+    const venueName = venueIdx == null ? null : String(venues[venueIdx]?.name ?? `場地 ${venueIdx + 1}`);
+    // 超出時間窗在讀場次前拒絕，讓這條路徑少一次讀取。
+    if (kickoffAt != null) assertKickoffInWindow(kickoffAt, comp, 'kickoffAt');
     const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
     if (!EDITABLE_SCHEDULE.includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
+    // 待定不查撞期，也不改 lastMatchAt；仍發系統公告。
+    let hit: ScheduleConflict | null = null;
+    if (kickoffAt != null) {
+      const durations = await divisionMinutes(deps, tx, cid);
+      const win = conflictWindowOfKickoff(kickoffAt);
+      const docs = await matchesInWindow(deps, tx, cid, win.start, win.end);
+      const candidate = occupySlot(mtId, kickoffAt, divisionIdOf(m.snap), teamIdsOf(m.snap), venueIdx, durations);
+      hit = findSlotConflict(candidate, slotsOf(docs, durations, new Set([mtId])));
+      rejectConflict(hit, force);
+    }
     const status = kickoffAt == null ? 'postponed' : 'scheduled';
     tx.update(m.ref, {
       kickoffAt: kickoffAt == null ? null : ts(kickoffAt),
-      venueIdx, venueName: venueIdx == null ? null : String(venues[venueIdx]?.name ?? `場地 ${venueIdx + 1}`),
+      venueIdx, venueName,
       status, rev: m.rev + 1, updatedAt: FieldValue.serverTimestamp()
     });
-    writeAudit(deps, tx, cid, caller, 'rescheduleMatch', { mtId, status });
-    return { mtId, status, rev: m.rev + 1 };
+    const notice = appendSystemNotice(tx, noticeBoard(deps, cid, comp, caller), {
+      kind: 'system',
+      text: rescheduleNoticeText({
+        kickoffMs: m.kickoffMs,
+        homeName: sideName(m.snap.get('home'), '主隊'),
+        awayName: sideName(m.snap.get('away'), '客隊'),
+        toMs: kickoffAt,
+        venueName
+      })
+    }, extensionPatch(comp, [kickoffAt]));
+    writeAudit(deps, tx, cid, caller, 'rescheduleMatch', { mtId, status, ...conflictAudit(hit, force) });
+    return { mtId, status, rev: m.rev + 1, noticeId: notice.id };
+  });
+}
+
+/**
+ * 把 fromDate（台北日）上未開賽的場次平移到 toDate，時刻與場地不變。
+ * 來源日是精確的一天；目標日的撞期窗含前 240 分鐘。
+ * 被搬走的場次不跟自己的舊時段撞，也不互相比（相對時刻沒變）。
+ */
+export async function shiftMatchDay(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'fromDate', 'toDate', 'reason', 'force']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const fromDate = ymdOf(input.fromDate, 'fromDate');
+  const toDate = ymdOf(input.toDate, 'toDate');
+  if (fromDate === toDate) throw bad('FIELD_RANGE', { field: 'toDate' });
+  const reason = hostReasonOf(input.reason, gate.bannedWords);
+  const force = forceOf(input.force);
+  const fromWin = taipeiDayWindow(fromDate);
+  if (!fromWin) throw bad('FIELD_FORMAT', { field: 'fromDate' });
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertResultEditable(comp);
+    const fromDocs = await matchesInWindow(deps, tx, cid, fromWin.start, fromWin.end);
+    const movable: Array<{ ref: DocumentReference; id: string; rev: number; snap: DocumentSnapshot; next: number }> = [];
+    for (const doc of fromDocs) {
+      if (!EDITABLE_SCHEDULE.includes(String(doc.get('status') ?? ''))) continue;
+      const kick = kickoffMsOf(doc);
+      if (kick == null) continue;
+      const next = shiftKickoffToDate(kick, fromDate, toDate);
+      if (next == null) throw bad('FIELD_FORMAT', { field: 'toDate' });
+      movable.push({ ref: doc.ref, id: doc.id, rev: revOfSnap(doc), snap: doc, next });
+    }
+    if (movable.length === 0) throw pre('NOTHING_TO_SHIFT');
+    for (const m of movable) assertKickoffInWindow(m.next, comp, 'toDate');
+    const durations = await divisionMinutes(deps, tx, cid);
+    const target = conflictWindowOfKickoff(movable[0]!.next);
+    const movedIds = new Set(movable.map(m => m.id));
+    const targetDocs = await matchesInWindow(deps, tx, cid, target.start, target.end);
+    const moves = movable.map(m => occupySlot(m.id, m.next, divisionIdOf(m.snap), teamIdsOf(m.snap), venueIdxOfSnap(m.snap), durations));
+    const hit = firstMoveConflict(moves, slotsOf(targetDocs, durations, movedIds));
+    rejectConflict(hit, force);
+    const now = FieldValue.serverTimestamp();
+    for (const m of movable) {
+      tx.update(m.ref, { kickoffAt: ts(m.next), status: 'scheduled', rev: m.rev + 1, updatedAt: now });
+    }
+    const notice = appendSystemNotice(tx, noticeBoard(deps, cid, comp, caller), {
+      kind: 'system', text: shiftDayNoticeText(fromDate, toDate)
+    }, extensionPatch(comp, movable.map(m => m.next)));
+    writeAudit(deps, tx, cid, caller, 'shiftMatchDay', {
+      fromDate, toDate, reason, moved: movable.length, ...conflictAudit(hit, force)
+    });
+    return { fromDate, toDate, moved: movable.length, noticeId: notice.id };
+  });
+}
+
+/** 兩場都未開賽才對調開賽時間與場地。場地名稱照抄，不重查場地清單。 */
+export async function swapMatches(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtIdA', 'mtIdB', 'expectedRevA', 'expectedRevB', 'reason', 'force']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const mtIdA = requireId(input.mtIdA, MTID_RE, 'mtIdA');
+  const mtIdB = requireId(input.mtIdB, MTID_RE, 'mtIdB');
+  if (mtIdA === mtIdB) throw bad('FIELD_RANGE', { field: 'mtIdB' });
+  const expectedRevA = int(input.expectedRevA, 'expectedRevA', 0, 1_000_000);
+  const expectedRevB = int(input.expectedRevB, 'expectedRevB', 0, 1_000_000);
+  const reason = hostReasonOf(input.reason, gate.bannedWords);
+  const force = forceOf(input.force);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertResultEditable(comp);
+    const a = await loadMatch(deps, tx, cid, mtIdA, expectedRevA);
+    const b = await loadMatch(deps, tx, cid, mtIdB, expectedRevB);
+    if (!EDITABLE_SCHEDULE.includes(a.status)) throw pre('MATCH_STATE', { status: a.status });
+    if (!EDITABLE_SCHEDULE.includes(b.status)) throw pre('MATCH_STATE', { status: b.status });
+    const kickA = b.kickoffMs;
+    const kickB = a.kickoffMs;
+    if (kickA != null) assertKickoffInWindow(kickA, comp, 'kickoffAt');
+    if (kickB != null) assertKickoffInWindow(kickB, comp, 'kickoffAt');
+    let hit: ScheduleConflict | null = null;
+    if (kickA != null || kickB != null) {
+      const durations = await divisionMinutes(deps, tx, cid);
+      const found: DocumentSnapshot[] = [];
+      const seenDay = new Set<string>();
+      for (const kick of [kickA, kickB]) {
+        if (kick == null) continue;
+        const day = taipeiYmdOf(kick);
+        if (seenDay.has(day)) continue;
+        seenDay.add(day);
+        const win = conflictWindowOfKickoff(kick);
+        found.push(...await matchesInWindow(deps, tx, cid, win.start, win.end));
+      }
+      const moves: SlotView[] = [];
+      if (kickA != null) moves.push(occupySlot(mtIdA, kickA, divisionIdOf(a.snap), teamIdsOf(a.snap), venueIdxOfSnap(b.snap), durations));
+      if (kickB != null) moves.push(occupySlot(mtIdB, kickB, divisionIdOf(b.snap), teamIdsOf(b.snap), venueIdxOfSnap(a.snap), durations));
+      const others = slotsOf(found, durations, new Set([mtIdA, mtIdB]));
+      hit = firstMoveConflict(moves, [...others, ...moves]);
+      rejectConflict(hit, force);
+    }
+    const now = FieldValue.serverTimestamp();
+    tx.update(a.ref, {
+      kickoffAt: kickA == null ? null : ts(kickA),
+      venueIdx: venueIdxOfSnap(b.snap), venueName: venueNameOfSnap(b.snap),
+      status: kickA == null ? 'postponed' : 'scheduled',
+      rev: a.rev + 1, updatedAt: now
+    });
+    tx.update(b.ref, {
+      kickoffAt: kickB == null ? null : ts(kickB),
+      venueIdx: venueIdxOfSnap(a.snap), venueName: venueNameOfSnap(a.snap),
+      status: kickB == null ? 'postponed' : 'scheduled',
+      rev: b.rev + 1, updatedAt: now
+    });
+    const notice = appendSystemNotice(tx, noticeBoard(deps, cid, comp, caller), {
+      kind: 'system',
+      text: swapNoticeText(
+        { kickoffMs: a.kickoffMs, homeName: sideName(a.snap.get('home'), '主隊'), awayName: sideName(a.snap.get('away'), '客隊') },
+        { kickoffMs: b.kickoffMs, homeName: sideName(b.snap.get('home'), '主隊'), awayName: sideName(b.snap.get('away'), '客隊') }
+      )
+    }, extensionPatch(comp, [kickA, kickB]));
+    writeAudit(deps, tx, cid, caller, 'swapMatches', { mtIdA, mtIdB, reason, ...conflictAudit(hit, force) });
+    return { mtIdA, mtIdB, revA: a.rev + 1, revB: b.rev + 1, noticeId: notice.id };
   });
 }
 
@@ -905,6 +1204,8 @@ export const MATCH_HOST_ACTIONS = {
   generateSchedule,
   clearSchedule,
   rescheduleMatch,
+  shiftMatchDay,
+  swapMatches,
   recordResult,
   confirmMatchResult,
   setWalkover,

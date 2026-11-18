@@ -4,6 +4,7 @@
  * F1：用戶端不能把場次改成 cancelled，也不能寫賽事 endedBy／endReason。
  * F3：用戶端不能直寫積分榜的 manualOverride 或列上的 decidedBy。
  * F4：用戶端不能直寫賽事根文件的 notices、contactNote，也不能直寫積分榜的 divisionName。
+ * F2：用戶端不能直寫賽事根文件的 lastMatchAt、lastMatchOriginAt。
  * （Rules 檔本步未改；本檔只補拒絕與通過案例，防止之後改 Rules 時退步。）
  */
 import { afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -174,4 +175,18 @@ describe('F4：用戶端不能直寫公告、聯絡文字、組別名稱', () =>
     await assertSucceeds(getDoc(doc(db, 'competitions/cp_pub')));
     await assertSucceeds(getDoc(doc(db, 'competitions/cp_pub/standings/dv_1__group__A')));
   });
+});
+
+describe('F2：用戶端不能直寫末場與原末場', () => {
+  for (const who of [['host'], ['co'], ['s1'], ['admin', 'admin'], ['stranger']] as Array<[string, string?]>) {
+    it(`${who[0]} 不能寫 lastMatchAt、lastMatchOriginAt`, async () => {
+      const db = as(who[0], who[1]);
+      const comp = doc(db, 'competitions/cp_pub');
+      const later = new Date(Date.now() + 86400_000);
+      await assertFails(updateDoc(comp, { lastMatchAt: later }));
+      await assertFails(updateDoc(comp, { lastMatchOriginAt: later }));
+      await assertFails(updateDoc(comp, { lastMatchAt: later, lastMatchOriginAt: later }));
+      await assertFails(setDoc(comp, { lastMatchAt: later, lastMatchOriginAt: later }, { merge: true }));
+    });
+  }
 });

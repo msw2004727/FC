@@ -297,6 +297,8 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       patch.regCloseAt = ts(s.regCloseAt);
       patch.firstMatchAt = ts(s.firstMatchAt);
       patch.lastMatchAt = ts(s.lastMatchAt);
+      // 重定官方賽期：60 天延後的基準改回這次的末場。彈性改期記下的原末場不再沿用。
+      patch.lastMatchOriginAt = FieldValue.delete();
     }
     if (has('venues')) patch.venues = venuesOf(input.venues);
     if (has('feeNote')) patch.feeNote = feeNoteOf(input.feeNote, comp.hostType);
