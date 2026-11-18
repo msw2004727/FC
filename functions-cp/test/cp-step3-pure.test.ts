@@ -4,13 +4,19 @@
 import { describe, expect, it } from 'vitest';
 import { RANKING_RULES, drawOrder, taipeiMs } from '../src/engine/index.js';
 import {
+  CANCELLABLE_STATUSES,
   COUNTED_STATUSES,
+  RESOLVED_STATUSES,
+  canCancelMatch,
+  canResetMatch,
   countedForStanding,
   derivedScoreOf,
   planRoundRobin,
   publicMatchDoc,
   rankingRuleOf,
+  resolvedForEnd,
   standingMatchesOf,
+  statusAfterReset,
   type PlanDay,
   type PlanInput,
   type PlanResult,
@@ -416,6 +422,7 @@ describe('積分輸入', () => {
     expect(countedForStanding({ status: 'walkover' })).toBe(true);
     expect(countedForStanding({ status: 'finished' })).toBe(false);
     expect(countedForStanding({ status: 'scheduled' })).toBe(false);
+    expect(countedForStanding({ status: 'cancelled' })).toBe(false);
     expect(countedForStanding({})).toBe(false);
     const rows = [
       { status: 'finished', id: 1 },
@@ -554,5 +561,37 @@ describe('summary', () => {
     expect(sameEntry(entry, null)).toBe(false);
     expect(sameEntry(undefined, entry)).toBe(false);
     expect(sameEntry(entry, { ...copy, extra: 1 } as SummaryEntry)).toBe(false);
+  });
+});
+
+describe('§3.272 解決狀態與取消轉移', () => {
+  it('RESOLVED_STATUSES 含取消，COUNTED_STATUSES 不含', () => {
+    expect(RESOLVED_STATUSES).toEqual(['confirmed', 'walkover', 'cancelled']);
+    expect(COUNTED_STATUSES).toEqual(['confirmed', 'walkover']);
+    expect(CANCELLABLE_STATUSES).toEqual(['scheduled', 'postponed', 'finished']);
+    expect([...RESOLVED_STATUSES].filter(s => countedForStanding({ status: s }))).toEqual(['confirmed', 'walkover']);
+    expect(resolvedForEnd({})).toBe(false);
+    expect(summaryEntryOf({ status: 'cancelled' }, null).st).toBe('cancelled');
+  });
+
+  it('狀態轉移表：取消、重置、計分、已解決', () => {
+    const rows: Array<{ status: string; cancel: boolean; reset: boolean; counted: boolean; resolved: boolean }> = [
+      { status: 'scheduled', cancel: true, reset: false, counted: false, resolved: false },
+      { status: 'postponed', cancel: true, reset: false, counted: false, resolved: false },
+      { status: 'finished', cancel: true, reset: true, counted: false, resolved: false },
+      { status: 'live', cancel: false, reset: true, counted: false, resolved: false },
+      { status: 'halftime', cancel: false, reset: true, counted: false, resolved: false },
+      { status: 'confirmed', cancel: false, reset: true, counted: true, resolved: true },
+      { status: 'walkover', cancel: false, reset: true, counted: true, resolved: true },
+      { status: 'cancelled', cancel: false, reset: true, counted: false, resolved: true }
+    ];
+    for (const row of rows) {
+      expect(canCancelMatch(row.status), row.status).toBe(row.cancel);
+      expect(canResetMatch(row.status), row.status).toBe(row.reset);
+      expect(countedForStanding({ status: row.status }), row.status).toBe(row.counted);
+      expect(resolvedForEnd({ status: row.status }), row.status).toBe(row.resolved);
+    }
+    expect(statusAfterReset(1_700_000_000_000)).toBe('scheduled');
+    expect(statusAfterReset(null)).toBe('postponed');
   });
 });

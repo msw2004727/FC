@@ -3,13 +3,14 @@
  * - 每次都讀「目前」狀態重算，不信觸發事件內容：亂序、重送都冪等（同輸入同輸出，版本只會往上）。
  * - 積分只算 confirmed／walkover；只重建該場所在的組（增量），stageId／groupId 一律取場次文件（§3.250-4）。
  * - 全量重算（recomputeDivisionStandings）走同一個 recomputeStanding，逐組重建；主辦／管理員對帳鈕用。
- * - 摘要片：條目沒變就不寫；開賽日期改了從舊片移除。
- * - 末場確認後寫 endedAt（endedBy:'confirm'）；之後有場次被重置就清掉。
+ * - 摘要片：條目沒變就不寫；開賽日期改了從舊片移除。狀態改成 cancelled 時 st 一併變成 cancelled。
+ * - 全部場次已解決（confirmed／walkover／cancelled）後寫 endedAt（endedBy:'confirm'）。
+ *   已解決場次回到未解決（含取消恢復成未賽）就清掉這次確認結束。手動結束（host）與自動結束（auto）不在這裡清。
  */
 import type { DocumentData, DocumentReference } from 'firebase-admin/firestore';
 import { buildStanding, standingIdOf, type StandingDoc } from '../engine/index.js';
 import { FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
-import { COUNTED_STATUSES, countedForStanding, rankingRuleOf, standingMatchesOf } from './schedule-plan.js';
+import { RESOLVED_STATUSES, countedForStanding, rankingRuleOf, resolvedForEnd, standingMatchesOf } from './schedule-plan.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from './summary.js';
 
 const UTC_OFFSET = '+08:00';
@@ -127,18 +128,19 @@ async function syncSummary(deps: CpDeps, cid: string, mtId: string, before: Docu
   });
 }
 
-async function syncEnded(deps: CpDeps, cid: string, wasCounted: boolean, isCounted: boolean): Promise<'set' | 'cleared' | null> {
+async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isResolved: boolean): Promise<'set' | 'cleared' | null> {
   return deps.db.runTransaction(async tx => {
     const compRef = deps.db.doc(`competitions/${cid}`);
     const comp = await readDoc(deps, tx, compRef);
     if (!comp.exists) return null;
     const matches = deps.db.collection(`competitions/${cid}/matches`);
-    if (isCounted && !comp.get('endedAt')) {
+    if (isResolved && !comp.get('endedAt')) {
       // 多組別：每個組別都要已排賽程才可能結束（Opus 終審 P1-1：只看既有場次時，
       // 先打完的組別會讓整場賽事被判結束）。沒排賽程的組別（隊數不足等）交給每日自動結束（§7）。
+      // 已解決＝confirmed／walkover／cancelled。最後一場是被取消的，也會走到這裡。
       const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
       if (divs.empty || divs.docs.some(d => !d.get('schedule'))) return null;
-      const remaining = await readCount(deps, tx, matches.where('status', 'not-in', [...COUNTED_STATUSES]).count());
+      const remaining = await readCount(deps, tx, matches.where('status', 'not-in', [...RESOLVED_STATUSES]).count());
       if (remaining > 0) return null;
       const total = await readCount(deps, tx, matches.count());
       if (total === 0) return null;
@@ -148,10 +150,10 @@ async function syncEnded(deps: CpDeps, cid: string, wasCounted: boolean, isCount
       });
       return 'set';
     }
-    // 計入場次被改成不計入（重置）就解除末場確認造成的結束（Opus 終審 P1-1 (c)）。
-    // 新排的場次不會走到這裡（before 為 null、after 不計入）：由 generateSchedule 同交易解除（(b)）；
-    // 第 5 步若新增其他建場路徑，也要同樣解除。
-    if (!isCounted && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
+    // 已解決場次回到未解決（重置確認／棄權，或把取消恢復成未賽）就解除末場確認造成的結束。
+    // 手動結束（host）與自動結束（auto）不在這裡清。
+    // 新排的場次不會走到這裡（before 為 null、after 未解決）：由 generateSchedule 同交易解除。
+    if (wasResolved && !isResolved && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
       tx.update(compRef, {
         endedAt: null, endedBy: null,
         stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
@@ -184,6 +186,8 @@ export async function handleMatchWritten(
   const after = cur.exists ? cur.data()! : null;
   const wasCounted = !!before && countedForStanding(before);
   const isCounted = !!after && countedForStanding(after);
+  const wasResolved = !!before && resolvedForEnd(before);
+  const isResolved = !!after && resolvedForEnd(after);
   let standing = false;
   if (wasCounted || isCounted) {
     const src = (after ?? before)!;
@@ -198,6 +202,6 @@ export async function handleMatchWritten(
       }
     }
   }
-  const ended = (wasCounted || isCounted) ? await syncEnded(deps, cid, wasCounted, isCounted) : null;
+  const ended = (wasResolved || isResolved) ? await syncEnded(deps, cid, wasResolved, isResolved) : null;
   return { summary, standing, ended };
 }

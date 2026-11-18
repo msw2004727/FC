@@ -8,6 +8,7 @@ import { CID_RE, DVID_RE, ENID_RE, PLID_RE, actorHash, callerOf, newId, type CpD
 import { handleCpEntry } from '../src/cp/entry.js';
 import { CpError } from '../src/cp/errors.js';
 import { handleCpHost } from '../src/cp/host.js';
+import { MATCH_HOST_ACTIONS } from '../src/cp/match-host.js';
 import { handleCpParticipant } from '../src/cp/participant.js';
 import {
   SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, maskedPublicName, optionalText, surnameOf
@@ -206,7 +207,7 @@ describe('Callable 外殼', () => {
     expect(toErrorShape(new Error('secret stack'))).toEqual({ code: 'internal', reason: 'INTERNAL' });
   });
   it.each([
-    ['cpHost', handleCpHost, ['assignStaff', 'createInvite', 'revokeInvite', 'toString', '__proto__', '']],  // 第 3 步起 generateSchedule、resetMatch 已實作
+    ['cpHost', handleCpHost, ['assignStaff', 'createInvite', 'revokeInvite', 'toString', '__proto__', '']],  // 第 3 步起 generateSchedule、resetMatch 已實作；F1 起 cancelMatch、endCompetition、restoreCompetition 已實作
     ['cpEntry', handleCpEntry, ['lockRoster', 'unlockRoster', 'constructor', 'hasOwnProperty']],
     ['cpParticipant', handleCpParticipant, ['acceptInvite', 'resyncMyClubs', 'requestMyDataRemoval']]
   ] as const)('%s 未知或未實作動作一律拒絕（在讀資料庫之前）', async (_n, handler, actions) => {
@@ -217,6 +218,13 @@ describe('Callable 外殼', () => {
     }
     const noAction = await runCallable(deps, { uid: 'u' }, null, handler);
     expect(noAction.ok).toBe(false);
+  });
+  it('F1：cancelMatch、endCompetition、restoreCompetition 已掛上 cpHost，不在未知動作清單', () => {
+    const unknown = ['assignStaff', 'createInvite', 'revokeInvite', 'toString', '__proto__', ''];
+    for (const name of ['cancelMatch', 'endCompetition', 'restoreCompetition'] as const) {
+      expect(typeof MATCH_HOST_ACTIONS[name]).toBe('function');
+      expect(unknown).not.toContain(name);
+    }
   });
   it('未登入在動作分派前就拒絕', async () => {
     const out = await runCallable(deps, null, { action: 'create' }, handleCpHost);

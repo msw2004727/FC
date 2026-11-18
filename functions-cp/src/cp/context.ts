@@ -118,6 +118,10 @@ export interface CompDoc {
   firstMatchAt: Timestamp;
   lastMatchAt: Timestamp;
   endedAt: Timestamp | null;
+  /** confirm＝末場已解決；host＝主辦手動結束；auto＝每日自動結束（本步只恢復、不寫入） */
+  endedBy?: 'confirm' | 'host' | 'auto' | null;
+  /** 手動結束原因。確認結束不寫。 */
+  endReason?: string | null;
   rostersLockedAt: Timestamp | null;
   /** 年齡基準日：第一筆名單出現時固定（§3.251 F2） */
   ageBasisAt?: Timestamp | null;

@@ -290,6 +290,37 @@ export function standingMatchesOf<T extends { status?: string }>(ms: T[]): T[] {
   return ms.filter(countedForStanding);
 }
 
+/**
+ * 已解決（可以自動結束賽事）：確認、棄權、取消。
+ * 計分仍只看 COUNTED_STATUSES。取消算已解決、不計分。
+ */
+export const RESOLVED_STATUSES: readonly ['confirmed', 'walkover', 'cancelled'] =
+  Object.freeze(['confirmed', 'walkover', 'cancelled']);
+
+export function resolvedForEnd(m: { status?: string }): boolean {
+  return (RESOLVED_STATUSES as readonly string[]).includes(m.status ?? '');
+}
+
+/** 可直接取消。confirmed／walkover 要先重置。 */
+export const CANCELLABLE_STATUSES: readonly ['scheduled', 'postponed', 'finished'] =
+  Object.freeze(['scheduled', 'postponed', 'finished']);
+
+export function canCancelMatch(status: string): boolean {
+  return (CANCELLABLE_STATUSES as readonly string[]).includes(status);
+}
+
+/** 未賽不能重置。其餘（含 cancelled）可以。 */
+const RESET_BLOCKED: readonly ['scheduled', 'postponed'] = Object.freeze(['scheduled', 'postponed']);
+
+export function canResetMatch(status: string): boolean {
+  return !(RESET_BLOCKED as readonly string[]).includes(status);
+}
+
+/** 有開賽時間回 scheduled，否則 postponed（kickoffAt 為 null 時維持未排定）。 */
+export function statusAfterReset(kickoffMs: number | null): 'scheduled' | 'postponed' {
+  return kickoffMs == null ? 'postponed' : 'scheduled';
+}
+
 function cloneRule(criteria: RankingRule['criteria']): RankingRule {
   const src = RANKING_RULES.RR_FEDA_DEFAULT;
   return {

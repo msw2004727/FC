@@ -1,17 +1,18 @@
 /**
  * cpHost 第 3 步動作：排賽程、改期、主辦登錄比分、比分確認、棄權、重置、積分全量重算。
- * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）。
+ * F1（§3.272）：取消單場、主辦手動結束、管理員恢復。
+ * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）、.grok-input/contract.md §3.272。
  *
  * 原則
  * - 權限：launchGate（內部期）→ 交易內 loadComp → assertCompVisible → assertHostOrCo（主辦、共同主辦、管理員）。
  * - 場次寫入一律 Admin SDK；公開場次文件不放 uid（操作者只進雜湊稽核）。
  * - rev 只增不退（§3.250-6）：每次伺服器改場次都 +1，讓離線的舊直寫在 Rules 被拒；resetMatch 另記 resetRev。
- * - 積分只算 confirmed／walkover（§6.3-7）；積分榜由觸發器重算（match-trigger.ts），本檔只有全量重算鈕。
+ * - 積分只算 confirmed／walkover（§6.3-7）；取消不計分。積分榜由觸發器重算（match-trigger.ts），本檔只有全量重算鈕。
  * - 第 3 步只開單一組循環；多組與淘汰屬第 5 步。
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { DEFAULT_WALKOVER, matchResult, type MatchResult } from '../engine/index.js';
-import { CpError, bad, pre } from './errors.js';
+import { CpError, bad, deny, pre } from './errors.js';
 import {
   CID_RE,
   DVID_RE,
@@ -31,8 +32,17 @@ import {
   type CpDeps,
   type GateResult
 } from './context.js';
+import { findBannedWord, requireLine } from './text.js';
 import { onlyKeys, requireEnum, statusReasonOf } from './validate.js';
-import { derivedScoreOf, planRoundRobin, publicMatchDoc, type PlanDay } from './schedule-plan.js';
+import {
+  canCancelMatch,
+  canResetMatch,
+  derivedScoreOf,
+  planRoundRobin,
+  publicMatchDoc,
+  statusAfterReset,
+  type PlanDay
+} from './schedule-plan.js';
 import { summaryEntryOf, summaryShardIdOf } from './summary.js';
 import { recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
 
@@ -47,6 +57,8 @@ export const SCHEDULE_LIMITS = Object.freeze({
   endedGraceMs: 3 * 86400_000
 });
 const UTC_OFFSET = '+08:00';
+/** 取消、手動結束、恢復的原因上限（Unicode code point）。比 statusReason 的 200 更短。 */
+const ACTION_REASON_MAX = 100;
 /** 一場比分對帳最多讀的事件數（一場正常約 20～60 筆） */
 const TIMELINE_MAX = 500;
 const DAY = 86400_000;
@@ -73,12 +85,23 @@ async function hostComp(deps: CpDeps, tx: Transaction, caller: Caller, gate: Gat
   return comp;
 }
 
-/** 已結束：末場確認自動結束的 3 天內主辦仍可改；之後或自動結束（auto）只有管理員。 */
+/**
+ * 已結束則擋下非管理員。
+ * 寬限只給末場確認（endedBy:'confirm'）的 3 天。手動結束（host）與自動結束（auto）沒有寬限。
+ * 管理員仍可改場次。重複手動結束不走這裡，由 endCompetition 另判。
+ */
 function assertNotEnded(deps: CpDeps, comp: CompDoc, caller: Caller): void {
   if (!comp.endedAt || isAdmin(caller)) return;
   const graceOk = comp.endedBy === 'confirm'
     && deps.now().getTime() < comp.endedAt.toMillis() + SCHEDULE_LIMITS.endedGraceMs;
   if (!graceOk) throw pre('COMPETITION_ENDED');
+}
+
+/** 取消／結束／恢復的原因：既有單行清理，2～100 字，並走禁用詞。 */
+function hostReasonOf(v: unknown, bannedWords: readonly string[]): string {
+  const reason = requireLine(v, 'reason', 2, ACTION_REASON_MAX);
+  if (findBannedWord(reason, bannedWords)) throw bad('BANNED_WORD', { field: 'reason' });
+  return reason;
 }
 
 function assertScheduleEditable(comp: CompDoc): void {
@@ -476,18 +499,84 @@ export async function resetMatch(deps: CpDeps, caller: Caller, gate: GateResult,
     assertNotEnded(deps, comp, caller);
     if (!['published', 'postponed'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
     const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
-    if (EDITABLE_SCHEDULE.includes(m.status)) throw pre('NOTHING_TO_RESET');
+    if (!canResetMatch(m.status)) throw pre('NOTHING_TO_RESET');
     const rev = m.rev + 1;
-    const status = m.kickoffMs == null ? 'postponed' : 'scheduled';
+    // 取消場回到未賽：有開賽時間為 scheduled，否則 postponed，並清掉取消欄位。
+    const status = statusAfterReset(m.kickoffMs);
     tx.update(m.ref, {
       status, score: { home: 0, away: 0 }, penaltyScore: null, lock: { locked: false },
       finishedAt: null, confirmedAt: null, result: null, walkoverSide: null, resultSource: null,
+      cancelReason: FieldValue.delete(), cancelledAt: FieldValue.delete(),
       clockBase: CLEAR_CLOCK, rev, resetRev: rev, updatedAt: FieldValue.serverTimestamp()
     });
     // 重置後要重新接手（§6.3-2）
     tx.delete(m.ref.collection('control').doc('scorer'));
     writeAudit(deps, tx, cid, caller, 'resetMatch', { mtId, from: m.status, reason });
     return { mtId, status, rev };
+  });
+}
+
+export async function cancelMatch(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'reason']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  const reason = hostReasonOf(input.reason, gate.bannedWords);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (!canCancelMatch(m.status)) throw pre('MATCH_STATE', { status: m.status });
+    const rev = m.rev + 1;
+    const now = FieldValue.serverTimestamp();
+    tx.update(m.ref, {
+      status: 'cancelled', cancelReason: reason, cancelledAt: now, rev, updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'cancelMatch', { mtId, from: m.status, reason });
+    return { mtId, status: 'cancelled' as const, rev };
+  });
+}
+
+export async function endCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'reason']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const reason = hostReasonOf(input.reason, gate.bannedWords);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    if (comp.status !== 'published') throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+    if (comp.endedAt) throw pre('COMPETITION_ENDED');
+    // 至少一個組別已有賽程即可。未確認場次留在原狀態，不在這裡改、也不計分。
+    const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
+    if (divs.empty || divs.docs.every(d => !d.get('schedule'))) throw pre('SCHEDULE_REQUIRED');
+    const now = FieldValue.serverTimestamp();
+    tx.update(deps.db.doc(`competitions/${cid}`), {
+      endedAt: now, endedBy: 'host', endReason: reason,
+      stateVersion: FieldValue.increment(1), updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'endCompetition', { reason });
+    return { cid, endedBy: 'host' as const };
+  });
+}
+
+export async function restoreCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'reason']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const reason = hostReasonOf(input.reason, gate.bannedWords);
+  return deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    if (!isAdmin(caller)) throw deny('NOT_ADMIN');
+    if (comp.deletingAt) throw pre('COMPETITION_DELETING');
+    if (!comp.endedAt) throw pre('COMPETITION_NOT_ENDED');
+    const endedBy = comp.endedBy;
+    if (endedBy !== 'host' && endedBy !== 'auto') {
+      throw pre('RESTORE_NOT_ALLOWED', { endedBy: typeof endedBy === 'string' ? endedBy : '' });
+    }
+    const now = FieldValue.serverTimestamp();
+    tx.update(deps.db.doc(`competitions/${cid}`), {
+      endedAt: null, endedBy: null, endReason: null,
+      stateVersion: FieldValue.increment(1), updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'restoreCompetition', { reason, from: endedBy });
+    return { cid, restored: true as const };
   });
 }
 
@@ -517,5 +606,8 @@ export const MATCH_HOST_ACTIONS = {
   confirmMatchResult,
   setWalkover,
   resetMatch,
+  cancelMatch,
+  endCompetition,
+  restoreCompetition,
   recalcStandings
 } as const;
