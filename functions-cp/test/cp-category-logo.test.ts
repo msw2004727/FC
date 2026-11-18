@@ -110,7 +110,8 @@ describe('teamLogoOf 網址正規化＋本專案 Storage 白名單（顧問 §3.
     ['只有 https://', 'https://'],
     ['中間有空白', `${base}a b.png`],
     ['javascript', 'javascript:alert(1)'],
-    ['零寬字元', `${base}​a.png`]
+    ['零寬字元', `${base}​a.png`],
+    ['bucket 壞的百分比編碼（顧問 §3.291）', 'https://firebasestorage.googleapis.com/v0/b/%E0%A4%A/o/x']
   ])('不合格寫 null：%s', (_label, value) => {
     expect(teamLogoOf(value)).toBeNull();
   });

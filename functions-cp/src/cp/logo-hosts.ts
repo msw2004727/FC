@@ -38,5 +38,14 @@ export function isAllowedLogoUrl(url: string, buckets: readonly string[] = allow
   }
   if (u.protocol !== 'https:' || u.hostname !== LOGO_HOST || u.port !== '' || u.username !== '' || u.password !== '') return false;
   const m = /^\/v0\/b\/([^/]+)\/o\/[^/]+/.exec(u.pathname);
-  return !!m && buckets.includes(decodeURIComponent(m[1]!));
+  if (!m) return false;
+  // 顧問 §3.291 P2：壞的百分比編碼（例 %E0%A4%A）會讓 decodeURIComponent 丟 URIError，
+  // 導致報隊回 internal、鎖名單刷新隊徽整批中止；解碼失敗一律當不合格。
+  let bucket: string;
+  try {
+    bucket = decodeURIComponent(m[1]!);
+  } catch {
+    return false;
+  }
+  return buckets.includes(bucket);
 }

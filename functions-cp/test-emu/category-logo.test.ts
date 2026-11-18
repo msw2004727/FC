@@ -125,6 +125,16 @@ describe('報隊隊徽 teamLogo（§3.264）', () => {
     expect((await adminDb().doc(`competitions/${cid}/entries/${out.enId}`).get()).get('teamLogo')).toBeNull();
   });
 
+  it('隊徽網址 bucket 壞百分比編碼：寫 null、報隊照樣成功（顧問 §3.291 P2）', async () => {
+    await adminDb().doc('cpClubs/club_a').update({ image: 'https://firebasestorage.googleapis.com/v0/b/%E0%A4%A/o/x' });
+    const { cid, dvIds } = await published();
+    const out = await ok<{ enId: string; status: string }>(call(handleCpEntry, TESTER, {
+      action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a'
+    }));
+    expect(out.status).toBe('pending');
+    expect((await adminDb().doc(`competitions/${cid}/entries/${out.enId}`).get()).get('teamLogo')).toBeNull();
+  });
+
   it('非 https 網址寫 null、報隊不報錯', async () => {
     await adminDb().doc('cpClubs/club_a').update({ image: 'http://cdn.example/a.png' });
     const { cid, dvIds } = await published();

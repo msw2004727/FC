@@ -21,7 +21,7 @@ import {
 } from '../src/cp/schedule-flex.js';
 import { summaryShardIdOf } from '../src/cp/summary.js';
 import {
-  ADMIN, STRANGER, TESTER, TESTER2, TESTER3, call, fails, makeDeps, ok, resetAll, setBannedWords
+  ADMIN, DAY, STRANGER, TESTER, TESTER2, TESTER3, call, fails, makeDeps, ok, resetAll, setBannedWords
 } from './_cp.js';
 import { generate, matchesOf, pairing, record, setupComp, type Comp, type MatchDoc } from './_step3.js';
 
@@ -211,6 +211,36 @@ describe('§3.272 F2 賽程彈性', () => {
       const old = await adminDb().doc(`competitions/${c.cid}/summary/${prevShard}`).get();
       if (old.exists) expect(old.get('m')?.[m.id]).toBeUndefined();
     }
+  });
+
+  it('改官方賽期須涵蓋既有場次最早與最晚開賽（顧問 §3.291 P2）', async () => {
+    const comp = await compData(c.cid);
+    const ks = (await matchesOf(c)).map(kickMs).filter((k): k is number => k != null);
+    const first = Math.min(...ks);
+    const last = Math.max(...ks);
+    const base = {
+      action: 'update', cid: c.cid,
+      regOpenAt: comp.regOpenAt.toMillis(), regCloseAt: comp.regCloseAt.toMillis()
+    };
+    // 涵蓋：照舊可改（末場往後延一天）
+    await ok(call(handleCpHost, ADMIN, { ...base, firstMatchAt: comp.firstMatchAt.toMillis(), lastMatchAt: last + DAY }));
+    // 縮到不含首場（首場日改成最早開賽的隔天）
+    await fails(call(handleCpHost, ADMIN, { ...base, firstMatchAt: first + DAY, lastMatchAt: last + DAY }), 'SCHEDULE_OUT_OF_RANGE');
+    // 不含末場：把一場移到更晚（last＋3 天），新賽期只到 last＋1 天
+    const ms = await matchesOf(c);
+    await adminDb().doc(`competitions/${c.cid}/matches/${ms[0]!.id}`).update({ kickoffAt: Timestamp.fromMillis(last + 3 * DAY) });
+    await fails(call(handleCpHost, ADMIN, { ...base, firstMatchAt: comp.firstMatchAt.toMillis(), lastMatchAt: last + DAY }), 'SCHEDULE_OUT_OF_RANGE');
+  });
+
+  it('沒有場次時改官方賽期照舊（不受涵蓋檢查影響）', async () => {
+    await resetAll();
+    const c2 = await setupComp(['甲', '乙']);
+    const comp = await compData(c2.cid);
+    await ok(call(handleCpHost, ADMIN, {
+      action: 'update', cid: c2.cid,
+      regOpenAt: comp.regOpenAt.toMillis(), regCloseAt: comp.regCloseAt.toMillis(),
+      firstMatchAt: comp.firstMatchAt.toMillis() + DAY, lastMatchAt: comp.lastMatchAt.toMillis() + DAY
+    }));
   });
 
   it('不同隊同一場地回 venue；同一隊回 team，force 放行並寫稽核', async () => {
