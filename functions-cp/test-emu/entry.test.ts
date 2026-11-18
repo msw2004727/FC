@@ -332,3 +332,49 @@ describe('Opus 終審退修：拒絕清名單、隊名冒名、並行登錄', ()
     expect((await adminDb().collection(`competitions/${cid}/rosterPrivate`).where('uid', '==', 'tester2').get()).size).toBe(1);
   });
 });
+
+describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤隊上限、年齡基準日', () => {
+  beforeEach(async () => { await resetAll(); await setupComp(); });
+
+  it('F1：代填成年球員沒填暱稱時公開名是姓氏，不含真名全文；填暱稱用暱稱', async () => {
+    const { enId } = await ok<{ enId: string }>(register());
+    const a = await ok<{ plId: string; isMinor: boolean }>(call(handleCpEntry, TESTER, {
+      action: 'addRosterByRep', cid, enId, number: 3, realName: '張大成', birthday: '1990/01/01', privacyAck: true }));
+    expect(a.isMinor).toBe(false);
+    const b = await ok<{ plId: string }>(call(handleCpEntry, TESTER, {
+      action: 'addRosterByRep', cid, enId, number: 4, realName: 'Kevin Lee', birthday: '1991/02/02', privacyAck: true, nickname: '阿凱' }));
+    await fails(call(handleCpEntry, TESTER, {
+      action: 'addRosterByRep', cid, enId, number: 5, realName: '李四海', birthday: '1992/03/03', privacyAck: true, publicName: '李四海' }), 'MINOR_PUBLIC_NAME');
+    expect((await adminDb().doc(`competitions/${cid}/roster/${a.plId}`).get()).get('displayName')).toBe('張');
+    expect((await adminDb().doc(`competitions/${cid}/roster/${b.plId}`).get()).get('displayName')).toBe('阿凱');
+    const hits = await scanAll([`competitions/${cid}/roster`, `competitions/${cid}/entries`],
+      (_k, v) => typeof v === 'string' && (v.includes('張大成') || v.includes('Kevin Lee')));
+    expect(hits).toEqual([]);
+  });
+  it('F3：首場前主辦可解鎖名單（必填原因、寫稽核）；首場後只有管理員', async () => {
+    await fails(call(handleCpEntry, ADMIN, { action: 'unlockRosters', cid, reason: '補登球員' }), 'ROSTERS_NOT_LOCKED');
+    await ok(call(handleCpEntry, ADMIN, { action: 'lockRosters', cid }));
+    await fails(call(handleCpEntry, TESTER, { action: 'unlockRosters', cid, reason: '補登球員' }), 'NOT_HOST');
+    await fails(call(handleCpEntry, ADMIN, { action: 'unlockRosters', cid }), 'FIELD_REQUIRED');
+    await ok(call(handleCpEntry, ADMIN, { action: 'unlockRosters', cid, reason: '補登球員' }));
+    expect((await adminDb().doc(`competitions/${cid}`).get()).get('rostersLockedAt')).toBeNull();
+    const audits = await adminDb().collection(`competitions/${cid}/audits`).where('action', '==', 'unlockRosters').get();
+    expect(audits.size).toBe(1);
+    // 解鎖後可再報隊；首場後主辦（個人主辦本人）不能解鎖、管理員可以
+    await ok(register());
+    await ok(call(handleCpEntry, ADMIN, { action: 'lockRosters', cid }));
+    await adminDb().doc(`competitions/${cid}`).update({ hostUid: 'tester3' });
+    await fails(call(handleCpEntry, TESTER3, { action: 'unlockRosters', cid, reason: '補登球員' }, makeDeps(25 * DAY)), 'COMPETITION_STARTED');
+    await ok(call(handleCpEntry, ADMIN, { action: 'unlockRosters', cid, reason: '補登球員' }, makeDeps(25 * DAY)));
+  });
+  it('(d)：同隊同組被拒或撤隊累計 3 次不得再報', async () => {
+    for (let i = 0; i < 3; i++) {
+      const { enId } = await ok<{ enId: string }>(register());
+      if (i === 1) await ok(call(handleCpEntry, ADMIN, { action: 'reviewEntry', cid, enId, decision: 'reject', reason: '資料不完整' }));
+      else await ok(call(handleCpEntry, TESTER, { action: 'withdrawEntry', cid, enId }));
+    }
+    await fails(register(), 'ENTRY_RETRY_LIMIT', 'resource-exhausted');
+    // 別組不受影響
+    await ok(register(TESTER, youthDv));
+  });
+});

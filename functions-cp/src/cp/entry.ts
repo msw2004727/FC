@@ -7,6 +7,7 @@
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { evaluateAge } from './age.js';
+import { readMainProfileForAge } from './main-profile.js';
 import { CpError, bad, deny, notFound, pre } from './errors.js';
 import {
   CID_RE,
@@ -38,6 +39,9 @@ import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 export const POSITIONS = ['GK', 'DF', 'MF', 'FW'] as const;
 /** 每組報隊上限（含待審）：maxTeams 的 2 倍，防灌報名 */
 export const PENDING_FACTOR = 2;
+/** 同隊同組被拒或撤隊累計上限（達到就不得再報）；查詢只取 ENTRY_RETRY_MAX + 1 筆 */
+export const ENTRY_RETRY_MAX = 3;
+const PREV_ENTRY_SCAN = ENTRY_RETRY_MAX + 1;
 
 type Tx = Transaction;
 interface EntryDoc { dvId: string; teamId: string; name: string; status: string; rosterCount: number; rosterConfirmed: boolean }
@@ -125,10 +129,14 @@ export async function registerEntry(deps: CpDeps, caller: Caller, gate: GateResu
     if (!rep.ok) throw deny('NOT_CLUB_REP');
     const dv = await loadDivision(deps, tx, cid, dvId);
     if ((dv.data.entryCount ?? 0) >= dv.data.maxTeams * PENDING_FACTOR) throw new CpError('resource-exhausted', 'DIVISION_FULL');
-    const dup = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entries`)
-      .where('teamId', '==', teamId).where('dvId', '==', dvId)
-      .where('status', 'in', ['pending', 'approved']).limit(1));
-    if (!dup.empty) throw new CpError('already-exists', 'ENTRY_EXISTS');
+    // 同隊同組：不分狀態取 4 筆在記憶體判斷（顧問 §3.251 (d)：不多查詢）
+    const prev = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entries`)
+      .where('teamId', '==', teamId).where('dvId', '==', dvId).limit(PREV_ENTRY_SCAN));
+    const prevStatuses = prev.docs.map(d => d.get('status'));
+    if (prevStatuses.some(st => st === 'pending' || st === 'approved')) throw new CpError('already-exists', 'ENTRY_EXISTS');
+    if (prevStatuses.filter(st => st === 'rejected' || st === 'withdrawn').length >= ENTRY_RETRY_MAX) {
+      throw new CpError('resource-exhausted', 'ENTRY_RETRY_LIMIT', { max: ENTRY_RETRY_MAX });
+    }
     const writeMine = await prepareMine(deps, tx, caller.uid, cid, comp, { addEntry: enId });
 
     const now = FieldValue.serverTimestamp();
@@ -288,10 +296,21 @@ function playerInputOf(input: Record<string, unknown>): PlayerInput {
  * - 未成年：必勾監護人同意；公開名只能是姓氏候選之一（未指定時用 surnameOf）。
  * - 成年：暱稱優先，否則用 fallback（自己登錄＝主站顯示名；代填＝真名）。
  */
-function resolveNames(p: PlayerInput, isMinor: boolean, requireRealName: boolean, adultFallback: string | null) {
+function resolveNames(p: PlayerInput, isMinor: boolean, requireRealName: boolean, adultFallback: string | null, proxy = false) {
   if ((requireRealName || isMinor) && !p.realName) throw bad('REAL_NAME_REQUIRED', { field: 'realName' });
   if (isMinor) {
     if (!p.guardianConsent) throw bad('GUARDIAN_CONSENT_REQUIRED', { field: 'guardianConsent' });
+    const candidates = minorPublicNameCandidates(p.realName!);
+    const displayName = p.publicName ?? candidates[0];
+    if (!candidates.includes(displayName)) throw bad('MINOR_PUBLIC_NAME', { field: 'publicName' });
+    return { displayName, realName: p.realName };
+  }
+  if (proxy) {
+    // 代填成年球員：沒填暱稱時公開名預設姓氏（顧問 §3.251 F1：不得把代填真名寫進公開名單）；可另填暱稱或從姓氏候選選
+    if (p.nickname) {
+      if (p.publicName) throw bad('UNKNOWN_FIELD', { field: 'publicName' });
+      return { displayName: p.nickname, realName: p.realName };
+    }
     const candidates = minorPublicNameCandidates(p.realName!);
     const displayName = p.publicName ?? candidates[0];
     if (!candidates.includes(displayName)) throw bad('MINOR_PUBLIC_NAME', { field: 'publicName' });
@@ -313,6 +332,19 @@ function assertEntryAcceptsRoster(entry: EntryDoc, dv: DivisionDoc) {
   if ((entry.rosterCount ?? 0) >= dv.rosterMax) throw new CpError('resource-exhausted', 'ROSTER_FULL', { max: dv.rosterMax });
 }
 
+/**
+ * 年齡基準日（顧問 §3.251 F2）：第一筆名單出現時固定成當下的首場日期，之後 isMinor／ageEligible 一律以它判斷；
+ * 首場日期仍可依規則改（延期），已登錄球員的年齡結果不會失真（生日不存，無法重算）。
+ */
+export function ageBasisOf(comp: CompDoc): Date {
+  const basis = comp.ageBasisAt as { toDate?: () => Date } | null | undefined;
+  return basis && typeof basis.toDate === 'function' ? basis.toDate() : comp.firstMatchAt.toDate();
+}
+function fixAgeBasis(deps: CpDeps, tx: Tx, cid: string, comp: CompDoc): void {
+  if (comp.ageBasisAt) return;
+  tx.update(deps.db.doc(`competitions/${cid}`), { ageBasisAt: comp.firstMatchAt });
+}
+
 // ── joinRoster（成員自己登錄）─────────────────────────────────────────
 export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'realName', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
@@ -320,10 +352,8 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
   const enId = requireId(input.enId, ENID_RE, 'enId');
   const p = playerInputOf(input);
   const nowMs = nowMsOf(deps);
-  // 主站 users：只讀顯示名與生日（生日算完即丟，不寫賽事庫）
-  const user = await readDoc(deps, null, deps.mainDb.doc(`users/${caller.uid}`));
-  const birthday = user.exists ? user.get('birthday') : null;
-  const mainDisplayName = user.exists && typeof user.get('displayName') === 'string' ? (user.get('displayName') as string) : null;
+  // 主站會員資料：只讀顯示名與生日（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
+  const { birthday, displayName: mainDisplayName } = await readMainProfileForAge(deps, caller.uid);
   const plId = newId('pl');
   let isMinorOut = false;
 
@@ -337,7 +367,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     const member = await isClubMember(deps, tx, entry.data.teamId, caller.uid)
       || (await isClubRep(deps, tx, entry.data.teamId, caller.uid)).ok;
     if (!member) throw deny('NOT_CLUB_MEMBER');
-    const age = evaluateAge(birthday, comp.firstMatchAt.toDate(), dv.data);
+    const age = evaluateAge(birthday, ageBasisOf(comp), dv.data);
     if (!age) throw pre('BIRTHDAY_REQUIRED');
     if (!age.ageEligible) throw pre('AGE_NOT_ELIGIBLE', {
       ...(dv.data.minAge != null ? { minAge: dv.data.minAge } : {}),
@@ -362,6 +392,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
       source: 'self', addedByUid: null, privacyAckAt: now, createdAt: now
     });
     tx.update(entry.ref, { rosterCount: FieldValue.increment(1), rosterConfirmed: false, updatedAt: now });
+    fixAgeBasis(deps, tx, cid, comp);
     writeMine();
     writeAudit(deps, tx, cid, caller, 'joinRoster', { enId, plId, isMinor: age.isMinor });
     isMinorOut = age.isMinor;
@@ -391,13 +422,13 @@ export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateRes
     if (!(await isClubRep(deps, tx, entry.data.teamId, caller.uid)).ok) throw deny('NOT_CLUB_REP');
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
     assertEntryAcceptsRoster(entry.data, dv.data);
-    const age = evaluateAge(birthday, comp.firstMatchAt.toDate(), dv.data);
+    const age = evaluateAge(birthday, ageBasisOf(comp), dv.data);
     if (!age) throw bad('BIRTHDAY_INVALID', { field: 'birthday' });
     if (!age.ageEligible) throw pre('AGE_NOT_ELIGIBLE', {
       ...(dv.data.minAge != null ? { minAge: dv.data.minAge } : {}),
       ...(dv.data.maxAge != null ? { maxAge: dv.data.maxAge } : {})
     });
-    const names = resolveNames(p, age.isMinor, true, p.realName);
+    const names = resolveNames(p, age.isMinor, true, null, true);
     await assertNumberFree(deps, tx, cid, enId, p.number);
     // 同隊同真名不重複代填（Flash 交叉審 P2：連按兩次或換背號重填）
     const dupName = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
@@ -415,6 +446,7 @@ export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateRes
       source: 'rep', addedByUid: caller.uid, privacyAckAt: now, createdAt: now
     });
     tx.update(entry.ref, { rosterCount: FieldValue.increment(1), rosterConfirmed: false, updatedAt: now });
+    fixAgeBasis(deps, tx, cid, comp);
     writeAudit(deps, tx, cid, caller, 'addRosterByRep', { enId, plId, isMinor: age.isMinor });
     isMinorOut = age.isMinor;
   });
@@ -501,8 +533,32 @@ export async function lockRosters(deps: CpDeps, caller: Caller, gate: GateResult
   return { cid, locked: true };
 }
 
+// ── unlockRosters（顧問 §3.251 F3：首場前主辦或管理員可解鎖，寫稽核）──────────
+export async function unlockRosters(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'reason']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const reason = statusReasonOf(input.reason);
+  const nowMs = nowMsOf(deps);
+  await deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
+    const admin = isAdmin(caller);
+    if (!comp.rostersLockedAt) throw pre('ROSTERS_NOT_LOCKED');
+    if (comp.status !== 'published') throw pre('COMPETITION_NOT_OPEN', { status: comp.status });
+    if (comp.hidden && !admin) throw pre('COMPETITION_HIDDEN');
+    if (!admin && nowMs >= comp.firstMatchAt.toMillis()) throw pre('COMPETITION_STARTED');
+    tx.update(deps.db.doc(`competitions/${cid}`), {
+      rostersLockedAt: null,
+      stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
+    });
+    writeAudit(deps, tx, cid, caller, 'unlockRosters', { reason });
+  });
+  return { cid, locked: false };
+}
+
 export const ENTRY_ACTIONS = {
-  registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters
+  registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters, unlockRosters
 } as const;
 
 export async function handleCpEntry(deps: CpDeps, caller: Caller, data: unknown) {

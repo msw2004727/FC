@@ -175,7 +175,7 @@ describe('Callable 外殼', () => {
   });
   it.each([
     ['cpHost', handleCpHost, ['generateSchedule', 'assignStaff', 'createInvite', 'resetMatch', 'toString', '__proto__', '']],
-    ['cpEntry', handleCpEntry, ['lockRoster', 'constructor', 'hasOwnProperty']],
+    ['cpEntry', handleCpEntry, ['lockRoster', 'unlockRoster', 'constructor', 'hasOwnProperty']],
     ['cpParticipant', handleCpParticipant, ['acceptInvite', 'resyncMyClubs', 'requestMyDataRemoval']]
   ] as const)('%s 未知或未實作動作一律拒絕（在讀資料庫之前）', async (_n, handler, actions) => {
     for (const action of actions) {

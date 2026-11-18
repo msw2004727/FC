@@ -114,6 +114,8 @@ export interface CompDoc {
   lastMatchAt: Timestamp;
   endedAt: Timestamp | null;
   rostersLockedAt: Timestamp | null;
+  /** 年齡基準日：第一筆名單出現時固定（§3.251 F2） */
+  ageBasisAt?: Timestamp | null;
   stateVersion: number;
   [k: string]: unknown;
 }

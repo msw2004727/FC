@@ -161,7 +161,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       status: 'draft', statusReason: null, hidden: false,
       regOpenAt: ts(sched.regOpenAt), regCloseAt: ts(sched.regCloseAt),
       firstMatchAt: ts(sched.firstMatchAt), lastMatchAt: ts(sched.lastMatchAt),
-      endedAt: null, endedBy: null, rostersLockedAt: null,
+      endedAt: null, endedBy: null, rostersLockedAt: null, ageBasisAt: null,
       timezone, venues, feeNote, liveLinks,
       stateVersion: 1, createdAt: now, updatedAt: now
     });
@@ -215,12 +215,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       // Opus 終審 P1-1：首場後主辦不能改時程（否則可把已開賽賽事挪到未來再刪除、或重開報名）
       if (!admin && nowMs >= comp.firstMatchAt.toMillis()) throw pre('COMPETITION_STARTED', { field: 'schedule' });
       if (!admin && s.firstMatchAt <= nowMs) throw bad('SCHEDULE_PAST', { field: 'firstMatchAt' });
-      if (s.firstMatchAt !== comp.firstMatchAt.toMillis()) {
-        // 首場日期是 isMinor／ageEligible 的判斷基準，生日沒存無法重算：已有名單或已鎖定就不能改（Opus 終審 P1-2）
-        if (comp.rostersLockedAt) throw pre('ROSTERS_LOCKED', { field: 'firstMatchAt' });
-        const anyRoster = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`).limit(1));
-        if (!anyRoster.empty) throw pre('FIRST_MATCH_LOCKED', { field: 'firstMatchAt' });
-      }
+      // 首場日期可改（延期）：年齡判斷改用第一筆名單時固定的 ageBasisAt（顧問 §3.251 F2，取代 Opus P1-2 的「有名單就鎖首場」）
       patch.regOpenAt = ts(s.regOpenAt);
       patch.regCloseAt = ts(s.regCloseAt);
       patch.firstMatchAt = ts(s.firstMatchAt);

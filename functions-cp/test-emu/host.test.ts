@@ -280,18 +280,30 @@ describe('Opus 終審退修：開賽後與已有名單的時程、下架時的�
     const now = Date.now();
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, regOpenAt: now - 5 * DAY, regCloseAt: now - 3 * DAY, firstMatchAt: now - DAY, lastMatchAt: now + DAY }), 'SCHEDULE_PAST');
   });
-  it('已有名單就不能改首場日期（年齡判斷基準）；其他時間仍可改', async () => {
+  it('有名單後首場日期仍可改（延期），年齡基準日固定在第一筆名單時（§3.251 F2）', async () => {
     const { cid, dvIds } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
     await ok(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(25) }));
     await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
     const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
-    await ok(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(26) }));
+    const before = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
+    expect(before.ageBasisAt).toBeNull();
     await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 5, privacyAck: true }));
-    await fails(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(20) }), 'FIRST_MATCH_LOCKED');
-    const cur = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
-    await ok(call(handleCpHost, TESTER, { action: 'update', cid,
-      regOpenAt: cur.regOpenAt.toMillis(), regCloseAt: cur.regCloseAt.toMillis() + DAY,
-      firstMatchAt: cur.firstMatchAt.toMillis(), lastMatchAt: cur.lastMatchAt.toMillis() + DAY }));
+    const basis = (await adminDb().doc(`competitions/${cid}`).get()).get('ageBasisAt').toMillis();
+    expect(basis).toBe(before.firstMatchAt.toMillis());
+    // 首場前主辦可延期；基準日不變
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(40) }));
+    const after = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
+    expect(after.firstMatchAt.toMillis()).toBeGreaterThan(basis);
+    expect(after.ageBasisAt.toMillis()).toBe(basis);
+    // 第二筆名單不會改寫基準日
+    await ok(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 6, privacyAck: true }));
+    expect((await adminDb().doc(`competitions/${cid}`).get()).get('ageBasisAt').toMillis()).toBe(basis);
+  });
+  it('名單鎖定後管理員仍可延期首場（不再被名單鎖擋）', async () => {
+    const { cid } = await create(TESTER);
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    await ok(call(handleCpEntry, TESTER, { action: 'lockRosters', cid }));
+    await ok(call(handleCpHost, ADMIN, { action: 'update', cid, ...sched(45) }, makeDeps(25 * DAY)));
   });
   it('下架中主辦不能刪除與鎖定名單（保留檢舉證據），管理員可以', async () => {
     const { cid } = await create(TESTER);
