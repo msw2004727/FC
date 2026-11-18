@@ -1,0 +1,410 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════════════════
+//  asia-main（asia-east1 具名資料庫）Security Rules 草稿 — 賽事系統第 1 步
+//  依據：docs/specs/tournament-research/賽事系統-設計計畫書.md v2.1
+//        §4.2 文件結構、§5.1 身分、§5.2 讀取、§5.3 寫入、§6.3 直寫記分、§12.2 內部期
+//  狀態：草稿，只在模擬器測試（functions-cp/test-rules/）；尚未部署（G2／G3 另送裁）。
+//
+//  原則
+//  - 管理員只認 custom claims `role in ['admin','super_admin']`（主站 setRoleClaimMerged 只寫 role）；
+//    權限碼在主庫，這裡查不到，需要權限碼的動作一律走 Callable。
+//  - 賽事內角色只看 competitions/{cid}/staff/{uid}（伺服器寫）；俱樂部關係只看鏡像 cpClubs（伺服器寫）。
+//  - 鏡像只信路徑上的 teamId／uid。
+//  - 不開任何 collectionGroup 讀取（不寫 {path=**}）。
+//  - 直寫只開三處：matches/{mt} update、matches/{mt}/timeline/{eventId} create、
+//    matches/{mt}/voids/{targetSeq} create，以及 matches/{mt}/control/scorer（接手）。其餘一律 Admin SDK。
+//  - 記分模型：每筆動作＝一筆事件；場次文件單一遞增 rev；事件 id `e{rev}`；
+//    場次 update 與事件 create（作廢另加 voids 標記）必須同一批，以 getAfter／existsAfter 互相驗證。
+// ════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 共用身分 ─────────────────────────────────────────────────────
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.role in ['admin', 'super_admin'];
+    }
+    function docPath(rel) { return /databases/$(database)/documents/$(rel); }
+    // 內部期測試者：cpConfig/launch/testers/{uid}（只有主 codebase cpAdminOps 可寫）
+    function isTester() {
+      return signedIn() && exists(/databases/$(database)/documents/cpConfig/launch/testers/$(uid()));
+    }
+
+    // ── 賽事根文件判斷 ───────────────────────────────────────────────
+    function compPath(cid) { return /databases/$(database)/documents/competitions/$(cid); }
+    function staffPath(cid) { return /databases/$(database)/documents/competitions/$(cid)/staff/$(uid()); }
+    function clubPath(teamId) { return /databases/$(database)/documents/cpClubs/$(teamId); }
+
+    // 內部賽事（visibility=='internal'）只有管理員與測試者可碰（§12.2-c）
+    // （寫成「public 或 管理員／測試者」而不是再比對 'internal'：list 查詢不帶 visibility 篩選時，
+    //   測試者的條件才能在查詢層級成立；visibility 只有 public／internal 兩值，由伺服器寫入）
+    function internalGate(c) {
+      return c.visibility == 'public' || isAdmin() || isTester();
+    }
+    // 對外可見狀態（§5.2：status != 'draft' 且未下架；用 in 清單讓 list 查詢可證明）
+    function isPubLike(c) {
+      return c.status in ['published', 'postponed', 'cancelled'] && c.hidden == false;
+    }
+    function isRepOf(teamId) {
+      return signedIn() && teamId is string
+        && exists(clubPath(teamId))
+        && uid() in get(clubPath(teamId)).data.repUids;
+    }
+    function isCoHost(cid) {
+      return signedIn() && exists(staffPath(cid))
+        && get(staffPath(cid)).data.roles.hasAny(['coHost']);
+    }
+    // 主辦：hostUid；俱樂部主辦時該隊代表（鏡像 repUids）；共同主辦（staff.roles 含 coHost）
+    function isHostOrCo(cid, c) {
+      return signedIn() && (
+        c.hostUid == uid()
+        || (c.hostType == 'club' && isRepOf(c.hostTeamId))
+        || isCoHost(cid)
+      );
+    }
+    // hostUid 本人讀自己的賽事不受內部期閘門限制（自己的資料；內部期能建賽的只有管理員／測試者，
+    // 由 Callable 強制）；其他人（含俱樂部代表、共同主辦）一律先過內部期閘門。
+    function canReadCompData(cid, c) {
+      return isAdmin()
+        || (signedIn() && c.hostUid == uid())
+        || (internalGate(c) && (isPubLike(c) || isHostOrCo(cid, c)));
+    }
+    function canReadComp(cid) {
+      return exists(compPath(cid)) && canReadCompData(cid, get(compPath(cid)).data);
+    }
+    function canManageComp(cid) {
+      return exists(compPath(cid)) && (
+        isAdmin()
+        || (signedIn() && get(compPath(cid)).data.hostUid == uid())
+        || (internalGate(get(compPath(cid)).data) && isHostOrCo(cid, get(compPath(cid)).data))
+      );
+    }
+
+    // ── 直寫記分共用判斷（§6.3）─────────────────────────────────────
+    // 預算註記（V5）：Rules 每個請求（整個 batch 共用）最多評估 1000 個運算式。
+    // 寫法原則：每份文件只 get 一次並以 let 傳遞；affectedKeys 只算一次；
+    // 時鐘／鎖／比分的形狀只在「這次有改」時驗證（未改的值是伺服器寫的）。
+    function matchPath(cid, mt) { return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt); }
+    function eventPath(cid, mt, seq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/timeline/$('e' + string(seq));
+    }
+    function voidPath(cid, mt, targetSeq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/voids/$(string(targetSeq));
+    }
+    function scorerCtlPath(cid, mt) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/control/scorer;
+    }
+    // 賽事可記分：已發布、未下架、內部賽事只限管理員／測試者（取消、延期、草稿一律拒）
+    function compScorableData(c) {
+      return c.status == 'published' && c.hidden == false && internalGate(c);
+    }
+    // 本場指派：roles 含 scorer 或 referee、matchIds 含本場（空陣列＝無權限）、未過期
+    // （文件不存在時 get 產生錯誤值；本函式只用在 && 正向語境，錯誤＝拒絕）
+    function assignedData(s, mt) {
+      return s.roles.hasAny(['scorer', 'referee'])
+        && s.matchIds.hasAny([mt])
+        && (s.expiresAt == null || request.time < s.expiresAt);
+    }
+    function isAssigned(cid, mt) {
+      return signedIn() && assignedData(get(staffPath(cid)).data, mt);
+    }
+    // 記分者：賽事可記分＋本場指派＋目前記分者（control/scorer.uid，私密文件）
+    function scorerOk(cid, mt) {
+      return signedIn()
+        && compScorableData(get(compPath(cid)).data)
+        && assignedData(get(staffPath(cid)).data, mt)
+        && get(scorerCtlPath(cid, mt)).data.uid == uid();
+    }
+
+    function validScore(s) {
+      return s.keys().hasOnly(['home', 'away']) && s.home is int && s.away is int
+        && s.home >= 0 && s.home <= 99 && s.away >= 0 && s.away <= 99;
+    }
+    function validClockBase(cb) {
+      return cb.keys().hasOnly(['startedAt', 'pausedSec', 'running', 'period'])
+        && cb.keys().hasAll(['startedAt', 'pausedSec', 'running', 'period'])
+        && (cb.startedAt == null || cb.startedAt is timestamp)
+        && cb.pausedSec is int && cb.pausedSec >= 0 && cb.pausedSec <= 10800
+        && cb.running is bool
+        && cb.period in ['pre', 'h1', 'ht', 'h2', 'et1', 'et2', 'pk', 'ft'];
+    }
+    function clockOk(ch, b) { return !ch.hasAny(['clockBase']) || validClockBase(b.clockBase); }
+    // 比分變動：side 那邊 +d、另一邊不變
+    function scoreDelta(a, b, side, d) {
+      return validScore(b.score) && (
+        (side == 'home' && b.score.home == a.score.home + d && b.score.away == a.score.away)
+        || (side == 'away' && b.score.away == a.score.away + d && b.score.home == a.score.home));
+    }
+
+    // 場次 update 依事件類型的效果（a = 寫入前、b = 寫入後、ch = 變動鍵、ev = 同批事件）
+    function effectOk(cid, mt, a, b, ch, ev) {
+      // ev.createdAt == request.time：證明事件是本請求同批新建（Opus 終審 P1-A：
+      // 否則事先存在的 e{rev+1}，例如伺服器重置後殘留，可被只改場次而套用效果）
+      return ev.createdAt == request.time
+        && (ev.type == 'undoFinish' || a.lock.locked == false) && (
+        (ev.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt'])
+          && a.status == 'live' && scoreDelta(a, b, ev.side, 1))
+        || (ev.type == 'void' && ch.hasOnly(['score', 'rev', 'updatedAt'])
+          && a.status in ['live', 'halftime']
+          && scoreDelta(a, b, get(eventPath(cid, mt, ev.targetSeq)).data.side, -1))
+        || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'])
+        || (ev.type in ['kickoff', 'halftime', 'resume']
+          && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
+          && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
+            || (ev.type == 'halftime' && a.status == 'live' && b.status == 'halftime')
+            || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live'))
+          && clockOk(ch, b))
+        || (ev.type == 'fulltime'
+          && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'] && b.status == 'finished'
+          && b.lock == {'locked': true} && b.finishedAt == request.time
+          && clockOk(ch, b))
+        || (ev.type == 'undoFinish'
+          && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+          && a.status == 'finished' && a.lock.locked == true
+          && request.time < a.finishedAt + duration.value(180, 's')
+          && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null
+          && clockOk(ch, b))
+      );
+    }
+    // 記分 update 主判斷：便宜的檢查先做，再讀 staff／control／賽事
+    function matchUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      return a.status != 'confirmed'
+        && b.rev is int && b.rev == a.rev + 1
+        && b.updatedAt == request.time
+        && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+        && existsAfter(eventPath(cid, mt, b.rev))
+        && scorerOk(cid, mt)
+        && effectOk(cid, mt, a, b, ch, getAfter(eventPath(cid, mt, b.rev)).data);
+    }
+
+    // 事件內容（§6.3 第 3、4、6 點）
+    // 只收 pl_ 前綴 id（Opus 終審 P2-1：防止在公開 timeline 寫入任意文字／個資）
+    function plIdOk(v) { return v is string && v.matches('^pl_[A-Za-z0-9_-]{1,37}$'); }
+    function evShapeOk(ev) {
+      return (ev.type == 'goal'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'goalKind', 'matchSecond', 'createdAt'])
+          && ev.side in ['home', 'away']
+          && ev.goalKind in ['normal', 'penalty', 'own']
+          && (!('plId' in ev) || plIdOk(ev.plId)))
+        || (ev.type == 'card'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'cardType', 'matchSecond', 'createdAt'])
+          && ev.side in ['home', 'away'] && plIdOk(ev.plId)
+          && ev.cardType in ['yellow', 'second_yellow', 'red'])
+        || (ev.type == 'sub'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'inPlId', 'outPlId', 'matchSecond', 'createdAt'])
+          && ev.side in ['home', 'away'] && plIdOk(ev.inPlId) && plIdOk(ev.outPlId))
+        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish']
+          && ev.keys().hasOnly(['seq', 'type', 'matchSecond', 'createdAt']))
+        || (ev.type == 'void'
+          && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt'])
+          && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq);
+    }
+    // 事件 create：
+    // - 不另判斷記分者：本條要求同批把場次 rev 從 seq-1 改成 seq（get／getAfter），
+    //   而場次 update 只有 matchUpdateOk 一條路（create／delete 全拒、Admin SDK 才繞得過），
+    //   該條已驗證記分者與事件類型效果；batch 原子性保證兩邊同時成立。省下重複的 get 與運算式預算。
+    // - 必填鍵（side、goalKind、targetSeq…）缺少時，存取產生錯誤值 → 拒絕。
+    function eventCreateOk(cid, mt, eventId) {
+      let ev = request.resource.data;
+      return ev.seq is int
+        && eventId == 'e' + string(ev.seq)
+        && eventId.matches('^e[1-9][0-9]{0,5}$')
+        && ev.createdAt == request.time
+        && ev.matchSecond is int && ev.matchSecond >= 0 && ev.matchSecond <= 10800
+        && get(matchPath(cid, mt)).data.rev == ev.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == ev.seq
+        && evShapeOk(ev)
+        && (ev.type != 'void' || voidTargetOk(cid, mt, ev));
+    }
+    // 作廢事件：目標必須是進球、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
+    function voidTargetOk(cid, mt, ev) {
+      return get(eventPath(cid, mt, ev.targetSeq)).data.type == 'goal'
+        && !exists(voidPath(cid, mt, ev.targetSeq))
+        && existsAfter(voidPath(cid, mt, ev.targetSeq));
+    }
+    // 作廢標記 create：同批的 void 事件指向本標記（記分者判斷同 eventCreateOk 說明）
+    function voidCreateOk(cid, mt, targetSeq) {
+      let v = request.resource.data;
+      return targetSeq.matches('^[1-9][0-9]{0,5}$')
+        && v.keys().hasOnly(['seq', 'createdAt'])
+        && v.seq is int
+        && v.createdAt == request.time
+        && get(matchPath(cid, mt)).data.rev == v.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == v.seq
+        && getAfter(eventPath(cid, mt, v.seq)).data.type == 'void'
+        && getAfter(eventPath(cid, mt, v.seq)).data.targetSeq == int(targetSeq);
+    }
+    // 接手（control/scorer）：本場指派者寫自己的 uid；自撤回窗口內不得接手
+    function takeoverOk(cid, mt) {
+      let t = request.resource.data;
+      let m = get(matchPath(cid, mt)).data;
+      return t.keys().hasOnly(['uid', 'takenAt'])
+        && t.uid == uid()
+        && t.takenAt == request.time
+        && m.status != 'confirmed'
+        && !(m.status == 'finished' && request.time < m.finishedAt + duration.value(180, 's'))
+        && compScorableData(get(compPath(cid)).data)
+        && isAssigned(cid, mt);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  集合
+    // ════════════════════════════════════════════════════════════════
+
+    // 對外開關（伺服器寫；公開讀，前端入口判斷用）
+    match /cpConfig/{docId} {
+      allow get: if docId == 'launch';
+      allow list, write: if false;
+      // 測試者名單：本人可讀自己那份（入口判斷）；其餘一律不可讀寫
+      match /testers/{testerUid} {
+        allow get: if signedIn() && testerUid == uid() && docId == 'launch';
+        allow list, write: if false;
+      }
+    }
+
+    match /competitions/{cid} {
+      allow get: if canReadCompData(cid, resource.data);
+
+      // list（§5.2）：一律 limit <= 50；公開清單須帶 visibility／hidden／status 篩選；
+      // 自己主辦的清單帶 hostUid == 自己；俱樂部代表清單帶 hostTeamId == T（V16）；管理員另一條。
+      allow list: if request.query.limit != null && request.query.limit <= 50 && (
+        isAdmin()
+        || (isPubLike(resource.data) && internalGate(resource.data))
+        || (signedIn() && resource.data.hostUid == uid())
+        // 俱樂部代表清單：非管理員／測試者時查詢須另帶 visibility == 'public'（內部期閘門）
+        // （hostTeamId 只有俱樂部主辦的賽事才有，由 cpHost 寫入；查詢只需帶 hostTeamId == T）
+        || (isRepOf(resource.data.hostTeamId) && internalGate(resource.data))
+      );
+      allow create, update, delete: if false;   // 一律 Callable（cpHost）
+
+      // 公開子集合（伺服器寫）：父文件可讀即可讀；list 限單一 cid 下、limit <= 100
+      match /divisions/{dvId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /entries/{enId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /roster/{plId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /standings/{stId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /summary/{shardId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+
+      // 私密：主辦、共同主辦、管理員、該隊代表（鏡像）；rosterPrivate 另加本人
+      match /entryPrivate/{enId} {
+        allow get: if canManageComp(cid) || (canReadComp(cid) && isRepOf(resource.data.teamId));
+        allow list: if request.query.limit != null && request.query.limit <= 100 && (
+          canManageComp(cid) || (canReadComp(cid) && isRepOf(resource.data.teamId))
+        );
+        allow write: if false;
+      }
+      match /rosterPrivate/{plId} {
+        allow get: if canManageComp(cid)
+          || (canReadComp(cid) && (isRepOf(resource.data.teamId)
+              || (signedIn() && resource.data.uid != null && resource.data.uid == uid())));
+        allow list: if request.query.limit != null && request.query.limit <= 100 && (
+          canManageComp(cid)
+          || (canReadComp(cid) && (isRepOf(resource.data.teamId)
+              || (signedIn() && resource.data.uid == uid())))
+        );
+        allow write: if false;
+      }
+
+      // 賽事內人員：本人、主辦、共同主辦（管理員走 canManageComp）
+      match /staff/{staffUid} {
+        allow get: if (signedIn() && staffUid == uid()) || canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /invites/{ivId} {
+        allow get: if canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /audits/{auditId} {
+        allow get: if canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /reports/{reportId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+
+      // ── 場次（公開，不含 uid）＋直寫記分 ─────────────────────────────
+      match /matches/{mt} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow create, delete: if false;
+
+        // 記分 update（§6.3 第 4 點）
+        allow update: if matchUpdateOk(cid, mt);
+
+        // 公開事件：只能 create，沒有任何 update／delete 路徑
+        match /timeline/{eventId} {
+          allow get: if canReadComp(cid);
+          allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+          allow create: if eventCreateOk(cid, mt, eventId);
+          allow update, delete: if false;
+        }
+
+        // 作廢標記：公開、不含 uid、只能 create；必須與 void 事件同批
+        match /voids/{targetSeq} {
+          allow get: if canReadComp(cid);
+          allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+          allow create: if voidCreateOk(cid, mt, targetSeq);
+          allow update, delete: if false;
+        }
+
+        // 私密：目前記分者（接手，§6.3 第 2 點）
+        match /control/{ctlId} {
+          // 被指派者讀取也要過內部期閘門（Opus 終審 P2-2，§12.2-c）
+          allow get: if ctlId == 'scorer' && (canManageComp(cid)
+            || (isAssigned(cid, mt) && internalGate(get(compPath(cid)).data)));
+          allow list: if false;
+          allow create, update: if ctlId == 'scorer' && takeoverOk(cid, mt);
+          allow delete: if false;
+        }
+      }
+    }
+
+    // 自己的清單索引（伺服器寫；本人可讀）
+    match /cpMine/{mineUid}/items/{itemId} {
+      allow get: if signedIn() && mineUid == uid();
+      allow list: if signedIn() && mineUid == uid()
+        && request.query.limit != null && request.query.limit <= 50;
+      allow write: if false;
+    }
+
+    // 鏡像、配額、通知外送匣：用戶端一律不可讀寫（只給 Rules 判斷與伺服器）
+    match /cpClubs/{teamId} {
+      allow read, write: if false;
+      match /members/{memberUid} { allow read, write: if false; }
+    }
+    match /cpHostQuota/{hostUid} { allow read, write: if false; }
+    match /cpOutbox/{outId} { allow read, write: if false; }
+    // 其他路徑：Rules 預設拒絕；刻意不寫 {document=**}／{path=**}（§5.2 不開 collectionGroup）
+  }
+}

@@ -1,0 +1,8 @@
+rules_version = '2';
+// 模擬器 (default) 庫用的全拒規則：asia-main 的規則由 test-rules/_harness.ts 以 REST 個別載入
+// （firebase-tools 14.x 的模擬器不支援 firebase.json 的 firestore 多庫陣列，見 V2）。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+  }
+}
