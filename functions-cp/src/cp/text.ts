@@ -112,31 +112,28 @@ export function surnameOf(realName: string): string {
 }
 
 /**
- * 未成年公開顯示名可接受的候選（球員或代表可修正姓氏判斷，但只能在這幾種之中選，
- * 防止把全名寫進公開投影）：
- * - 含漢字：從第一個漢字起算（「Amy王小美」→ 王小美），第一個候選是 surnameOf（含複姓），另加第一字、前兩字。
- * - 純外文：只取最後一個詞（姓）。
- * - 任何候選都不得等於完整真名（Opus 終審 P1-3：單詞外文名、單字名）；全部被排除時退回「首字母＋.」。
+ * 公開顯示名遮字（站長 11-18：未成年與代填成年沒填暱稱時，一律遮住姓氏後的第一個字，不讓使用者自選）：
+ * - 含漢字：從第一個漢字起算；姓氏照 surnameOf（複姓表命中且至少 3 字才取兩字）；
+ *   王小明→王O明、歐陽娜娜→歐陽O娜、王明→王O、林→林O、Amy王小美→王O美。
+ * - 外文多個詞：名字只留首字母＋姓（John Smith→J. Smith、Mary Ann Lee→M. Lee）。
+ * - 外文單一個詞：首字母＋.（ChenXiaoming→C.）。
+ * 遮字用半形大寫 O。結果一定不等於完整真名。
  */
-export function minorPublicNameCandidates(realName: string): string[] {
+export const MASK_CHAR = 'O';
+export function maskedPublicName(realName: string): string {
   const s = cleanLine(realName) ?? '';
-  if (!s) return [];
-  const full = s.replace(/\s+/g, '');
-  const out: string[] = [];
-  const add = (c: string) => { if (c && c !== full && !out.includes(c)) out.push(c); };
-  const chars = [...full];
+  if (!s) return '';
+  const chars = [...s.replace(/\s+/g, '')];
   const hanAt = chars.findIndex(ch => HAN_RE.test(ch));
   if (hanAt >= 0) {
-    const han = chars.slice(hanAt);
-    add(surnameOf(han.join('')));
-    add(han[0]);
-    if (han.length >= 3) add(han.slice(0, 2).join(''));
-  } else {
-    const words = s.split(' ').filter(Boolean);
-    if (words.length >= 2) add(words[words.length - 1]);
+    const han = chars.slice(hanAt).join('');
+    const sur = surnameOf(han);
+    const given = [...han].slice([...sur].length);
+    return sur + MASK_CHAR + given.slice(1).join('');
   }
-  if (out.length === 0) out.push(chars[0].toUpperCase() + '.');
-  return out;
+  const words = s.split(' ').filter(Boolean);
+  if (words.length >= 2) return `${[...words[0]][0].toUpperCase()}. ${words[words.length - 1]}`;
+  return [...s][0].toUpperCase() + '.';
 }
 
 /** 直播連結（§8.3）：https＋白名單網域。 */

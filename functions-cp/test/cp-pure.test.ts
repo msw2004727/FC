@@ -10,7 +10,7 @@ import { CpError } from '../src/cp/errors.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { handleCpParticipant } from '../src/cp/participant.js';
 import {
-  SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, minorPublicNameCandidates, optionalText, surnameOf
+  SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, maskedPublicName, optionalText, surnameOf
 } from '../src/cp/text.js';
 import {
   divisionOf, divisionsOf, feeNoteOf, liveLinksOf, onlyKeys, scheduleOf, venuesOf, competitionName
@@ -53,23 +53,22 @@ describe('取姓氏（§4.3）', () => {
     ['司馬光', '司馬'], ['諸葛亮', '諸葛'], ['林', '林'], ['歐陽', '歐'],
     ['John Smith', 'Smith'], ['Mary Ann Lee', 'Lee'], ['Neymar', 'Neymar'], ['', '']
   ])('%s → %s', (name, sur) => { expect(surnameOf(name)).toBe(sur); });
-  it('候選不得等於完整真名（單詞外文名、非漢字開頭、單字名）', () => {
-    expect(minorPublicNameCandidates('ChenXiaoming')).toEqual(['C.']);
-    expect(minorPublicNameCandidates('Amy王小美')).toEqual(['王', '王小']);
-    expect(minorPublicNameCandidates('林')).toEqual(['林.']);
-    expect(minorPublicNameCandidates('さくら')).toEqual(['さ.']);
-    expect(minorPublicNameCandidates('歐陽娜娜')[0]).toBe('歐陽');
-    for (const n of ['ChenXiaoming', 'Amy王小美', '林', 'John Smith', '王小明', '歐陽娜娜', '王 小']) {
-      expect(minorPublicNameCandidates(n)).not.toContain(n.split(' ').join(''));
+  it('公開名遮字：遮姓氏後第一字（站長 11-18）', () => {
+    expect(maskedPublicName('王小明')).toBe('王O明');
+    expect(maskedPublicName('歐陽娜娜')).toBe('歐陽O娜');
+    expect(maskedPublicName('張簡一二')).toBe('張簡O二');
+    expect(maskedPublicName('王明')).toBe('王O');
+    expect(maskedPublicName('歐陽')).toBe('歐O');
+    expect(maskedPublicName('林')).toBe('林O');
+    expect(maskedPublicName('Amy王小美')).toBe('王O美');
+    expect(maskedPublicName('王 小 明')).toBe('王O明');
+    expect(maskedPublicName('John Smith')).toBe('J. Smith');
+    expect(maskedPublicName('mary ann lee')).toBe('M. lee');
+    expect(maskedPublicName('ChenXiaoming')).toBe('C.');
+    expect(maskedPublicName('')).toBe('');
+    for (const n of ['王小明', '歐陽娜娜', '王明', '林', 'John Smith', 'ChenXiaoming', 'Amy王小美']) {
+      expect(maskedPublicName(n)).not.toBe(n);
     }
-  });
-  it('未成年公開名候選：中文第一字與前兩字、外文只取姓', () => {
-    expect(minorPublicNameCandidates('王小明').sort()).toEqual(['王', '王小'].sort());
-    expect(minorPublicNameCandidates('歐陽娜娜')).toContain('歐陽');
-    expect(minorPublicNameCandidates('歐陽娜娜')).toContain('歐');
-    expect(minorPublicNameCandidates('歐陽娜娜')).not.toContain('歐陽娜娜');
-    // 外文只取最後一個詞（名字比姓好辨識，不列入）
-    expect(minorPublicNameCandidates('John Smith')).toEqual(['Smith']);
   });
 });
 

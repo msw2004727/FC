@@ -34,7 +34,7 @@ import {
   type CpDeps,
   type GateResult
 } from './context.js';
-import { cleanLine, findBannedWord, minorPublicNameCandidates, optionalLine, requireLine } from './text.js';
+import { cleanLine, findBannedWord, maskedPublicName, optionalLine, requireLine } from './text.js';
 import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 
 export const POSITIONS = ['GK', 'DF', 'MF', 'FW', 'custom'] as const;
@@ -250,7 +250,6 @@ interface PlayerInput {
   position: string | null;
   positionText: string | null;
   realName: string | null;
-  publicName: string | null;
   nickname: string | null;
   guardianConsent: boolean;
 }
@@ -272,39 +271,28 @@ function playerInputOf(input: Record<string, unknown>, bannedWords: readonly str
   if (input.privacyAck !== true) throw bad('PRIVACY_ACK_REQUIRED', { field: 'privacyAck' });
   if (input.guardianConsent != null && typeof input.guardianConsent !== 'boolean') throw bad('FIELD_TYPE', { field: 'guardianConsent' });
   const realName = optionalLine(input.realName, 'realName', 40);
-  const publicName = optionalLine(input.publicName, 'publicName', 20);
   const nickname = optionalLine(input.nickname, 'nickname', 20);
   if (nickname && findBannedWord(nickname, bannedWords)) throw bad('BANNED_WORD', { field: 'nickname' });
-  return { number, position, positionText, realName, publicName, nickname, guardianConsent: input.guardianConsent === true };
+  return { number, position, positionText, realName, nickname, guardianConsent: input.guardianConsent === true };
 }
 
 /**
- * 依年齡結果決定公開顯示名與私密真名（§4.3）：
+ * 依年齡結果決定公開顯示名與私密真名（§4.3；站長 11-18 改為遮字）：
  * - 真名必填：組別 requireRealName 或未成年。
- * - 未成年：必勾監護人同意；公開名只能是姓氏候選之一（未指定時用 surnameOf）。
- * - 成年：暱稱優先，否則用 fallback（自己登錄＝主站顯示名；代填＝真名）。
+ * - 未成年：必勾監護人同意；公開名一律 maskedPublicName（遮姓氏後第一字），不收暱稱、不讓使用者自選。
+ * - 代填成年：填了暱稱用暱稱，否則同樣遮字（顧問 §3.251 F1：不得把代填真名寫進公開名單）。
+ * - 自己登錄的成年：暱稱優先，否則主站顯示名。
  */
 function resolveNames(p: PlayerInput, isMinor: boolean, requireRealName: boolean, adultFallback: string | null, proxy = false) {
   if ((requireRealName || isMinor) && !p.realName) throw bad('REAL_NAME_REQUIRED', { field: 'realName' });
   if (isMinor) {
     if (!p.guardianConsent) throw bad('GUARDIAN_CONSENT_REQUIRED', { field: 'guardianConsent' });
-    const candidates = minorPublicNameCandidates(p.realName!);
-    const displayName = p.publicName ?? candidates[0];
-    if (!candidates.includes(displayName)) throw bad('MINOR_PUBLIC_NAME', { field: 'publicName' });
-    return { displayName, realName: p.realName };
+    if (p.nickname) throw bad('UNKNOWN_FIELD', { field: 'nickname' });
+    return { displayName: maskedPublicName(p.realName!), realName: p.realName };
   }
   if (proxy) {
-    // 代填成年球員：沒填暱稱時公開名預設姓氏（顧問 §3.251 F1：不得把代填真名寫進公開名單）；可另填暱稱或從姓氏候選選
-    if (p.nickname) {
-      if (p.publicName) throw bad('UNKNOWN_FIELD', { field: 'publicName' });
-      return { displayName: p.nickname, realName: p.realName };
-    }
-    const candidates = minorPublicNameCandidates(p.realName!);
-    const displayName = p.publicName ?? candidates[0];
-    if (!candidates.includes(displayName)) throw bad('MINOR_PUBLIC_NAME', { field: 'publicName' });
-    return { displayName, realName: p.realName };
+    return { displayName: p.nickname ?? maskedPublicName(p.realName!), realName: p.realName };
   }
-  if (p.publicName) throw bad('UNKNOWN_FIELD', { field: 'publicName' });
   const displayName = p.nickname ?? (cleanLine(adultFallback ?? '')?.slice(0, 30) || '球員');
   return { displayName, realName: p.realName };
 }
@@ -335,7 +323,7 @@ function fixAgeBasis(deps: CpDeps, tx: Tx, cid: string, comp: CompDoc): void {
 
 // ── joinRoster（成員自己登錄）─────────────────────────────────────────
 export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
-  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
+  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'nickname', 'guardianConsent', 'privacyAck']);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const enId = requireId(input.enId, ENID_RE, 'enId');
   const p = playerInputOf(input, gate.bannedWords);
@@ -390,7 +378,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
 
 // ── addRosterByRep（§4.4：隊長或領隊代填無帳號球員；uid 為 null）─────────
 export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
-  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'birthday', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
+  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'birthday', 'nickname', 'guardianConsent', 'privacyAck']);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const enId = requireId(input.enId, ENID_RE, 'enId');
   const p = playerInputOf(input, gate.bannedWords);

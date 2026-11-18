@@ -164,25 +164,21 @@ describe('未成年與年齡（U16 組）', () => {
   it('年齡不符被拒（成年成員報 U16）', async () => {
     await fails(join({ realName: '林大明' }), 'AGE_NOT_ELIGIBLE', 'failed-precondition');
   });
-  it('未成年：必填真名、必勾監護人同意、公開名只能是姓氏候選', async () => {
+  it('未成年：必填真名、必勾監護人同意、公開名一律遮字（站長 11-18）', async () => {
     await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(14, fm) });
     await fails(join(), 'REAL_NAME_REQUIRED');
     await fails(join({ realName: '歐陽小明' }), 'GUARDIAN_CONSENT_REQUIRED');
-    await fails(join({ realName: '歐陽小明', guardianConsent: true, publicName: '歐陽小明' }), 'MINOR_PUBLIC_NAME');
-    await fails(join({ realName: '歐陽小明', guardianConsent: true, publicName: '小明' }), 'MINOR_PUBLIC_NAME');
+    await fails(join({ realName: '歐陽小明', guardianConsent: true, publicName: '歐陽小明' }), 'UNKNOWN_FIELD');
+    await fails(join({ realName: '歐陽小明', guardianConsent: true, nickname: '小飛' }), 'UNKNOWN_FIELD');
     const r = await ok<{ plId: string; isMinor: boolean }>(join({ realName: '歐陽小明', guardianConsent: true }));
     expect(r.isMinor).toBe(true);
     const pub = (await adminDb().doc(`competitions/${cid}/roster/${r.plId}`).get()).data()!;
-    expect(pub.displayName).toBe('歐陽');
+    expect(pub.displayName).toBe('歐陽O明');
     expect(pub.isMinor).toBe(true);
     expect(JSON.stringify(pub)).not.toContain('小明');
+    expect(JSON.stringify(pub)).not.toContain('歐陽小');
     const priv = (await adminDb().doc(`competitions/${cid}/rosterPrivate/${r.plId}`).get()).data()!;
     expect(priv).toMatchObject({ realName: '歐陽小明', isMinor: true, guardianConsent: true, ageEligible: true });
-  });
-  it('未成年可把公開名修正為第一字', async () => {
-    await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(14, fm) });
-    const r = await ok<{ plId: string }>(join({ realName: '歐陽小明', guardianConsent: true, publicName: '歐' }));
-    expect((await adminDb().doc(`competitions/${cid}/roster/${r.plId}`).get()).get('displayName')).toBe('歐');
   });
   it('邊界：首場當天滿 16 歲不符 maxAge 15；剛好 15 歲可', async () => {
     await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(16, fm) });
@@ -207,12 +203,12 @@ describe('代表代填無帳號球員（addRosterByRep，§4.4）', () => {
       guardianConsent: true, privacyAck: true, ...over
     });
 
-  it('代表可代填：uid 為 null、記 addedByUid、公開只放姓氏、生日不入庫', async () => {
+  it('代表可代填：uid 為 null、記 addedByUid、公開遮字、生日不入庫', async () => {
     const r = await ok<{ plId: string; isMinor: boolean }>(add());
     expect(r.isMinor).toBe(true);
     const priv = (await adminDb().doc(`competitions/${cid}/rosterPrivate/${r.plId}`).get()).data()!;
     expect(priv).toMatchObject({ uid: null, addedByUid: 'tester', source: 'rep', realName: '陳小安', guardianConsent: true });
-    expect((await adminDb().doc(`competitions/${cid}/roster/${r.plId}`).get()).get('displayName')).toBe('陳');
+    expect((await adminDb().doc(`competitions/${cid}/roster/${r.plId}`).get()).get('displayName')).toBe('陳O安');
     const bd = birthdayForAge(12, fm);
     const hits = await scanAll([`competitions/${cid}/roster`, `competitions/${cid}/rosterPrivate`, `competitions/${cid}/audits`, `competitions/${cid}/entries`],
       (k, v) => /birth/i.test(k) || v === bd || v === bd.replace(/\//g, '-'));
@@ -335,10 +331,10 @@ describe('Opus 終審退修：拒絕清名單、隊名冒名、並行登錄', ()
   });
 });
 
-describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤隊上限、年齡基準日', () => {
+describe('顧問 §3.251：代填成年預設遮字、解鎖名單、被拒撤隊上限、年齡基準日', () => {
   beforeEach(async () => { await resetAll(); await setupComp(); });
 
-  it('F1：代填成年球員沒填暱稱時公開名是姓氏，不含真名全文；填暱稱用暱稱', async () => {
+  it('F1：代填成年球員沒填暱稱時公開名遮字（王O明式），不含真名全文；填暱稱用暱稱', async () => {
     const { enId } = await ok<{ enId: string }>(register());
     const a = await ok<{ plId: string; isMinor: boolean }>(call(handleCpEntry, TESTER, {
       action: 'addRosterByRep', cid, enId, number: 3, realName: '張大成', birthday: '1990/01/01', privacyAck: true }));
@@ -346,8 +342,8 @@ describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤�
     const b = await ok<{ plId: string }>(call(handleCpEntry, TESTER, {
       action: 'addRosterByRep', cid, enId, number: 4, realName: 'Kevin Lee', birthday: '1991/02/02', privacyAck: true, nickname: '阿凱' }));
     await fails(call(handleCpEntry, TESTER, {
-      action: 'addRosterByRep', cid, enId, number: 5, realName: '李四海', birthday: '1992/03/03', privacyAck: true, publicName: '李四海' }), 'MINOR_PUBLIC_NAME');
-    expect((await adminDb().doc(`competitions/${cid}/roster/${a.plId}`).get()).get('displayName')).toBe('張');
+      action: 'addRosterByRep', cid, enId, number: 5, realName: '李四海', birthday: '1992/03/03', privacyAck: true, publicName: '李四海' }), 'UNKNOWN_FIELD');
+    expect((await adminDb().doc(`competitions/${cid}/roster/${a.plId}`).get()).get('displayName')).toBe('張O成');
     expect((await adminDb().doc(`competitions/${cid}/roster/${b.plId}`).get()).get('displayName')).toBe('阿凱');
     const hits = await scanAll([`competitions/${cid}/roster`, `competitions/${cid}/entries`],
       (_k, v) => typeof v === 'string' && (v.includes('張大成') || v.includes('Kevin Lee')));
