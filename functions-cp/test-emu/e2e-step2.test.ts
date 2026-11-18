@@ -19,7 +19,12 @@ import { ADMIN, STRANGER, TESTER, call, createInput, fails, makeDeps, ok, resetA
 
 /** 每個 Callable 動作的伺服器讀取上限（含內部期 testers 1 讀） */
 const SERVER_BUDGET: Record<string, number> = {
-  create: 4, publish: 4, registerEntry: 8, reviewEntry: 5, joinRoster: 11, confirmRoster: 7, lockRosters: 3
+  create: 4, publish: 4,
+  // registerEntry：隊徽用同一次 cpClubs 讀取，上限維持 8（§3.264）
+  registerEntry: 8, reviewEntry: 5, joinRoster: 11, confirmRoster: 7,
+  // lockRosters：本劇本管理員、1 組 maxTeams 4。
+  // 上限＝閘門 1＋賽事 1＋主辦 0＋已核准查詢 ≤ 4＋每隊 cpClubs ≤ 4＝10
+  lockRosters: 10
 };
 
 /** 用戶端頁面讀取上限（§8.1；內部期每個請求另加 testers exists 1） */

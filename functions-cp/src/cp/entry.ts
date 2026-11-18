@@ -6,6 +6,7 @@
  * 公開 roster 只有顯示名、背號、位置、isMinor；未成年公開名只能是姓氏候選之一。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions/v2';
 import { evaluateAge } from './age.js';
 import { readMainProfileForAge } from './main-profile.js';
 import { prepareMine, type MineChange } from './mine.js';
@@ -35,7 +36,7 @@ import {
   type GateResult
 } from './context.js';
 import { cleanLine, findBannedWord, maskedPublicName, optionalLine, requireLine } from './text.js';
-import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
+import { LIMITS, asRecord, onlyKeys, requireEnum, statusReasonOf, teamLogoOf } from './validate.js';
 
 export const POSITIONS = ['GK', 'DF', 'MF', 'FW', 'custom'] as const;
 /** 自訂位置上限（站長 11-18「無／自訂」）：360px 名單列（背號 99＋10 字顯示名）實測 6 字溢出、5 字可放，取 5 */
@@ -120,8 +121,10 @@ export async function registerEntry(deps: CpDeps, caller: Caller, gate: GateResu
     // 隊名只能是鏡像俱樂部名稱或其加後綴（例如「甲隊 A」），防止報隊冒用他隊名稱（Opus 終審 P3）
     if (teamNameIn && (!rep.name || !teamNameIn.startsWith(rep.name))) throw bad('TEAM_NAME_MISMATCH', { field: 'teamName' });
     const name = teamNameIn ?? rep.name ?? '隊伍';
+    // 隊徽只收鏡像上的 https 網址；不合格寫 null，不擋報隊。image 與 isClubRep 同一次讀取
+    const teamLogo = teamLogoOf(rep.image);
     tx.create(deps.db.doc(`competitions/${cid}/entries/${enId}`), {
-      dvId, teamId, name, status: 'pending', rosterCount: 0, rosterConfirmed: false,
+      dvId, teamId, name, teamLogo, status: 'pending', rosterCount: 0, rosterConfirmed: false,
       createdAt: now, updatedAt: now
     });
     tx.create(deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`), {
@@ -500,13 +503,56 @@ export async function lockRosters(deps: CpDeps, caller: Caller, gate: GateResult
     if (comp.status !== 'published') throw pre('COMPETITION_NOT_OPEN', { status: comp.status });
     if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
     if (comp.rostersLockedAt) throw pre('ROSTERS_LOCKED');
+    const now = FieldValue.serverTimestamp();
     tx.update(deps.db.doc(`competitions/${cid}`), {
-      rostersLockedAt: FieldValue.serverTimestamp(),
-      stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
+      rostersLockedAt: now,
+      stateVersion: FieldValue.increment(1), updatedAt: now
     });
     writeAudit(deps, tx, cid, caller, 'lockRosters');
   });
+  // 鎖定成功後刷新已核准隊伍的 teamLogo（顧問 §3.264④）。放在交易外分批寫：
+  // 已核准上限＝組別 8 × 每組 64＝512 筆，放進鎖名單交易會超過單交易 500 寫入（Flash 初審 P2）。
+  // 隊徽只是顯示用，刷新失敗不影響鎖定結果，與 syncMineIndex 同樣盡力而為。
+  await refreshTeamLogos(deps, cid).catch((e: unknown) => {
+    // Opus 終審 P3：不要靜默吞掉，留紀錄（只帶 cid 與錯誤類型，不帶個資）
+    logger.warn('lockRosters refreshTeamLogos failed', { cid, error: (e as Error)?.name ?? 'Error', code: (e as { code?: unknown })?.code ?? null });
+  });
   return { cid, locked: true };
+}
+
+/**
+ * 依 cpClubs.image 刷新本賽事已核准報隊的 teamLogo。每支不同隊伍讀 1 次 cpClubs（同隊多組只讀一次），
+ * 讀取上限＝已核准查詢筆數（≤ 各組 maxTeams 合計）＋去重隊數。每批 ≤ 400 筆寫入。
+ */
+async function refreshTeamLogos(deps: CpDeps, cid: string): Promise<void> {
+  const approved = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entries`)
+    .where('status', '==', 'approved').limit(LIMITS.divisionsMax * LIMITS.teamsMax));
+  const byTeam = new Map<string, DocumentReference[]>();
+  for (const d of approved.docs) {
+    const teamId = d.get('teamId');
+    if (typeof teamId !== 'string' || !TEAM_ID_RE.test(teamId)) continue;
+    const refs = byTeam.get(teamId) ?? [];
+    refs.push(d.ref);
+    byTeam.set(teamId, refs);
+  }
+  const updates: Array<[DocumentReference, string | null]> = [];
+  const teams = [...byTeam.entries()];
+  // Opus 終審 P3：每 50 隊並行讀（讀取數不變，仍經 readDoc 計數），避免 512 次依序 await 拉長回應
+  for (let i = 0; i < teams.length; i += 50) {
+    const chunk = teams.slice(i, i + 50);
+    const clubs = await Promise.all(chunk.map(([teamId]) => readDoc(deps, null, deps.db.doc(`cpClubs/${teamId}`))));
+    chunk.forEach(([, refs], k) => {
+      const club = clubs[k];
+      // cpClubs.image 由主站 onTeamWrittenForCompetitions 寫入；圖片變更也要寫入列 G4 待辦，不在本 codebase
+      const teamLogo = teamLogoOf(club?.exists ? club.get('image') : null);
+      for (const ref of refs) updates.push([ref, teamLogo]);
+    });
+  }
+  for (let i = 0; i < updates.length; i += 400) {
+    const b = deps.db.batch();
+    for (const [ref, teamLogo] of updates.slice(i, i + 400)) b.update(ref, { teamLogo, updatedAt: FieldValue.serverTimestamp() });
+    await b.commit();
+  }
 }
 
 // ── unlockRosters（顧問 §3.251 F3：首場前主辦或管理員可解鎖，寫稽核）──────────

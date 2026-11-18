@@ -110,6 +110,8 @@ export interface CompDoc {
   hostDisplay: string;
   visibility: 'public' | 'internal';
   status: 'draft' | 'published' | 'postponed' | 'cancelled';
+  /** 賽事分類。舊文件可能沒有；讀取用 categoryOf，缺值視為 league */
+  category?: 'league' | 'cup' | 'friendly';
   hidden: boolean;
   regOpenAt: Timestamp;
   regCloseAt: Timestamp;
@@ -158,13 +160,16 @@ export async function loadComp(deps: CpDeps, tx: Reader, cid: string): Promise<C
 }
 
 // ── 俱樂部鏡像（§2.4：只信路徑 id）─────────────────────────────────────
-export async function isClubRep(deps: CpDeps, tx: Reader, teamId: string, uid: string): Promise<{ ok: boolean; name: string | null }> {
-  if (!TEAM_ID_RE.test(teamId)) return { ok: false, name: null };
+export async function isClubRep(deps: CpDeps, tx: Reader, teamId: string, uid: string): Promise<{ ok: boolean; name: string | null; image: string | null }> {
+  if (!TEAM_ID_RE.test(teamId)) return { ok: false, name: null, image: null };
   const snap = await readDoc(deps, tx, deps.db.doc(`cpClubs/${teamId}`));
-  if (!snap.exists) return { ok: false, name: null };
+  if (!snap.exists) return { ok: false, name: null, image: null };
   const reps = snap.get('repUids');
   const name = typeof snap.get('name') === 'string' ? (snap.get('name') as string) : null;
-  return { ok: Array.isArray(reps) && reps.includes(uid), name };
+  // cpClubs.image 由主站 onTeamWrittenForCompetitions 寫入；圖片變更也要寫入列 G4 待辦，不在本 codebase
+  const imageRaw = snap.get('image');
+  const image = typeof imageRaw === 'string' ? imageRaw : null;
+  return { ok: Array.isArray(reps) && reps.includes(uid), name, image };
 }
 
 export async function isClubMember(deps: CpDeps, tx: Reader, teamId: string, uid: string): Promise<boolean> {

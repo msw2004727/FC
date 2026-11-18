@@ -35,6 +35,8 @@ import {
   TIMEZONES,
   asRecord,
   assertFeeAllowed,
+  categoryInput,
+  categoryOf,
   competitionName,
   divisionsOf,
   feeNoteOf,
@@ -79,7 +81,7 @@ function divisionDoc(d: DivisionInput, order: number) {
 
 // ── create ─────────────────────────────────────────────────────────────
 const CREATE_KEYS = [
-  'action', 'name', 'hostType', 'hostTeamId', 'hostDisplay', 'sport', 'timezone',
+  'action', 'name', 'hostType', 'hostTeamId', 'hostDisplay', 'sport', 'timezone', 'category',
   'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt', 'venues', 'feeNote', 'liveLinks', 'divisions'
 ];
 
@@ -89,6 +91,8 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   if (input.hostType === 'group') throw bad('HOST_TYPE_NOT_SUPPORTED', { field: 'hostType' });
   const hostType = requireEnum(input.hostType, ['personal', 'club'] as const, 'hostType');
   const name = competitionName(input.name, gate.bannedWords);
+  // 選填；缺值（沒帶或 null）寫 league。其他值白名單不過就 INVALID_FIELD
+  const category = input.category == null ? 'league' : categoryInput(input.category);
   const sport = requireEnum(input.sport, SPORTS, 'sport');
   const timezone = requireEnum(input.timezone ?? 'Asia/Taipei', TIMEZONES, 'timezone');
   const sched = scheduleOf(input, nowMs, { requireFuture: true });
@@ -166,14 +170,14 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
 
     // 個人主辦的「自己的清單」走 cpMine（主文件不放 uid）；俱樂部主辦由目前代表以 hostTeamId 查（V16）
     const writeMine = hostType === 'personal'
-      ? await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true })
+      ? await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt), category }, { addHost: true })
       : null;
 
     // ── 寫 ──
     const now = FieldValue.serverTimestamp();
     // 主文件不放建立者 uid（§3.251 (c)）；個人主辦身分寫在 staff/{uid}（host），俱樂部主辦只認目前代表
     tx.create(deps.db.doc(`competitions/${cid}`), {
-      name, sport, hostType, hostTeamId, hostDisplay,
+      name, sport, category, hostType, hostTeamId, hostDisplay,
       // §12.2 b：內部期一律 internal，用戶端無法指定
       visibility: gate.isPublic ? 'public' : 'internal',
       status: 'draft', statusReason: null, hidden: false,
@@ -205,7 +209,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
 
 // ── update ─────────────────────────────────────────────────────────────
 const UPDATE_KEYS = [
-  'action', 'cid', 'name', 'hostDisplay', 'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt',
+  'action', 'cid', 'name', 'category', 'hostDisplay', 'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt',
   'venues', 'feeNote', 'liveLinks', 'divisions'
 ];
 const SCHEDULE_KEYS = ['regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt'];
@@ -218,7 +222,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const schedKeys = SCHEDULE_KEYS.filter(has);
   if (schedKeys.length > 0 && schedKeys.length < 4) throw bad('SCHEDULE_ALL_REQUIRED', { field: 'schedule' });
   const divisions = has('divisions') ? divisionsOf(input.divisions) : null;
-  let mineSync: { name: string; firstMatchAt: Timestamp } | null = null;
+  let mineSync: { name: string; firstMatchAt: Timestamp; category: 'league' | 'cup' | 'friendly' } | null = null;
 
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
@@ -230,6 +234,8 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
 
     const patch: Record<string, unknown> = {};
     if (has('name')) patch.name = competitionName(input.name, gate.bannedWords);
+    // 與改名相同：已結束／已取消在上面 COMPETITION_CLOSED 擋下；這裡只驗白名單
+    if (has('category')) patch.category = categoryInput(input.category);
     if (has('hostDisplay')) {
       if (comp.hostType !== 'personal') throw bad('UNKNOWN_FIELD', { field: 'hostDisplay' });
       patch.hostDisplay = hostDisplayName(input.hostDisplay, gate.bannedWords);
@@ -299,17 +305,21 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       ...patch, stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
     });
     writeAudit(deps, tx, cid, caller, 'update', { fields: Object.keys(patch), divisions: divisions ? divisions.length : null });
-    if (patch.name !== undefined || patch.firstMatchAt !== undefined) {
-      mineSync = { name: (patch.name as string | undefined) ?? comp.name, firstMatchAt: (patch.firstMatchAt as Timestamp | undefined) ?? comp.firstMatchAt };
+    if (patch.name !== undefined || patch.firstMatchAt !== undefined || patch.category !== undefined) {
+      mineSync = {
+        name: (patch.name as string | undefined) ?? comp.name,
+        firstMatchAt: (patch.firstMatchAt as Timestamp | undefined) ?? comp.firstMatchAt,
+        category: categoryOf({ category: patch.category !== undefined ? patch.category : comp.category })
+      };
     }
   });
-  // cpMine 索引同步名稱與首場（顧問 §3.254）：交易外盡力而為（改名改期很少發生），找不到索引的略過
+  // cpMine 索引同步名稱、首場、分類（顧問 §3.254、§3.264）：交易外盡力而為，找不到索引的略過
   if (mineSync) await syncMineIndex(deps, cid, mineSync);
   return { cid };
 }
 
-/** 依伺服器資料推導持有本賽事 cpMine 索引的人（個人主辦 staff host、球員、報隊者），更新名稱與首場。 */
-async function syncMineIndex(deps: CpDeps, cid: string, fields: { name: string; firstMatchAt: Timestamp }): Promise<void> {
+/** 依伺服器資料推導持有本賽事 cpMine 索引的人（個人主辦 staff host、球員、報隊者），更新名稱、首場、分類。 */
+async function syncMineIndex(deps: CpDeps, cid: string, fields: { name: string; firstMatchAt: Timestamp; category: string }): Promise<void> {
   const uids = new Set<string>();
   const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
   hs.docs.forEach(d => uids.add(d.id));
@@ -320,7 +330,9 @@ async function syncMineIndex(deps: CpDeps, cid: string, fields: { name: string; 
   const list = [...uids];
   for (let i = 0; i < list.length; i += 50) {
     await Promise.all(list.slice(i, i + 50).map(u =>
-      deps.db.doc(`cpMine/${u}/items/${cid}`).update({ name: fields.name, firstMatchAt: fields.firstMatchAt }).catch(() => undefined)));
+      deps.db.doc(`cpMine/${u}/items/${cid}`).update({
+        name: fields.name, firstMatchAt: fields.firstMatchAt, category: fields.category
+      }).catch(() => undefined)));
   }
 }
 

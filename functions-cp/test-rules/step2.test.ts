@@ -231,3 +231,26 @@ describe('§3.251 (a)(c)：主辦權只認目前代表與 staff 角色', () => {
     await assertSucceeds(getDocs(query(collection(anon(), 'competitions/cp_pub/entries'), limit(32))));
   });
 });
+
+describe('§3.264 用戶端不能直寫 category 或 teamLogo', () => {
+  it('【拒】代表建立報隊時帶 teamLogo', async () => {
+    await assertFails(setDoc(doc(as('rep'), 'competitions/cp_pub/entries/en_logo'), {
+      teamId: 'club_a', dvId: 'dv_1', status: 'approved', teamLogo: 'https://cdn.example/a.png'
+    }));
+  });
+  it('【拒】代表更新既有報隊的 teamLogo', async () => {
+    await assertFails(updateDoc(doc(as('rep'), 'competitions/cp_pub/entries/en_h'), { teamLogo: 'https://cdn.example/a.png' }));
+  });
+  it('【拒】球員更新既有報隊的 teamLogo', async () => {
+    await assertFails(updateDoc(doc(as('m1'), 'competitions/cp_pub/entries/en_h'), { teamLogo: 'https://cdn.example/b.png' }));
+  });
+  it('【拒】主辦直寫賽事 category', async () => {
+    await assertFails(updateDoc(doc(as('host'), 'competitions/cp_pub'), { category: 'cup' }));
+  });
+  it('【拒】代表直寫賽事 category', async () => {
+    await assertFails(updateDoc(doc(as('rep'), 'competitions/cp_pub'), { category: 'friendly' }));
+  });
+  it('【拒】球員建立賽事時帶 category', async () => {
+    await assertFails(setDoc(doc(as('m1'), 'competitions/cp_client'), { name: 'x', category: 'league' }));
+  });
+});

@@ -5,6 +5,7 @@
  */
 import type { DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { FieldValue, readDoc, type CompDoc, type CpDeps } from './context.js';
+import { categoryOf } from './validate.js';
 
 export interface MineChange {
   addHost?: boolean;
@@ -15,10 +16,10 @@ export interface MineChange {
   removePlayer?: string;
 }
 
-/** 讀（交易讀階段呼叫）→ 回傳寫入函式（寫階段呼叫）。comp 只取 name、firstMatchAt。 */
+/** 讀（交易讀階段呼叫）→ 回傳寫入函式（寫階段呼叫）。comp 只取 name、firstMatchAt、category（缺值視為 league）。 */
 export async function prepareMine(
   deps: CpDeps, tx: Transaction, uid: string, cid: string,
-  comp: Pick<CompDoc, 'name' | 'firstMatchAt'>, ch: MineChange
+  comp: Pick<CompDoc, 'name' | 'firstMatchAt'> & { category?: unknown }, ch: MineChange
 ): Promise<() => void> {
   const ref = deps.db.doc(`cpMine/${uid}/items/${cid}`);
   const snap: DocumentSnapshot = await readDoc(deps, tx, ref);
@@ -38,7 +39,7 @@ export async function prepareMine(
       return;
     }
     tx.set(ref, {
-      cid, name: comp.name, firstMatchAt: comp.firstMatchAt, roles, host,
+      cid, name: comp.name, firstMatchAt: comp.firstMatchAt, category: categoryOf(comp), roles, host,
       entryIds: [...entryIds], plIds: [...plIds], updatedAt: FieldValue.serverTimestamp()
     });
   };

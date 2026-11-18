@@ -5,6 +5,10 @@
 import { bad } from './errors.js';
 import { cleanLine, findBannedWord, isAllowedLiveLink, optionalLine, optionalText, requireLine } from './text.js';
 
+/** 賽事分類（顧問 §3.264）。讀取端缺值用 categoryOf，不在這裡默認。 */
+export const CATEGORIES = ['league', 'cup', 'friendly'] as const;
+export type CompetitionCategory = (typeof CATEGORIES)[number];
+
 export const SPORTS = ['football'] as const;
 export const TIMEZONES = ['Asia/Taipei'] as const;
 export const PLAYERS_ON_FIELD = [5, 7, 8, 9, 11] as const;
@@ -69,6 +73,41 @@ function optIntIn(v: unknown, field: string, min: number, max: number): number |
 export function requireEnum<T extends string>(v: unknown, list: readonly T[], field: string): T {
   if (typeof v !== 'string' || !(list as readonly string[]).includes(v)) throw bad('FIELD_ENUM', { field });
   return v as T;
+}
+
+/**
+ * 讀取端分類：文件缺欄位、null、或不是白名單，一律視為 'league'。
+ * 不丟錯（舊賽事沒有這個欄位）。
+ */
+export function categoryOf(doc: { category?: unknown } | null | undefined): CompetitionCategory {
+  const c = doc?.category;
+  return typeof c === 'string' && (CATEGORIES as readonly string[]).includes(c) ? c as CompetitionCategory : 'league';
+}
+
+/** 寫入端白名單。其他值（含型別不對、空字串）回 INVALID_FIELD。缺值由呼叫端另處理。 */
+export function categoryInput(v: unknown): CompetitionCategory {
+  if (typeof v !== 'string' || !(CATEGORIES as readonly string[]).includes(v)) {
+    throw bad('INVALID_FIELD', { field: 'category' });
+  }
+  return v as CompetitionCategory;
+}
+
+/**
+ * 隊徽網址快照。規則對齊主站 tournamentCards 的 image（firestore.rules isValidTournamentCard）：
+ * 整段符合 `https://` 後只許可見 ASCII（`[!-~]+`，不含空白），不合格的不存。
+ * 長度上限 1200，與主站 image 相同（firestore.rules isValidTournamentCard）。取代派工卡原寫的 500：Firebase 下載網址可能超過 500，會被誤判成沒有隊徽。
+ * 正規化只做 NFKC 與去頭尾空白，不改寫路徑（不用 URL.href，避免多出結尾斜線）。
+ * 不合格回 null，不丟錯。
+ */
+export const TEAM_LOGO_MAX = 1200;
+const TEAM_LOGO_RE = /^https:\/\/[!-~]+$/;
+
+export function teamLogoOf(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.normalize('NFKC').trim();
+  if (s.length === 0 || s.length > TEAM_LOGO_MAX) return null;
+  if (!TEAM_LOGO_RE.test(s)) return null;
+  return s;
 }
 
 export function competitionName(v: unknown, bannedWords: readonly string[]): string {
