@@ -75,7 +75,8 @@ export const cpOnMatchWritten = onDocumentWritten({
     // 資料錯誤（TypeError／RangeError，例如場次欄位壞掉）重試也不會好：記 log 後吞掉，避免連續重試 7 天
     // （Opus 終審 P3-6）。交易衝突、逾時等其他錯誤照拋，讓平台重試（處理函式冪等）。
     if (e instanceof TypeError || e instanceof RangeError) {
-      logger.error('cpOnMatchWritten data error', { error: e.name });
+      // cid／mtId 是隨機 id、不是個資；上線後要對這條 log 設告警（TypeError 也可能是程式錯誤）
+      logger.error('cpOnMatchWritten data error', { cid: event.params.cid, mtId: event.params.mtId, error: e.name, message: e.message.slice(0, 200) });
       return;
     }
     throw e;

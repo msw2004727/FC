@@ -148,7 +148,9 @@ async function syncEnded(deps: CpDeps, cid: string, wasCounted: boolean, isCount
       });
       return 'set';
     }
-    // 有任何場次不計入（重置、新排的場次）就解除末場確認造成的結束（Opus 終審 P1-1 (c)）
+    // 計入場次被改成不計入（重置）就解除末場確認造成的結束（Opus 終審 P1-1 (c)）。
+    // 新排的場次不會走到這裡（before 為 null、after 不計入）：由 generateSchedule 同交易解除（(b)）；
+    // 第 5 步若新增其他建場路徑，也要同樣解除。
     if (!isCounted && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
       tx.update(compRef, {
         endedAt: null, endedBy: null,
