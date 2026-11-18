@@ -38,8 +38,8 @@ import { cleanLine, findBannedWord, minorPublicNameCandidates, optionalLine, req
 import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 
 export const POSITIONS = ['GK', 'DF', 'MF', 'FW', 'custom'] as const;
-/** 自訂位置上限（站長 11-18「無／自訂」；360px 名單列實測後定，見 第2步-驗證結果.md） */
-export const POSITION_TEXT_MAX = 6;
+/** 自訂位置上限（站長 11-18「無／自訂」）：360px 名單列（背號 99＋10 字顯示名）實測 6 字溢出、5 字可放，取 5 */
+export const POSITION_TEXT_MAX = 5;
 /** 每組報隊上限（含待審）：maxTeams 的 2 倍，防灌報名 */
 export const PENDING_FACTOR = 2;
 /** 同隊同組被拒或撤隊累計上限（達到就不得再報）；查詢只取 ENTRY_RETRY_MAX + 1 筆 */

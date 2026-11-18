@@ -384,11 +384,11 @@ describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤�
 describe('站長 11-18：位置「無／自訂」、報隊審核屬主辦方', () => {
   beforeEach(async () => { await resetAll(); await setupComp(); });
 
-  it('位置可為無（null）或自訂（≤ 6 字）；自訂必填文字、非自訂不得帶文字', async () => {
+  it('位置可為無（null）或自訂（≤ 5 字）；自訂必填文字、非自訂不得帶文字', async () => {
     const { enId } = await ok<{ enId: string }>(register());
-    const a = await ok<{ plId: string }>(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 1, privacyAck: true, position: 'custom', positionText: '自由人邊後衛' }));
-    expect((await adminDb().doc(`competitions/${cid}/roster/${a.plId}`).get()).data()).toMatchObject({ position: 'custom', positionText: '自由人邊後衛' });
-    await fails(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true, position: 'custom', positionText: '自由人邊後衛甲' }), 'FIELD_LENGTH');
+    const a = await ok<{ plId: string }>(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 1, privacyAck: true, position: 'custom', positionText: '自由人後衛' }));
+    expect((await adminDb().doc(`competitions/${cid}/roster/${a.plId}`).get()).data()).toMatchObject({ position: 'custom', positionText: '自由人後衛' });
+    await fails(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true, position: 'custom', positionText: '自由人邊後衛' }), 'FIELD_LENGTH');
     await fails(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true, position: 'custom' }), 'FIELD_REQUIRED');
     await fails(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true, position: 'GK', positionText: '守門' }), 'UNKNOWN_FIELD');
     const b = await ok<{ plId: string }>(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true }));
