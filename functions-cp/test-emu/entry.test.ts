@@ -405,3 +405,16 @@ describe('站長 11-18：位置「無／自訂」、報隊審核屬發起人', (
     await ok(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }));
   });
 });
+
+describe('setPaymentStatus（支付接點，只主辦可改）', () => {
+  beforeEach(async () => { await resetAll(); await setupComp(); });
+  it('主辦可標示已繳費／未繳費；代表、待定與退款值不能手動設', async () => {
+    const { enId } = await ok<{ enId: string }>(register());
+    await fails(call(handleCpEntry, TESTER, { action: 'setPaymentStatus', cid, enId, paymentStatus: 'paid' }), 'NOT_HOST');
+    await fails(call(handleCpEntry, ADMIN, { action: 'setPaymentStatus', cid, enId, paymentStatus: 'refunded' }), 'FIELD_ENUM');
+    await ok(call(handleCpEntry, ADMIN, { action: 'setPaymentStatus', cid, enId, paymentStatus: 'paid' }));
+    expect((await adminDb().doc(`competitions/${cid}/entryPrivate/${enId}`).get()).get('paymentStatus')).toBe('paid');
+    await ok(call(handleCpEntry, ADMIN, { action: 'setPaymentStatus', cid, enId, paymentStatus: 'none' }));
+    expect((await adminDb().doc(`competitions/${cid}/entryPrivate/${enId}`).get()).get('paymentStatus')).toBe('none');
+  });
+});

@@ -545,8 +545,30 @@ export async function unlockRosters(deps: CpDeps, caller: Caller, gate: GateResu
   return { cid, locked: false };
 }
 
+// ── setPaymentStatus（§8.4 支付接點：只主辦可改；站長 11-18「繳費標籤＋標示已繳費開關」，不接金流）──
+export const PAYMENT_STATUSES = ['none', 'paid'] as const;
+export async function setPaymentStatus(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'enId', 'paymentStatus']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const enId = requireId(input.enId, ENID_RE, 'enId');
+  // pending／refunded 保留給未來線上支付模組（伺服器寫），手動只能切 none／paid
+  const paymentStatus = requireEnum(input.paymentStatus, PAYMENT_STATUSES, 'paymentStatus');
+  await deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
+    if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
+    const entry = await loadEntry(deps, tx, cid, enId);
+    if (entry.data.status !== 'approved' && entry.data.status !== 'pending') throw pre('ENTRY_STATE', { status: entry.data.status });
+    tx.update(deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`), { paymentStatus, updatedAt: FieldValue.serverTimestamp() });
+    writeAudit(deps, tx, cid, caller, 'setPaymentStatus', { enId, paymentStatus });
+  });
+  return { cid, enId, paymentStatus };
+}
+
 export const ENTRY_ACTIONS = {
-  registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters, unlockRosters
+  registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters, unlockRosters,
+  setPaymentStatus
 } as const;
 
 export async function handleCpEntry(deps: CpDeps, caller: Caller, data: unknown) {
