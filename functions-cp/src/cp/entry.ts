@@ -546,6 +546,8 @@ export async function setPaymentStatus(deps: CpDeps, caller: Caller, gate: GateR
     assertCompVisible(comp, gate);
     if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
     if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
+    // 報名費只限俱樂部主辦（顧問 §3.257）：個人主辦賽事沒有繳費，一律拒絕
+    if (comp.hostType !== 'club') throw pre('PAYMENT_NOT_ALLOWED');
     const entry = await loadEntry(deps, tx, cid, enId);
     if (entry.data.status !== 'approved' && entry.data.status !== 'pending') throw pre('ENTRY_STATE', { status: entry.data.status });
     tx.update(deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`), { paymentStatus, updatedAt: FieldValue.serverTimestamp() });
