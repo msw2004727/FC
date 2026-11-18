@@ -136,8 +136,8 @@ export function requireId(value: unknown, re: RegExp, field: string): string {
 }
 
 const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-/** 前綴＋20 碼英數（R-ID：cp_／dv_／en_／pl_）。 */
-export function newId(prefix: 'cp' | 'dv' | 'en' | 'pl'): string {
+/** 前綴＋20 碼英數（R-ID：cp_／dv_／en_／pl_／mt_）。 */
+export function newId(prefix: 'cp' | 'dv' | 'en' | 'pl' | 'mt'): string {
   const bytes = randomBytes(20);
   let s = '';
   // 248 = 62*4，丟棄 ≥248 的位元組以免取模偏差；不足再補

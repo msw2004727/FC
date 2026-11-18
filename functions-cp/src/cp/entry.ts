@@ -524,6 +524,9 @@ export async function unlockRosters(deps: CpDeps, caller: Caller, gate: GateResu
     if (comp.status !== 'published') throw pre('COMPETITION_NOT_OPEN', { status: comp.status });
     if (comp.hidden && !admin) throw pre('COMPETITION_HIDDEN');
     if (!admin && nowMs >= comp.firstMatchAt.toMillis()) throw pre('COMPETITION_STARTED');
+    // 第 3 步：已排賽程時不能解鎖（名單異動會讓賽程失真）；要先 clearSchedule
+    const scheduled = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`).select().limit(1));
+    if (!scheduled.empty) throw pre('SCHEDULE_EXISTS');
     tx.update(deps.db.doc(`competitions/${cid}`), {
       rostersLockedAt: null,
       stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()

@@ -206,7 +206,7 @@ describe('Callable 外殼', () => {
     expect(toErrorShape(new Error('secret stack'))).toEqual({ code: 'internal', reason: 'INTERNAL' });
   });
   it.each([
-    ['cpHost', handleCpHost, ['generateSchedule', 'assignStaff', 'createInvite', 'resetMatch', 'toString', '__proto__', '']],
+    ['cpHost', handleCpHost, ['assignStaff', 'createInvite', 'revokeInvite', 'toString', '__proto__', '']],  // 第 3 步起 generateSchedule、resetMatch 已實作
     ['cpEntry', handleCpEntry, ['lockRoster', 'unlockRoster', 'constructor', 'hasOwnProperty']],
     ['cpParticipant', handleCpParticipant, ['acceptInvite', 'resyncMyClubs', 'requestMyDataRemoval']]
   ] as const)('%s 未知或未實作動作一律拒絕（在讀資料庫之前）', async (_n, handler, actions) => {

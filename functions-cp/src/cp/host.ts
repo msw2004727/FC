@@ -1,7 +1,7 @@
 /**
  * cpHost 第 2 步動作：create、update、publish、setStatus、delete（§6.1）。
- * generateSchedule、assignStaff、createInvite、revokeInvite、confirmMatchResult、resetMatch 屬第 3、4 步，
- * 這裡回 UNKNOWN_ACTION（未實作的動作一律拒絕，不靜默成功）。
+ * 第 3 步動作（排賽程、改期、登錄比分、確認、棄權、重置、積分重算）在 match-host.ts，於 HOST_ACTIONS 合併。
+ * assignStaff、createInvite、revokeInvite 屬第 4 步，這裡回 UNKNOWN_ACTION（未實作的動作一律拒絕，不靜默成功）。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { CpError, bad, deny, pre } from './errors.js';
@@ -48,6 +48,7 @@ import {
 } from './validate.js';
 import { cleanLine, findBannedWord } from './text.js';
 import { prepareMine } from './mine.js';
+import { MATCH_HOST_ACTIONS } from './match-host.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -427,7 +428,8 @@ export const HOST_ACTIONS = {
   update: updateCompetition,
   publish: publishCompetition,
   setStatus: setCompetitionStatus,
-  delete: deleteCompetition
+  delete: deleteCompetition,
+  ...MATCH_HOST_ACTIONS
 } as const;
 
 export async function handleCpHost(deps: CpDeps, caller: Caller, data: unknown) {

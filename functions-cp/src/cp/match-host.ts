@@ -1,0 +1,499 @@
+/**
+ * cpHost 第 3 步動作：排賽程、改期、主辦登錄比分、比分確認、棄權、重置、積分全量重算。
+ * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）。
+ *
+ * 原則
+ * - 權限：launchGate（內部期）→ 交易內 loadComp → assertCompVisible → assertHostOrCo（主辦、共同主辦、管理員）。
+ * - 場次寫入一律 Admin SDK；公開場次文件不放 uid（操作者只進雜湊稽核）。
+ * - rev 只增不退（§3.250-6）：每次伺服器改場次都 +1，讓離線的舊直寫在 Rules 被拒；resetMatch 另記 resetRev。
+ * - 積分只算 confirmed／walkover（§6.3-7）；積分榜由觸發器重算（match-trigger.ts），本檔只有全量重算鈕。
+ * - 第 3 步只開單一組循環；多組與淘汰屬第 5 步。
+ */
+import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
+import { DEFAULT_WALKOVER, matchResult, type MatchResult } from '../engine/index.js';
+import { CpError, bad, pre } from './errors.js';
+import {
+  CID_RE,
+  DVID_RE,
+  FieldValue,
+  assertCompVisible,
+  assertHostOrCo,
+  isAdmin,
+  loadComp,
+  newId,
+  readDoc,
+  readQuery,
+  requireId,
+  ts,
+  writeAudit,
+  type Caller,
+  type CompDoc,
+  type CpDeps,
+  type GateResult
+} from './context.js';
+import { onlyKeys, requireEnum, statusReasonOf } from './validate.js';
+import { derivedScoreOf, planRoundRobin, publicMatchDoc, type PlanDay } from './schedule-plan.js';
+import { summaryEntryOf, summaryShardIdOf } from './summary.js';
+import { recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
+
+export const MTID_RE = /^mt_[A-Za-z0-9]{20}$/;
+export const SCHEDULE_LIMITS = Object.freeze({
+  teamsMin: 2,
+  teamsMax: 16,
+  matchesMax: 200,
+  daysMax: 14,
+  scoreMax: 99,
+  /** 末場確認自動結束後，主辦仍可改比分的寬限（之後只有管理員） */
+  endedGraceMs: 3 * 86400_000
+});
+const UTC_OFFSET = '+08:00';
+const DAY = 86400_000;
+const EDITABLE_SCHEDULE = ['scheduled', 'postponed'];
+
+function int(v: unknown, field: string, min: number, max: number, dflt?: number): number {
+  if (v == null && dflt !== undefined) return dflt;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw bad('FIELD_RANGE', { field, min, max });
+  return v;
+}
+
+function taipeiYmd(ms: number): string {
+  const d = new Date(ms + 8 * 3600_000);
+  return d.toISOString().slice(0, 10);
+}
+
+/** 主辦判斷＋內部期閘門＋下架；回賽事文件。 */
+async function hostComp(deps: CpDeps, tx: Transaction, caller: Caller, gate: GateResult, cid: string): Promise<CompDoc> {
+  const comp = await loadComp(deps, tx, cid);
+  assertCompVisible(comp, gate);
+  await assertHostOrCo(deps, tx, cid, comp, caller);
+  if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
+  if (comp.deletingAt) throw pre('COMPETITION_DELETING');
+  return comp;
+}
+
+/** 已結束：末場確認自動結束的 3 天內主辦仍可改；之後或自動結束（auto）只有管理員。 */
+function assertNotEnded(deps: CpDeps, comp: CompDoc, caller: Caller): void {
+  if (!comp.endedAt || isAdmin(caller)) return;
+  const graceOk = comp.endedBy === 'confirm'
+    && deps.now().getTime() < comp.endedAt.toMillis() + SCHEDULE_LIMITS.endedGraceMs;
+  if (!graceOk) throw pre('COMPETITION_ENDED');
+}
+
+function assertScheduleEditable(comp: CompDoc): void {
+  if (!['draft', 'published'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+  if (!comp.rostersLockedAt) throw pre('ROSTERS_NOT_LOCKED');
+}
+
+function assertResultEditable(comp: CompDoc): void {
+  if (comp.status !== 'published') throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+}
+
+// ── 排賽程 ─────────────────────────────────────────────────────────────
+function daysOf(v: unknown): PlanDay[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > SCHEDULE_LIMITS.daysMax) {
+    throw bad('FIELD_RANGE', { field: 'days', min: 1, max: SCHEDULE_LIMITS.daysMax });
+  }
+  return v.map((x, i) => {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) throw bad('FIELD_TYPE', { field: `days.${i}` });
+    const o = x as Record<string, unknown>;
+    onlyKeys(o, ['date', 'start', 'end']);
+    for (const k of ['date', 'start', 'end'] as const) {
+      if (typeof o[k] !== 'string') throw bad('FIELD_TYPE', { field: `days.${i}.${k}` });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.date` });
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.start as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.start` });
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.end as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.end` });
+    return { date: o.date as string, start: o.start as string, end: o.end as string };
+  });
+}
+
+function venueIdxOf(v: unknown, venueCount: number): number[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > venueCount) throw bad('FIELD_RANGE', { field: 'venueIdx', min: 1, max: venueCount });
+  const seen = new Set<number>();
+  for (const x of v) {
+    if (typeof x !== 'number' || !Number.isInteger(x) || x < 0 || x >= venueCount || seen.has(x)) {
+      throw bad('FIELD_RANGE', { field: 'venueIdx', min: 0, max: venueCount - 1 });
+    }
+    seen.add(x);
+  }
+  return [...seen];
+}
+
+interface MatchRow { ref: DocumentReference; id: string; status: string; kickoffMs: number | null }
+
+async function divisionMatches(deps: CpDeps, tx: Transaction, cid: string, dvId: string): Promise<MatchRow[]> {
+  const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
+    .where('divisionId', '==', dvId).select('status', 'kickoffAt').limit(SCHEDULE_LIMITS.matchesMax + 1));
+  return snap.docs.map(d => ({
+    ref: d.ref, id: d.id, status: String(d.get('status') ?? ''),
+    kickoffMs: typeof d.get('kickoffAt')?.toMillis === 'function' ? d.get('kickoffAt').toMillis() : null
+  }));
+}
+
+/** 讀出要改的摘要片（交易內先讀完），回傳「片 id → 目前條目表」。 */
+async function readShards(deps: CpDeps, tx: Transaction, cid: string, ids: Iterable<string>) {
+  const out = new Map<string, { ref: DocumentReference; m: Record<string, unknown> }>();
+  for (const id of new Set(ids)) {
+    const ref = deps.db.doc(`competitions/${cid}/summary/${id}`);
+    const snap = await readDoc(deps, tx, ref);
+    const m = snap.exists && snap.get('m') && typeof snap.get('m') === 'object' ? { ...(snap.get('m') as Record<string, unknown>) } : {};
+    out.set(id, { ref, m });
+  }
+  return out;
+}
+
+function writeShards(tx: Transaction, shards: Map<string, { ref: DocumentReference; m: Record<string, unknown> }>): void {
+  for (const { ref, m } of shards.values()) {
+    if (Object.keys(m).length === 0) tx.delete(ref);
+    else tx.set(ref, { m, updatedAt: FieldValue.serverTimestamp() });
+  }
+}
+
+const SCHEDULE_KEYS = [
+  'action', 'cid', 'dvId', 'legs', 'ranking', 'matchMinutes', 'bufferMinutes', 'minRestMinutes',
+  'days', 'venueIdx', 'seed', 'dryRun'
+];
+
+export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, SCHEDULE_KEYS);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  const legs = int(input.legs, 'legs', 1, 2) as 1 | 2;
+  const ranking = requireEnum(input.ranking ?? 'h2hFirst', ['h2hFirst', 'goalDiffFirst'] as const, 'ranking');
+  const matchMinutes = int(input.matchMinutes, 'matchMinutes', 5, 180);
+  const bufferMinutes = int(input.bufferMinutes, 'bufferMinutes', 0, 60, 0);
+  const minRestMinutes = int(input.minRestMinutes, 'minRestMinutes', 0, 240, 0);
+  const days = daysOf(input.days);
+  const seed = input.seed == null ? Math.floor(Math.random() * 2_147_483_647) : int(input.seed, 'seed', 0, 2_147_483_647);
+  if (input.dryRun != null && typeof input.dryRun !== 'boolean') throw bad('FIELD_TYPE', { field: 'dryRun' });
+  const dryRun = input.dryRun === true;
+
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertScheduleEditable(comp);
+    const venues = Array.isArray(comp.venues) ? (comp.venues as Array<{ name?: unknown }>) : [];
+    const venueIdx = venueIdxOf(input.venueIdx, venues.length);
+    const firstYmd = taipeiYmd(comp.firstMatchAt.toMillis());
+    const lastYmd = taipeiYmd(comp.lastMatchAt.toMillis());
+    days.forEach((d, i) => {
+      if (d.date < firstYmd || d.date > lastYmd) throw bad('SCHEDULE_OUT_OF_RANGE', { field: `days.${i}.date`, min: firstYmd, max: lastYmd });
+    });
+
+    const dvRef = deps.db.doc(`competitions/${cid}/divisions/${dvId}`);
+    const dv = await readDoc(deps, tx, dvRef);
+    if (!dv.exists) throw new CpError('not-found', 'DIVISION_NOT_FOUND');
+    const entries = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entries`)
+      .where('dvId', '==', dvId).where('status', '==', 'approved').select('name').limit(SCHEDULE_LIMITS.teamsMax + 1));
+    const n = entries.size;
+    if (n < SCHEDULE_LIMITS.teamsMin || n > SCHEDULE_LIMITS.teamsMax) {
+      throw pre('TEAMS_RANGE', { count: n, min: SCHEDULE_LIMITS.teamsMin, max: SCHEDULE_LIMITS.teamsMax });
+    }
+    const matchCount = legs * n * (n - 1) / 2;
+    if (matchCount > SCHEDULE_LIMITS.matchesMax) throw pre('TOO_MANY_MATCHES', { count: matchCount, max: SCHEDULE_LIMITS.matchesMax });
+    const old = await divisionMatches(deps, tx, cid, dvId);
+    if (old.some(m => !EDITABLE_SCHEDULE.includes(m.status))) throw pre('RESULTS_EXIST');
+
+    // 隊伍依 enId 排序再交給引擎抽籤，讓同 seed 的預覽與正式產生一致（查詢順序不影響結果）
+    const teams = entries.docs
+      .map(d => ({ enId: d.id, name: typeof d.get('name') === 'string' ? (d.get('name') as string) : '隊伍' }))
+      .sort((a, b) => (a.enId < b.enId ? -1 : 1));
+    let plan;
+    try {
+      plan = planRoundRobin({
+        dvId, teams, legs, matchMinutes, bufferMinutes, minRestMinutes, days,
+        venues: venueIdx.map(i => ({ venueIdx: i, name: String(venues[i]?.name ?? `場地 ${i + 1}`) })),
+        playersOnField: Number(dv.get('playersOnField')) || 5, seed, utcOffset: UTC_OFFSET
+      });
+    } catch (e) {
+      if (e instanceof RangeError) throw bad('FIELD_RANGE', { field: e.message || 'schedule' });
+      throw e;
+    }
+    const preview = {
+      dvId, seed, matchCount: plan.matchCount, unplacedCount: plan.unplacedCount,
+      daysUsed: plan.daysUsed, perTeam: legs * (n - 1), teamCount: n
+    };
+    if (dryRun) return { ...preview, dryRun: true };
+    if (plan.unplacedCount > 0) throw pre('SCHEDULE_UNPLACED', { count: plan.unplacedCount });
+
+    const now = FieldValue.serverTimestamp();
+    const docs = plan.matches.map(m => {
+      const mtId = newId('mt');
+      const { kickoffMs, ...rest } = publicMatchDoc(m, { mtId, dvId }) as Record<string, unknown> & { kickoffMs: number | null };
+      return { mtId, kickoffMs, data: { ...rest, kickoffAt: kickoffMs == null ? null : ts(kickoffMs), updatedAt: now } };
+    });
+    const shardIds = [
+      ...old.map(m => summaryShardIdOf(m.kickoffMs, UTC_OFFSET)),
+      ...docs.map(d => summaryShardIdOf(d.kickoffMs, UTC_OFFSET))
+    ];
+    const shards = await readShards(deps, tx, cid, shardIds);
+    const prevSchedule = dv.get('schedule');
+
+    // ── 寫入（交易內全部讀完之後）──
+    for (const m of old) {
+      tx.delete(m.ref);
+      const s = shards.get(summaryShardIdOf(m.kickoffMs, UTC_OFFSET));
+      if (s) delete s.m[m.id];
+    }
+    for (const d of docs) {
+      tx.create(deps.db.doc(`competitions/${cid}/matches/${d.mtId}`), d.data);
+      shards.get(summaryShardIdOf(d.kickoffMs, UTC_OFFSET))!.m[d.mtId] = summaryEntryOf(d.data, d.kickoffMs);
+    }
+    writeShards(tx, shards);
+    const groups = plan.groups.map(g => ({ groupId: g.groupId, teamIds: [...g.teamIds] }));
+    const names = Object.fromEntries(teams.map(t => [t.enId, t.name]));
+    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking));
+    tx.update(dvRef, {
+      schedule: {
+        format: 'roundRobin', legs, ranking, matchMinutes, bufferMinutes, minRestMinutes, seed,
+        groups, matchCount: plan.matchCount,
+        version: (typeof prevSchedule?.version === 'number' ? prevSchedule.version : 0) + 1,
+        generatedAt: now
+      },
+      updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'generateSchedule', { dvId, matchCount: plan.matchCount, replaced: old.length, seed });
+    return { ...preview, dryRun: false };
+  });
+}
+
+export async function clearSchedule(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertScheduleEditable(comp);
+    const dvRef = deps.db.doc(`competitions/${cid}/divisions/${dvId}`);
+    const dv = await readDoc(deps, tx, dvRef);
+    if (!dv.exists) throw new CpError('not-found', 'DIVISION_NOT_FOUND');
+    const old = await divisionMatches(deps, tx, cid, dvId);
+    if (old.some(m => !EDITABLE_SCHEDULE.includes(m.status))) throw pre('RESULTS_EXIST');
+    const shards = await readShards(deps, tx, cid, old.map(m => summaryShardIdOf(m.kickoffMs, UTC_OFFSET)));
+    for (const m of old) {
+      tx.delete(m.ref);
+      const s = shards.get(summaryShardIdOf(m.kickoffMs, UTC_OFFSET));
+      if (s) delete s.m[m.id];
+    }
+    writeShards(tx, shards);
+    tx.delete(standingRef(deps, cid, dvId, 'group', 'A'));
+    tx.update(dvRef, { schedule: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+    writeAudit(deps, tx, cid, caller, 'clearSchedule', { dvId, removed: old.length });
+    return { dvId, removed: old.length };
+  });
+}
+
+// ── 單場 ───────────────────────────────────────────────────────────────
+interface LoadedMatch { ref: DocumentReference; snap: DocumentSnapshot; status: string; rev: number; resetRev: number; kickoffMs: number | null }
+
+async function loadMatch(deps: CpDeps, tx: Transaction, cid: string, mtId: string, expectedRev: number): Promise<LoadedMatch> {
+  const ref = deps.db.doc(`competitions/${cid}/matches/${mtId}`);
+  const snap = await readDoc(deps, tx, ref);
+  if (!snap.exists) throw new CpError('not-found', 'MATCH_NOT_FOUND');
+  const rev = snap.get('rev');
+  if (typeof rev !== 'number' || !Number.isInteger(rev)) throw pre('MATCH_CORRUPT');
+  if (rev !== expectedRev) throw pre('REV_CONFLICT', { rev });
+  const k = snap.get('kickoffAt');
+  return {
+    ref, snap, status: String(snap.get('status') ?? ''), rev,
+    resetRev: typeof snap.get('resetRev') === 'number' ? snap.get('resetRev') : 0,
+    kickoffMs: k && typeof k.toMillis === 'function' ? k.toMillis() : null
+  };
+}
+
+function matchIds(input: Record<string, unknown>) {
+  return {
+    cid: requireId(input.cid, CID_RE, 'cid'),
+    mtId: requireId(input.mtId, MTID_RE, 'mtId'),
+    expectedRev: int(input.expectedRev, 'expectedRev', 0, 1_000_000)
+  };
+}
+
+function scoreInput(v: unknown): { home: number; away: number } {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('FIELD_TYPE', { field: 'score' });
+  const o = v as Record<string, unknown>;
+  onlyKeys(o, ['home', 'away']);
+  return {
+    home: int(o.home, 'score.home', 0, SCHEDULE_LIMITS.scoreMax),
+    away: int(o.away, 'score.away', 0, SCHEDULE_LIMITS.scoreMax)
+  };
+}
+
+const CLEAR_CLOCK = { startedAt: null, pausedSec: 0, running: false, period: 'pre' };
+
+export async function rescheduleMatch(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'kickoffAt', 'venueIdx']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  const kickoffAt = input.kickoffAt == null ? null : int(input.kickoffAt, 'kickoffAt', 0, 8_640_000_000_000);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    if (!['draft', 'published'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+    const venues = Array.isArray(comp.venues) ? (comp.venues as Array<{ name?: unknown }>) : [];
+    const venueIdx = input.venueIdx == null ? null : int(input.venueIdx, 'venueIdx', 0, Math.max(0, venues.length - 1));
+    if (kickoffAt != null) {
+      const lo = comp.firstMatchAt.toMillis() - (comp.firstMatchAt.toMillis() + 8 * 3600_000) % DAY;
+      const hi = comp.lastMatchAt.toMillis() - (comp.lastMatchAt.toMillis() + 8 * 3600_000) % DAY + DAY;
+      if (kickoffAt < lo || kickoffAt >= hi) throw bad('SCHEDULE_OUT_OF_RANGE', { field: 'kickoffAt' });
+    }
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (!EDITABLE_SCHEDULE.includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
+    const status = kickoffAt == null ? 'postponed' : 'scheduled';
+    tx.update(m.ref, {
+      kickoffAt: kickoffAt == null ? null : ts(kickoffAt),
+      venueIdx, venueName: venueIdx == null ? null : String(venues[venueIdx]?.name ?? `場地 ${venueIdx + 1}`),
+      status, rev: m.rev + 1, updatedAt: FieldValue.serverTimestamp()
+    });
+    writeAudit(deps, tx, cid, caller, 'rescheduleMatch', { mtId, status });
+    return { mtId, status, rev: m.rev + 1 };
+  });
+}
+
+function resultOf(score: { home: number; away: number }): MatchResult {
+  const r = matchResult(score, null, { winPoints: 3, drawPoints: 1 });
+  if (!r) throw bad('FIELD_RANGE', { field: 'score' });
+  return r;
+}
+
+export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'score', 'confirm']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  const score = scoreInput(input.score);
+  if (typeof input.confirm !== 'boolean') throw bad('FIELD_TYPE', { field: 'confirm' });
+  const confirm = input.confirm;
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertResultEditable(comp);
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (!['scheduled', 'finished'].includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
+    if (m.kickoffMs == null) throw pre('MATCH_NOT_SCHEDULED');
+    if (deps.now().getTime() < m.kickoffMs) throw pre('MATCH_NOT_STARTED');
+    const status = confirm ? 'confirmed' : 'finished';
+    const now = FieldValue.serverTimestamp();
+    tx.update(m.ref, {
+      score, status, lock: { locked: true },
+      ...(m.snap.get('finishedAt') ? {} : { finishedAt: now }),
+      confirmedAt: confirm ? now : null,
+      result: resultOf(score), resultSource: 'host', walkoverSide: null,
+      clockBase: { ...CLEAR_CLOCK, period: 'ft' },
+      rev: m.rev + 1, updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'recordResult', { mtId, score, confirm });
+    return { mtId, status, rev: m.rev + 1 };
+  });
+}
+
+export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertResultEditable(comp);
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (m.status !== 'finished') throw pre('MATCH_STATE', { status: m.status });
+    // §6.3-7 比分對帳：事件明細是真相。主辦親自登錄（resultSource=host）時以主辦裁定為準。
+    const tl = await readQuery(deps, tx, m.ref.collection('timeline').where('seq', '>', m.resetRev).limit(300));
+    const vd = await readQuery(deps, tx, m.ref.collection('voids').limit(300));
+    const voided = new Set<number>(vd.docs.map(d => Number(d.id)).filter(n => Number.isInteger(n)));
+    const derived = derivedScoreOf(tl.docs.map(d => d.data()), voided, m.resetRev);
+    const score = { home: Number(m.snap.get('score.home')) || 0, away: Number(m.snap.get('score.away')) || 0 };
+    if (derived.goals > 0 && m.snap.get('resultSource') !== 'host'
+      && (derived.home !== score.home || derived.away !== score.away)) {
+      throw pre('SCORE_MISMATCH', { home: derived.home, away: derived.away });
+    }
+    const now = FieldValue.serverTimestamp();
+    tx.update(m.ref, {
+      status: 'confirmed', confirmedAt: now, lock: { locked: true }, result: resultOf(score),
+      rev: m.rev + 1, updatedAt: now
+    });
+    writeAudit(deps, tx, cid, caller, 'confirmMatchResult', { mtId, score, derivedGoals: derived.goals });
+    return { mtId, status: 'confirmed', rev: m.rev + 1 };
+  });
+}
+
+export async function setWalkover(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'forfeitSide', 'reason']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  const forfeitSide = requireEnum(input.forfeitSide, ['home', 'away'] as const, 'forfeitSide');
+  const reason = statusReasonOf(input.reason);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    assertResultEditable(comp);
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (!['scheduled', 'postponed', 'finished'].includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
+    const wo = DEFAULT_WALKOVER;
+    const winSide = forfeitSide === 'home' ? 'away' : 'home';
+    const score = { home: winSide === 'home' ? wo.scoreFor : wo.scoreAgainst, away: winSide === 'away' ? wo.scoreFor : wo.scoreAgainst };
+    const now = FieldValue.serverTimestamp();
+    tx.update(m.ref, {
+      status: 'walkover', walkoverSide: forfeitSide, score, lock: { locked: true },
+      ...(m.snap.get('finishedAt') ? {} : { finishedAt: now }),
+      confirmedAt: now, resultSource: 'host',
+      result: {
+        winner: winSide, method: 'walkover',
+        homePoints: winSide === 'home' ? wo.awardPoints : wo.penaltyPoints,
+        awayPoints: winSide === 'away' ? wo.awardPoints : wo.penaltyPoints
+      },
+      clockBase: CLEAR_CLOCK, rev: m.rev + 1, updatedAt: now
+    });
+    // 原因只進稽核（可能含個資），公開場次只放棄權方
+    writeAudit(deps, tx, cid, caller, 'setWalkover', { mtId, forfeitSide, reason });
+    return { mtId, status: 'walkover', rev: m.rev + 1 };
+  });
+}
+
+export async function resetMatch(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'reason']);
+  const { cid, mtId, expectedRev } = matchIds(input);
+  const reason = statusReasonOf(input.reason);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    if (!['published', 'postponed'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
+    const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
+    if (EDITABLE_SCHEDULE.includes(m.status)) throw pre('NOTHING_TO_RESET');
+    const rev = m.rev + 1;
+    const status = m.kickoffMs == null ? 'postponed' : 'scheduled';
+    tx.update(m.ref, {
+      status, score: { home: 0, away: 0 }, penaltyScore: null, lock: { locked: false },
+      finishedAt: null, confirmedAt: null, result: null, walkoverSide: null, resultSource: null,
+      clockBase: CLEAR_CLOCK, rev, resetRev: rev, updatedAt: FieldValue.serverTimestamp()
+    });
+    // 重置後要重新接手（§6.3-2）
+    tx.delete(m.ref.collection('control').doc('scorer'));
+    writeAudit(deps, tx, cid, caller, 'resetMatch', { mtId, from: m.status, reason });
+    return { mtId, status, rev };
+  });
+}
+
+export async function recalcStandings(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  // 權限在交易外先判（全量重算本身各組各自交易）
+  await deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    await assertHostOrCo(deps, tx, cid, comp, caller);
+  });
+  const written = await recomputeDivisionStandings(deps, cid, dvId);
+  await deps.db.runTransaction(async tx => {
+    writeAudit(deps, tx, cid, caller, 'recalcStandings', { dvId, standings: written });
+  });
+  return { dvId, standings: written };
+}
+
+export const MATCH_HOST_ACTIONS = {
+  generateSchedule,
+  clearSchedule,
+  rescheduleMatch,
+  recordResult,
+  confirmMatchResult,
+  setWalkover,
+  resetMatch,
+  recalcStandings
+} as const;
