@@ -39,12 +39,13 @@ export const SCHEDULE_DEFAULTS = {
 
 /**
  * `2026-10-09` + `08:30` → 毫秒。
- * 寫死 +08:00，不靠執行環境的時區。
+ * 預設 `+08:00`（Asia/Taipei）。呼叫端可傳 `utcOffset`，不靠執行環境的時區。
  */
-export function taipeiMs(dateYmd: unknown, hhmm: unknown = '00:00'): number | null {
+export function taipeiMs(dateYmd: unknown, hhmm: unknown = '00:00', utcOffset: unknown = '+08:00'): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateYmd ?? ''))) return null;
   if (!/^\d{2}:\d{2}$/.test(String(hhmm ?? ''))) return null;
-  const ms = Date.parse(`${dateYmd}T${hhmm}:00+08:00`);
+  if (typeof utcOffset !== 'string' || !/^[+-]\d{2}:\d{2}$/.test(utcOffset)) return null;
+  const ms = Date.parse(`${dateYmd}T${hhmm}:00${utcOffset}`);
   return Number.isFinite(ms) ? ms : null;
 }
 
@@ -460,48 +461,104 @@ export function placeMatches({
     return { durationMin: dur, playersOnField: pof };
   };
 
-  const busy = occupied.map(o => ({ ...o }));
+  const index = createBusyIndex();
+  for (const o of occupied) index.add({ ...o });
   const placed: Array<PlaceMatch & { kickoffMs: number; venueId: string; venueName: string }> = [];
   const unplaced: Array<{ match: PlaceMatch; reason: string }> = [];
-  const slotCount = Math.max(0, Math.floor((dayEndMs - dayStartMs) / (slotMin * 60000)) + 1);
+  const slotMs = slotMin * 60000;
+  const slotCount = Math.max(0, Math.floor((dayEndMs - dayStartMs) / slotMs) + 1);
   const restMs = intOr(minRestMin, 0) * 60000;
+  const unplacedReason = '當天排不下（場地或時間不足）。可以增加場地、延後結束時間，或降低休息下限。';
+  // 同一規格的場地已經沒有空隙時，後面更長或一樣長的場次不必再掃。
+  let saturated: { durationMin: number; playersOnField: number | undefined } | null = null;
+  let freeCache: { key: string; free: boolean } | null = null;
+
+  const jumpTo = (clearStart: number, i: number): number => {
+    if (!(clearStart > dayStartMs)) return i + 1;
+    const slot = Math.ceil((clearStart - dayStartMs) / slotMs);
+    return slot > i ? slot : i + 1;
+  };
+
+  const venuesHaveSlot = (players: number | undefined, durationMin: number, spanMin: number): boolean => {
+    const key = `${durationMin}|${String(players)}|${spanMin}`;
+    if (freeCache?.key === key) return freeCache.free;
+    const spanMs = spanMin * 60000;
+    const playMs = durationMin * 60000;
+    let free = false;
+    for (let i = 0; i < slotCount; i++) {
+      const startMs = dayStartMs + i * slotMs;
+      if (startMs + playMs > dayEndMs) break;
+      const endMs = startMs + spanMs;
+      for (const v of venues) {
+        if (!fieldFits(players, v)) continue;
+        if (venueBlockClear(index.byVenue.get(v.venueId), startMs, endMs) == null) {
+          free = true;
+          break;
+        }
+      }
+      if (free) break;
+    }
+    freeCache = { key, free };
+    return free;
+  };
 
   for (const m of sortByStructure(matches)) {
     const spec = specOf(m);
     const span = slotSpanMin(spec.durationMin, bufferMin);
-    let fitted: { startMs: number; endMs: number; venue: Venue } | null = null;
-
-    for (let i = 0; i < slotCount && !fitted; i++) {
-      const startMs = dayStartMs + i * slotMin * 60000;
-      const endMs = startMs + span * 60000;
-      if (startMs + spec.durationMin * 60000 > dayEndMs) break;
-
-      const teamBusy = busy.some(o =>
-        (o.teamIds || []).some(t => (m.teamIds || []).includes(t)) &&
-        overlaps(startMs - restMs, endMs + restMs, o.startMs, o.endMs));
-      if (teamBusy) continue;
-
-      for (const v of venues) {
-        if (!fieldFits(spec.playersOnField, v)) continue;
-        const clash = busy.some(o => o.venueId === v.venueId && overlaps(startMs, endMs, o.startMs, o.endMs));
-        if (clash) continue;
-        fitted = { startMs, endMs, venue: v };
-        break;
-      }
-    }
-
-    if (!fitted) {
-      unplaced.push({
-        match: m,
-        reason: '當天排不下（場地或時間不足）。可以增加場地、延後結束時間，或降低休息下限。'
-      });
+    if (
+      saturated &&
+      spec.durationMin >= saturated.durationMin &&
+      spec.playersOnField === saturated.playersOnField
+    ) {
+      unplaced.push({ match: m, reason: unplacedReason });
       continue;
     }
 
-    busy.push({
-      venueId: fitted.venue.venueId, startMs: fitted.startMs, endMs: fitted.endMs,
+    let fitted: { startMs: number; endMs: number; venue: Venue } | null = null;
+    let i = 0;
+    while (i < slotCount && !fitted) {
+      const startMs = dayStartMs + i * slotMs;
+      const endMs = startMs + span * 60000;
+      if (startMs + spec.durationMin * 60000 > dayEndMs) break;
+
+      const teamClear = teamBlockClear(index.byTeam, m.teamIds, startMs - restMs, endMs + restMs, restMs);
+      if (teamClear != null) {
+        i = jumpTo(teamClear, i);
+        continue;
+      }
+
+      let anyField = false;
+      let venueClear = Infinity;
+      for (const v of venues) {
+        if (!fieldFits(spec.playersOnField, v)) continue;
+        anyField = true;
+        const block = venueBlockClear(index.byVenue.get(v.venueId), startMs, endMs);
+        if (block == null) {
+          fitted = { startMs, endMs, venue: v };
+          break;
+        }
+        if (block < venueClear) venueClear = block;
+      }
+      if (fitted) break;
+      if (!anyField || venueClear === Infinity) break;
+      i = jumpTo(venueClear, i);
+    }
+
+    if (!fitted) {
+      if (!venuesHaveSlot(spec.playersOnField, spec.durationMin, span)) {
+        saturated = { durationMin: spec.durationMin, playersOnField: spec.playersOnField };
+      }
+      unplaced.push({ match: m, reason: unplacedReason });
+      continue;
+    }
+
+    index.add({
+      venueId: fitted.venue.venueId,
+      startMs: fitted.startMs,
+      endMs: fitted.endMs,
       teamIds: m.teamIds || []
     });
+    freeCache = null;
     placed.push({
       ...m,
       kickoffMs: fitted.startMs,
@@ -511,6 +568,78 @@ export function placeMatches({
   }
 
   return { placed, unplaced };
+}
+
+interface BusySlot {
+  venueId?: string;
+  startMs: number;
+  endMs: number;
+  teamIds?: ReadonlyArray<string | null | undefined>;
+}
+
+function createBusyIndex() {
+  const byVenue = new Map<string, BusySlot[]>();
+  const byTeam = new Map<string | null | undefined, BusySlot[]>();
+  const add = (o: BusySlot) => {
+    if (o.venueId) {
+      let list = byVenue.get(o.venueId);
+      if (!list) {
+        list = [];
+        byVenue.set(o.venueId, list);
+      }
+      list.push(o);
+    }
+    const seen = new Set<string | null | undefined>();
+    for (const t of o.teamIds || []) {
+      if (seen.has(t)) continue;
+      seen.add(t);
+      let list = byTeam.get(t);
+      if (!list) {
+        list = [];
+        byTeam.set(t, list);
+      }
+      list.push(o);
+    }
+  };
+  return { byVenue, byTeam, add };
+}
+
+/** 與原本 busy.some + includes 相同。回傳「下一個不再重疊」的開賽毫秒；沒重疊則 null。 */
+function teamBlockClear(
+  byTeam: Map<string | null | undefined, BusySlot[]>,
+  teamIds: ReadonlyArray<string | null | undefined> | undefined,
+  windowStart: number,
+  windowEnd: number,
+  restMs: number
+): number | null {
+  let clear = -Infinity;
+  const seen = new Set<string | null | undefined>();
+  for (const t of teamIds || []) {
+    if (seen.has(t)) continue;
+    seen.add(t);
+    const list = byTeam.get(t);
+    if (!list) continue;
+    for (const o of list) {
+      if (!overlaps(windowStart, windowEnd, o.startMs, o.endMs)) continue;
+      const next = o.endMs + restMs;
+      if (next > clear) clear = next;
+    }
+  }
+  return clear === -Infinity ? null : clear;
+}
+
+function venueBlockClear(
+  list: BusySlot[] | undefined,
+  startMs: number,
+  endMs: number
+): number | null {
+  if (!list?.length) return null;
+  let clear = -Infinity;
+  for (const o of list) {
+    if (!overlaps(startMs, endMs, o.startMs, o.endMs)) continue;
+    if (o.endMs > clear) clear = o.endMs;
+  }
+  return clear === -Infinity ? null : clear;
 }
 
 /**
@@ -612,13 +741,15 @@ interface CheckedMatch {
  * 同一 code 加上同一組場次只留一筆（原行為，不同訊息也可能被併掉）。
  */
 export function checkSchedule({
-  matches = [], venues = [], divisions = [], minRestMin = 20, maxGapMin = 240
+  matches = [], venues = [], divisions = [], minRestMin = 20, maxGapMin = 240, defaultDurationMin = 30
 }: {
   matches?: CheckedMatch[];
   venues?: Venue[];
   divisions?: DivisionClock[];
   minRestMin?: number;
   maxGapMin?: number;
+  /** 組別沒寫 matchDurationMin 時的場長。預設 30，與原本寫死的後備值相同。 */
+  defaultDurationMin?: number;
 } = {}): { findings: Finding[]; canPublish: boolean } {
   const findings: Finding[] = [];
   const add = (level: Finding['level'], code: string, message: string, source: string, matchIds?: string[]) =>
@@ -634,7 +765,7 @@ export function checkSchedule({
     const start = kickoffMsOf(m);
     if (start == null || !m.venueId) { noSlot.push(m); continue; }
     const div: DivisionClock = (m.divisionId ? divById[m.divisionId] : undefined) ?? { divisionId: '' };
-    const dur = intOr(div.matchDurationMin, 30);
+    const dur = intOr(div.matchDurationMin, defaultDurationMin);
     spans.push({ m, start, end: start + dur * 60000, playMin: dur });
   }
 

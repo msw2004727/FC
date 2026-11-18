@@ -256,7 +256,8 @@ export function buildFinishPatch({
   uid,
   matchDurationMin,
   periods = 2,
-  clock
+  clock,
+  etHalfMin = 5
 }: {
   score?: Partial<Score> | null;
   htScore?: Partial<Score> | null;
@@ -266,6 +267,7 @@ export function buildFinishPatch({
   matchDurationMin?: number;
   periods?: number;
   clock?: Partial<ClockState> | null;
+  etHalfMin?: number;
 }): {
   score: { home: number; away: number };
   htScore: Partial<Score> | null;
@@ -298,7 +300,7 @@ export function buildFinishPatch({
       elapsedSecAtPause: clock?.elapsedSecAtPause ?? 0,
       addedTimeSec: Math.max(
         0,
-        (clock?.elapsedSecAtPause ?? 0) - (clock?.periodId?.startsWith('et') ? 300 : (matchDurationMin ?? 30) * 60 / periods)
+        (clock?.elapsedSecAtPause ?? 0) - (clock?.periodId?.startsWith('et') ? etHalfMin * 60 : (matchDurationMin ?? 30) * 60 / periods)
       )
     },
     result,

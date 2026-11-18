@@ -358,6 +358,7 @@ const RANKING_RULES = { RR_FEDA_2026, RR_FEDA_DEFAULT, RR_FEDA_YOUTH, RR_FIFA_20
 // ══════════════════════════════════════════════════════════════════
 
 /**
+ * @deprecated 飛達盃專屬
  * 本次活動的六個組別。
  *
  * ⭐ 名稱、參賽資格、上場人數、比賽時間、用球一律**照競賽規章第十一～十八條**，
@@ -425,6 +426,7 @@ const DIVISIONS = [
 ].map(division => ({ ...division, requiredFormatId: 'F8_GROUP_TOP_SEED_BYE', groupNames: { A: '甲組', B: '乙組' } }));
 
 /**
+ * @deprecated 飛達盃專屬
  * 報名限制（競賽規章第十二條）。
  * 寫在這裡是為了讓 seed 與前端有同一份依據；執行時的權威是
  * Firestore 的 config/registration（主辦可在後台改）。
@@ -438,6 +440,7 @@ const REGISTRATION_LIMITS = {
 };
 
 /**
+ * @deprecated 飛達盃專屬
  * 規章第二十條：申訴。
  * 「應由領隊或總教練於賽後三十分鐘內用書面提出，並需繳納保證金新台幣貳仟元整；
  *   如申訴理由不成立時，保證金不予發還」
@@ -449,6 +452,7 @@ const APPEAL_RULES = {
 };
 
 /**
+ * @deprecated 飛達盃專屬
  * 規章第二十七條：退費機制與取消辦法。
  * 「活動日前 15 天內取消恕不接受退費申請。但容許將名額轉讓給他人
  *   （請於活動前 3 天通知主辦單位變更參加者資料）」

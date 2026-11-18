@@ -110,4 +110,38 @@ export {
   ROSTER_ROLE_TEXT
 } from './live-actions.js';
 
+export {
+  affectedByMatchChange,
+  refreshAfterMatchChange
+} from './incremental.js';
+
+export {
+  CONFIG_MESSAGE_KEYS,
+  validateCompetitionConfig
+} from './validate-config.js';
+
+export { previewSchedule } from './preview.js';
+
+export type {
+  AffectedMatch,
+  MatchChangeEffect,
+  RefreshIo,
+  RefreshResult
+} from './incremental.js';
+
+export type {
+  CompetitionConfig,
+  ConfigIssue,
+  ConfigValidation,
+  DivisionConfig,
+  FormatConfig
+} from './validate-config.js';
+
+export type {
+  PreviewFormatSpec,
+  PreviewIssue,
+  PreviewSchedule,
+  PreviewScheduleInput
+} from './preview.js';
+
 export type * from './types.js';

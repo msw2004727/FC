@@ -125,7 +125,12 @@ export interface StageBlock {
 /**
  * 解算某個 Stage 的所有 slot。
  */
-export function resolveStage(format: Format | null | undefined, stageId: string, ctx: AdvanceCtx): {
+export function resolveStage(
+  format: Format | null | undefined,
+  stageId: string,
+  ctx: AdvanceCtx,
+  onlyMatchKeys?: ReadonlySet<string> | readonly string[]
+): {
   updates: StageUpdate[];
   blocked: StageBlock[];
   resolvedCount: number;
@@ -149,7 +154,15 @@ export function resolveStage(format: Format | null | undefined, stageId: string,
     };
   }
 
-  for (const slot of stage.slots || []) {
+  const only = onlyMatchKeys == null
+    ? null
+    : onlyMatchKeys instanceof Set ? onlyMatchKeys : new Set(onlyMatchKeys);
+  const slots = only ? stage.slots.filter(slot => only.has(slot.matchKey)) : stage.slots;
+  if (only && slots.length === 0) {
+    return { updates, blocked, resolvedCount: 0, allResolved: true };
+  }
+
+  for (const slot of slots) {
     const match = ctx.matchesByKey?.[slot.matchKey];
     if (!match) {
       blocked.push({ matchKey: slot.matchKey, reason: '找不到對應場次' });
@@ -207,7 +220,7 @@ export function resolveStage(format: Format | null | undefined, stageId: string,
     updates,
     blocked,
     resolvedCount,
-    allResolved: blocked.length === 0 && resolvedCount === (stage.slots || []).length
+    allResolved: blocked.length === 0 && resolvedCount === slots.length
   };
 }
 

@@ -57,26 +57,33 @@ export function clockPeriodFor(match: MatchLike, division: { periods?: number })
   return division.periods === 1 ? 'h1' : match.period === 'ht' ? 'h1' : 'h2';
 }
 
-export function clockLimitSec(match: MatchLike, division: { periods?: number; matchDurationMin?: number }): number {
+export function clockLimitSec(
+  match: MatchLike,
+  division: { periods?: number; matchDurationMin?: number },
+  etHalfMin = 5
+): number {
   if (![1, 2].includes(division?.periods ?? 0) || !Number.isFinite(division.matchDurationMin) || (division.matchDurationMin ?? 0) <= 0) {
     fail('讀不到組別比賽時長');
   }
   const periods = division.periods as number;
   const matchDurationMin = division.matchDurationMin as number;
   const p = clockPeriodFor(match, division);
-  return (p.startsWith('et') ? 5 : matchDurationMin / periods) * 60;
+  const et = Number.isFinite(etHalfMin) && etHalfMin > 0 ? etHalfMin : 5;
+  return (p.startsWith('et') ? et : matchDurationMin / periods) * 60;
 }
 
 export function buildClockCorrection({
   match,
   division,
   seconds,
-  nowMs
+  nowMs,
+  etHalfMin = 5
 }: {
   match: MatchLike;
   division: { periods?: number; matchDurationMin?: number };
   seconds: number;
   nowMs: number;
+  etHalfMin?: number;
 }): ClockState {
   if (!Number.isInteger(seconds) || seconds < 0 || seconds > 86400) {
     fail('請輸入有效的比賽時間（0 至 1440 分鐘）');
@@ -84,7 +91,7 @@ export function buildClockCorrection({
   if (!match.status || !['live', 'halftime', 'finished', 'confirmed'].includes(match.status)) {
     fail('此場次尚未開賽或無法修改時間');
   }
-  const limit = clockLimitSec(match, division);
+  const limit = clockLimitSec(match, division, etHalfMin);
   const running = match.status === 'live' && match.clock?.running === true;
   return {
     ...(match.clock ?? { running: false, periodStartedAt: null, elapsedSecAtPause: 0 }),

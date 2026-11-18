@@ -9,6 +9,7 @@
         "build": "tsc -p tsconfig.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "test": "vitest run",
+        "bench": "vitest bench --run",
         "manifest:write": "node scripts/engine-manifest.mjs --write",
         "manifest:check": "node scripts/engine-manifest.mjs --check",
         "test:rules:unit": "vitest run -c vitest.rules.config.ts",

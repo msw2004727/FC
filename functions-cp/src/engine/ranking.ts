@@ -106,11 +106,52 @@ export function fairPlayByTeam(
   return out;
 }
 
+interface RawSeparation {
+  kind: 'separated' | 'unresolved';
+  criterion: string;
+  aboveTeamIds: string[];
+  belowTeamIds: string[];
+  teamIds: string[];
+}
+
 interface RankCtx {
   matches: MatchLike[];
   criteria: string[];
   points: { win: number; draw: number; loss: number };
   opts: TallyOpts;
+  separations: RawSeparation[];
+}
+
+/** 第幾名與第幾名靠哪一條分開。messageKey 給畫面，引擎不組中文句子。 */
+export interface TieBreakSeparation {
+  messageKey: 'cp.tiebreak.separated' | 'cp.tiebreak.unresolved';
+  params: {
+    criterion: string;
+    aboveTeamIds?: string[];
+    belowTeamIds?: string[];
+    aboveRanks?: number[];
+    belowRanks?: number[];
+    teamIds?: string[];
+    ranks?: number[];
+  };
+}
+
+export const TIEBREAK_MESSAGE_KEYS = ['cp.tiebreak.separated', 'cp.tiebreak.unresolved'] as const;
+
+function rankInternal(
+  rows: StandingRow[],
+  matches: MatchLike[] | null | undefined,
+  rule: Pick<RankingRule, 'criteria' | 'points'> | null | undefined,
+  opts: TallyOpts = {}
+): { rows: StandingRow[]; hasUnresolvedTie: boolean; separations: RawSeparation[] } {
+  const criteria: string[] = rule?.criteria?.length ? [...rule.criteria] : ['points'];
+  const points = { ...DEFAULT_POINTS, ...(rule?.points || {}) };
+  const work = rows.map(r => ({ ...r, tieBreakTrace: [] as string[], hasUnresolvedTie: false, tiedWith: [] as string[] }));
+  const separations: RawSeparation[] = [];
+  const ctx: RankCtx = { matches: matches || [], criteria, points, opts, separations };
+  const result = orderTied(work, ctx, 0);
+  result.ordered.forEach((r, i) => { r.rank = i + 1; });
+  return { rows: result.ordered, hasUnresolvedTie: result.unresolved, separations };
 }
 
 export function rankRows(
@@ -119,13 +160,42 @@ export function rankRows(
   rule: Pick<RankingRule, 'criteria' | 'points'> | null | undefined,
   opts: TallyOpts = {}
 ): { rows: StandingRow[]; hasUnresolvedTie: boolean } {
-  const criteria: string[] = rule?.criteria?.length ? [...rule.criteria] : ['points'];
-  const points = { ...DEFAULT_POINTS, ...(rule?.points || {}) };
-  const work = rows.map(r => ({ ...r, tieBreakTrace: [] as string[], hasUnresolvedTie: false, tiedWith: [] as string[] }));
-  const ctx: RankCtx = { matches: matches || [], criteria, points, opts };
-  const result = orderTied(work, ctx, 0);
-  result.ordered.forEach((r, i) => { r.rank = i + 1; });
-  return { rows: result.ordered, hasUnresolvedTie: result.unresolved };
+  const ranked = rankInternal(rows, matches, rule, opts);
+  return { rows: ranked.rows, hasUnresolvedTie: ranked.hasUnresolvedTie };
+}
+
+/** 與 rankRows 同一套順序，另外給出名次是被哪一條規則分開的。 */
+export function explainRanking(
+  rows: StandingRow[],
+  matches: MatchLike[] | null | undefined,
+  rule: Pick<RankingRule, 'criteria' | 'points'> | null | undefined,
+  opts: TallyOpts = {}
+): { rows: StandingRow[]; hasUnresolvedTie: boolean; separations: TieBreakSeparation[] } {
+  const ranked = rankInternal(rows, matches, rule, opts);
+  const rankOf = new Map(ranked.rows.map(r => [r.teamId, r.rank ?? 0]));
+  const separations: TieBreakSeparation[] = ranked.separations.map(s => {
+    if (s.kind === 'unresolved') {
+      return {
+        messageKey: 'cp.tiebreak.unresolved',
+        params: {
+          criterion: s.criterion,
+          teamIds: s.teamIds,
+          ranks: s.teamIds.map(id => rankOf.get(id) ?? 0)
+        }
+      };
+    }
+    return {
+      messageKey: 'cp.tiebreak.separated',
+      params: {
+        criterion: s.criterion,
+        aboveTeamIds: s.aboveTeamIds,
+        belowTeamIds: s.belowTeamIds,
+        aboveRanks: s.aboveTeamIds.map(id => rankOf.get(id) ?? 0),
+        belowRanks: s.belowTeamIds.map(id => rankOf.get(id) ?? 0)
+      }
+    };
+  });
+  return { rows: ranked.rows, hasUnresolvedTie: ranked.hasUnresolvedTie, separations };
 }
 
 function orderTied(
@@ -146,6 +216,9 @@ function orderTied(
         r.hasUnresolvedTie = true;
         r.tiedWith = ids.filter(id => id !== r.teamId);
       }
+      ctx.separations.push({
+        kind: 'unresolved', criterion: c, aboveTeamIds: [], belowTeamIds: [], teamIds: [...ids]
+      });
       return { ordered, unresolved: true };
     }
 
@@ -162,6 +235,19 @@ function orderTied(
 
     const buckets = splitByValue(group, values);
     if (buckets.length <= 1) continue;
+
+    for (let b = 0; b < buckets.length - 1; b++) {
+      const above = buckets[b];
+      const below = buckets[b + 1];
+      if (!above || !below) continue;
+      ctx.separations.push({
+        kind: 'separated',
+        criterion: c,
+        aboveTeamIds: above.map(r => r.teamId),
+        belowTeamIds: below.map(r => r.teamId),
+        teamIds: []
+      });
+    }
 
     const ordered: StandingRow[] = [];
     let unresolved = false;
@@ -185,6 +271,9 @@ function orderTied(
     r.hasUnresolvedTie = true;
     r.tiedWith = ids.filter(id => id !== r.teamId);
   }
+  ctx.separations.push({
+    kind: 'unresolved', criterion: 'exhausted', aboveTeamIds: [], belowTeamIds: [], teamIds: [...ids]
+  });
   return { ordered, unresolved: true };
 }
 
