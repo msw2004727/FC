@@ -69,9 +69,9 @@ describe('報隊與審核', () => {
     await fails(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId, teamId: 'club_a', contactPhone: 'call me' }), 'FIELD_FORMAT');
     await fails(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId, teamId: 'a/b' }), 'BAD_ID');
   });
-  it('審核：只有發起人（管理員可代）；拒絕必填原因；核准不超過上限；拒絕已核准會扣回', async () => {
+  it('審核：只有主辦方（管理員可代）；拒絕必填原因；核准不超過上限；拒絕已核准會扣回', async () => {
     const { enId } = await ok<{ enId: string }>(register());
-    await fails(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid, enId, decision: 'approve' }), 'NOT_CREATOR');
+    await fails(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid, enId, decision: 'approve' }), 'NOT_HOST');
     await fails(call(handleCpEntry, ADMIN, { action: 'reviewEntry', cid, enId, decision: 'reject' }), 'FIELD_REQUIRED');
     await ok(call(handleCpEntry, ADMIN, { action: 'reviewEntry', cid, enId, decision: 'approve' }));
     await fails(call(handleCpEntry, ADMIN, { action: 'reviewEntry', cid, enId, decision: 'approve' }), 'ENTRY_STATE');
@@ -381,7 +381,7 @@ describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤�
   });
 });
 
-describe('站長 11-18：位置「無／自訂」、報隊審核屬發起人', () => {
+describe('站長 11-18：位置「無／自訂」、報隊審核屬主辦方', () => {
   beforeEach(async () => { await resetAll(); await setupComp(); });
 
   it('位置可為無（null）或自訂（≤ 6 字）；自訂必填文字、非自訂不得帶文字', async () => {
@@ -394,15 +394,16 @@ describe('站長 11-18：位置「無／自訂」、報隊審核屬發起人', (
     const b = await ok<{ plId: string }>(call(handleCpEntry, TESTER, { action: 'joinRoster', cid, enId, number: 2, privacyAck: true }));
     expect((await adminDb().doc(`competitions/${cid}/roster/${b.plId}`).get()).data()).toMatchObject({ position: null, positionText: null });
   });
-  it('俱樂部賽事：發起人被撤換代表後仍可審核；目前代表、共同主辦不能審核', async () => {
+  it('俱樂部賽事審核屬主辦方（站長選乙）：建賽者被撤換代表後不能審；目前代表、共同主辦可以', async () => {
     const c = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({ hostType: 'club', hostTeamId: 'club_a' })));
     await ok(call(handleCpHost, TESTER, { action: 'publish', cid: c.cid }));
     const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid: c.cid, dvId: c.dvIds[0], teamId: 'club_a' }));
     await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester3'] });
     await adminDb().doc(`competitions/${c.cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
-    await fails(call(handleCpEntry, TESTER3, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }), 'NOT_CREATOR');
-    await fails(call(handleCpEntry, TESTER2, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }), 'NOT_CREATOR');
-    await ok(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }));
+    await fails(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }), 'NOT_HOST');
+    await ok(call(handleCpEntry, TESTER3, { action: 'reviewEntry', cid: c.cid, enId, decision: 'reject', reason: '名額已滿' }));
+    const { enId: en2 } = await ok<{ enId: string }>(call(handleCpEntry, TESTER3, { action: 'registerEntry', cid: c.cid, dvId: c.dvIds[0], teamId: 'club_a' }));
+    await ok(call(handleCpEntry, TESTER2, { action: 'reviewEntry', cid: c.cid, enId: en2, decision: 'approve' }));
   });
 });
 

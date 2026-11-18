@@ -203,15 +203,6 @@ export async function isPrimaryHost(deps: CpDeps, tx: Reader, cid: string, comp:
   return (await staffRoles(deps, tx, cid, caller.uid)).includes('host');
 }
 
-/**
- * 發起人（建賽者，staff.roles 含 creator）或管理員：報隊審核權（站長 11-18：「報隊一律由發起人審核」，
- * 與顧問 §3.251 (a)「俱樂部只認目前代表」在審核這件事上衝突，照站長）。
- */
-export async function isCreator(deps: CpDeps, tx: Reader, cid: string, caller: Caller): Promise<boolean> {
-  if (isAdmin(caller)) return true;
-  return (await staffRoles(deps, tx, cid, caller.uid)).includes('creator');
-}
-
 export async function assertHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<void> {
   if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
 }

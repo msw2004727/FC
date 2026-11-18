@@ -345,16 +345,16 @@ describe('§3.251 (a)(c)：主文件不放建立者 uid、俱樂部只認目前�
     const root = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
     expect('hostUid' in root).toBe(false);
     expect(JSON.stringify(root)).not.toContain('tester');
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host', 'creator']);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host']);
     const mine = (await adminDb().doc(`cpMine/tester/items/${cid}`).get()).data()!;
     expect(mine).toMatchObject({ cid, roles: ['host'], host: true });
     await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
     expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
   });
-  it('俱樂部主辦：staff 只記 creator（不給主辦權）；建立者被撤換代表後不能編輯、刪除；新代表可以', async () => {
+  it('俱樂部主辦：不寫 staff、不寫 cpMine；建立者被撤換代表後不能編輯、刪除；新代表可以', async () => {
     const { cid } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['creator']);
-    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).get('host')).toBe(true);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
     await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester3'] });
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, name: '前代表改名盃' }), 'NOT_HOST');
     await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
@@ -369,10 +369,10 @@ describe('§3.251 (a)(c)：主文件不放建立者 uid、俱樂部只認目前�
   });
 });
 
-describe('站長 11-18：場地地圖、每組報名費、staff creator', () => {
+describe('站長 11-18：場地地圖、每組報名費', () => {
   beforeEach(() => resetAll());
 
-  it('場地存地圖欄位、組別存每隊報名費；有報隊後不能改報名費', async () => {
+  it('場地存地圖欄位、組別存每隊報名費；有報隊後不能改報名費（俱樂部主辦不寫 staff）', async () => {
     const { cid, dvIds } = await create(TESTER, {
       hostType: 'club', hostTeamId: 'club_a',
       venues: [{ name: '示範公園 1 號場', address: '台北市', lat: 25.03, lng: 121.56, mapPlaceId: 'ChIJdemo' }],
@@ -381,15 +381,15 @@ describe('站長 11-18：場地地圖、每組報名費、staff creator', () => 
     const root = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
     expect(root.venues[0]).toMatchObject({ lat: 25.03, lng: 121.56, mapPlaceId: 'ChIJdemo', mapProvider: 'google' });
     expect((await adminDb().doc(`competitions/${cid}/divisions/${dvIds[0]}`).get()).get('feePerTeam')).toBe(1500);
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['creator']);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).exists).toBe(false);
     await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
     await ok(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, divisions: [
       { dvId: dvIds[0], name: '成人組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5, feePerTeam: 2000 }
     ] }), 'DIVISION_RULES_LOCKED');
   });
-  it('個人主辦 staff 為 host＋creator', async () => {
+  it('個人主辦 staff 為 host', async () => {
     const { cid } = await create(TESTER);
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host', 'creator']);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host']);
   });
 });

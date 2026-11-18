@@ -161,8 +161,10 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       }
     }
 
-    // 發起人（建賽者）一律有 cpMine 索引（報隊審核要找得到；站長 11-18 審核權屬發起人）
-    const writeMine = await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true });
+    // 個人主辦的「自己的清單」走 cpMine（主文件不放 uid）；俱樂部主辦由目前代表以 hostTeamId 查（V16）
+    const writeMine = hostType === 'personal'
+      ? await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true })
+      : null;
 
     // ── 寫 ──
     const now = FieldValue.serverTimestamp();
@@ -183,11 +185,11 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
         ...divisionDoc(d, i), entryCount: 0, approvedCount: 0, createdAt: now, updatedAt: now
       });
     });
-    // staff：個人主辦＝host＋creator；俱樂部主辦只記 creator（主辦權認目前代表，審核權屬發起人）
-    tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), {
-      roles: hostType === 'personal' ? ['host', 'creator'] : ['creator'], matchIds: [], expiresAt: null, createdAt: now
-    });
-    writeMine();
+    // 個人主辦身分寫在 staff/{uid}（host）；俱樂部主辦只認目前代表，不寫 staff（建立者只留在雜湊稽核）
+    if (hostType === 'personal') {
+      tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), { roles: ['host'], matchIds: [], expiresAt: null, createdAt: now });
+      writeMine!();
+    }
     if (quotaRef && hostType === 'personal') {
       tx.set(quotaRef, { recentCreates: [...recent, Timestamp.fromMillis(nowMs)], activeCids: [...activeCids, cid], updatedAt: now });
     } else if (quotaRef) {
@@ -385,7 +387,7 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
   const ep = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entryPrivate`).select('registeredByUid'));
   ep.docs.forEach(d => { const u = d.get('registeredByUid'); if (typeof u === 'string' && u) uids.add(u); });
-  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains-any', ['host', 'creator']).select());
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
   hs.docs.forEach(d => uids.add(d.id));
   const list = [...uids];
   for (let i = 0; i < list.length; i += 400) {

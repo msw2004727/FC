@@ -21,7 +21,6 @@ import {
   isAdmin,
   isClubMember,
   isClubRep,
-  isCreator,
   isHostOrCo,
   launchGate,
   loadComp,
@@ -149,8 +148,9 @@ export async function reviewEntry(deps: CpDeps, caller: Caller, gate: GateResult
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
     assertCompVisible(comp, gate);
-    // 報隊審核一律由發起人（建賽者）處理，管理員可代處理（站長 11-18，取代主辦／共同主辦審核）
-    if (!(await isCreator(deps, tx, cid, caller))) throw deny('NOT_CREATOR');
+    // 報隊審核由主辦方處理、不自動審（站長 11-18 選乙）：俱樂部賽事＝目前代表（建賽者被換掉就不能審）、
+    // 個人主辦＝建賽者（staff host）；共同主辦與管理員可代處理
+    if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
     assertRosterPhase(comp, nowMs);
     const entry = await loadEntry(deps, tx, cid, enId);
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);

@@ -61,11 +61,9 @@ service cloud.firestore {
     // 主辦或共同主辦（顧問 §3.251 (a)(c)，取代「hostUid 本人＋代表＋共同主辦」）：
     // - 俱樂部主辦只認「目前」代表（鏡像 repUids）；建立者被撤換代表後不再有主辦權。
     // - 個人主辦與共同主辦看 staff 角色；公開主文件不再放建立者 uid。
-    // creator（發起人）：站長 11-18 報隊審核權屬發起人，審核要讀報隊與名單私密；Rules 只給讀（寫一律 Callable），
-    // 俱樂部賽事的編輯、刪除等仍只認目前代表（Callable isHostOrCo 不含 creator）。
     function isHostOrCo(cid, c) {
       return (c.hostType == 'club' && isRepOf(c.hostTeamId))
-        || hasStaffRole(cid, ['host', 'coHost', 'creator']);
+        || hasStaffRole(cid, ['host', 'coHost']);
     }
     // 公開條件先判（公開已發布賽事不讀任何相依文件）；其餘一律先過內部期閘門（主辦本人亦同，
     // 與 Callable 的 assertCompVisible 一致，解掉 Opus 終審 P3 的兩邊不一致）。
