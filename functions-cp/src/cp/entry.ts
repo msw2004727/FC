@@ -5,9 +5,10 @@
  * 個資（§4.3、§4.4、§15）：生日只用來算 isMinor／ageEligible，不寫進賽事庫；真名只在 rosterPrivate；
  * 公開 roster 只有顯示名、背號、位置、isMinor；未成年公開名只能是姓氏候選之一。
  */
-import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
+import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { evaluateAge } from './age.js';
 import { readMainProfileForAge } from './main-profile.js';
+import { prepareMine, type MineChange } from './mine.js';
 import { CpError, bad, deny, notFound, pre } from './errors.js';
 import {
   CID_RE,
@@ -74,32 +75,6 @@ async function loadDivision(deps: CpDeps, tx: Tx, cid: string, dvId: string): Pr
   const snap = await readDoc(deps, tx, ref);
   if (!snap.exists) throw notFound('DIVISION_NOT_FOUND');
   return { ref, data: snap.data() as DivisionDoc };
-}
-
-// ── cpMine 索引（§5.2：伺服器在登錄、報隊時寫；只存索引不存個資）──────────
-interface MineChange { addEntry?: string; removeEntry?: string; addPlayer?: string; removePlayer?: string }
-
-/** 讀（交易讀階段呼叫）→ 回傳寫入函式（寫階段呼叫）。 */
-async function prepareMine(deps: CpDeps, tx: Tx, uid: string, cid: string, comp: CompDoc, ch: MineChange): Promise<() => void> {
-  const ref = deps.db.doc(`cpMine/${uid}/items/${cid}`);
-  const snap: DocumentSnapshot = await readDoc(deps, tx, ref);
-  const entryIds = new Set<string>(snap.exists && Array.isArray(snap.get('entryIds')) ? snap.get('entryIds') : []);
-  const plIds = new Set<string>(snap.exists && Array.isArray(snap.get('plIds')) ? snap.get('plIds') : []);
-  if (ch.addEntry) entryIds.add(ch.addEntry);
-  if (ch.removeEntry) entryIds.delete(ch.removeEntry);
-  if (ch.addPlayer) plIds.add(ch.addPlayer);
-  if (ch.removePlayer) plIds.delete(ch.removePlayer);
-  const roles = [...(entryIds.size ? ['rep'] : []), ...(plIds.size ? ['player'] : [])];
-  return () => {
-    if (roles.length === 0) {
-      if (snap.exists) tx.delete(ref);
-      return;
-    }
-    tx.set(ref, {
-      cid, name: comp.name, firstMatchAt: comp.firstMatchAt, roles,
-      entryIds: [...entryIds], plIds: [...plIds], updatedAt: FieldValue.serverTimestamp()
-    });
-  };
 }
 
 // ── registerEntry ─────────────────────────────────────────────────────

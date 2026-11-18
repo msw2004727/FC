@@ -19,7 +19,7 @@ import { ADMIN, STRANGER, TESTER, call, createInput, fails, makeDeps, ok, resetA
 
 /** 每個 Callable 動作的伺服器讀取上限（含內部期 testers 1 讀） */
 const SERVER_BUDGET: Record<string, number> = {
-  create: 3, publish: 4, registerEntry: 8, reviewEntry: 5, joinRoster: 11, confirmRoster: 7, lockRosters: 3
+  create: 4, publish: 4, registerEntry: 8, reviewEntry: 5, joinRoster: 11, confirmRoster: 7, lockRosters: 3
 };
 
 /** 用戶端頁面讀取上限（§8.1；內部期每個請求另加 testers exists 1） */
@@ -81,13 +81,16 @@ describe('§12.4 第 2 步最小驗收劇本', () => {
     dvId = (created.dvIds as string[])[0];
     await serverCall(handleCpHost, ADMIN, { action: 'publish', cid });
     const a = clientDb({ uid: 'admin', role: 'admin' });
-    // Rules：list 第一個條件 isAdmin() 成立，不讀相依文件
-    const list = await clientRead('hostList', 'list competitions hostUid==admin', 0,
-      getDocs(query(collection(a, 'competitions'), where('hostUid', '==', 'admin'), limit(50))));
+    // 主辦自己的清單改走 cpMine（§3.251 (c)）：路徑 uid == 自己，不讀相依文件
+    const list = await clientRead('hostList', 'list cpMine（host）', 0,
+      getDocs(query(collection(a, 'cpMine/admin/items'), limit(50))));
     const docs = (list as Awaited<ReturnType<typeof getDocs>>).docs;
     expect(docs.map(d => d.id)).toEqual([cid]);
-    expect(docs[0].get('visibility')).toBe('internal');
-    expect(docs[0].get('status')).toBe('published');
+    expect(docs[0].get('roles')).toEqual(['host']);
+    // 點進去看根文件（Rules：isAdmin 成立）
+    const root = await clientRead('hostList', 'get competition', 0, getDoc(doc(a, `competitions/${cid}`)));
+    expect((root as Awaited<ReturnType<typeof getDoc>>).get('visibility')).toBe('internal');
+    expect((root as Awaited<ReturnType<typeof getDoc>>).get('status')).toBe('published');
     expect(pageTotal('hostList')).toBeLessThanOrEqual(CLIENT_BUDGET.hostList);
   });
 

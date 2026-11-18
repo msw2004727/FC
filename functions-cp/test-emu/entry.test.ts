@@ -217,7 +217,8 @@ describe('代表代填無帳號球員（addRosterByRep，§4.4）', () => {
       (k, v) => /birth/i.test(k) || v === bd || v === bd.replace(/\//g, '-'));
     expect(hits).toEqual([]);
     // 無帳號球員不建 cpMine
-    expect((await adminDb().collection('cpMine').listDocuments()).map(d => d.id)).toEqual(['tester']);
+    // （admin＝個人主辦的 host 索引、tester＝報隊者）
+    expect((await adminDb().collection('cpMine').listDocuments()).map(d => d.id).sort()).toEqual(['admin', 'tester']);
   });
   it('成員（非代表）、非成員、主辦都不能代填', async () => {
     await fails(add(TESTER2), 'NOT_CLUB_REP');
@@ -363,7 +364,7 @@ describe('顧問 §3.251：代填成年預設姓氏、解鎖名單、被拒撤�
     // 解鎖後可再報隊；首場後主辦（個人主辦本人）不能解鎖、管理員可以
     await ok(register());
     await ok(call(handleCpEntry, ADMIN, { action: 'lockRosters', cid }));
-    await adminDb().doc(`competitions/${cid}`).update({ hostUid: 'tester3' });
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['host'], matchIds: [] });
     await fails(call(handleCpEntry, TESTER3, { action: 'unlockRosters', cid, reason: '補登球員' }, makeDeps(25 * DAY)), 'COMPETITION_STARTED');
     await ok(call(handleCpEntry, ADMIN, { action: 'unlockRosters', cid, reason: '補登球員' }, makeDeps(25 * DAY)));
   });

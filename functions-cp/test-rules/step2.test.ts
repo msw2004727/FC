@@ -163,7 +163,7 @@ function paddedRules(n: number): string {
   const padExpr = calls.length ? calls.join(' && ') + ' && (' : '(';
   return src
     .replace(marker, `${groups.join('\n')}\n    function canReadCompData(cid, c) {\n      return ${padExpr}isAdmin()`)
-    .replace(/(\|\| \(internalGate\(c\) && \(isPubLike\(c\) \|\| isHostOrCo\(cid, c\)\)\));/, '$1);');
+    .replace(/(\|\| \(internalGate\(c\) && isHostOrCo\(cid, c\)\));/, '$1);');
 }
 
 describe('pad 量測：第 2 步讀取路徑', () => {
@@ -195,4 +195,30 @@ describe('pad 量測：第 2 步讀取路徑', () => {
       if (n <= 100) expect(Object.values(result[n]).every(Boolean), `pad ${n} 有讀取路徑失敗：${JSON.stringify(result[n])}`).toBe(true);
     });
   }
+});
+
+describe('§3.251 (a)(c)：主辦權只認目前代表與 staff 角色', () => {
+  it('俱樂部賽事：被撤換的前代表（不在 repUids）不能讀草稿、報隊私密、名單私密', async () => {
+    await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester'] });
+    try {
+      await assertFails(get1(as('rep'), 'competitions/cp_club_draft'));
+      await assertFails(get1(as('rep'), 'competitions/cp_club/entryPrivate/en_b'));
+      await assertFails(getDocs(query(collection(as('rep'), 'competitions/cp_club/rosterPrivate'), limit(10))));
+    } finally {
+      await adminDb().doc('cpClubs/club_a').update({ repUids: ['rep', 'tester'] });
+    }
+  });
+  it('目前代表可讀俱樂部草稿與全部名單私密（主辦檢錄）', async () => {
+    await assertSucceeds(get1(as('rep'), 'competitions/cp_club_draft'));
+    await assertSucceeds(getDocs(query(collection(as('rep'), 'competitions/cp_club/rosterPrivate'), limit(100))));
+  });
+  it('個人主辦（staff host）可讀草稿與全部名單私密；staff 文件不存在的人不行', async () => {
+    await assertSucceeds(get1(as('host'), 'competitions/cp_draft'));
+    await assertSucceeds(getDocs(query(collection(as('host'), 'competitions/cp_pub/rosterPrivate'), limit(100))));
+    await assertFails(get1(as('stranger'), 'competitions/cp_draft'));
+  });
+  it('公開已發布賽事：訪客讀根文件與公開子集合不需相依讀取（先判公開條件）', async () => {
+    await assertSucceeds(get1(anon(), 'competitions/cp_pub'));
+    await assertSucceeds(getDocs(query(collection(anon(), 'competitions/cp_pub/entries'), limit(32))));
+  });
 });

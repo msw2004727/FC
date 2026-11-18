@@ -15,6 +15,7 @@ import {
   assertHostOrCo,
   isAdmin,
   isClubRep,
+  isPrimaryHost,
   launchGate,
   loadComp,
   newId,
@@ -46,6 +47,7 @@ import {
   type DivisionInput
 } from './validate.js';
 import { cleanLine, findBannedWord } from './text.js';
+import { prepareMine } from './mine.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -122,6 +124,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
     let hostDisplay = personalDisplay;
     let quotaRef: DocumentReference | null = null;
     let recent: Timestamp[] = [];
+    const activeCids: string[] = [];
     if (hostType === 'club') {
       const rep = await isClubRep(deps, tx, hostTeamId!, caller.uid);
       if (!rep.ok && !admin) throw deny('NOT_CLUB_REP');
@@ -144,18 +147,28 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       if (recent.length >= HOST_QUOTA.personalCreates30dMax) {
         throw new CpError('resource-exhausted', 'HOST_QUOTA_30D', { max: HOST_QUOTA.personalCreates30dMax });
       }
-      const active = await readCount(deps, tx, deps.db.collection('competitions')
-        .where('hostUid', '==', caller.uid).where('hostType', '==', 'personal')
-        .where('endedAt', '==', null).where('status', 'in', ACTIVE_STATUSES).count());
-      if (active >= HOST_QUOTA.personalActiveMax) {
+      // 進行中計數改用配額文件的 activeCids（§3.251 (c)：主文件不放建立者 uid，無法用 hostUid 查詢）。
+      // 每次建立時逐一讀回確認狀態（自我修復：刪除、取消、結束的自動剔除），最多讀 personalActiveMax＋少量殘留。
+      const rawActive = q.exists ? q.get('activeCids') : null;
+      const candidates = (Array.isArray(rawActive) ? rawActive : []).filter((x): x is string => typeof x === 'string' && CID_RE.test(x)).slice(0, 10);
+      for (const ac of candidates) {
+        const snap = await readDoc(deps, tx, deps.db.doc(`competitions/${ac}`));
+        if (snap.exists && snap.get('endedAt') == null && ACTIVE_STATUSES.includes(snap.get('status'))) activeCids.push(ac);
+      }
+      if (activeCids.length >= HOST_QUOTA.personalActiveMax) {
         throw new CpError('resource-exhausted', 'HOST_QUOTA_ACTIVE', { max: HOST_QUOTA.personalActiveMax });
       }
     }
 
+    const writeMine = hostType === 'personal'
+      ? await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true })
+      : null;
+
     // ── 寫 ──
     const now = FieldValue.serverTimestamp();
+    // 主文件不放建立者 uid（§3.251 (c)）；個人主辦身分寫在 staff/{uid}（host），俱樂部主辦只認目前代表
     tx.create(deps.db.doc(`competitions/${cid}`), {
-      name, sport, hostType, hostUid: caller.uid, hostTeamId, hostDisplay,
+      name, sport, hostType, hostTeamId, hostDisplay,
       // §12.2 b：內部期一律 internal，用戶端無法指定
       visibility: gate.isPublic ? 'public' : 'internal',
       status: 'draft', statusReason: null, hidden: false,
@@ -170,8 +183,12 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
         ...divisionDoc(d, i), entryCount: 0, approvedCount: 0, createdAt: now, updatedAt: now
       });
     });
+    if (hostType === 'personal') {
+      tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), { roles: ['host'], matchIds: [], expiresAt: null, createdAt: now });
+      writeMine!();
+    }
     if (quotaRef && hostType === 'personal') {
-      tx.set(quotaRef, { recentCreates: [...recent, Timestamp.fromMillis(nowMs)], updatedAt: now });
+      tx.set(quotaRef, { recentCreates: [...recent, Timestamp.fromMillis(nowMs)], activeCids: [...activeCids, cid], updatedAt: now });
     } else if (quotaRef) {
       tx.set(quotaRef, { lastCreateAt: Timestamp.fromMillis(nowMs), updatedAt: now });
     }
@@ -339,10 +356,8 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   await deps.db.runTransaction(async tx => {
     const c = await loadComp(deps, tx, cid);
     assertCompVisible(c, gate);
-    // §5.1：主辦＝hostUid，俱樂部主辦時含該隊代表；共同主辦不能刪（Flash 交叉審 P1）
-    const primary = c.hostUid === caller.uid
-      || (c.hostType === 'club' && typeof c.hostTeamId === 'string'
-        && (await isClubRep(deps, tx, c.hostTeamId, caller.uid)).ok);
+    // 主辦：俱樂部主辦＝目前代表、個人主辦＝staff host；共同主辦不能刪（Flash P1、§3.251 (a)）
+    const primary = await isPrimaryHost(deps, tx, cid, c, caller);
     if (!admin && !primary) throw deny('NOT_PRIMARY_HOST');
     // 下架（被檢舉）中主辦不能自刪，避免檢舉證據隨子集合消失（Opus 終審 P2-6）；刪除中重跑例外
     if (!admin && c.hidden && !c.deletingAt) throw pre('COMPETITION_HIDDEN');
@@ -368,6 +383,8 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
   const ep = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entryPrivate`).select('registeredByUid'));
   ep.docs.forEach(d => { const u = d.get('registeredByUid'); if (typeof u === 'string' && u) uids.add(u); });
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
+  hs.docs.forEach(d => uids.add(d.id));
   const list = [...uids];
   for (let i = 0; i < list.length; i += 400) {
     const b = deps.db.batch();

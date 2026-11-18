@@ -9,6 +9,7 @@ import {
   FieldValue,
   actorHash,
   assertCompVisible,
+  isHostOrCo,
   launchGate,
   loadComp,
   readDoc,
@@ -38,7 +39,7 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
     const comp = await loadComp(deps, tx, cid);
     assertCompVisible(comp, gate);
     // 草稿只有主辦看得到，不接受檢舉（避免以檢舉探測草稿 id）
-    if (comp.status === 'draft' && comp.hostUid !== caller.uid) throw new CpError('not-found', 'COMPETITION_NOT_FOUND');
+    if (comp.status === 'draft' && !(await isHostOrCo(deps, tx, cid, comp, caller))) throw new CpError('not-found', 'COMPETITION_NOT_FOUND');
     const ref = deps.db.doc(`competitions/${cid}/reports/${rid}`);
     const prev = await readDoc(deps, tx, ref);
     const last = prev.exists ? prev.get('lastAt') : null;

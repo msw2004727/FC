@@ -28,7 +28,9 @@ describe('competitions 根文件 get', () => {
     }
   });
   it('主辦可讀自己的草稿、下架、內部；共同主辦可讀草稿、下架', async () => {
-    for (const c of ['cp_draft', 'cp_hidden', 'cp_int']) await assertSucceeds(get1(as('host'), `competitions/${c}`));
+    for (const c of ['cp_draft', 'cp_hidden']) await assertSucceeds(get1(as('host'), `competitions/${c}`));
+    // §3.251：主辦本人讀內部賽事也要過內部期閘門（與 Callable 一致）
+    await assertFails(get1(as('host'), 'competitions/cp_int'));
     for (const c of ['cp_draft', 'cp_hidden']) await assertSucceeds(get1(as('co'), `competitions/${c}`));
   });
   it('內部賽事：共同主辦（非測試者）不可讀；測試者可讀；管理員可讀', async () => {
@@ -79,8 +81,9 @@ describe('competitions list', () => {
     await assertSucceeds(getDocs(query(collection(as('admin', 'admin'), 'competitions'), limit(50))));
     await assertFails(getDocs(query(collection(as('admin', 'admin'), 'competitions'), limit(51))));
   });
-  it('主辦自己的清單：hostUid == 自己（含草稿、內部）', async () => {
-    await assertSucceeds(getDocs(query(collection(as('host'), 'competitions'), where('hostUid', '==', 'host'), limit(50))));
+  it('主辦自己的清單：改走 cpMine（§3.251 (c)）；以 hostUid 查詢已無規則可過', async () => {
+    await assertSucceeds(getDocs(query(collection(as('host'), 'cpMine/host/items'), limit(50))));
+    await assertFails(getDocs(query(collection(as('host'), 'competitions'), where('hostUid', '==', 'host'), limit(50))));
   });
   it('【拒】查別人的 hostUid', async () => {
     await assertFails(getDocs(query(collection(as('stranger'), 'competitions'), where('hostUid', '==', 'host'), limit(50))));

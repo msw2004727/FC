@@ -102,7 +102,6 @@ export interface CompDoc {
   name: string;
   sport: string;
   hostType: 'personal' | 'club';
-  hostUid: string;
   hostTeamId?: string | null;
   hostDisplay: string;
   visibility: 'public' | 'internal';
@@ -170,18 +169,34 @@ export async function isClubMember(deps: CpDeps, tx: Reader, teamId: string, uid
   return snap.exists;
 }
 
+/** 賽事內 staff 角色（伺服器寫）。 */
+async function staffRoles(deps: CpDeps, tx: Reader, cid: string, uid: string): Promise<string[]> {
+  const staff = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/staff/${uid}`));
+  const roles = staff.exists ? staff.get('roles') : null;
+  return Array.isArray(roles) ? roles : [];
+}
+
 /**
- * 主辦或共同主辦（§5.1）：hostUid；俱樂部主辦時該隊代表；staff.roles 含 coHost；管理員。
- * 內部賽事另由 assertCompVisible 把關（hostUid 本人的內部賽事：內部期能建賽的只有管理員／測試者）。
+ * 主辦或共同主辦（顧問 §3.251 (a)(c)，與 Rules isHostOrCo 一致）：管理員；俱樂部主辦只認「目前」代表；
+ * 個人主辦與共同主辦看 staff.roles（host／coHost）。主文件不放建立者 uid。
+ * 內部賽事另由 assertCompVisible 把關。
  */
 export async function isHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<boolean> {
-  if (isAdmin(caller) || comp.hostUid === caller.uid) return true;
+  if (isAdmin(caller)) return true;
   if (comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
     if ((await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok) return true;
   }
-  const staff = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/staff/${caller.uid}`));
-  const roles = staff.exists ? staff.get('roles') : null;
-  return Array.isArray(roles) && roles.includes('coHost');
+  const roles = await staffRoles(deps, tx, cid, caller.uid);
+  return roles.includes('host') || roles.includes('coHost');
+}
+
+/** 主辦（不含共同主辦）：刪除等只限主辦的動作。俱樂部主辦＝目前代表；個人主辦＝staff host。 */
+export async function isPrimaryHost(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<boolean> {
+  if (isAdmin(caller)) return true;
+  if (comp.hostType === 'club') {
+    return typeof comp.hostTeamId === 'string' && (await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok;
+  }
+  return (await staffRoles(deps, tx, cid, caller.uid)).includes('host');
 }
 
 export async function assertHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<void> {

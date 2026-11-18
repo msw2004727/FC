@@ -45,7 +45,7 @@ describe('內部期閘門（§12.2 a、b）', () => {
     const pub = await create(STRANGER);
     expect((await adminDb().doc(`competitions/${pub.cid}`).get()).get('visibility')).toBe('public');
     // 把 stranger 設成內部賽事的主辦也一樣被擋（防繞過）
-    await adminDb().doc(`competitions/${internal.cid}`).update({ hostUid: 'stranger' });
+    await adminDb().doc(`competitions/${internal.cid}/staff/stranger`).set({ roles: ['host'], matchIds: [] });
     await fails(call(handleCpHost, STRANGER, { action: 'publish', cid: internal.cid }), 'INTERNAL_COMPETITION');
   });
 });
@@ -330,5 +330,37 @@ describe('Opus 終審退修：開賽後與已有名單的時程、下架時的�
     await adminDb(MAIN).doc('users/tester').update({ displayName: '官方小編' });
     const { cid } = await create(TESTER);
     expect((await adminDb().doc(`competitions/${cid}`).get()).get('hostDisplay')).toBe('主辦');
+  });
+});
+
+describe('§3.251 (a)(c)：主文件不放建立者 uid、俱樂部只認目前代表', () => {
+  beforeEach(() => resetAll());
+
+  it('個人主辦：主文件沒有 hostUid；staff host 與 cpMine host 索引；刪除時一併清除', async () => {
+    const { cid } = await create(TESTER);
+    const root = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
+    expect('hostUid' in root).toBe(false);
+    expect(JSON.stringify(root)).not.toContain('tester');
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host']);
+    const mine = (await adminDb().doc(`cpMine/tester/items/${cid}`).get()).data()!;
+    expect(mine).toMatchObject({ cid, roles: ['host'], host: true });
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+  });
+  it('俱樂部主辦：不寫 staff host；建立者被撤換代表後不能編輯、刪除；新代表可以', async () => {
+    const { cid } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+    await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester3'] });
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, name: '前代表改名盃' }), 'NOT_HOST');
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
+    await ok(call(handleCpHost, TESTER3, { action: 'update', cid, name: '新代表改名盃' }));
+    await ok(call(handleCpHost, TESTER3, { action: 'delete', cid }));
+  });
+  it('共同主辦可編輯但不能刪（staff coHost）', async () => {
+    const { cid } = await create(TESTER);
+    await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
+    await ok(call(handleCpHost, TESTER2, { action: 'update', cid, name: '共同主辦改名盃' }));
+    await fails(call(handleCpHost, TESTER2, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
   });
 });

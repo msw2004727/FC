@@ -53,24 +53,24 @@ service cloud.firestore {
         && exists(clubPath(teamId))
         && uid() in get(clubPath(teamId)).data.repUids;
     }
-    function isCoHost(cid) {
+    // 賽事內主辦角色（staff/{uid}.roles，伺服器寫）：host＝個人主辦、coHost＝共同主辦
+    function hasStaffRole(cid, roles) {
       return signedIn() && exists(staffPath(cid))
-        && get(staffPath(cid)).data.roles.hasAny(['coHost']);
+        && get(staffPath(cid)).data.roles.hasAny(roles);
     }
-    // 主辦：hostUid；俱樂部主辦時該隊代表（鏡像 repUids）；共同主辦（staff.roles 含 coHost）
+    // 主辦或共同主辦（顧問 §3.251 (a)(c)，取代「hostUid 本人＋代表＋共同主辦」）：
+    // - 俱樂部主辦只認「目前」代表（鏡像 repUids）；建立者被撤換代表後不再有主辦權。
+    // - 個人主辦與共同主辦看 staff 角色；公開主文件不再放建立者 uid。
     function isHostOrCo(cid, c) {
-      return signedIn() && (
-        c.hostUid == uid()
-        || (c.hostType == 'club' && isRepOf(c.hostTeamId))
-        || isCoHost(cid)
-      );
+      return (c.hostType == 'club' && isRepOf(c.hostTeamId))
+        || hasStaffRole(cid, ['host', 'coHost']);
     }
-    // hostUid 本人讀自己的賽事不受內部期閘門限制（自己的資料；內部期能建賽的只有管理員／測試者，
-    // 由 Callable 強制）；其他人（含俱樂部代表、共同主辦）一律先過內部期閘門。
+    // 公開條件先判（公開已發布賽事不讀任何相依文件）；其餘一律先過內部期閘門（主辦本人亦同，
+    // 與 Callable 的 assertCompVisible 一致，解掉 Opus 終審 P3 的兩邊不一致）。
     function canReadCompData(cid, c) {
       return isAdmin()
-        || (signedIn() && c.hostUid == uid())
-        || (internalGate(c) && (isPubLike(c) || isHostOrCo(cid, c)));
+        || (isPubLike(c) && internalGate(c))
+        || (internalGate(c) && isHostOrCo(cid, c));
     }
     function canReadComp(cid) {
       return exists(compPath(cid)) && canReadCompData(cid, get(compPath(cid)).data);
@@ -78,7 +78,6 @@ service cloud.firestore {
     function canManageComp(cid) {
       return exists(compPath(cid)) && (
         isAdmin()
-        || (signedIn() && get(compPath(cid)).data.hostUid == uid())
         || (internalGate(get(compPath(cid)).data) && isHostOrCo(cid, get(compPath(cid)).data))
       );
     }
@@ -274,11 +273,10 @@ service cloud.firestore {
       allow get: if canReadCompData(cid, resource.data);
 
       // list（§5.2）：一律 limit <= 50；公開清單須帶 visibility／hidden／status 篩選；
-      // 自己主辦的清單帶 hostUid == 自己；俱樂部代表清單帶 hostTeamId == T（V16）；管理員另一條。
+      // 個人主辦自己的清單改走 cpMine（§3.251 (c)：主文件不放建立者 uid）；俱樂部代表清單帶 hostTeamId == T（V16）；管理員另一條。
       allow list: if request.query.limit != null && request.query.limit <= 50 && (
         isAdmin()
         || (isPubLike(resource.data) && internalGate(resource.data))
-        || (signedIn() && resource.data.hostUid == uid())
         // 俱樂部代表清單：非管理員／測試者時查詢須另帶 visibility == 'public'（內部期閘門）
         // （hostTeamId 只有俱樂部主辦的賽事才有，由 cpHost 寫入；查詢只需帶 hostTeamId == T）
         || (isRepOf(resource.data.hostTeamId) && internalGate(resource.data))

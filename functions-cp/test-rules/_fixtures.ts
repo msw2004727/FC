@@ -2,7 +2,7 @@
  * 共用種子資料（全部用代號，不含真實 uid／人名）
  *
  * 身分
- *  host     個人主辦（cp_pub、cp_draft、cp_int 的 hostUid）
+ *  host     個人主辦（個人主辦賽事的 staff/host roles=['host']；§3.251 (c) 主文件不放 uid）
  *  co       共同主辦（staff.roles = ['coHost']）
  *  rep      俱樂部 club_a 代表（cpClubs/club_a.repUids）
  *  s1       cp_pub/mt_1 的指派記分員＋目前記分者
@@ -21,7 +21,7 @@ export const CLOCK0 = { startedAt: null, pausedSec: 0, running: false, period: '
 
 export function compDoc(over: Record<string, unknown> = {}) {
   return {
-    name: '【測試】盃', sport: 'football', hostType: 'personal', hostUid: 'host',
+    name: '【測試】盃', sport: 'football', hostType: 'personal',
     hostDisplay: '主辦', visibility: 'public', status: 'published', hidden: false,
     regOpenAt: ago(86400 * 10), regCloseAt: ago(86400 * 2),
     firstMatchAt: ago(3600), lastMatchAt: ago(-86400), timezone: 'Asia/Taipei',
@@ -60,9 +60,9 @@ export async function seedBase(): Promise<void> {
     ['cp_cancel', { status: 'cancelled' }],
     ['cp_post', { status: 'postponed' }],
     ['cp_int', { visibility: 'internal' }],
-    ['cp_club', { hostType: 'club', hostUid: 'host', hostTeamId: 'club_a' }],
-    ['cp_club_draft', { hostType: 'club', hostUid: 'host', hostTeamId: 'club_a', status: 'draft' }],
-    ['cp_club_int', { hostType: 'club', hostUid: 'host', hostTeamId: 'club_a', visibility: 'internal' }]
+    ['cp_club', { hostType: 'club', hostTeamId: 'club_a' }],
+    ['cp_club_draft', { hostType: 'club', hostTeamId: 'club_a', status: 'draft' }],
+    ['cp_club_int', { hostType: 'club', hostTeamId: 'club_a', visibility: 'internal' }]
   ] as const) {
     b.set(db.doc(`competitions/${cid}`), compDoc(over as Record<string, unknown>));
     b.set(db.doc(`competitions/${cid}/divisions/dv_1`), { name: '公開組', formatId: 'RR' });
@@ -77,6 +77,10 @@ export async function seedBase(): Promise<void> {
     b.set(db.doc(`competitions/${cid}/audits/a1`), { action: 'x' });
     b.set(db.doc(`competitions/${cid}/reports/r1`), { reason: 'x' });
     b.set(db.doc(`competitions/${cid}/staff/co`), { roles: ['coHost'], matchIds: [], expiresAt: null });
+    // 個人主辦：staff host；俱樂部主辦只認目前代表（不寫 host）
+    if (!('hostType' in (over as Record<string, unknown>))) {
+      b.set(db.doc(`competitions/${cid}/staff/host`), { roles: ['host'], matchIds: [], expiresAt: null });
+    }
     b.set(db.doc(`competitions/${cid}/staff/s1`), { roles: ['scorer'], matchIds: ['mt_1'], expiresAt: null });
     b.set(db.doc(`competitions/${cid}/staff/s2`), { roles: ['scorer'], matchIds: ['mt_1'], expiresAt: null });
     b.set(db.doc(`competitions/${cid}/staff/sref`), { roles: ['referee'], matchIds: ['mt_1'], expiresAt: null });
@@ -95,6 +99,7 @@ export async function seedBase(): Promise<void> {
     b.set(db.doc(`competitions/${cid}/matches/mt_2/control/scorer`), { uid: 'sother', takenAt: ago(1800) });
     b.set(db.doc(`competitions/${cid}/matches/mt_2/timeline/e1`), { seq: 1, type: 'kickoff', matchSecond: 0, createdAt: ago(1800) });
   }
+  b.set(db.doc('cpMine/host/items/cp_draft'), { cid: 'cp_draft', roles: ['host'], host: true });
   b.set(db.doc('cpMine/m1/items/cp_pub'), { cid: 'cp_pub', role: 'player', firstMatchAt: ago(3600) });
   b.set(db.doc('cpMine/s1/items/cp_pub'), { cid: 'cp_pub', role: 'scorer', firstMatchAt: ago(3600) });
   await b.commit();
