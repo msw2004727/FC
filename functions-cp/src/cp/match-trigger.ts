@@ -30,13 +30,17 @@ function teamMetaOf(names: Record<string, string>) {
 /**
  * 產生賽程時的全 0 積分榜（名次照抽籤順序，畫面在全部 0 場時不顯示同分標記）。
  * prevVersion：重排時沿用舊版本 +1，避免版本倒退被 isStaleWrite 當成舊資料（Opus 終審 P3-2）。
+ * divisionName：組別文件上的名稱（呼叫端已讀過，這裡不再讀）。
  */
-export function zeroStandingDoc(cid: string, dvId: string, teamIds: string[], names: Record<string, string>, preset: Preset, prevVersion = 0) {
+export function zeroStandingDoc(
+  cid: string, dvId: string, teamIds: string[], names: Record<string, string>, preset: Preset,
+  prevVersion = 0, divisionName = ''
+) {
   const doc = buildStanding({
     competitionId: cid, divisionId: dvId, stageId: 'group', groupId: 'A', teamIds, matches: [],
     rule: rankingRuleOf(preset), opts: { teamMeta: teamMetaOf(names) }, prev: { version: prevVersion }
   });
-  return { ...doc, computedBy: 'cpHost:generateSchedule', updatedAt: FieldValue.serverTimestamp() };
+  return { ...doc, divisionName, computedBy: 'cpHost:generateSchedule', updatedAt: FieldValue.serverTimestamp() };
 }
 
 function kickoffMsOf(d: DocumentData | null | undefined): number | null {
@@ -81,7 +85,9 @@ export async function recomputeStanding(deps: CpDeps, cid: string, dvId: string,
       opts: { teamMeta: teamMetaOf(names) },
       prev: prevData ? { version: prevData.version, manualOverride: prevData.manualOverride, rows: prevData.rows } : null
     });
-    tx.set(ref, { ...doc, computedBy: 'cpOnMatchWritten', updatedAt: FieldValue.serverTimestamp() });
+    // 組別文件這筆交易已經讀過，名稱直接帶上，不再讀。整份 set 會蓋掉舊欄位，所以一定要寫。
+    const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
+    tx.set(ref, { ...doc, divisionName, computedBy: 'cpOnMatchWritten', updatedAt: FieldValue.serverTimestamp() });
     return true;
   });
 }

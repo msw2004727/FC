@@ -38,6 +38,7 @@ import {
   categoryInput,
   categoryOf,
   competitionName,
+  contactNoteOf,
   divisionsOf,
   feeNoteOf,
   hostDisplayName,
@@ -52,6 +53,7 @@ import {
 import { cleanLine, findBannedWord } from './text.js';
 import { prepareMine } from './mine.js';
 import { MATCH_HOST_ACTIONS } from './match-host.js';
+import { standingRef } from './match-trigger.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -82,7 +84,8 @@ function divisionDoc(d: DivisionInput, order: number) {
 // ── create ─────────────────────────────────────────────────────────────
 const CREATE_KEYS = [
   'action', 'name', 'hostType', 'hostTeamId', 'hostDisplay', 'sport', 'timezone', 'category',
-  'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt', 'venues', 'feeNote', 'liveLinks', 'divisions'
+  'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt', 'venues', 'feeNote', 'liveLinks', 'divisions',
+  'contactNote'
 ];
 
 export async function createCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
@@ -99,6 +102,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const venues = venuesOf(input.venues);
   const liveLinks = liveLinksOf(input.liveLinks);
   const feeNote = feeNoteOf(input.feeNote, hostType);
+  const contactNote = contactNoteOf(input.contactNote, gate.bannedWords);
   const divisions = divisionsOf(input.divisions);
   assertFeeAllowed(divisions, hostType);
   if (divisions.some(d => d.dvId)) throw bad('BAD_ID', { field: 'divisions' });
@@ -184,7 +188,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       regOpenAt: ts(sched.regOpenAt), regCloseAt: ts(sched.regCloseAt),
       firstMatchAt: ts(sched.firstMatchAt), lastMatchAt: ts(sched.lastMatchAt),
       endedAt: null, endedBy: null, rostersLockedAt: null, ageBasisAt: null,
-      timezone, venues, feeNote, liveLinks,
+      timezone, venues, feeNote, liveLinks, contactNote, notices: [],
       stateVersion: 1, createdAt: now, updatedAt: now
     });
     divisions.forEach((d, i) => {
@@ -207,10 +211,52 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   return { cid, dvIds };
 }
 
+/**
+ * 名單鎖定後只能改既有組別的名稱（給積分榜顯示）。增刪、調順序、改規則仍是 ROSTERS_LOCKED。
+ * 規則欄位與當初寫入的組別文件一致才算「只改名」。
+ */
+function isNameOnlyDivisionEdit(
+  existing: Map<string, { get(field: string): unknown }>,
+  divisions: DivisionInput[]
+): boolean {
+  if (divisions.length !== existing.size) return false;
+  const seen = new Set<string>();
+  for (let i = 0; i < divisions.length; i++) {
+    const d = divisions[i];
+    if (!d.dvId || seen.has(d.dvId)) return false;
+    seen.add(d.dvId);
+    const old = existing.get(d.dvId);
+    if (!old) return false;
+    if ((old.get('order') ?? i) !== i) return false;
+    if (old.get('playersOnField') !== d.playersOnField) return false;
+    if (old.get('maxTeams') !== d.maxTeams) return false;
+    if (old.get('rosterMin') !== d.rosterMin) return false;
+    if (old.get('rosterMax') !== d.rosterMax) return false;
+    if ((old.get('minAge') ?? null) !== d.minAge) return false;
+    if ((old.get('maxAge') ?? null) !== d.maxAge) return false;
+    if (Boolean(old.get('requireRealName')) !== d.requireRealName) return false;
+    if ((old.get('feePerTeam') ?? 0) !== d.feePerTeam) return false;
+  }
+  return seen.size === existing.size;
+}
+
+/** 積分文件的 groupId。第 3 步只有 A；沒有賽程時也試 A，才能對上已存在的那一份。 */
+function standingGroupIds(schedule: unknown): string[] {
+  if (!schedule || typeof schedule !== 'object') return ['A'];
+  const groups = (schedule as { groups?: unknown }).groups;
+  if (!Array.isArray(groups) || groups.length === 0) return ['A'];
+  const ids: string[] = [];
+  for (const g of groups) {
+    const id = g && typeof g === 'object' ? (g as { groupId?: unknown }).groupId : null;
+    if (typeof id === 'string' && /^[A-Za-z0-9]{1,8}$/.test(id) && !ids.includes(id)) ids.push(id);
+  }
+  return ids.length ? ids : ['A'];
+}
+
 // ── update ─────────────────────────────────────────────────────────────
 const UPDATE_KEYS = [
   'action', 'cid', 'name', 'category', 'hostDisplay', 'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt',
-  'venues', 'feeNote', 'liveLinks', 'divisions'
+  'venues', 'feeNote', 'liveLinks', 'divisions', 'contactNote'
 ];
 const SCHEDULE_KEYS = ['regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt'];
 
@@ -255,13 +301,19 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
     if (has('venues')) patch.venues = venuesOf(input.venues);
     if (has('feeNote')) patch.feeNote = feeNoteOf(input.feeNote, comp.hostType);
     if (has('liveLinks')) patch.liveLinks = liveLinksOf(input.liveLinks);
+    if (has('contactNote')) patch.contactNote = contactNoteOf(input.contactNote, gate.bannedWords);
 
     // 組別：送來的是完整清單（有 dvId＝更新、沒有＝新增、清單外＝刪除）
     let divisionWrites: (() => void)[] = [];
+    const standingNameWrites: Array<{ ref: DocumentReference; divisionName: string }> = [];
+    const renamedDivisions: string[] = [];
     if (divisions) {
-      if (comp.rostersLockedAt) throw pre('ROSTERS_LOCKED', { field: 'divisions' });
       const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
       const existing = new Map(snap.docs.map(d => [d.id, d]));
+      // 鎖定後仍可改名稱（積分榜要跟著改）。增刪或改規則維持原本的 ROSTERS_LOCKED。
+      if (comp.rostersLockedAt && !isNameOnlyDivisionEdit(existing, divisions)) {
+        throw pre('ROSTERS_LOCKED', { field: 'divisions' });
+      }
       const keep = new Set(divisions.filter(d => d.dvId).map(d => d.dvId!));
       for (const id of keep) if (!existing.has(id)) throw bad('BAD_ID', { field: 'divisions' });
       for (const [id, d] of existing) {
@@ -297,14 +349,32 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
         }
       });
       for (const [id, d] of existing) if (!keep.has(id)) divisionWrites.push(() => tx.delete(d.ref));
+      // 改名的組別：積分文件用已讀到的 schedule 算出 id，同一筆交易更新 divisionName。
+      // 第 3 步每組別一份（group A），寫入數 ≤ 組別數。沒有那份文件就不寫。
+      for (const d of divisions) {
+        if (!d.dvId) continue;
+        const old = existing.get(d.dvId);
+        if (!old || old.get('name') === d.name) continue;
+        renamedDivisions.push(d.dvId);
+        for (const groupId of standingGroupIds(old.get('schedule'))) {
+          const ref = standingRef(deps, cid, d.dvId, 'group', groupId);
+          const st = await readDoc(deps, tx, ref);
+          if (st.exists) standingNameWrites.push({ ref, divisionName: d.name });
+        }
+      }
     }
 
     if (Object.keys(patch).length === 0 && !divisions) throw bad('NOTHING_TO_UPDATE');
     divisionWrites.forEach(w => w());
+    for (const s of standingNameWrites) tx.update(s.ref, { divisionName: s.divisionName });
     tx.update(deps.db.doc(`competitions/${cid}`), {
       ...patch, stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
     });
-    writeAudit(deps, tx, cid, caller, 'update', { fields: Object.keys(patch), divisions: divisions ? divisions.length : null });
+    writeAudit(deps, tx, cid, caller, 'update', {
+      fields: Object.keys(patch),
+      divisions: divisions ? divisions.length : null,
+      ...(renamedDivisions.length ? { renamedDivisions } : {})
+    });
     if (patch.name !== undefined || patch.firstMatchAt !== undefined || patch.category !== undefined) {
       mineSync = {
         name: (patch.name as string | undefined) ?? comp.name,

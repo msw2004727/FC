@@ -3,6 +3,7 @@
  * 已確認／棄權／改期／待確認（主辦登錄）場次不能直寫記分；公開讀取照父文件條件。
  * F1：用戶端不能把場次改成 cancelled，也不能寫賽事 endedBy／endReason。
  * F3：用戶端不能直寫積分榜的 manualOverride 或列上的 decidedBy。
+ * F4：用戶端不能直寫賽事根文件的 notices、contactNote，也不能直寫積分榜的 divisionName。
  * （Rules 檔本步未改；本檔只補拒絕與通過案例，防止之後改 Rules 時退步。）
  */
 import { afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -148,5 +149,29 @@ describe('公開讀取：積分與摘要照父文件條件', () => {
     const db = as('tester');
     await assertSucceeds(getDoc(doc(db, 'competitions/cp_int/standings/dv_1__group__A')));
     await assertSucceeds(getDoc(doc(db, 'competitions/cp_int/summary/d1')));
+  });
+});
+
+describe('F4：用戶端不能直寫公告、聯絡文字、組別名稱', () => {
+  for (const who of [['host'], ['co'], ['s1'], ['admin', 'admin'], ['stranger']] as Array<[string, string?]>) {
+    it(`${who[0]} 不能寫 notices、contactNote、divisionName`, async () => {
+      const db = as(who[0], who[1]);
+      const comp = doc(db, 'competitions/cp_pub');
+      await assertFails(updateDoc(comp, { notices: [{ id: 'nt_x', text: '公告', kind: 'host' }] }));
+      await assertFails(updateDoc(comp, { contactNote: '加我的 LINE' }));
+      await assertFails(updateDoc(comp, { notices: [], contactNote: null }));
+      await assertFails(setDoc(comp, { notices: [], contactNote: '窗口' }, { merge: true }));
+      const standing = doc(db, 'competitions/cp_pub/standings/dv_1__group__A');
+      await assertFails(updateDoc(standing, { divisionName: '假組別' }));
+      await assertFails(setDoc(standing, { divisionName: '假組別', rows: [] }));
+      // 沒有開放 notices 子集合。預設拒絕。
+      await assertFails(setDoc(doc(db, 'competitions/cp_pub/notices/nt_1'), { text: '公告', kind: 'host' }));
+    });
+  }
+
+  it('公開已發布賽事：未登入讀得到根文件（公告與聯絡文字在這份文件上）', async () => {
+    const db = clientDb(null);
+    await assertSucceeds(getDoc(doc(db, 'competitions/cp_pub')));
+    await assertSucceeds(getDoc(doc(db, 'competitions/cp_pub/standings/dv_1__group__A')));
   });
 });

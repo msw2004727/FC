@@ -23,6 +23,7 @@ export const LIMITS = Object.freeze({
   liveLinksMax: 5,
   divisionsMax: 8,
   divisionNameMax: 30,
+  contactNoteMax: 60,
   teamsMin: 2,
   teamsMax: 64,
   rosterMaxCap: 40,
@@ -122,6 +123,23 @@ export function competitionName(v: unknown, bannedWords: readonly string[]): str
 export function hostDisplayName(v: unknown, bannedWords: readonly string[]): string {
   const s = requireLine(v, 'hostDisplay', 1, LIMITS.hostDisplayMax);
   if (findBannedWord(s, bannedWords)) throw bad('BANNED_WORD', { field: 'hostDisplay' });
+  return s;
+}
+
+/**
+ * 主辦公開聯絡文字（§3.272 F4）：選填、單行、≤ 60 字，走 cleanLine 與禁用詞。
+ * 多行直接拒絕，不把換行壓成空白。不另開電話欄位。
+ */
+export function contactNoteOf(v: unknown, bannedWords: readonly string[]): string | null {
+  if (v == null || v === '') return null;
+  if (typeof v !== 'string') throw bad('FIELD_TYPE', { field: 'contactNote' });
+  if (/[\r\n]/.test(v)) throw bad('FIELD_FORMAT', { field: 'contactNote' });
+  const s = cleanLine(v);
+  if (!s) return null;
+  if ([...s].length > LIMITS.contactNoteMax) {
+    throw bad('FIELD_LENGTH', { field: 'contactNote', min: 0, max: LIMITS.contactNoteMax });
+  }
+  if (findBannedWord(s, bannedWords)) throw bad('BANNED_WORD', { field: 'contactNote' });
   return s;
 }
 

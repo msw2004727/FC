@@ -1,7 +1,8 @@
 /**
  * cpHost 第 3 步動作：排賽程、改期、主辦登錄比分、比分確認、棄權、重置、積分全量重算。
- * F1（§3.272）：取消單場、主辦手動結束、管理員恢復。
+ * F1（§3.272）：取消單場、主辦手動結束、管理員恢復。取消場次同一筆交易發一則系統公告。
  * F3（§3.272）：同分裁定 resolveTie、撤銷 clearTieDecision、逐項比較 explainTie（唯讀，不寫稽核）。
+ * F4（§3.272）：主辦公告 postNotice、刪除公告 deleteNotice（系統公告也可刪）。
  * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）、.grok-input/contract.md §3.272。
  *
  * 原則
@@ -24,6 +25,7 @@ import {
   DVID_RE,
   ENID_RE,
   FieldValue,
+  Timestamp,
   assertCompVisible,
   assertHostOrCo,
   isAdmin,
@@ -55,6 +57,16 @@ import {
 } from './schedule-plan.js';
 import { summaryEntryOf, summaryShardIdOf } from './summary.js';
 import { recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
+import {
+  NOTICE_ID_RE,
+  appendSystemNotice,
+  cancelNoticeText,
+  noticeTextOf,
+  noticesOf,
+  pushNotice,
+  removeNotice,
+  type Notice
+} from './notice.js';
 
 export const MTID_RE = /^mt_[A-Za-z0-9]{20}$/;
 export const SCHEDULE_LIMITS = Object.freeze({
@@ -283,7 +295,8 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     writeShards(tx, shards);
     const groups = plan.groups.map(g => ({ groupId: g.groupId, teamIds: [...g.teamIds] }));
     const names = Object.fromEntries(teams.map(t => [t.enId, t.name]));
-    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking, prevStandingVersion));
+    const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
+    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking, prevStandingVersion, divisionName));
     // 末場確認造成的結束（例如另一組別先打完）在新排賽程時解除（Opus 終審 P1-1 (b)）
     if (comp.endedAt && comp.endedBy === 'confirm') {
       tx.update(deps.db.doc(`competitions/${cid}`), {
@@ -543,9 +556,32 @@ export async function cancelMatch(deps: CpDeps, caller: Caller, gate: GateResult
       // 取消待確認場次時解除鎖定，避免記分端仍以為比分鎖住（比分保留供稽核，不計分）
       status: 'cancelled', cancelReason: reason, cancelledAt: now, lock: { locked: false }, rev, updatedAt: now
     });
+    // 系統公告不占手動 20 則。賽事根文件這筆交易已經讀過，不再讀。
+    const notice = appendSystemNotice(tx, {
+      ref: deps.db.doc(`competitions/${cid}`),
+      notices: comp.notices,
+      at: Timestamp.fromMillis(deps.now().getTime()),
+      by: actorHash(cid, caller.uid)
+    }, {
+      kind: 'system',
+      text: cancelNoticeText({
+        kickoffMs: m.kickoffMs,
+        homeName: sideName(m.snap.get('home'), '主隊'),
+        awayName: sideName(m.snap.get('away'), '客隊'),
+        reason
+      })
+    });
     writeAudit(deps, tx, cid, caller, 'cancelMatch', { mtId, from: m.status, reason });
-    return { mtId, status: 'cancelled' as const, rev };
+    return { mtId, status: 'cancelled' as const, rev, noticeId: notice.id };
   });
+}
+
+function sideName(raw: unknown, fallback: string): string {
+  if (raw && typeof raw === 'object' && typeof (raw as { name?: unknown }).name === 'string') {
+    const name = (raw as { name: string }).name.trim();
+    if (name) return name;
+  }
+  return fallback;
 }
 
 export async function endCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
@@ -650,6 +686,8 @@ interface TieGroup {
   matches: MatchLike[];
   preset: 'h2hFirst' | 'goalDiffFirst';
   names: Record<string, string>;
+  /** 組別文件已讀過的名稱。重寫積分榜時帶上，避免整份 set 把 divisionName 清掉。 */
+  divisionName: string;
 }
 
 /** 交易內讀組別、積分榜、該組場次。expectedVersion 有帶且不符就 REV_CONFLICT（此時還沒讀場次）。 */
@@ -688,8 +726,9 @@ async function loadTieGroup(
     }
   }
   const counted = standingMatchesOf(all);
+  const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
   return {
-    ref, version, prev, teamIds, matches: counted, names,
+    ref, version, prev, teamIds, matches: counted, names, divisionName,
     preset: schedule.ranking === 'goalDiffFirst' ? 'goalDiffFirst' : 'h2hFirst'
   };
 }
@@ -711,7 +750,7 @@ function writeGroupStanding(
     prev: { version: bundle.version, manualOverride: override, rows: bundle.prev?.rows }
   });
   const now = FieldValue.serverTimestamp();
-  tx.set(bundle.ref, { ...doc, computedBy, updatedAt: now });
+  tx.set(bundle.ref, { ...doc, divisionName: bundle.divisionName, computedBy, updatedAt: now });
   return doc;
 }
 
@@ -824,6 +863,44 @@ export async function explainTie(deps: CpDeps, caller: Caller, gate: GateResult,
   });
 }
 
+// ── 公告（F4）──────────────────────────────────────────────────────────
+function writeNotices(tx: Transaction, deps: CpDeps, cid: string, notices: Notice[]): void {
+  tx.update(deps.db.doc(`competitions/${cid}`), { notices, updatedAt: FieldValue.serverTimestamp() });
+}
+
+export async function postNotice(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'text']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const text = noticeTextOf(input.text, gate.bannedWords);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    const notice: Notice = {
+      id: newId('nt'),
+      text,
+      kind: 'host',
+      at: Timestamp.fromMillis(deps.now().getTime()),
+      by: actorHash(cid, caller.uid)
+    };
+    const notices = pushNotice(noticesOf(comp.notices), notice);
+    writeNotices(tx, deps, cid, notices);
+    writeAudit(deps, tx, cid, caller, 'postNotice', { noticeId: notice.id, kind: 'host', text });
+    return { noticeId: notice.id, kind: 'host' as const };
+  });
+}
+
+export async function deleteNotice(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'noticeId']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const noticeId = requireId(input.noticeId, NOTICE_ID_RE, 'noticeId');
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    const { notices, removed } = removeNotice(noticesOf(comp.notices), noticeId);
+    writeNotices(tx, deps, cid, notices);
+    writeAudit(deps, tx, cid, caller, 'deleteNotice', { noticeId, kind: removed.kind, text: removed.text });
+    return { noticeId, kind: removed.kind };
+  });
+}
+
 export const MATCH_HOST_ACTIONS = {
   generateSchedule,
   clearSchedule,
@@ -838,5 +915,7 @@ export const MATCH_HOST_ACTIONS = {
   recalcStandings,
   resolveTie,
   clearTieDecision,
-  explainTie
+  explainTie,
+  postNotice,
+  deleteNotice
 } as const;
