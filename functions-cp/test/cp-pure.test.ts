@@ -53,22 +53,34 @@ describe('取姓氏（§4.3）', () => {
     ['司馬光', '司馬'], ['諸葛亮', '諸葛'], ['林', '林'], ['歐陽', '歐'],
     ['John Smith', 'Smith'], ['Mary Ann Lee', 'Lee'], ['Neymar', 'Neymar'], ['', '']
   ])('%s → %s', (name, sur) => { expect(surnameOf(name)).toBe(sur); });
-  it('公開名遮字：遮姓氏後第一字（站長 11-18）', () => {
-    expect(maskedPublicName('王小明')).toBe('王O明');
-    expect(maskedPublicName('歐陽娜娜')).toBe('歐陽O娜');
-    expect(maskedPublicName('張簡一二')).toBe('張簡O二');
-    expect(maskedPublicName('王明')).toBe('王O');
-    expect(maskedPublicName('歐陽')).toBe('歐O');
-    expect(maskedPublicName('林')).toBe('林O');
-    expect(maskedPublicName('Amy王小美')).toBe('王O美');
-    expect(maskedPublicName('王 小 明')).toBe('王O明');
-    expect(maskedPublicName('John Smith')).toBe('J. Smith');
-    expect(maskedPublicName('mary ann lee')).toBe('M. lee');
-    expect(maskedPublicName('ChenXiaoming')).toBe('C.');
-    expect(maskedPublicName('')).toBe('');
-    for (const n of ['王小明', '歐陽娜娜', '王明', '林', 'John Smith', 'ChenXiaoming', 'Amy王小美']) {
-      expect(maskedPublicName(n)).not.toBe(n);
+  // 輸出不得含名字（姓氏以外）中任何連續兩個字（顧問 §3.254 B1）
+  const noTwoConsecutive = (given: string, out: string) => {
+    const g = [...given];
+    for (let i = 0; i + 1 < g.length; i++) expect(out.includes(g[i] + g[i + 1]), `${out} 含 ${g[i]}${g[i + 1]}`).toBe(false);
+  };
+  it('公開名遮字：遮姓氏後的名字，只留最後一字（站長 11-18、顧問 §3.254 B1）', () => {
+    const cases: [string, string, string][] = [
+      ['王小明', '王O明', '小明'], ['歐陽娜娜', '歐陽O娜', '娜娜'], ['張簡一二', '張簡O二', '一二'],
+      ['王明', '王O', '明'], ['林', '林O', ''], ['Amy王小美', '王O美', '小美'],
+      ['瓦歷斯諾幹', '瓦O幹', '歷斯諾幹'], ['王大中小', '王O小', '大中小'],
+      // 夾標點、數字、空白、間隔號：先只留文字字元
+      ['王・小明', '王O明', '小明'], ['王1小明', '王O明', '小明'], ['王 小 明', '王O明', '小明'],
+      ['瓦歷斯‧諾幹', '瓦O幹', '歷斯諾幹'], ['王-小-明', '王O明', '小明'],
+      // 漢字姓氏後接非漢字：名字整段遮
+      ['李 Kevin', '李O', 'Kevin'], ['李Kevin', '李O', 'Kevin'], ['陳さくら', '陳O', 'さくら'],
+      ['John Smith', 'J. Smith', 'John'], ['mary ann lee', 'M. lee', 'maryann'], ['ChenXiaoming', 'C.', 'henXiaoming'],
+      ['', '', ''], ['123・！', '', '']
+    ];
+    for (const [name, out, given] of cases) {
+      expect(maskedPublicName(name), name).toBe(out);
+      noTwoConsecutive(given, out);
     }
+    // 組合符號、異體字選擇器不能把名字夾出來
+    const vs = String.fromCodePoint(0xfe0f);
+    const comb = String.fromCodePoint(0x0301);
+    expect(maskedPublicName('王' + vs + '小明')).toBe('王O明');
+    expect(maskedPublicName('王小' + comb + '明')).toBe('王O明');
+    expect(maskedPublicName('José García')).toBe('J. García');
   });
 });
 
@@ -140,6 +152,8 @@ describe('建賽輸入驗證', () => {
     expect(reasonOf(() => venuesOf([{ name: 'A', lat: 95, lng: 121 }]))).toBe('FIELD_RANGE');
     expect(reasonOf(() => venuesOf([{ name: 'A', lat: 25, lng: 121, mapPlaceId: 'x y<' }]))).toBe('FIELD_FORMAT');
     expect(reasonOf(() => venuesOf([{ name: 'A', mapPlaceId: 'abc' }]))).toBe('FIELD_REQUIRED');
+    // 沒有經緯度卻帶 mapProvider（顧問 §3.254）
+    expect(reasonOf(() => venuesOf([{ name: 'A', mapProvider: 'manual' }]))).toBe('FIELD_REQUIRED');
     expect(reasonOf(() => venuesOf([]))).toBe('FIELD_RANGE');
     expect(reasonOf(() => venuesOf([{ name: 'A', note: '停車' }]))).toBe('UNKNOWN_FIELD');
     expect(liveLinksOf(['https://www.youtube.com/watch?v=x'])).toHaveLength(1);

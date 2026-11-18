@@ -117,6 +117,10 @@ describe('頂層稽核與用戶端繞過 Callable', () => {
   it('【拒】cpAudits 用戶端 list', async () => {
     await assertFails(getDocs(query(collection(as('admin', 'admin'), 'cpAudits'), limit(10))));
   });
+  it('【拒】cpLineThrottle 用戶端讀寫（含管理員）', async () => {
+    await assertFails(get1(as('admin', 'admin'), 'cpLineThrottle/global'));
+    await assertFails(setDoc(doc(as('admin', 'admin'), 'cpLineThrottle/global'), { day: 'x', count: 0 }));
+  });
   it('【拒】cpAudits 用戶端寫', async () => {
     await assertFails(setDoc(doc(as('admin', 'admin'), 'cpAudits/x'), { action: 'x' }));
   });

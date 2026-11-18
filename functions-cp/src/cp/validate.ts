@@ -131,7 +131,7 @@ export function venuesOf(v: unknown): VenueInput[] {
     }
     const mapProvider = lat == null ? null
       : (o.mapProvider == null ? (mapPlaceId ? 'google' : 'manual') : requireEnum(o.mapProvider, ['google', 'manual'] as const, `venues.${i}.mapProvider`));
-    if (lat == null && mapPlaceId) throw bad('FIELD_REQUIRED', { field: `venues.${i}.lat` });
+    if (lat == null && (mapPlaceId || o.mapProvider != null)) throw bad('FIELD_REQUIRED', { field: `venues.${i}.lat` });
     return {
       name: requireLine(o.name, `venues.${i}.name`, 1, LIMITS.venueNameMax),
       address: optionalLine(o.address, `venues.${i}.address`, LIMITS.venueAddressMax),

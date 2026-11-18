@@ -415,3 +415,47 @@ describe('setPaymentStatus（支付接點，只主辦可改）', () => {
     expect((await adminDb().doc(`competitions/${cid}/entryPrivate/${enId}`).get()).get('paymentStatus')).toBe('none');
   });
 });
+
+describe('顧問 §3.254 B3：主辦方成功路徑與拒絕案例', () => {
+  let pcid = '';
+  let pen = '';
+  beforeEach(async () => {
+    await resetAll();
+    // 個人主辦（非管理員，staff host）＝ tester；報隊者也是 tester（club_a 代表）
+    const c = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({
+      divisions: [{ name: '成人組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5 }] })));
+    pcid = c.cid;
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: pcid }));
+    pen = (await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid: pcid, dvId: c.dvIds[0], teamId: 'club_a' }))).enId;
+  });
+
+  it('非管理員的 staff host：審核、標示已繳費、鎖定名單都成功', async () => {
+    await ok(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: pcid, enId: pen, decision: 'approve' }));
+    await ok(call(handleCpEntry, TESTER, { action: 'setPaymentStatus', cid: pcid, enId: pen, paymentStatus: 'paid' }));
+    await ok(call(handleCpEntry, TESTER, { action: 'lockRosters', cid: pcid }));
+  });
+  it('共同主辦（非管理員）：審核、標示已繳費、鎖定名單都成功', async () => {
+    await adminDb().doc(`competitions/${pcid}/staff/tester3`).set({ roles: ['coHost'], matchIds: [] });
+    await ok(call(handleCpEntry, TESTER3, { action: 'reviewEntry', cid: pcid, enId: pen, decision: 'approve' }));
+    await ok(call(handleCpEntry, TESTER3, { action: 'setPaymentStatus', cid: pcid, enId: pen, paymentStatus: 'paid' }));
+    await ok(call(handleCpEntry, TESTER3, { action: 'lockRosters', cid: pcid }));
+  });
+  it('ENTRY_STATE：已撤隊的報隊不能標繳費、已拒絕的不能再核准', async () => {
+    await ok(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: pcid, enId: pen, decision: 'reject', reason: '資料不完整' }));
+    await fails(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: pcid, enId: pen, decision: 'approve' }), 'ENTRY_STATE');
+    await fails(call(handleCpEntry, TESTER, { action: 'setPaymentStatus', cid: pcid, enId: pen, paymentStatus: 'paid' }), 'ENTRY_STATE');
+  });
+  it('COMPETITION_HIDDEN：下架中主辦不能標繳費', async () => {
+    await adminDb().doc(`competitions/${pcid}`).update({ hidden: true });
+    await fails(call(handleCpEntry, TESTER, { action: 'setPaymentStatus', cid: pcid, enId: pen, paymentStatus: 'paid' }), 'COMPETITION_HIDDEN');
+  });
+  it('俱樂部前代表：審核、鎖定、標繳費都 NOT_HOST', async () => {
+    const c = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({ hostType: 'club', hostTeamId: 'club_a' })));
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: c.cid }));
+    const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid: c.cid, dvId: c.dvIds[0], teamId: 'club_a' }));
+    await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester3'] });
+    await fails(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid: c.cid, enId, decision: 'approve' }), 'NOT_HOST');
+    await fails(call(handleCpEntry, TESTER, { action: 'lockRosters', cid: c.cid }), 'NOT_HOST');
+    await fails(call(handleCpEntry, TESTER, { action: 'setPaymentStatus', cid: c.cid, enId, paymentStatus: 'paid' }), 'NOT_HOST');
+  });
+});

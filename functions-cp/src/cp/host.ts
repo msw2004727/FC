@@ -215,6 +215,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const schedKeys = SCHEDULE_KEYS.filter(has);
   if (schedKeys.length > 0 && schedKeys.length < 4) throw bad('SCHEDULE_ALL_REQUIRED', { field: 'schedule' });
   const divisions = has('divisions') ? divisionsOf(input.divisions) : null;
+  let mineSync: { name: string; firstMatchAt: Timestamp } | null = null;
 
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
@@ -294,8 +295,29 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       ...patch, stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
     });
     writeAudit(deps, tx, cid, caller, 'update', { fields: Object.keys(patch), divisions: divisions ? divisions.length : null });
+    if (patch.name !== undefined || patch.firstMatchAt !== undefined) {
+      mineSync = { name: (patch.name as string | undefined) ?? comp.name, firstMatchAt: (patch.firstMatchAt as Timestamp | undefined) ?? comp.firstMatchAt };
+    }
   });
+  // cpMine 索引同步名稱與首場（顧問 §3.254）：交易外盡力而為（改名改期很少發生），找不到索引的略過
+  if (mineSync) await syncMineIndex(deps, cid, mineSync);
   return { cid };
+}
+
+/** 依伺服器資料推導持有本賽事 cpMine 索引的人（個人主辦 staff host、球員、報隊者），更新名稱與首場。 */
+async function syncMineIndex(deps: CpDeps, cid: string, fields: { name: string; firstMatchAt: Timestamp }): Promise<void> {
+  const uids = new Set<string>();
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
+  hs.docs.forEach(d => uids.add(d.id));
+  const rp = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/rosterPrivate`).select('uid'));
+  rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
+  const ep = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entryPrivate`).select('registeredByUid'));
+  ep.docs.forEach(d => { const u = d.get('registeredByUid'); if (typeof u === 'string' && u) uids.add(u); });
+  const list = [...uids];
+  for (let i = 0; i < list.length; i += 50) {
+    await Promise.all(list.slice(i, i + 50).map(u =>
+      deps.db.doc(`cpMine/${u}/items/${cid}`).update({ name: fields.name, firstMatchAt: fields.firstMatchAt }).catch(() => undefined)));
+  }
 }
 
 // ── publish ────────────────────────────────────────────────────────────

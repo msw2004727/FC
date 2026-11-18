@@ -288,10 +288,10 @@ function resolveNames(p: PlayerInput, isMinor: boolean, requireRealName: boolean
   if (isMinor) {
     if (!p.guardianConsent) throw bad('GUARDIAN_CONSENT_REQUIRED', { field: 'guardianConsent' });
     if (p.nickname) throw bad('UNKNOWN_FIELD', { field: 'nickname' });
-    return { displayName: maskedPublicName(p.realName!), realName: p.realName };
+    return { displayName: maskedPublicName(p.realName!) || '球員', realName: p.realName };
   }
   if (proxy) {
-    return { displayName: p.nickname ?? maskedPublicName(p.realName!), realName: p.realName };
+    return { displayName: p.nickname ?? (maskedPublicName(p.realName!) || '球員'), realName: p.realName };
   }
   const displayName = p.nickname ?? (cleanLine(adultFallback ?? '')?.slice(0, 30) || '球員');
   return { displayName, realName: p.realName };

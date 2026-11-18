@@ -26,6 +26,10 @@ export const REPORT_REASONS = ['impersonation', 'fake', 'inappropriate', 'privac
 export const REPORT_WINDOW_MS = 24 * 3600 * 1000;
 /** 同一賽事 LINE 推播冷卻：6 小時內第二筆以後的檢舉只發站內信（LINE OA 輕用量 200 則／月，每位收件者各算一則） */
 export const REPORT_LINE_COOLDOWN_MS = 6 * 3600 * 1000;
+/** 全站每日最多推幾則檢舉 LINE、每位檢舉者每日跨賽事最多觸發幾則（顧問 §3.254 B2；台北日期） */
+export const REPORT_LINE_DAILY_MAX = 5;
+export const REPORT_LINE_PER_REPORTER_DAILY_MAX = 2;
+const taipeiDay = (ms: number) => new Date(ms + 8 * 3600_000).toISOString().slice(0, 10);
 
 export async function reportCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'reason', 'detail']);
@@ -50,16 +54,32 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
     }
     // 通知（站長 11-18：管理員與總管收官方 LINE 推播＋站內信）。賽事 codebase 只寫外送匣 cpOutbox，
     // 由主 codebase 的 cpOutboxRelay 走既有站內信投遞與 LINE 推播佇列（T-062 授權強化後的路徑）實際發送（G5／主站 Functions 交界，另送裁）。
-    // 去重：同一檢舉者同賽事 24 小時 1 次（上方）；同一賽事 6 小時內只推一次 LINE，其餘只發站內信。
-    const lineRef = deps.db.doc(`cpOutbox/rpline_${cid}`);
-    const lineSnap = await readDoc(deps, tx, lineRef);
-    const lastLine = lineSnap.exists ? lineSnap.get('lastLineAt') : null;
-    const lineOk = !(lastLine && typeof lastLine.toMillis === 'function' && nowMs - lastLine.toMillis() < REPORT_LINE_COOLDOWN_MS);
-    if (lineOk) tx.set(lineRef, { lastLineAt: FieldValue.serverTimestamp(), cid });
+    // 去重與上限（同一交易內判斷）：同一檢舉者同賽事 24 小時 1 次（上方）；同一賽事 6 小時內只推一次 LINE；
+    // 全站每日 ≤ REPORT_LINE_DAILY_MAX、每位檢舉者每日跨賽事 ≤ REPORT_LINE_PER_REPORTER_DAILY_MAX；超過只發站內信。
+    // 冷卻與計數放 cpLineThrottle（與外送匣 cpOutbox 分開；relay 只處理 cpOutbox 裡有 kind 的文件）。
+    const day = taipeiDay(nowMs);
+    const compRef = deps.db.doc(`cpLineThrottle/c_${cid}`);
+    const globalRef = deps.db.doc('cpLineThrottle/global');
+    const userRef = deps.db.doc(`cpLineThrottle/u_${actorHash('line', caller.uid)}`);
+    const [compSnap, globalSnap, userSnap] = [
+      await readDoc(deps, tx, compRef), await readDoc(deps, tx, globalRef), await readDoc(deps, tx, userRef)
+    ];
+    const lastLine = compSnap.exists ? compSnap.get('lastLineAt') : null;
+    const compOk = !(lastLine && typeof lastLine.toMillis === 'function' && nowMs - lastLine.toMillis() < REPORT_LINE_COOLDOWN_MS);
+    const countOf = (snap: typeof globalSnap) => (snap.exists && snap.get('day') === day ? Number(snap.get('count')) || 0 : 0);
+    const globalCount = countOf(globalSnap);
+    const userCount = countOf(userSnap);
+    const lineOk = compOk && globalCount < REPORT_LINE_DAILY_MAX && userCount < REPORT_LINE_PER_REPORTER_DAILY_MAX;
+    if (lineOk) {
+      tx.set(compRef, { lastLineAt: FieldValue.serverTimestamp() });
+      tx.set(globalRef, { day, count: globalCount + 1 });
+      tx.set(userRef, { day, count: userCount + 1 });
+    }
     tx.create(deps.db.collection('cpOutbox').doc(), {
       kind: 'cpReportFiled', audienceRoles: ['admin', 'super_admin'],
       channels: lineOk ? ['inbox', 'line'] : ['inbox'],
-      cid, reportId: rid, reason, compName: comp.name,
+      // compName 截 60 字、relay 當純文字使用（不得當 HTML）
+      cid, reportId: rid, reason, compName: [...comp.name].slice(0, 60).join(''),
       status: 'pending', createdAt: FieldValue.serverTimestamp()
     });
     tx.set(ref, {

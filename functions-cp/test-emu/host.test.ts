@@ -393,3 +393,21 @@ describe('站長 11-18：場地地圖、每組報名費', () => {
     expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host']);
   });
 });
+
+describe('顧問 §3.254：cpMine 改名改期同步', () => {
+  beforeEach(() => resetAll());
+  it('主辦改名、改首場後，主辦、報隊者、球員的 cpMine 名稱與首場跟著更新', async () => {
+    const { cid, dvIds } = await create(TESTER, { divisions: [{ name: '成人組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5 }] });
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
+    await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 9, privacyAck: true }));
+    const now = Date.now();
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, name: '改名後盃',
+      regOpenAt: now - DAY, regCloseAt: now + 10 * DAY, firstMatchAt: now + 30 * DAY, lastMatchAt: now + 31 * DAY }));
+    for (const u of ['tester', 'tester2']) {
+      const m = (await adminDb().doc(`cpMine/${u}/items/${cid}`).get()).data()!;
+      expect(m.name).toBe('改名後盃');
+      expect(m.firstMatchAt.toMillis()).toBe(now + 30 * DAY);
+    }
+  });
+});

@@ -81,3 +81,43 @@ describe('檢舉通知外送匣（站長 11-18：管理員與總管收 LINE＋�
     expect((await outbox()).filter(o => o.channels.includes('line'))).toHaveLength(2);
   });
 });
+
+describe('顧問 §3.254 B2：檢舉 LINE 全站與每人每日上限；草稿檢舉走主辦判斷', () => {
+  beforeEach(() => resetAll());
+  const mk = async () => {
+    const cid = (await ok<{ cid: string }>(call(handleCpHost, ADMIN, createInput()))).cid;
+    await ok(call(handleCpHost, ADMIN, { action: 'publish', cid }));
+    return cid;
+  };
+  const lineCount = async () => (await adminDb().collection('cpOutbox').where('kind', '==', 'cpReportFiled').get())
+    .docs.filter(d => (d.get('channels') as string[]).includes('line')).length;
+
+  it('同一檢舉者跨賽事每日最多觸發 2 則 LINE，之後只發站內信；冷卻計數不放外送匣', async () => {
+    const cids = [await mk(), await mk(), await mk()];
+    for (const cid of cids) await ok(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid, reason: 'fake' }));
+    expect(await lineCount()).toBe(2);
+    expect((await adminDb().collection('cpOutbox').get()).docs.every(d => typeof d.get('kind') === 'string')).toBe(true);
+    expect((await adminDb().doc('cpLineThrottle/global').get()).get('count')).toBe(2);
+  });
+  it('全站每日最多 5 則 LINE（不同檢舉者、不同賽事）', async () => {
+    const who = [TESTER, TESTER2, TESTER3];
+    for (let i = 0; i < 7; i++) {
+      const cid = await mk();
+      await ok(call(handleCpParticipant, who[i % 3], { action: 'reportCompetition', cid, reason: 'fake' }));
+    }
+    expect(await lineCount()).toBe(5);
+  });
+  it('隔天（台北日期）計數重來', async () => {
+    const cids = [await mk(), await mk(), await mk()];
+    for (const cid of cids.slice(0, 2)) await ok(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid, reason: 'fake' }));
+    await ok(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid: cids[2], reason: 'fake' }, makeDeps(DAY + 60_000)));
+    expect(await lineCount()).toBe(3);
+  });
+  it('草稿：主辦（staff host）與共同主辦可檢舉自己的草稿，其他人 not-found', async () => {
+    const cid = (await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput()))).cid;
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['coHost'], matchIds: [] });
+    await ok(call(handleCpParticipant, TESTER, { action: 'reportCompetition', cid, reason: 'other', detail: '測試' }));
+    await ok(call(handleCpParticipant, TESTER3, { action: 'reportCompetition', cid, reason: 'other', detail: '測試' }));
+    await fails(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid, reason: 'fake' }), 'COMPETITION_NOT_FOUND', 'not-found');
+  });
+});

@@ -112,28 +112,36 @@ export function surnameOf(realName: string): string {
 }
 
 /**
- * 公開顯示名遮字（站長 11-18：未成年與代填成年沒填暱稱時，一律遮住姓氏後的第一個字，不讓使用者自選）：
- * - 含漢字：從第一個漢字起算；姓氏照 surnameOf（複姓表命中且至少 3 字才取兩字）；
- *   王小明→王O明、歐陽娜娜→歐陽O娜、王明→王O、林→林O、Amy王小美→王O美。
- * - 外文多個詞：名字只留首字母＋姓（John Smith→J. Smith、Mary Ann Lee→M. Lee）。
- * - 外文單一個詞：首字母＋.（ChenXiaoming→C.）。
- * 遮字用半形大寫 O。結果一定不等於完整真名。
+ * 公開顯示名遮字（站長 11-18：未成年與代填成年沒填暱稱時一律遮字，不讓使用者自選；顧問 §3.254 B1 重寫）：
+ * 1. 先 NFKC、去不可見字元，**只留文字字元**（Unicode 字母 \p{L}），標點、數字、空白、組合符號、異體字選擇器全部丟掉，
+ *    以字母連續段切成詞（防「王・小明」「王1小明」「瓦歷斯‧諾幹」夾字外洩）。
+ * 2. 含漢字：從第一個漢字起算；姓氏照 surnameOf（複姓表命中且至少 3 字才取兩字）。
+ *    - 名字全是漢字：姓氏＋O＋名字最後一個字（名字只有 1 字時只留姓氏＋O）。
+ *      王小明→王O明、歐陽娜娜→歐陽O娜、王明→王O、林→林O、瓦歷斯諾幹→瓦O幹。
+ *    - 姓氏後接非漢字（李 Kevin）：名字整段遮成 O → 李O。
+ * 3. 外文多個詞：名字只留首字母＋姓（John Smith→J. Smith；中間名丟掉）。外文單一個詞：首字母＋.。
+ * 遮字用半形大寫 O。保證輸出不含名字中任何連續兩字。
  */
 export const MASK_CHAR = 'O';
+const LETTER_RUN_RE = /[\p{L}]+/gu;
 export function maskedPublicName(realName: string): string {
-  const s = cleanLine(realName) ?? '';
-  if (!s) return '';
-  const chars = [...s.replace(/\s+/g, '')];
-  const hanAt = chars.findIndex(ch => HAN_RE.test(ch));
+  const s = (cleanLine(realName) ?? '').replace(/[\p{M}]/gu, '');
+  const words: string[] = [...(s.match(LETTER_RUN_RE) ?? [])];
+  if (words.length === 0) return '';
+  const letters = [...words.join('')];
+  const hanAt = letters.findIndex(ch => HAN_RE.test(ch));
   if (hanAt >= 0) {
-    const han = chars.slice(hanAt).join('');
-    const sur = surnameOf(han);
-    const given = [...han].slice([...sur].length);
-    return sur + MASK_CHAR + given.slice(1).join('');
+    const fromHan = letters.slice(hanAt);
+    let hanRun = 0;
+    while (hanRun < fromHan.length && HAN_RE.test(fromHan[hanRun])) hanRun++;
+    const sur = surnameOf(fromHan.slice(0, hanRun).join(''));
+    const given = fromHan.slice([...sur].length);
+    if (given.length === 0) return sur + MASK_CHAR;
+    if (given.some(ch => !HAN_RE.test(ch))) return sur + MASK_CHAR;
+    return sur + MASK_CHAR + (given.length >= 2 ? given[given.length - 1] : '');
   }
-  const words = s.split(' ').filter(Boolean);
   if (words.length >= 2) return `${[...words[0]][0].toUpperCase()}. ${words[words.length - 1]}`;
-  return [...s][0].toUpperCase() + '.';
+  return [...words[0]][0].toUpperCase() + '.';
 }
 
 /** 直播連結（§8.3）：https＋白名單網域。 */
