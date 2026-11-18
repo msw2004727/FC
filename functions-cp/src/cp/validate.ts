@@ -1,0 +1,194 @@
+/**
+ * 建賽精靈輸入驗證（純函式）。時間一律 epoch 毫秒整數；伺服器轉 Timestamp。
+ * 錯誤回 CpError('invalid-argument', reason, { field })，前端以 reason 對照文案。
+ */
+import { bad } from './errors.js';
+import { cleanLine, findBannedWord, isAllowedLiveLink, optionalLine, optionalText, requireLine } from './text.js';
+
+export const SPORTS = ['football'] as const;
+export const TIMEZONES = ['Asia/Taipei'] as const;
+export const PLAYERS_ON_FIELD = [5, 7, 8, 9, 11] as const;
+export const LIMITS = Object.freeze({
+  nameMax: 60,
+  hostDisplayMax: 30,
+  venuesMax: 10,
+  venueNameMax: 40,
+  venueAddressMax: 100,
+  feeNoteMax: 500,
+  liveLinksMax: 5,
+  divisionsMax: 8,
+  divisionNameMax: 30,
+  teamsMin: 2,
+  teamsMax: 64,
+  rosterMaxCap: 40,
+  regSpanMaxDays: 120,
+  matchSpanMaxDays: 180,
+  futureMaxDays: 730,
+  statusReasonMax: 200
+});
+
+const DAY = 86400_000;
+
+export interface VenueInput { name: string; address: string | null }
+export interface DivisionInput {
+  dvId?: string;
+  name: string;
+  playersOnField: number;
+  maxTeams: number;
+  rosterMin: number;
+  rosterMax: number;
+  minAge: number | null;
+  maxAge: number | null;
+  requireRealName: boolean;
+}
+export interface Schedule { regOpenAt: number; regCloseAt: number; firstMatchAt: number; lastMatchAt: number }
+
+function isInt(v: unknown): v is number { return typeof v === 'number' && Number.isInteger(v); }
+
+function intIn(v: unknown, field: string, min: number, max: number): number {
+  if (!isInt(v) || v < min || v > max) throw bad('FIELD_RANGE', { field, min, max });
+  return v;
+}
+
+function optIntIn(v: unknown, field: string, min: number, max: number): number | null {
+  if (v == null) return null;
+  return intIn(v, field, min, max);
+}
+
+export function requireEnum<T extends string>(v: unknown, list: readonly T[], field: string): T {
+  if (typeof v !== 'string' || !(list as readonly string[]).includes(v)) throw bad('FIELD_ENUM', { field });
+  return v as T;
+}
+
+export function competitionName(v: unknown): string {
+  const name = requireLine(v, 'name', 2, LIMITS.nameMax);
+  if (findBannedWord(name)) throw bad('BANNED_WORD', { field: 'name' });
+  return name;
+}
+
+export function hostDisplayName(v: unknown): string {
+  const s = requireLine(v, 'hostDisplay', 1, LIMITS.hostDisplayMax);
+  if (findBannedWord(s)) throw bad('BANNED_WORD', { field: 'hostDisplay' });
+  return s;
+}
+
+export function epochMs(v: unknown, field: string): number {
+  // 2020-01-01 ～ 2100-01-01
+  if (!isInt(v) || v < 1577836800000 || v > 4102444800000) throw bad('FIELD_TIME', { field });
+  return v;
+}
+
+/** 報名期間與比賽期間：regOpen < regClose ≤ firstMatch ≤ lastMatch；長度上限。 */
+export function scheduleOf(v: Record<string, unknown>, nowMs: number, opts: { requireFuture: boolean }): Schedule {
+  const s: Schedule = {
+    regOpenAt: epochMs(v.regOpenAt, 'regOpenAt'),
+    regCloseAt: epochMs(v.regCloseAt, 'regCloseAt'),
+    firstMatchAt: epochMs(v.firstMatchAt, 'firstMatchAt'),
+    lastMatchAt: epochMs(v.lastMatchAt, 'lastMatchAt')
+  };
+  if (!(s.regOpenAt < s.regCloseAt)) throw bad('SCHEDULE_ORDER', { field: 'regCloseAt' });
+  if (!(s.regCloseAt <= s.firstMatchAt)) throw bad('SCHEDULE_ORDER', { field: 'firstMatchAt' });
+  if (!(s.firstMatchAt <= s.lastMatchAt)) throw bad('SCHEDULE_ORDER', { field: 'lastMatchAt' });
+  if (s.regCloseAt - s.regOpenAt > LIMITS.regSpanMaxDays * DAY) throw bad('SCHEDULE_SPAN', { field: 'regCloseAt' });
+  if (s.lastMatchAt - s.firstMatchAt > LIMITS.matchSpanMaxDays * DAY) throw bad('SCHEDULE_SPAN', { field: 'lastMatchAt' });
+  if (s.lastMatchAt > nowMs + LIMITS.futureMaxDays * DAY) throw bad('SCHEDULE_TOO_FAR', { field: 'lastMatchAt' });
+  if (opts.requireFuture && s.firstMatchAt <= nowMs) throw bad('SCHEDULE_PAST', { field: 'firstMatchAt' });
+  return s;
+}
+
+export function venuesOf(v: unknown): VenueInput[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > LIMITS.venuesMax) {
+    throw bad('FIELD_RANGE', { field: 'venues', min: 1, max: LIMITS.venuesMax });
+  }
+  return v.map((x, i) => {
+    if (!x || typeof x !== 'object') throw bad('FIELD_TYPE', { field: `venues.${i}` });
+    const o = x as Record<string, unknown>;
+    return {
+      name: requireLine(o.name, `venues.${i}.name`, 1, LIMITS.venueNameMax),
+      address: optionalLine(o.address, `venues.${i}.address`, LIMITS.venueAddressMax)
+    };
+  });
+}
+
+export function liveLinksOf(v: unknown): string[] {
+  if (v == null) return [];
+  if (!Array.isArray(v) || v.length > LIMITS.liveLinksMax) {
+    throw bad('FIELD_RANGE', { field: 'liveLinks', min: 0, max: LIMITS.liveLinksMax });
+  }
+  return v.map((x, i) => {
+    const s = cleanLine(x);
+    if (!s || s.length > 300 || !isAllowedLiveLink(s)) throw bad('LIVE_LINK_NOT_ALLOWED', { field: `liveLinks.${i}` });
+    return s;
+  });
+}
+
+/** 繳費說明（§8.4）：只有俱樂部主辦可寫；個人主辦帶了就拒絕（不是靜默丟棄）。 */
+export function feeNoteOf(v: unknown, hostType: 'personal' | 'club'): string | null {
+  if (v == null || v === '') return null;
+  if (hostType !== 'club') throw bad('FEE_NOTE_NOT_ALLOWED', { field: 'feeNote' });
+  return optionalText(v, 'feeNote', LIMITS.feeNoteMax);
+}
+
+export function divisionOf(v: unknown, i: number): DivisionInput {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('FIELD_TYPE', { field: `divisions.${i}` });
+  const o = v as Record<string, unknown>;
+  const p = `divisions.${i}`;
+  const playersOnField = o.playersOnField;
+  if (!(PLAYERS_ON_FIELD as readonly unknown[]).includes(playersOnField)) throw bad('FIELD_ENUM', { field: `${p}.playersOnField` });
+  const maxTeams = intIn(o.maxTeams, `${p}.maxTeams`, LIMITS.teamsMin, LIMITS.teamsMax);
+  const rosterMax = intIn(o.rosterMax, `${p}.rosterMax`, playersOnField as number, LIMITS.rosterMaxCap);
+  const rosterMin = intIn(o.rosterMin, `${p}.rosterMin`, 1, rosterMax);
+  const minAge = optIntIn(o.minAge, `${p}.minAge`, 3, 99);
+  const maxAge = optIntIn(o.maxAge, `${p}.maxAge`, 3, 99);
+  if (minAge != null && maxAge != null && minAge > maxAge) throw bad('FIELD_RANGE', { field: `${p}.maxAge`, min: minAge, max: 99 });
+  // §4.3（§3.248-b）：真名是否必填由主辦設定；預設＝有年齡限制才必填。未成年一律必填（在登錄時強制）。
+  let requireRealName = minAge != null || maxAge != null;
+  if (o.requireRealName != null) {
+    if (typeof o.requireRealName !== 'boolean') throw bad('FIELD_TYPE', { field: `${p}.requireRealName` });
+    requireRealName = o.requireRealName;
+  }
+  const out: DivisionInput = {
+    name: requireLine(o.name, `${p}.name`, 1, LIMITS.divisionNameMax),
+    playersOnField: playersOnField as number,
+    maxTeams, rosterMin, rosterMax, minAge, maxAge, requireRealName
+  };
+  if (o.dvId != null) {
+    if (typeof o.dvId !== 'string' || !/^dv_[A-Za-z0-9]{20}$/.test(o.dvId)) throw bad('BAD_ID', { field: `${p}.dvId` });
+    out.dvId = o.dvId;
+  }
+  return out;
+}
+
+export function divisionsOf(v: unknown): DivisionInput[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > LIMITS.divisionsMax) {
+    throw bad('FIELD_RANGE', { field: 'divisions', min: 1, max: LIMITS.divisionsMax });
+  }
+  const list = v.map(divisionOf);
+  const names = new Set<string>();
+  const ids = new Set<string>();
+  for (const d of list) {
+    if (names.has(d.name)) throw bad('DIVISION_NAME_DUPLICATE', { field: 'divisions' });
+    names.add(d.name);
+    if (d.dvId) {
+      if (ids.has(d.dvId)) throw bad('BAD_ID', { field: 'divisions' });
+      ids.add(d.dvId);
+    }
+  }
+  return list;
+}
+
+export function statusReasonOf(v: unknown): string {
+  return requireLine(v, 'reason', 2, LIMITS.statusReasonMax);
+}
+
+/** 只接受已知鍵：多帶任何鍵一律拒絕（避免前端以為寫進去了）。 */
+export function onlyKeys(o: Record<string, unknown>, allowed: readonly string[]): void {
+  for (const k of Object.keys(o)) {
+    if (!allowed.includes(k)) throw bad('UNKNOWN_FIELD', { field: k });
+  }
+}
+
+export function asRecord(v: unknown): Record<string, unknown> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('BAD_REQUEST');
+  return v as Record<string, unknown>;
+}

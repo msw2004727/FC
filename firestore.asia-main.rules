@@ -405,6 +405,8 @@ service cloud.firestore {
     }
     match /cpHostQuota/{hostUid} { allow read, write: if false; }
     match /cpOutbox/{outId} { allow read, write: if false; }
+    // 頂層稽核（第 2 步：刪除賽事時寫，賽事內 audits 會跟著刪）：只給伺服器與主 codebase cpAdminOps
+    match /cpAudits/{auditId} { allow read, write: if false; }
     // 其他路徑：Rules 預設拒絕；刻意不寫 {document=**}／{path=**}（§5.2 不開 collectionGroup）
   }
 }
