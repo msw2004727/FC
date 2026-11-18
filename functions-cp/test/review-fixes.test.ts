@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'vitest';
 import { affectedByMatchChange, previewSchedule, validateCompetitionConfig, standingIdOf } from '../src/engine/index.js';
+import { FORMAT_TEMPLATES } from '../src/engine/formats.js';
 import type { Format } from '../src/engine/types.js';
 
 /** 預賽 2 組×4 → 複賽 1 組×4 的兩段循環賽制 */
@@ -47,5 +48,13 @@ describe('P2-3 設定驗證：組別都自帶 format 時仍驗證根層 format',
     };
     const keys = validateCompetitionConfig(config).errors.map(e => `${e.path}:${e.messageKey}`);
     expect(keys).toContain('format.kind:cp.config.format.kind.invalid');
+  });
+});
+
+describe('第二輪審查疑慮：既有範本名次表涵蓋全隊', () => {
+  test('五個飛達盃範本的 finalRankingMap 筆數都等於 teamCount（complete 新判斷不會讓既有範本退步）', () => {
+    for (const [id, f] of Object.entries(FORMAT_TEMPLATES as Record<string, Format>)) {
+      expect(f.finalRankingMap.length, id).toBe(f.teamCount);
+    }
   });
 });
