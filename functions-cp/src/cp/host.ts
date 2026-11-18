@@ -366,7 +366,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
 
     if (Object.keys(patch).length === 0 && !divisions) throw bad('NOTHING_TO_UPDATE');
     divisionWrites.forEach(w => w());
-    for (const s of standingNameWrites) tx.update(s.ref, { divisionName: s.divisionName });
+    for (const s of standingNameWrites) tx.update(s.ref, { divisionName: s.divisionName, updatedAt: FieldValue.serverTimestamp() });
     tx.update(deps.db.doc(`competitions/${cid}`), {
       ...patch, stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
     });
