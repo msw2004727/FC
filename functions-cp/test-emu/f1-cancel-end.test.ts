@@ -134,9 +134,13 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     await ok(call(handleCpHost, ADMIN, { action: 'restoreCompetition', cid: c2.cid, reason: '恢復續賽' }, later()));
     const ref = adminDb().doc(`competitions/${c2.cid}/matches/${m.id}`);
     const before = (await ref.get()).data()!;
-    await ref.update({ updatedAt: Timestamp.now() });
+    // 改觸發器有在看的欄位（WATCHED 含 venueName），確認真的進到結束判斷（Opus 終審 P2）
+    await ref.update({ venueName: '2號場', updatedAt: Timestamp.now() });
     const after = (await ref.get()).data()!;
     const r = await handleMatchWritten(makeDeps(LATER), c2.cid, m.id, before, after);
+    expect(before.status).toBe('cancelled');
+    expect(after.status).toBe('cancelled');
+    expect(r.summary).toBe(true); // 場地名改了，摘要會更新，表示有進到後段
     expect(r.ended).toBeNull();
     expect((await adminDb().doc(`competitions/${c2.cid}`).get()).get('endedAt')).toBeNull();
   });
