@@ -24,12 +24,21 @@ export const LIMITS = Object.freeze({
   regSpanMaxDays: 120,
   matchSpanMaxDays: 180,
   futureMaxDays: 730,
-  statusReasonMax: 200
+  statusReasonMax: 200,
+  feePerTeamMax: 1_000_000
 });
 
 const DAY = 86400_000;
 
-export interface VenueInput { name: string; address: string | null }
+/** 場地：比照活動的地點欄（FC-B use-event-location：lat／lng／mapPlaceId／mapProvider），站長 11-18 */
+export interface VenueInput {
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  mapPlaceId: string | null;
+  mapProvider: 'google' | 'manual' | null;
+}
 export interface DivisionInput {
   dvId?: string;
   name: string;
@@ -40,6 +49,8 @@ export interface DivisionInput {
   minAge: number | null;
   maxAge: number | null;
   requireRealName: boolean;
+  /** 每隊報名費（新台幣，整數，可為 0；站長 11-18） */
+  feePerTeam: number;
 }
 export interface Schedule { regOpenAt: number; regCloseAt: number; firstMatchAt: number; lastMatchAt: number }
 
@@ -60,15 +71,15 @@ export function requireEnum<T extends string>(v: unknown, list: readonly T[], fi
   return v as T;
 }
 
-export function competitionName(v: unknown): string {
+export function competitionName(v: unknown, bannedWords: readonly string[]): string {
   const name = requireLine(v, 'name', 2, LIMITS.nameMax);
-  if (findBannedWord(name)) throw bad('BANNED_WORD', { field: 'name' });
+  if (findBannedWord(name, bannedWords)) throw bad('BANNED_WORD', { field: 'name' });
   return name;
 }
 
-export function hostDisplayName(v: unknown): string {
+export function hostDisplayName(v: unknown, bannedWords: readonly string[]): string {
   const s = requireLine(v, 'hostDisplay', 1, LIMITS.hostDisplayMax);
-  if (findBannedWord(s)) throw bad('BANNED_WORD', { field: 'hostDisplay' });
+  if (findBannedWord(s, bannedWords)) throw bad('BANNED_WORD', { field: 'hostDisplay' });
   return s;
 }
 
@@ -103,10 +114,28 @@ export function venuesOf(v: unknown): VenueInput[] {
   return v.map((x, i) => {
     if (!x || typeof x !== 'object') throw bad('FIELD_TYPE', { field: `venues.${i}` });
     const o = x as Record<string, unknown>;
-    onlyKeys(o, ['name', 'address']);
+    onlyKeys(o, ['name', 'address', 'lat', 'lng', 'mapPlaceId', 'mapProvider']);
+    const hasLat = o.lat != null;
+    const hasLng = o.lng != null;
+    if (hasLat !== hasLng) throw bad('FIELD_REQUIRED', { field: `venues.${i}.${hasLat ? 'lng' : 'lat'}` });
+    const num = (x: unknown, f: string, lim: number) => {
+      if (typeof x !== 'number' || !Number.isFinite(x) || x < -lim || x > lim) throw bad('FIELD_RANGE', { field: `venues.${i}.${f}`, min: -lim, max: lim });
+      return x;
+    };
+    const lat = hasLat ? num(o.lat, 'lat', 90) : null;
+    const lng = hasLng ? num(o.lng, 'lng', 180) : null;
+    let mapPlaceId: string | null = null;
+    if (o.mapPlaceId != null && o.mapPlaceId !== '') {
+      if (typeof o.mapPlaceId !== 'string' || !/^[A-Za-z0-9_-]{1,300}$/.test(o.mapPlaceId)) throw bad('FIELD_FORMAT', { field: `venues.${i}.mapPlaceId` });
+      mapPlaceId = o.mapPlaceId;
+    }
+    const mapProvider = lat == null ? null
+      : (o.mapProvider == null ? (mapPlaceId ? 'google' : 'manual') : requireEnum(o.mapProvider, ['google', 'manual'] as const, `venues.${i}.mapProvider`));
+    if (lat == null && mapPlaceId) throw bad('FIELD_REQUIRED', { field: `venues.${i}.lat` });
     return {
       name: requireLine(o.name, `venues.${i}.name`, 1, LIMITS.venueNameMax),
-      address: optionalLine(o.address, `venues.${i}.address`, LIMITS.venueAddressMax)
+      address: optionalLine(o.address, `venues.${i}.address`, LIMITS.venueAddressMax),
+      lat, lng, mapPlaceId, mapProvider
     };
   });
 }
@@ -134,7 +163,7 @@ export function divisionOf(v: unknown, i: number): DivisionInput {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('FIELD_TYPE', { field: `divisions.${i}` });
   const o = v as Record<string, unknown>;
   const p = `divisions.${i}`;
-  onlyKeys(o, ['dvId', 'name', 'playersOnField', 'maxTeams', 'rosterMin', 'rosterMax', 'minAge', 'maxAge', 'requireRealName']);
+  onlyKeys(o, ['dvId', 'name', 'playersOnField', 'maxTeams', 'rosterMin', 'rosterMax', 'minAge', 'maxAge', 'requireRealName', 'feePerTeam']);
   const playersOnField = o.playersOnField;
   if (!(PLAYERS_ON_FIELD as readonly unknown[]).includes(playersOnField)) throw bad('FIELD_ENUM', { field: `${p}.playersOnField` });
   const maxTeams = intIn(o.maxTeams, `${p}.maxTeams`, LIMITS.teamsMin, LIMITS.teamsMax);
@@ -152,7 +181,8 @@ export function divisionOf(v: unknown, i: number): DivisionInput {
   const out: DivisionInput = {
     name: requireLine(o.name, `${p}.name`, 1, LIMITS.divisionNameMax),
     playersOnField: playersOnField as number,
-    maxTeams, rosterMin, rosterMax, minAge, maxAge, requireRealName
+    maxTeams, rosterMin, rosterMax, minAge, maxAge, requireRealName,
+    feePerTeam: o.feePerTeam == null ? 0 : intIn(o.feePerTeam, `${p}.feePerTeam`, 0, LIMITS.feePerTeamMax)
   };
   if (o.dvId != null) {
     if (typeof o.dvId !== 'string' || !/^dv_[A-Za-z0-9]{20}$/.test(o.dvId)) throw bad('BAD_ID', { field: `${p}.dvId` });

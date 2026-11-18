@@ -70,6 +70,7 @@ function divisionDoc(d: DivisionInput, order: number) {
     minAge: d.minAge,
     maxAge: d.maxAge,
     requireRealName: d.requireRealName,
+    feePerTeam: d.feePerTeam,
     order
   };
 }
@@ -85,7 +86,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const nowMs = deps.now().getTime();
   if (input.hostType === 'group') throw bad('HOST_TYPE_NOT_SUPPORTED', { field: 'hostType' });
   const hostType = requireEnum(input.hostType, ['personal', 'club'] as const, 'hostType');
-  const name = competitionName(input.name);
+  const name = competitionName(input.name, gate.bannedWords);
   const sport = requireEnum(input.sport, SPORTS, 'sport');
   const timezone = requireEnum(input.timezone ?? 'Asia/Taipei', TIMEZONES, 'timezone');
   const sched = scheduleOf(input, nowMs, { requireFuture: true });
@@ -105,13 +106,13 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   } else {
     if (input.hostTeamId != null) throw bad('UNKNOWN_FIELD', { field: 'hostTeamId' });
     if (input.hostDisplay != null) {
-      personalDisplay = hostDisplayName(input.hostDisplay);
+      personalDisplay = hostDisplayName(input.hostDisplay, gate.bannedWords);
     } else {
       const user = await readDoc(deps, null, deps.mainDb.doc(`users/${caller.uid}`));
       const fallback = cleanLine(user.get('displayName')) ?? '';
       // 主站顯示名含禁用字時退回「主辦」，不回報使用者沒送的欄位（Opus 終審 P3）
       const candidate = fallback.slice(0, 30);
-      personalDisplay = candidate && !findBannedWord(candidate) ? candidate : '主辦';
+      personalDisplay = candidate && !findBannedWord(candidate, gate.bannedWords) ? candidate : '主辦';
     }
   }
 
@@ -160,9 +161,8 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       }
     }
 
-    const writeMine = hostType === 'personal'
-      ? await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true })
-      : null;
+    // 發起人（建賽者）一律有 cpMine 索引（報隊審核要找得到；站長 11-18 審核權屬發起人）
+    const writeMine = await prepareMine(deps, tx, caller.uid, cid, { name, firstMatchAt: ts(sched.firstMatchAt) }, { addHost: true });
 
     // ── 寫 ──
     const now = FieldValue.serverTimestamp();
@@ -183,10 +183,11 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
         ...divisionDoc(d, i), entryCount: 0, approvedCount: 0, createdAt: now, updatedAt: now
       });
     });
-    if (hostType === 'personal') {
-      tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), { roles: ['host'], matchIds: [], expiresAt: null, createdAt: now });
-      writeMine!();
-    }
+    // staff：個人主辦＝host＋creator；俱樂部主辦只記 creator（主辦權認目前代表，審核權屬發起人）
+    tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), {
+      roles: hostType === 'personal' ? ['host', 'creator'] : ['creator'], matchIds: [], expiresAt: null, createdAt: now
+    });
+    writeMine();
     if (quotaRef && hostType === 'personal') {
       tx.set(quotaRef, { recentCreates: [...recent, Timestamp.fromMillis(nowMs)], activeCids: [...activeCids, cid], updatedAt: now });
     } else if (quotaRef) {
@@ -221,10 +222,10 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
     if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
 
     const patch: Record<string, unknown> = {};
-    if (has('name')) patch.name = competitionName(input.name);
+    if (has('name')) patch.name = competitionName(input.name, gate.bannedWords);
     if (has('hostDisplay')) {
       if (comp.hostType !== 'personal') throw bad('UNKNOWN_FIELD', { field: 'hostDisplay' });
-      patch.hostDisplay = hostDisplayName(input.hostDisplay);
+      patch.hostDisplay = hostDisplayName(input.hostDisplay, gate.bannedWords);
     }
     if (schedKeys.length === 4) {
       const s = scheduleOf(input, nowMs, { requireFuture: false });
@@ -268,6 +269,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
           if (entryCount > 0 && (
             old.get('minAge') !== d.minAge || old.get('maxAge') !== d.maxAge
             || old.get('requireRealName') !== d.requireRealName || old.get('playersOnField') !== d.playersOnField
+            || (old.get('feePerTeam') ?? 0) !== d.feePerTeam
           )) {
             // 已有報隊時改年齡或真名規則，會讓已登錄的資格結果失真
             throw pre('DIVISION_RULES_LOCKED', { field: `divisions.${i}` });
@@ -383,7 +385,7 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
   const ep = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entryPrivate`).select('registeredByUid'));
   ep.docs.forEach(d => { const u = d.get('registeredByUid'); if (typeof u === 'string' && u) uids.add(u); });
-  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains-any', ['host', 'creator']).select());
   hs.docs.forEach(d => uids.add(d.id));
   const list = [...uids];
   for (let i = 0; i < list.length; i += 400) {

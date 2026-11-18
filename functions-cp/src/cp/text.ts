@@ -47,11 +47,11 @@ export function optionalText(value: unknown, field: string, max: number): string
 }
 
 /**
- * 禁用字（§5.4 冒名）：協會、聯盟、官方、足協、總會、Federation、Association、Official 等。
+ * 禁用字（§5.4 冒名）：站長 11-18 定案「功能要有、預設清單為空」，清單由管理員設定在 cpConfig/launch.bannedWords
+ * （與內部期閘門同一次讀取帶出，不多讀）。下列只是給管理員參考的建議清單，**預設不套用**。
  * 比對前 NFKC、轉小寫、去掉空白與標點，擋「官 方」「O.f.f.i.c.i.a.l」這類拆字。
- * 簡體字一併列入（NFKC 不會把簡體轉繁體）。
  */
-export const BANNED_HOST_WORDS: readonly string[] = Object.freeze([
+export const SUGGESTED_BANNED_WORDS: readonly string[] = Object.freeze([
   '協會', '协会', '聯盟', '联盟', '官方', '足協', '足协', '總會', '总会',
   '聯合會', '联合会', '認證', '认证',
   'federation', 'association', 'official', 'fifa'
@@ -61,13 +61,27 @@ function foldForMatch(s: string): string {
   return s.normalize('NFKC').toLowerCase().replace(INVISIBLE_RE, '').replace(/[\s\p{P}\p{S}]/gu, '');
 }
 
-/** 回傳第一個命中的禁用字；沒有命中回 null。 */
-export function findBannedWord(text: string): string | null {
+/** 回傳第一個命中的禁用字；清單為空或沒有命中回 null。 */
+export function findBannedWord(text: string, words: readonly string[]): string | null {
+  if (words.length === 0) return null;
   const folded = foldForMatch(text);
-  for (const w of BANNED_HOST_WORDS) {
-    if (folded.includes(foldForMatch(w))) return w;
+  for (const w of words) {
+    const fw = foldForMatch(w);
+    if (fw && folded.includes(fw)) return w;
   }
   return null;
+}
+
+/** 設定文件的禁用詞清單：只收字串、去空白、每個 ≤ 20 字、最多 200 個；格式不對一律視為空清單（不擋）。 */
+export function bannedWordsOf(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const x of raw) {
+    const s = cleanLine(x);
+    if (s && [...s].length <= 20 && !out.includes(s)) out.push(s);
+    if (out.length >= 200) break;
+  }
+  return out;
 }
 
 /**

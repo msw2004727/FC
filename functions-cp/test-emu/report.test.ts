@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { adminDb } from '../test-rules/_harness.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { handleCpParticipant } from '../src/cp/participant.js';
-import { ADMIN, DAY, STRANGER, TESTER, TESTER2, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
+import { ADMIN, DAY, STRANGER, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
 
 describe('檢舉', () => {
   let cid = '';
@@ -53,5 +53,31 @@ describe('檢舉', () => {
     await fails(report(TESTER2, { reason: 'other' }), 'FIELD_REQUIRED');
     await fails(report(STRANGER), 'INTERNAL_PERIOD');
     await fails(report(TESTER2, { reporterUid: 'x' }), 'UNKNOWN_FIELD');
+  });
+});
+
+describe('檢舉通知外送匣（站長 11-18：管理員與總管收 LINE＋站內信）', () => {
+  let cid = '';
+  beforeEach(async () => {
+    await resetAll();
+    cid = (await ok<{ cid: string }>(call(handleCpHost, ADMIN, createInput()))).cid;
+    await ok(call(handleCpHost, ADMIN, { action: 'publish', cid }));
+  });
+  const outbox = async () => (await adminDb().collection('cpOutbox').where('kind', '==', 'cpReportFiled').get()).docs.map(d => d.data());
+
+  it('每筆檢舉寫一筆外送；同一賽事 6 小時內第二筆起只發站內信；被頻率限制擋下的不寫', async () => {
+    await ok(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid, reason: 'fake' }));
+    await fails(call(handleCpParticipant, TESTER2, { action: 'reportCompetition', cid, reason: 'fake' }), 'REPORT_RATE_LIMITED');
+    await ok(call(handleCpParticipant, TESTER, { action: 'reportCompetition', cid, reason: 'impersonation' }));
+    const out = await outbox();
+    expect(out).toHaveLength(2);
+    expect(out.map(o => o.channels).sort((a, b) => b.length - a.length)).toEqual([['inbox', 'line'], ['inbox']]);
+    for (const o of out) {
+      expect(o.audienceRoles).toEqual(['admin', 'super_admin']);
+      expect(JSON.stringify(o)).not.toMatch(/tester/);
+    }
+    // 6 小時後再推 LINE
+    await ok(call(handleCpParticipant, TESTER3, { action: 'reportCompetition', cid, reason: 'fake' }, makeDeps(6 * 3600_000 + 60_000)));
+    expect((await outbox()).filter(o => o.channels.includes('line'))).toHaveLength(2);
   });
 });

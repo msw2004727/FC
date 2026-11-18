@@ -45,6 +45,12 @@ export async function fails(p: ReturnType<typeof call>, reason: string, code?: s
   }
 }
 
+export const SUGGESTED = ['協會', '协会', '聯盟', '联盟', '官方', '足協', '足协', '總會', '总会', 'federation', 'association', 'official'];
+/** 設定管理員禁用詞清單（預設空清單＝不擋） */
+export async function setBannedWords(words: string[] = SUGGESTED): Promise<void> {
+  await adminDb().doc('cpConfig/launch').set({ bannedWords: words }, { merge: true });
+}
+
 export async function resetAll(opts: { isPublic?: boolean } = {}): Promise<void> {
   await loadRules();
   await clearDb();

@@ -10,7 +10,7 @@ import { CpError } from '../src/cp/errors.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { handleCpParticipant } from '../src/cp/participant.js';
 import {
-  cleanLine, findBannedWord, isAllowedLiveLink, minorPublicNameCandidates, optionalText, surnameOf
+  SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, minorPublicNameCandidates, optionalText, surnameOf
 } from '../src/cp/text.js';
 import {
   divisionOf, divisionsOf, feeNoteOf, liveLinksOf, onlyKeys, scheduleOf, venuesOf, competitionName
@@ -21,21 +21,29 @@ const reasonOf = (fn: () => unknown) => {
   return 'NO_ERROR';
 };
 
-describe('禁用字（§5.4）', () => {
+const W = SUGGESTED_BANNED_WORDS;
+describe('禁用字（§5.4；站長 11-18：預設清單為空，由管理員設定）', () => {
+  it('預設空清單不擋任何字；設定格式不對視為空清單', () => {
+    expect(findBannedWord('官方協會盃', [])).toBeNull();
+    expect(bannedWordsOf(undefined)).toEqual([]);
+    expect(bannedWordsOf('官方')).toEqual([]);
+    expect(bannedWordsOf(['官方', ' 官方 ', 3, '', 'x'.repeat(21), '協會'])).toEqual(['官方', '協會']);
+    expect(competitionName('官方盃', [])).toBe('官方盃');
+  });
   it.each([
     '台北足球協會盃', '全國聯盟賽', '官方認可賽', '中華足協', '足球總會', '亞洲足球联盟',
     'Taipei Football Association Cup', 'OFFICIAL cup', 'F.e.d.e.r.a.t.i.o.n', '官 方 賽', '官​方', 'ＯＦＦＩＣＩＡＬ'
-  ])('擋下 %s', s => { expect(findBannedWord(s)).not.toBeNull(); });
+  ])('擋下 %s', s => { expect(findBannedWord(s, W)).not.toBeNull(); });
   it('韓文填充字、點字空白等看不見的字母不能拆開禁用字', () => {
     for (const cp of [0x3164, 0x115f, 0x1160, 0xffa0, 0x2800]) {
-      expect(findBannedWord('官' + String.fromCodePoint(cp) + '方盃')).not.toBeNull();
+      expect(findBannedWord('官' + String.fromCodePoint(cp) + '方盃', W)).not.toBeNull();
     }
   });
   it.each(['週末友誼賽', '信義區五人制', 'Sunday Cup', '飛達盃'])('放行 %s', s => {
-    expect(findBannedWord(s)).toBeNull();
+    expect(findBannedWord(s, W)).toBeNull();
   });
   it('賽事名稱命中禁用字回 BANNED_WORD', () => {
-    expect(reasonOf(() => competitionName('官方盃'))).toBe('BANNED_WORD');
+    expect(reasonOf(() => competitionName('官方盃', W))).toBe('BANNED_WORD');
   });
 });
 
@@ -108,6 +116,10 @@ describe('建賽輸入驗證', () => {
   it('組別：人制、隊數、名單人數、年齡、真名預設', () => {
     const base = { name: 'U12', playersOnField: 8, maxTeams: 8, rosterMin: 8, rosterMax: 16 };
     expect(divisionOf(base, 0).requireRealName).toBe(false);
+    expect(divisionOf(base, 0).feePerTeam).toBe(0);
+    expect(divisionOf({ ...base, feePerTeam: 1500 }, 0).feePerTeam).toBe(1500);
+    expect(reasonOf(() => divisionOf({ ...base, feePerTeam: -1 }, 0))).toBe('FIELD_RANGE');
+    expect(reasonOf(() => divisionOf({ ...base, feePerTeam: 10.5 }, 0))).toBe('FIELD_RANGE');
     expect(divisionOf({ ...base, minAge: 10, maxAge: 12 }, 0).requireRealName).toBe(true);
     expect(divisionOf({ ...base, minAge: 10, requireRealName: false }, 0).requireRealName).toBe(false);
     expect(reasonOf(() => divisionOf({ ...base, playersOnField: 6 }, 0))).toBe('FIELD_ENUM');
@@ -121,7 +133,14 @@ describe('建賽輸入驗證', () => {
     expect(reasonOf(() => divisionsOf([]))).toBe('FIELD_RANGE');
   });
   it('場地、直播連結白名單、繳費說明只限俱樂部', () => {
-    expect(venuesOf([{ name: 'A 場' }])).toEqual([{ name: 'A 場', address: null }]);
+    expect(venuesOf([{ name: 'A 場' }])).toEqual([{ name: 'A 場', address: null, lat: null, lng: null, mapPlaceId: null, mapProvider: null }]);
+    // 地圖欄位比照活動：lat／lng 成對、placeId 只收安全字元、有 placeId 預設 google
+    expect(venuesOf([{ name: 'A', lat: 25.03, lng: 121.56, mapPlaceId: 'ChIJ_abc-1' }])[0]).toMatchObject({ lat: 25.03, lng: 121.56, mapProvider: 'google' });
+    expect(venuesOf([{ name: 'A', lat: 25, lng: 121 }])[0].mapProvider).toBe('manual');
+    expect(reasonOf(() => venuesOf([{ name: 'A', lat: 25 }]))).toBe('FIELD_REQUIRED');
+    expect(reasonOf(() => venuesOf([{ name: 'A', lat: 95, lng: 121 }]))).toBe('FIELD_RANGE');
+    expect(reasonOf(() => venuesOf([{ name: 'A', lat: 25, lng: 121, mapPlaceId: 'x y<' }]))).toBe('FIELD_FORMAT');
+    expect(reasonOf(() => venuesOf([{ name: 'A', mapPlaceId: 'abc' }]))).toBe('FIELD_REQUIRED');
     expect(reasonOf(() => venuesOf([]))).toBe('FIELD_RANGE');
     expect(reasonOf(() => venuesOf([{ name: 'A', note: '停車' }]))).toBe('UNKNOWN_FIELD');
     expect(liveLinksOf(['https://www.youtube.com/watch?v=x'])).toHaveLength(1);

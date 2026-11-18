@@ -208,6 +208,12 @@ describe('§3.251 (a)(c)：主辦權只認目前代表與 staff 角色', () => {
       await adminDb().doc('cpClubs/club_a').update({ repUids: ['rep', 'tester'] });
     }
   });
+  it('發起人（staff creator，已非代表）可讀報隊與名單私密以審核（站長 11-18），但不能寫', async () => {
+    await adminDb().doc('competitions/cp_club/staff/exrep').set({ roles: ['creator'], matchIds: [] });
+    await assertSucceeds(getDocs(query(collection(as('exrep'), 'competitions/cp_club/entryPrivate'), limit(100))));
+    await assertSucceeds(get1(as('exrep'), 'competitions/cp_club/rosterPrivate/pl_2'));
+    await assertFails(updateDoc(doc(as('exrep'), 'competitions/cp_club/entries/en_h'), { status: 'approved' }));
+  });
   it('目前代表可讀俱樂部草稿與全部名單私密（主辦檢錄）', async () => {
     await assertSucceeds(get1(as('rep'), 'competitions/cp_club_draft'));
     await assertSucceeds(getDocs(query(collection(as('rep'), 'competitions/cp_club/rosterPrivate'), limit(100))));

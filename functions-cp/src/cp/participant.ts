@@ -24,6 +24,8 @@ import { asRecord, onlyKeys, requireEnum } from './validate.js';
 export const REPORT_REASONS = ['impersonation', 'fake', 'inappropriate', 'privacy', 'other'] as const;
 /** 每人每賽事每 24 小時 1 次 */
 export const REPORT_WINDOW_MS = 24 * 3600 * 1000;
+/** 同一賽事 LINE 推播冷卻：6 小時內第二筆以後的檢舉只發站內信（LINE OA 輕用量 200 則／月，每位收件者各算一則） */
+export const REPORT_LINE_COOLDOWN_MS = 6 * 3600 * 1000;
 
 export async function reportCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'reason', 'detail']);
@@ -46,6 +48,20 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
     if (last && typeof last.toMillis === 'function' && nowMs - last.toMillis() < REPORT_WINDOW_MS) {
       throw new CpError('resource-exhausted', 'REPORT_RATE_LIMITED');
     }
+    // 通知（站長 11-18：管理員與總管收官方 LINE 推播＋站內信）。賽事 codebase 只寫外送匣 cpOutbox，
+    // 由主 codebase 的 cpOutboxRelay 走既有站內信投遞與 LINE 推播佇列（T-062 授權強化後的路徑）實際發送（G5／主站 Functions 交界，另送裁）。
+    // 去重：同一檢舉者同賽事 24 小時 1 次（上方）；同一賽事 6 小時內只推一次 LINE，其餘只發站內信。
+    const lineRef = deps.db.doc(`cpOutbox/rpline_${cid}`);
+    const lineSnap = await readDoc(deps, tx, lineRef);
+    const lastLine = lineSnap.exists ? lineSnap.get('lastLineAt') : null;
+    const lineOk = !(lastLine && typeof lastLine.toMillis === 'function' && nowMs - lastLine.toMillis() < REPORT_LINE_COOLDOWN_MS);
+    if (lineOk) tx.set(lineRef, { lastLineAt: FieldValue.serverTimestamp(), cid });
+    tx.create(deps.db.collection('cpOutbox').doc(), {
+      kind: 'cpReportFiled', audienceRoles: ['admin', 'super_admin'],
+      channels: lineOk ? ['inbox', 'line'] : ['inbox'],
+      cid, reportId: rid, reason, compName: comp.name,
+      status: 'pending', createdAt: FieldValue.serverTimestamp()
+    });
     tx.set(ref, {
       reporterUid: caller.uid, // 只有管理員可讀（Rules reports: isAdmin）；處理檢舉需要回查
       reason, detail, count: FieldValue.increment(1),

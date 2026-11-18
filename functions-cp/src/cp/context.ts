@@ -18,6 +18,7 @@ import {
   type Transaction
 } from 'firebase-admin/firestore';
 import { CpError, deny, notFound } from './errors.js';
+import { bannedWordsOf } from './text.js';
 
 export interface CpDeps {
   /** asia-main 具名庫 */
@@ -76,6 +77,8 @@ export interface GateResult {
   isPublic: boolean;
   /** 管理員或內部測試者 */
   privileged: boolean;
+  /** 管理員設定的禁用詞（cpConfig/launch.bannedWords；預設空清單＝不擋） */
+  bannedWords: string[];
 }
 
 /**
@@ -85,11 +88,12 @@ export interface GateResult {
 export async function launchGate(deps: CpDeps, caller: Caller): Promise<GateResult> {
   const launch = await readDoc(deps, null, deps.db.doc('cpConfig/launch'));
   const isPublic = launch.exists && launch.get('isPublic') === true;
-  if (isAdmin(caller)) return { isPublic, privileged: true };
-  if (isPublic) return { isPublic, privileged: false };
+  const bannedWords = launch.exists ? bannedWordsOf(launch.get('bannedWords')) : [];
+  if (isAdmin(caller)) return { isPublic, privileged: true, bannedWords };
+  if (isPublic) return { isPublic, privileged: false, bannedWords };
   const tester = await readDoc(deps, null, deps.db.doc(`cpConfig/launch/testers/${caller.uid}`));
   if (!tester.exists) throw deny('INTERNAL_PERIOD');
-  return { isPublic, privileged: true };
+  return { isPublic, privileged: true, bannedWords };
 }
 
 /** 內部賽事（visibility == 'internal'）只有管理員與測試者可操作（與 Rules internalGate 一致）。 */
@@ -197,6 +201,15 @@ export async function isPrimaryHost(deps: CpDeps, tx: Reader, cid: string, comp:
     return typeof comp.hostTeamId === 'string' && (await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok;
   }
   return (await staffRoles(deps, tx, cid, caller.uid)).includes('host');
+}
+
+/**
+ * 發起人（建賽者，staff.roles 含 creator）或管理員：報隊審核權（站長 11-18：「報隊一律由發起人審核」，
+ * 與顧問 §3.251 (a)「俱樂部只認目前代表」在審核這件事上衝突，照站長）。
+ */
+export async function isCreator(deps: CpDeps, tx: Reader, cid: string, caller: Caller): Promise<boolean> {
+  if (isAdmin(caller)) return true;
+  return (await staffRoles(deps, tx, cid, caller.uid)).includes('creator');
 }
 
 export async function assertHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<void> {

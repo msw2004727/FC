@@ -21,6 +21,7 @@ import {
   isAdmin,
   isClubMember,
   isClubRep,
+  isCreator,
   isHostOrCo,
   launchGate,
   loadComp,
@@ -37,7 +38,9 @@ import {
 import { cleanLine, findBannedWord, minorPublicNameCandidates, optionalLine, requireLine } from './text.js';
 import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 
-export const POSITIONS = ['GK', 'DF', 'MF', 'FW'] as const;
+export const POSITIONS = ['GK', 'DF', 'MF', 'FW', 'custom'] as const;
+/** 自訂位置上限（站長 11-18「無／自訂」；360px 名單列實測後定，見 第2步-驗證結果.md） */
+export const POSITION_TEXT_MAX = 6;
 /** 每組報隊上限（含待審）：maxTeams 的 2 倍，防灌報名 */
 export const PENDING_FACTOR = 2;
 /** 同隊同組被拒或撤隊累計上限（達到就不得再報）；查詢只取 ENTRY_RETRY_MAX + 1 筆 */
@@ -87,7 +90,7 @@ export async function registerEntry(deps: CpDeps, caller: Caller, gate: GateResu
   if (typeof input.teamId !== 'string' || !TEAM_ID_RE.test(input.teamId)) throw bad('BAD_ID', { field: 'teamId' });
   const teamId = input.teamId;
   const teamNameIn = optionalLine(input.teamName, 'teamName', 30);
-  if (teamNameIn && findBannedWord(teamNameIn)) throw bad('BANNED_WORD', { field: 'teamName' });
+  if (teamNameIn && findBannedWord(teamNameIn, gate.bannedWords)) throw bad('BANNED_WORD', { field: 'teamName' });
   const contactName = optionalLine(input.contactName, 'contactName', 30);
   const contactPhone = optionalLine(input.contactPhone, 'contactPhone', 20);
   if (contactPhone && !PHONE_RE.test(contactPhone)) throw bad('FIELD_FORMAT', { field: 'contactPhone' });
@@ -146,7 +149,8 @@ export async function reviewEntry(deps: CpDeps, caller: Caller, gate: GateResult
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
     assertCompVisible(comp, gate);
-    if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
+    // 報隊審核一律由發起人（建賽者）處理，管理員可代處理（站長 11-18，取代主辦／共同主辦審核）
+    if (!(await isCreator(deps, tx, cid, caller))) throw deny('NOT_CREATOR');
     assertRosterPhase(comp, nowMs);
     const entry = await loadEntry(deps, tx, cid, enId);
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
@@ -244,25 +248,34 @@ export async function withdrawEntry(deps: CpDeps, caller: Caller, gate: GateResu
 interface PlayerInput {
   number: number;
   position: string | null;
+  positionText: string | null;
   realName: string | null;
   publicName: string | null;
   nickname: string | null;
   guardianConsent: boolean;
 }
 
-function playerInputOf(input: Record<string, unknown>): PlayerInput {
+function playerInputOf(input: Record<string, unknown>, bannedWords: readonly string[]): PlayerInput {
   const number = input.number;
   if (typeof number !== 'number' || !Number.isInteger(number) || number < 0 || number > 99) {
     throw bad('FIELD_RANGE', { field: 'number', min: 0, max: 99 });
   }
+  // 位置：null＝無；custom 時 positionText 必填（≤ POSITION_TEXT_MAX 字），其餘不得帶 positionText
   const position = input.position == null ? null : requireEnum(input.position, POSITIONS, 'position');
+  let positionText: string | null = null;
+  if (position === 'custom') {
+    positionText = requireLine(input.positionText, 'positionText', 1, POSITION_TEXT_MAX);
+    if (findBannedWord(positionText, bannedWords)) throw bad('BANNED_WORD', { field: 'positionText' });
+  } else if (input.positionText != null) {
+    throw bad('UNKNOWN_FIELD', { field: 'positionText' });
+  }
   if (input.privacyAck !== true) throw bad('PRIVACY_ACK_REQUIRED', { field: 'privacyAck' });
   if (input.guardianConsent != null && typeof input.guardianConsent !== 'boolean') throw bad('FIELD_TYPE', { field: 'guardianConsent' });
   const realName = optionalLine(input.realName, 'realName', 40);
   const publicName = optionalLine(input.publicName, 'publicName', 20);
   const nickname = optionalLine(input.nickname, 'nickname', 20);
-  if (nickname && findBannedWord(nickname)) throw bad('BANNED_WORD', { field: 'nickname' });
-  return { number, position, realName, publicName, nickname, guardianConsent: input.guardianConsent === true };
+  if (nickname && findBannedWord(nickname, bannedWords)) throw bad('BANNED_WORD', { field: 'nickname' });
+  return { number, position, positionText, realName, publicName, nickname, guardianConsent: input.guardianConsent === true };
 }
 
 /**
@@ -322,10 +335,10 @@ function fixAgeBasis(deps: CpDeps, tx: Tx, cid: string, comp: CompDoc): void {
 
 // ── joinRoster（成員自己登錄）─────────────────────────────────────────
 export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
-  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'realName', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
+  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const enId = requireId(input.enId, ENID_RE, 'enId');
-  const p = playerInputOf(input);
+  const p = playerInputOf(input, gate.bannedWords);
   const nowMs = nowMsOf(deps);
   // 主站會員資料：只讀顯示名與生日（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
   const { birthday, displayName: mainDisplayName } = await readMainProfileForAge(deps, caller.uid);
@@ -359,7 +372,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     const now = FieldValue.serverTimestamp();
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {
       enId, dvId: entry.data.dvId, displayName: names.displayName, number: p.number,
-      position: p.position, isMinor: age.isMinor, createdAt: now
+      position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now
     });
     tx.create(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`), {
       enId, dvId: entry.data.dvId, teamId: entry.data.teamId, uid: caller.uid, realName: names.realName,
@@ -377,10 +390,10 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
 
 // ── addRosterByRep（§4.4：隊長或領隊代填無帳號球員；uid 為 null）─────────
 export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
-  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'realName', 'birthday', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
+  onlyKeys(input, ['action', 'cid', 'enId', 'number', 'position', 'positionText', 'realName', 'birthday', 'publicName', 'nickname', 'guardianConsent', 'privacyAck']);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const enId = requireId(input.enId, ENID_RE, 'enId');
-  const p = playerInputOf(input);
+  const p = playerInputOf(input, gate.bannedWords);
   // 代填一律要真名（沒有主站帳號可帶名字）
   p.realName = requireLine(input.realName, 'realName', 1, 40);
   if (typeof input.birthday !== 'string') throw bad('FIELD_REQUIRED', { field: 'birthday' });
@@ -413,7 +426,7 @@ export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateRes
     const now = FieldValue.serverTimestamp();
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {
       enId, dvId: entry.data.dvId, displayName: names.displayName, number: p.number,
-      position: p.position, isMinor: age.isMinor, createdAt: now
+      position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now
     });
     tx.create(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`), {
       enId, dvId: entry.data.dvId, teamId: entry.data.teamId, uid: null, realName: names.realName,

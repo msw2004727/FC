@@ -6,7 +6,7 @@ import { adminDb } from '../test-rules/_harness.js';
 import { handleCpEntry } from '../src/cp/entry.js';
 import { HOST_QUOTA, handleCpHost } from '../src/cp/host.js';
 import {
-  ADMIN, DAY, MAIN, STRANGER, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll
+  ADMIN, DAY, MAIN, STRANGER, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll, setBannedWords
 } from './_cp.js';
 
 type Created = { cid: string; dvIds: string[] };
@@ -53,7 +53,9 @@ describe('內部期閘門（§12.2 a、b）', () => {
 describe('建賽與冒名（§5.4、§5.5）', () => {
   beforeEach(() => resetAll());
 
-  it('個人主辦顯示名預設帶主站顯示名；禁用字擋名稱與顯示名', async () => {
+  it('個人主辦顯示名預設帶主站顯示名；管理員設定禁用字後擋名稱與顯示名；預設空清單不擋', async () => {
+    await create(ADMIN, { name: '台北市足球協會盃' });
+    await setBannedWords();
     const { cid } = await create(TESTER);
     expect((await adminDb().doc(`competitions/${cid}`).get()).get('hostDisplay')).toBe('代表乙');
     await fails(call(handleCpHost, TESTER, createInput({ name: '台北市足球協會盃' })), 'BANNED_WORD');
@@ -146,6 +148,7 @@ describe('編輯、發布、狀態', () => {
   it('時間要四個一起改；多帶鍵與禁用字被拒；沒有變更被拒', async () => {
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, regCloseAt: Date.now() + 5 * DAY }), 'SCHEDULE_ALL_REQUIRED');
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, hostUid: 'tester2' }), 'UNKNOWN_FIELD');
+    await setBannedWords();
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, name: '官方盃' }), 'BANNED_WORD');
     await fails(call(handleCpHost, TESTER, { action: 'update', cid }), 'NOTHING_TO_UPDATE');
   });
@@ -327,6 +330,7 @@ describe('Opus 終審退修：開賽後與已有名單的時程、下架時的�
     ] }), 'DIVISION_HAS_ENTRIES');
   });
   it('主站顯示名含禁用字時主辦名退回「主辦」，不報使用者沒送的欄位', async () => {
+    await setBannedWords();
     await adminDb(MAIN).doc('users/tester').update({ displayName: '官方小編' });
     const { cid } = await create(TESTER);
     expect((await adminDb().doc(`competitions/${cid}`).get()).get('hostDisplay')).toBe('主辦');
@@ -341,16 +345,16 @@ describe('§3.251 (a)(c)：主文件不放建立者 uid、俱樂部只認目前�
     const root = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
     expect('hostUid' in root).toBe(false);
     expect(JSON.stringify(root)).not.toContain('tester');
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host']);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host', 'creator']);
     const mine = (await adminDb().doc(`cpMine/tester/items/${cid}`).get()).data()!;
     expect(mine).toMatchObject({ cid, roles: ['host'], host: true });
     await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
     expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
   });
-  it('俱樂部主辦：不寫 staff host；建立者被撤換代表後不能編輯、刪除；新代表可以', async () => {
+  it('俱樂部主辦：staff 只記 creator（不給主辦權）；建立者被撤換代表後不能編輯、刪除；新代表可以', async () => {
     const { cid } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).exists).toBe(false);
-    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['creator']);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).get('host')).toBe(true);
     await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester3'] });
     await fails(call(handleCpHost, TESTER, { action: 'update', cid, name: '前代表改名盃' }), 'NOT_HOST');
     await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
@@ -362,5 +366,30 @@ describe('§3.251 (a)(c)：主文件不放建立者 uid、俱樂部只認目前�
     await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
     await ok(call(handleCpHost, TESTER2, { action: 'update', cid, name: '共同主辦改名盃' }));
     await fails(call(handleCpHost, TESTER2, { action: 'delete', cid }), 'NOT_PRIMARY_HOST');
+  });
+});
+
+describe('站長 11-18：場地地圖、每組報名費、staff creator', () => {
+  beforeEach(() => resetAll());
+
+  it('場地存地圖欄位、組別存每隊報名費；有報隊後不能改報名費', async () => {
+    const { cid, dvIds } = await create(TESTER, {
+      hostType: 'club', hostTeamId: 'club_a',
+      venues: [{ name: '示範公園 1 號場', address: '台北市', lat: 25.03, lng: 121.56, mapPlaceId: 'ChIJdemo' }],
+      divisions: [{ name: '成人組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5, feePerTeam: 1500 }]
+    });
+    const root = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
+    expect(root.venues[0]).toMatchObject({ lat: 25.03, lng: 121.56, mapPlaceId: 'ChIJdemo', mapProvider: 'google' });
+    expect((await adminDb().doc(`competitions/${cid}/divisions/${dvIds[0]}`).get()).get('feePerTeam')).toBe(1500);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['creator']);
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    await ok(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, divisions: [
+      { dvId: dvIds[0], name: '成人組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5, feePerTeam: 2000 }
+    ] }), 'DIVISION_RULES_LOCKED');
+  });
+  it('個人主辦 staff 為 host＋creator', async () => {
+    const { cid } = await create(TESTER);
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host', 'creator']);
   });
 });
