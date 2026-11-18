@@ -45,7 +45,7 @@ import {
   venuesOf,
   type DivisionInput
 } from './validate.js';
-import { cleanLine } from './text.js';
+import { cleanLine, findBannedWord } from './text.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -107,7 +107,9 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
     } else {
       const user = await readDoc(deps, null, deps.mainDb.doc(`users/${caller.uid}`));
       const fallback = cleanLine(user.get('displayName')) ?? '';
-      personalDisplay = hostDisplayName(fallback.slice(0, 30) || '主辦');
+      // 主站顯示名含禁用字時退回「主辦」，不回報使用者沒送的欄位（Opus 終審 P3）
+      const candidate = fallback.slice(0, 30);
+      personalDisplay = candidate && !findBannedWord(candidate) ? candidate : '主辦';
     }
   }
 
@@ -209,9 +211,15 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
     }
     if (schedKeys.length === 4) {
       const s = scheduleOf(input, nowMs, { requireFuture: false });
-      if (comp.rostersLockedAt && s.firstMatchAt !== comp.firstMatchAt.toMillis()) {
-        // 名單鎖定後首場日期影響 isMinor／ageEligible 的判斷基準，不能再改
-        throw pre('ROSTERS_LOCKED', { field: 'firstMatchAt' });
+      const admin = isAdmin(caller);
+      // Opus 終審 P1-1：首場後主辦不能改時程（否則可把已開賽賽事挪到未來再刪除、或重開報名）
+      if (!admin && nowMs >= comp.firstMatchAt.toMillis()) throw pre('COMPETITION_STARTED', { field: 'schedule' });
+      if (!admin && s.firstMatchAt <= nowMs) throw bad('SCHEDULE_PAST', { field: 'firstMatchAt' });
+      if (s.firstMatchAt !== comp.firstMatchAt.toMillis()) {
+        // 首場日期是 isMinor／ageEligible 的判斷基準，生日沒存無法重算：已有名單或已鎖定就不能改（Opus 終審 P1-2）
+        if (comp.rostersLockedAt) throw pre('ROSTERS_LOCKED', { field: 'firstMatchAt' });
+        const anyRoster = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`).limit(1));
+        if (!anyRoster.empty) throw pre('FIRST_MATCH_LOCKED', { field: 'firstMatchAt' });
       }
       patch.regOpenAt = ts(s.regOpenAt);
       patch.regCloseAt = ts(s.regCloseAt);
@@ -231,7 +239,11 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       const keep = new Set(divisions.filter(d => d.dvId).map(d => d.dvId!));
       for (const id of keep) if (!existing.has(id)) throw bad('BAD_ID', { field: 'divisions' });
       for (const [id, d] of existing) {
-        if (!keep.has(id) && (d.get('entryCount') ?? 0) > 0) throw pre('DIVISION_HAS_ENTRIES', { field: 'divisions' });
+        if (keep.has(id)) continue;
+        if ((d.get('entryCount') ?? 0) > 0) throw pre('DIVISION_HAS_ENTRIES', { field: 'divisions' });
+        // 計數不含已拒絕／已撤隊，仍有報隊文件就不刪，避免孤兒（Opus 終審 P2-4）
+        const anyEntry = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entries`).where('dvId', '==', id).limit(1));
+        if (!anyEntry.empty) throw pre('DIVISION_HAS_ENTRIES', { field: 'divisions' });
       }
       const now = FieldValue.serverTimestamp();
       divisionWrites = [];
@@ -337,6 +349,8 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
       || (c.hostType === 'club' && typeof c.hostTeamId === 'string'
         && (await isClubRep(deps, tx, c.hostTeamId, caller.uid)).ok);
     if (!admin && !primary) throw deny('NOT_PRIMARY_HOST');
+    // 下架（被檢舉）中主辦不能自刪，避免檢舉證據隨子集合消失（Opus 終審 P2-6）；刪除中重跑例外
+    if (!admin && c.hidden && !c.deletingAt) throw pre('COMPETITION_HIDDEN');
     if (!admin && deps.now().getTime() >= c.firstMatchAt.toMillis()) throw pre('DELETE_AFTER_START');
     const auditRef = deps.db.doc(`cpAudits/del_${cid}`);
     const audit = await readDoc(deps, tx, auditRef);

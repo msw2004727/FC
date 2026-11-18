@@ -298,3 +298,37 @@ describe('確認、鎖定（檢錄）、退出、撤隊', () => {
     await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId: again.enId, number: 9, privacyAck: true }));
   });
 });
+
+describe('Opus 終審退修：拒絕清名單、隊名冒名、並行登錄', () => {
+  beforeEach(async () => { await resetAll(); await setupComp(); });
+
+  it('拒絕時清掉該隊名單與球員 cpMine，報隊者索引保留；球員可改報他組', async () => {
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 9, privacyAck: true }));
+    await ok(call(handleCpEntry, ADMIN, { action: 'reviewEntry', cid, enId, decision: 'reject', reason: '資料不完整' }));
+    expect((await adminDb().doc(`competitions/${cid}/roster/${plId}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`competitions/${cid}/rosterPrivate/${plId}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpMine/tester2/items/${cid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).get('entryIds')).toEqual([enId]);
+    expect(await entry(enId)).toMatchObject({ status: 'rejected', rosterCount: 0 });
+    const other = await ok<{ enId: string }>(register(TESTER, youthDv));
+    const fm = await firstMatchMs();
+    await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(13, fm) });
+    await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId: other.enId, number: 9, privacyAck: true, realName: '林小丙', guardianConsent: true }));
+  });
+  it('隊名只能是俱樂部名稱或加後綴', async () => {
+    await fails(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId, teamId: 'club_a', teamName: '乙隊足球俱樂部' }), 'TEAM_NAME_MISMATCH');
+    const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId, teamId: 'club_a', teamName: '甲隊足球俱樂部 A' }));
+    expect((await entry(enId)).name).toBe('甲隊足球俱樂部 A');
+  });
+  it('並行：同一人同時登錄兩隊只會成功一筆', async () => {
+    const a = await ok<{ enId: string }>(register());
+    const fm = await firstMatchMs();
+    const b = await ok<{ enId: string }>(register(TESTER, youthDv));
+    await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(13, fm) });
+    const outs = await Promise.all([a.enId, b.enId].map((enId, i) =>
+      call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 20 + i, privacyAck: true, realName: '林小丙', guardianConsent: true })));
+    expect(outs.filter(o => o.ok)).toHaveLength(1);
+    expect((await adminDb().collection(`competitions/${cid}/rosterPrivate`).where('uid', '==', 'tester2').get()).size).toBe(1);
+  });
+});

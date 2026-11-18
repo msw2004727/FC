@@ -16,6 +16,7 @@ import {
   PLID_RE,
   TEAM_ID_RE,
   assertCompVisible,
+  isAdmin,
   isClubMember,
   isClubRep,
   isHostOrCo,
@@ -31,7 +32,7 @@ import {
   type CpDeps,
   type GateResult
 } from './context.js';
-import { cleanLine, findBannedWord, minorPublicNameCandidates, optionalLine, requireLine, surnameOf } from './text.js';
+import { cleanLine, findBannedWord, minorPublicNameCandidates, optionalLine, requireLine } from './text.js';
 import { asRecord, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 
 export const POSITIONS = ['GK', 'DF', 'MF', 'FW'] as const;
@@ -131,6 +132,8 @@ export async function registerEntry(deps: CpDeps, caller: Caller, gate: GateResu
     const writeMine = await prepareMine(deps, tx, caller.uid, cid, comp, { addEntry: enId });
 
     const now = FieldValue.serverTimestamp();
+    // 隊名只能是鏡像俱樂部名稱或其加後綴（例如「甲隊 A」），防止報隊冒用他隊名稱（Opus 終審 P3）
+    if (teamNameIn && (!rep.name || !teamNameIn.startsWith(rep.name))) throw bad('TEAM_NAME_MISMATCH', { field: 'teamName' });
     const name = teamNameIn ?? rep.name ?? '隊伍';
     tx.create(deps.db.doc(`competitions/${cid}/entries/${enId}`), {
       dvId, teamId, name, status: 'pending', rosterCount: 0, rosterConfirmed: false,
@@ -164,6 +167,10 @@ export async function reviewEntry(deps: CpDeps, caller: Caller, gate: GateResult
     assertRosterPhase(comp, nowMs);
     const entry = await loadEntry(deps, tx, cid, enId);
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
+    // 拒絕時清掉該隊名單（Opus 終審 P2-4：否則公開名單殘留、球員無法改報他隊）
+    const clear = decision === 'reject' && (entry.data.status === 'pending' || entry.data.status === 'approved')
+      ? await prepareClearRoster(deps, tx, cid, comp, enId, { removeRegistrant: false })
+      : null;
     const now = FieldValue.serverTimestamp();
     if (decision === 'approve') {
       if (entry.data.status !== 'pending') throw pre('ENTRY_STATE', { status: entry.data.status });
@@ -179,11 +186,47 @@ export async function reviewEntry(deps: CpDeps, caller: Caller, gate: GateResult
       });
       status = 'rejected';
     }
-    tx.update(entry.ref, { status, updatedAt: now });
+    clear?.apply();
+    tx.update(entry.ref, { status, updatedAt: now, ...(clear ? { rosterCount: 0, rosterConfirmed: false } : {}) });
     tx.update(deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`), { reviewNote: reason, updatedAt: now });
     writeAudit(deps, tx, cid, caller, 'reviewEntry', { enId, decision });
   });
   return { cid, enId, status };
+}
+
+/**
+ * 清掉某隊整份名單（撤隊、被拒絕共用）：刪 roster＋rosterPrivate、更新球員 cpMine；
+ * removeRegistrant 時一併移除報隊者的 cpMine 報隊索引（撤隊）。被拒絕時保留，讓代表在「我的賽事」看得到結果。
+ * 讀取在呼叫當下完成（交易讀階段），apply 在寫階段呼叫。
+ */
+async function prepareClearRoster(
+  deps: CpDeps, tx: Tx, cid: string, comp: CompDoc, enId: string, opts: { removeRegistrant: boolean }
+): Promise<{ apply: () => void; removed: number }> {
+  const roster = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
+    .where('enId', '==', enId).limit(60));
+  // 同一人可能同時是報隊者與本隊球員：合併成一次 cpMine 變更
+  const changes = new Map<string, MineChange>();
+  if (opts.removeRegistrant) {
+    const priv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`));
+    const registrant = priv.exists ? priv.get('registeredByUid') : null;
+    if (typeof registrant === 'string' && registrant) changes.set(registrant, { removeEntry: enId });
+  }
+  for (const d of roster.docs) {
+    const u = d.get('uid');
+    if (typeof u === 'string' && u) changes.set(u, { ...(changes.get(u) ?? {}), removePlayer: d.id });
+  }
+  const mineWrites: (() => void)[] = [];
+  for (const [u, ch] of changes) mineWrites.push(await prepareMine(deps, tx, u, cid, comp, ch));
+  return {
+    removed: roster.size,
+    apply: () => {
+      for (const d of roster.docs) {
+        tx.delete(d.ref);
+        tx.delete(deps.db.doc(`competitions/${cid}/roster/${d.id}`));
+      }
+      mineWrites.forEach(w => w());
+    }
+  };
 }
 
 // ── withdrawEntry（代表撤隊；連同該隊名單一併移除，球員可改報他隊）──────
@@ -200,33 +243,16 @@ export async function withdrawEntry(deps: CpDeps, caller: Caller, gate: GateResu
     if (!(await isClubRep(deps, tx, entry.data.teamId, caller.uid)).ok) throw deny('NOT_CLUB_REP');
     if (entry.data.status !== 'pending' && entry.data.status !== 'approved') throw pre('ENTRY_STATE', { status: entry.data.status });
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
-    const priv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/entryPrivate/${enId}`));
-    const registrant = priv.exists ? priv.get('registeredByUid') : null;
-    const roster = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
-      .where('enId', '==', enId).limit(60));
-    const mineWrites: (() => void)[] = [];
-    // 同一人可能同時是報隊者與本隊球員：合併成一次 cpMine 變更
-    const changes = new Map<string, MineChange>();
-    if (typeof registrant === 'string' && registrant) changes.set(registrant, { removeEntry: enId });
-    for (const d of roster.docs) {
-      const u = d.get('uid');
-      if (typeof u === 'string' && u) changes.set(u, { ...(changes.get(u) ?? {}), removePlayer: d.id });
-    }
-    for (const [u, ch] of changes) mineWrites.push(await prepareMine(deps, tx, u, cid, comp, ch));
-
+    const clear = await prepareClearRoster(deps, tx, cid, comp, enId, { removeRegistrant: true });
     const now = FieldValue.serverTimestamp();
-    for (const d of roster.docs) {
-      tx.delete(d.ref);
-      tx.delete(deps.db.doc(`competitions/${cid}/roster/${d.id}`));
-    }
+    clear.apply();
     tx.update(entry.ref, { status: 'withdrawn', rosterCount: 0, rosterConfirmed: false, updatedAt: now });
     tx.update(dv.ref, {
       entryCount: FieldValue.increment(-1),
       ...(entry.data.status === 'approved' ? { approvedCount: FieldValue.increment(-1) } : {}),
       updatedAt: now
     });
-    mineWrites.forEach(w => w());
-    writeAudit(deps, tx, cid, caller, 'withdrawEntry', { enId, removedPlayers: roster.size });
+    writeAudit(deps, tx, cid, caller, 'withdrawEntry', { enId, removedPlayers: clear.removed });
   });
   return { cid, enId, status: 'withdrawn' };
 }
@@ -267,7 +293,7 @@ function resolveNames(p: PlayerInput, isMinor: boolean, requireRealName: boolean
   if (isMinor) {
     if (!p.guardianConsent) throw bad('GUARDIAN_CONSENT_REQUIRED', { field: 'guardianConsent' });
     const candidates = minorPublicNameCandidates(p.realName!);
-    const displayName = p.publicName ?? surnameOf(p.realName!);
+    const displayName = p.publicName ?? candidates[0];
     if (!candidates.includes(displayName)) throw bad('MINOR_PUBLIC_NAME', { field: 'publicName' });
     return { displayName, realName: p.realName };
   }
@@ -464,6 +490,7 @@ export async function lockRosters(deps: CpDeps, caller: Caller, gate: GateResult
     assertCompVisible(comp, gate);
     if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
     if (comp.status !== 'published') throw pre('COMPETITION_NOT_OPEN', { status: comp.status });
+    if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
     if (comp.rostersLockedAt) throw pre('ROSTERS_LOCKED');
     tx.update(deps.db.doc(`competitions/${cid}`), {
       rostersLockedAt: FieldValue.serverTimestamp(),

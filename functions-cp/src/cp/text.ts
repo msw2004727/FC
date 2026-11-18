@@ -4,7 +4,8 @@
 import { bad } from './errors.js';
 
 // 控制字元、零寬字元、雙向控制字元（防止藏字繞過禁用字或在畫面上反轉顯示）
-const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤﻿]/g;
+// 另含分類為字母但畫面看不見的填充字（U+115F、U+1160、U+3164、U+FFA0、U+2800），Opus 終審 P3
+const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
 
 /** 清理單行文字：NFKC、去不可見字元、壓空白、去頭尾。非字串回 null。 */
 export function cleanLine(value: unknown): string | null {
@@ -37,7 +38,7 @@ export function optionalText(value: unknown, field: string, max: number): string
   if (typeof value !== 'string') throw bad('FIELD_TYPE', { field });
   const s = value.normalize('NFKC')
     .replace(/\r\n?/g, '\n')
-    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤﻿]/g, '')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   if (s.length === 0) return null;
@@ -98,21 +99,30 @@ export function surnameOf(realName: string): string {
 
 /**
  * 未成年公開顯示名可接受的候選（球員或代表可修正姓氏判斷，但只能在這幾種之中選，
- * 防止把全名寫進公開投影）：中文第一字、前兩字（複姓）；外文只取最後一個詞。
+ * 防止把全名寫進公開投影）：
+ * - 含漢字：從第一個漢字起算（「Amy王小美」→ 王小美），第一個候選是 surnameOf（含複姓），另加第一字、前兩字。
+ * - 純外文：只取最後一個詞（姓）。
+ * - 任何候選都不得等於完整真名（Opus 終審 P1-3：單詞外文名、單字名）；全部被排除時退回「首字母＋.」。
  */
 export function minorPublicNameCandidates(realName: string): string[] {
   const s = cleanLine(realName) ?? '';
   if (!s) return [];
-  const out = new Set<string>();
-  out.add(surnameOf(s));
-  if (HAN_RE.test(s)) {
-    const chars = [...s.replace(/\s+/g, '')];
-    out.add(chars[0]);
-    if (chars.length >= 3) out.add(chars.slice(0, 2).join(''));
+  const full = s.replace(/\s+/g, '');
+  const out: string[] = [];
+  const add = (c: string) => { if (c && c !== full && !out.includes(c)) out.push(c); };
+  const chars = [...full];
+  const hanAt = chars.findIndex(ch => HAN_RE.test(ch));
+  if (hanAt >= 0) {
+    const han = chars.slice(hanAt);
+    add(surnameOf(han.join('')));
+    add(han[0]);
+    if (han.length >= 3) add(han.slice(0, 2).join(''));
+  } else {
+    const words = s.split(' ').filter(Boolean);
+    if (words.length >= 2) add(words[words.length - 1]);
   }
-  // 外文名只允許最後一個詞（姓）；名字通常比姓更好辨識，不列入（Flash 交叉審 P3）
-  out.delete('');
-  return [...out];
+  if (out.length === 0) out.push(chars[0].toUpperCase() + '.');
+  return out;
 }
 
 /** 直播連結（§8.3）：https＋白名單網域。 */

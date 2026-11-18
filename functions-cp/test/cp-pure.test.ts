@@ -26,6 +26,11 @@ describe('禁用字（§5.4）', () => {
     '台北足球協會盃', '全國聯盟賽', '官方認可賽', '中華足協', '足球總會', '亞洲足球联盟',
     'Taipei Football Association Cup', 'OFFICIAL cup', 'F.e.d.e.r.a.t.i.o.n', '官 方 賽', '官​方', 'ＯＦＦＩＣＩＡＬ'
   ])('擋下 %s', s => { expect(findBannedWord(s)).not.toBeNull(); });
+  it('韓文填充字、點字空白等看不見的字母不能拆開禁用字', () => {
+    for (const cp of [0x3164, 0x115f, 0x1160, 0xffa0, 0x2800]) {
+      expect(findBannedWord('官' + String.fromCodePoint(cp) + '方盃')).not.toBeNull();
+    }
+  });
   it.each(['週末友誼賽', '信義區五人制', 'Sunday Cup', '飛達盃'])('放行 %s', s => {
     expect(findBannedWord(s)).toBeNull();
   });
@@ -40,6 +45,16 @@ describe('取姓氏（§4.3）', () => {
     ['司馬光', '司馬'], ['諸葛亮', '諸葛'], ['林', '林'], ['歐陽', '歐'],
     ['John Smith', 'Smith'], ['Mary Ann Lee', 'Lee'], ['Neymar', 'Neymar'], ['', '']
   ])('%s → %s', (name, sur) => { expect(surnameOf(name)).toBe(sur); });
+  it('候選不得等於完整真名（單詞外文名、非漢字開頭、單字名）', () => {
+    expect(minorPublicNameCandidates('ChenXiaoming')).toEqual(['C.']);
+    expect(minorPublicNameCandidates('Amy王小美')).toEqual(['王', '王小']);
+    expect(minorPublicNameCandidates('林')).toEqual(['林.']);
+    expect(minorPublicNameCandidates('さくら')).toEqual(['さ.']);
+    expect(minorPublicNameCandidates('歐陽娜娜')[0]).toBe('歐陽');
+    for (const n of ['ChenXiaoming', 'Amy王小美', '林', 'John Smith', '王小明', '歐陽娜娜', '王 小']) {
+      expect(minorPublicNameCandidates(n)).not.toContain(n.split(' ').join(''));
+    }
+  });
   it('未成年公開名候選：中文第一字與前兩字、外文只取姓', () => {
     expect(minorPublicNameCandidates('王小明').sort()).toEqual(['王', '王小'].sort());
     expect(minorPublicNameCandidates('歐陽娜娜')).toContain('歐陽');

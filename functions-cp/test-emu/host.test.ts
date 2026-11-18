@@ -6,7 +6,7 @@ import { adminDb } from '../test-rules/_harness.js';
 import { handleCpEntry } from '../src/cp/entry.js';
 import { HOST_QUOTA, handleCpHost } from '../src/cp/host.js';
 import {
-  ADMIN, DAY, STRANGER, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll
+  ADMIN, DAY, MAIN, STRANGER, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll
 } from './_cp.js';
 
 type Created = { cid: string; dvIds: string[] };
@@ -256,5 +256,67 @@ describe('刪除的封鎖與重跑、下架後的狀態變更', () => {
     await adminDb().doc(`competitions/${cid}`).update({ hidden: true });
     await fails(call(handleCpHost, TESTER, { action: 'setStatus', cid, status: 'cancelled', reason: '主辦自行取消' }), 'COMPETITION_HIDDEN');
     await ok(call(handleCpHost, ADMIN, { action: 'setStatus', cid, status: 'cancelled', reason: '管理員處理' }));
+  });
+});
+
+describe('Opus 終審退修：開賽後與已有名單的時程、下架時的刪除', () => {
+  beforeEach(() => resetAll());
+  const sched = (firstOffsetDays: number) => {
+    const now = Date.now();
+    return { regOpenAt: now - 2 * DAY, regCloseAt: now + 5 * DAY, firstMatchAt: now + firstOffsetDays * DAY, lastMatchAt: now + (firstOffsetDays + 1) * DAY };
+  };
+
+  it('首場後主辦不能改時程（不能挪到未來再刪），管理員可以', async () => {
+    const { cid } = await create(TESTER);
+    const later = makeDeps(25 * DAY);
+    const now = Date.now();
+    const future = { regOpenAt: now, regCloseAt: now + 30 * DAY, firstMatchAt: now + 40 * DAY, lastMatchAt: now + 41 * DAY };
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, ...future }, later), 'COMPETITION_STARTED');
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }, later), 'DELETE_AFTER_START');
+    await ok(call(handleCpHost, ADMIN, { action: 'update', cid, ...future }, later));
+  });
+  it('首場前主辦不能把首場改到過去', async () => {
+    const { cid } = await create(TESTER);
+    const now = Date.now();
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, regOpenAt: now - 5 * DAY, regCloseAt: now - 3 * DAY, firstMatchAt: now - DAY, lastMatchAt: now + DAY }), 'SCHEDULE_PAST');
+  });
+  it('已有名單就不能改首場日期（年齡判斷基準）；其他時間仍可改', async () => {
+    const { cid, dvIds } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a' });
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(25) }));
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a' }));
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(26) }));
+    await ok(call(handleCpEntry, TESTER2, { action: 'joinRoster', cid, enId, number: 5, privacyAck: true }));
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, ...sched(20) }), 'FIRST_MATCH_LOCKED');
+    const cur = (await adminDb().doc(`competitions/${cid}`).get()).data()!;
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid,
+      regOpenAt: cur.regOpenAt.toMillis(), regCloseAt: cur.regCloseAt.toMillis() + DAY,
+      firstMatchAt: cur.firstMatchAt.toMillis(), lastMatchAt: cur.lastMatchAt.toMillis() + DAY }));
+  });
+  it('下架中主辦不能刪除與鎖定名單（保留檢舉證據），管理員可以', async () => {
+    const { cid } = await create(TESTER);
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    await adminDb().doc(`competitions/${cid}`).update({ hidden: true });
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'COMPETITION_HIDDEN');
+    await fails(call(handleCpEntry, TESTER, { action: 'lockRosters', cid }), 'COMPETITION_HIDDEN');
+    await ok(call(handleCpEntry, ADMIN, { action: 'lockRosters', cid }));
+    await ok(call(handleCpHost, ADMIN, { action: 'delete', cid }));
+  });
+  it('有已拒絕的報隊時不能刪組別（避免孤兒）', async () => {
+    const { cid, dvIds } = await create(TESTER, { hostType: 'club', hostTeamId: 'club_a', divisions: [
+      { name: '甲組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5 },
+      { name: '乙組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5 }
+    ] });
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid }));
+    const { enId } = await ok<{ enId: string }>(call(handleCpEntry, TESTER, { action: 'registerEntry', cid, dvId: dvIds[1], teamId: 'club_a' }));
+    await ok(call(handleCpEntry, TESTER, { action: 'reviewEntry', cid, enId, decision: 'reject', reason: '名額已滿' }));
+    await fails(call(handleCpHost, TESTER, { action: 'update', cid, divisions: [
+      { dvId: dvIds[0], name: '甲組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 5 }
+    ] }), 'DIVISION_HAS_ENTRIES');
+  });
+  it('主站顯示名含禁用字時主辦名退回「主辦」，不報使用者沒送的欄位', async () => {
+    await adminDb(MAIN).doc('users/tester').update({ displayName: '官方小編' });
+    const { cid } = await create(TESTER);
+    expect((await adminDb().doc(`competitions/${cid}`).get()).get('hostDisplay')).toBe('主辦');
   });
 });
