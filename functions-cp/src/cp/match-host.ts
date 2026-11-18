@@ -82,7 +82,6 @@ import {
   slotEndMs,
   swapNoticeText,
   taipeiDayWindow,
-  taipeiYmd as taipeiYmdOf,
   type ScheduleConflict,
   type SlotView
 } from './schedule-flex.js';
@@ -627,7 +626,9 @@ export async function shiftMatchDay(deps: CpDeps, caller: Caller, gate: GateResu
     if (movable.length === 0) throw pre('NOTHING_TO_SHIFT');
     for (const m of movable) assertKickoffInWindow(m.next, comp, 'toDate');
     const durations = await divisionMinutes(deps, tx, cid);
-    const target = conflictWindowOfKickoff(movable[0]!.next);
+    // 查詢窗：起點取最早那場的窗起點，終點取所有搬動場次最晚的窗終點（Opus 終審 P3：晚場跨午夜）
+    const wins = movable.map(m => conflictWindowOfKickoff(m.next));
+    const target = { start: Math.min(...wins.map(w => w.start)), end: Math.max(...wins.map(w => w.end)) };
     const movedIds = new Set(movable.map(m => m.id));
     const targetDocs = await matchesInWindow(deps, tx, cid, target.start, target.end);
     const moves = movable.map(m => occupySlot(m.id, m.next, divisionIdOf(m.snap), teamIdsOf(m.snap), venueIdxOfSnap(m.snap), durations));
@@ -674,12 +675,10 @@ export async function swapMatches(deps: CpDeps, caller: Caller, gate: GateResult
     if (kickA != null || kickB != null) {
       const durations = await divisionMinutes(deps, tx, cid);
       const found: DocumentSnapshot[] = [];
-      const seenDay = new Set<string>();
+      // 每場各查自己的窗（Opus 終審 P3：原本同日去重只查第一場的窗，晚場跨午夜會漏）。
+      // 不合併成一個區間：兩場可能相隔數十天，合併會一次查太多場而誤觸當日上限。重複的文件不影響撞期判斷。
       for (const kick of [kickA, kickB]) {
         if (kick == null) continue;
-        const day = taipeiYmdOf(kick);
-        if (seenDay.has(day)) continue;
-        seenDay.add(day);
         const win = conflictWindowOfKickoff(kick);
         found.push(...await matchesInWindow(deps, tx, cid, win.start, win.end));
       }

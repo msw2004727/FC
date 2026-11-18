@@ -153,6 +153,16 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     await fails(call(handleCpHost, TESTER, { action: 'restoreCompetition', cid: c2.cid, reason: '主辦想恢復' }, later()), 'NOT_ADMIN');
   });
 
+  it('取消→重置後摘要片不殘留取消原因 cr（F2 Opus 終審 P2）', async () => {
+    const m = (await matchesOf(c))[0];
+    await runAct(c, ADMIN, { action: 'cancelMatch', mtId: m.id, expectedRev: 0, reason: '場地淹水' });
+    expect((await entryOf(c.cid, m.id) as { cr?: string } | undefined)?.cr).toBe('場地淹水');
+    await runAct(c, ADMIN, { action: 'resetMatch', mtId: m.id, expectedRev: 1, reason: '改期再戰' });
+    const e = await entryOf(c.cid, m.id) as Record<string, unknown> | undefined;
+    expect(e?.st).toBe('scheduled');
+    expect(e && 'cr' in e).toBe(false);
+  });
+
   it('最後一場被取消也會自動結束；重置回未賽時清掉 confirm 結束', async () => {
     await resetAll();
     const c2 = await setupComp(['甲', '乙']);

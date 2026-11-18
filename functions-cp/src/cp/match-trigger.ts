@@ -118,7 +118,10 @@ async function syncSummary(deps: CpDeps, cid: string, mtId: string, before: Docu
       const entry = summaryEntryOf(after, kickoffMsOf(after));
       const curEntry = shard.exists ? (shard.get('m')?.[mtId] as SummaryEntry | undefined) : undefined;
       if (!sameEntry(curEntry, entry)) {
-        ops.push(() => tx.set(shardRef, { m: { [mtId]: entry }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
+        // 片已存在時用 update 的欄位路徑整筆取代這一場（Opus 終審 P2）：set+merge 會逐層合併巢狀 map，
+        // 取消→重置後舊的 cr 會殘留，之後每次都判成不同而多寫。
+        if (shard.exists) ops.push(() => tx.update(shardRef, { [`m.${mtId}`]: entry, updatedAt: FieldValue.serverTimestamp() }));
+        else ops.push(() => tx.set(shardRef, { m: { [mtId]: entry }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
       }
     }
     if (oldId && oldId !== newId) {
