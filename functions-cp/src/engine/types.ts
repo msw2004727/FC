@@ -225,13 +225,26 @@ export interface StandingRow {
   rank?: number;
   hasUnresolvedTie?: boolean;
   tiedWith?: string[];
+  /**
+   * 此名次由主辦裁定（host）或登錄抽籤結果（drawLots）。
+   * 未裁定、或裁定因成員改變／不再同分而失效時不寫。
+   */
+  decidedBy?: 'host' | 'drawLots' | null;
 }
 
 export interface ManualOverride {
   enabled: boolean;
+  /** 操作者雜湊（sha256 前 16 碼）。不放 uid。 */
   by: string | null;
+  /** 裁定時間。新寫入與 decidedAt 同值；舊資料只有這個欄位。 */
   at: unknown;
   reason: string | null;
+  /** 主辦裁定或抽籤結果登錄。舊資料沒有。 */
+  method?: 'host' | 'drawLots' | null;
+  /** 同分群的新順序（名次由前到後）。成員集合用來判斷裁定是否仍適用。 */
+  order?: string[] | null;
+  /** 裁定時間。與 at 同值。 */
+  decidedAt?: unknown;
 }
 
 export interface StandingDoc {

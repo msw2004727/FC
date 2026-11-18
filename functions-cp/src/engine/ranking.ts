@@ -114,12 +114,89 @@ interface RawSeparation {
   teamIds: string[];
 }
 
+/** 同分逐項比較的一步。數值與 tieBreakTrace 同一套（迷你表走 miniTable）。 */
+export interface TieExplainStep {
+  teamIds: string[];
+  criterion: string;
+  values: Array<{ teamId: string; value: number | null }>;
+  /** 這一項是否把這群拆成多段 */
+  split: boolean;
+}
+
+export interface TieSplit {
+  criterion: string;
+  aboveTeamIds: string[];
+  belowTeamIds: string[];
+}
+
+export interface TieExplanation {
+  /** 不套用人工裁定時，這幾隊的名次（由前到後） */
+  naturalOrder: string[];
+  steps: TieExplainStep[];
+  splits: TieSplit[];
+  /** 最後一項把剩餘同分拆完的條件。仍有待裁定時為 null。 */
+  decidedCriterion: string | null;
+  pending: boolean;
+  /** manual、drawLots 或 exhausted。沒有待裁定時為 null。 */
+  pendingCriterion: 'manual' | 'drawLots' | 'exhausted' | null;
+  /** 這幾隊之間、有計入迷你表的場次 */
+  matchIds: string[];
+}
+
 interface RankCtx {
   matches: MatchLike[];
   criteria: string[];
   points: { win: number; draw: number; loss: number };
   opts: TallyOpts;
   separations: RawSeparation[];
+  /** 只有 explainTie 會帶。rankRows 不記，避免熱路徑多配物件。 */
+  explain?: TieExplainStep[];
+}
+
+const PENDING_TRACE = new Set(['unresolved@manual', 'unresolved@drawLots', 'unresolved@exhausted']);
+
+/** 列上是否仍是待裁定同分（旗標，或追蹤停在 manual／drawLots／exhausted）。 */
+export function rowPendingTie(row: StandingRow): boolean {
+  if (row.hasUnresolvedTie === true) return true;
+  return (row.tieBreakTrace || []).some(step => PENDING_TRACE.has(step));
+}
+
+/**
+ * 積分榜上每一群待裁定同分。
+ * 一群＝彼此 tiedWith 閉合、而且名次連續的隊伍（引擎給的是連續名次，不是同一個 rank 數字）。
+ * 回傳的隊伍依目前名次由前到後。
+ */
+export function pendingTieGroups(rows: StandingRow[]): string[][] {
+  const byId = new Map(rows.map(r => [r.teamId, r]));
+  const seen = new Set<string>();
+  const groups: string[][] = [];
+  const ranked = [...rows].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+  for (const row of ranked) {
+    if (seen.has(row.teamId) || !rowPendingTie(row)) continue;
+    const uniq = [...new Set([row.teamId, ...(row.tiedWith || [])])];
+    if (uniq.length < 2) continue;
+    const members = uniq.map(id => byId.get(id)).filter((r): r is StandingRow => !!r);
+    if (members.length !== uniq.length || !members.every(rowPendingTie)) continue;
+    const closed = members.every(m => {
+      const g = new Set([m.teamId, ...(m.tiedWith || [])]);
+      return g.size === uniq.length && uniq.every(id => g.has(id));
+    });
+    if (!closed) continue;
+    const ranks = members.map(m => m.rank).filter((rk): rk is number => typeof rk === 'number').sort((a, b) => a - b);
+    if (ranks.length !== members.length) continue;
+    const contiguous = ranks.every((rk, i) => i === 0 || rk === (ranks[i - 1] ?? rk) + 1);
+    if (!contiguous) continue;
+    for (const id of uniq) seen.add(id);
+    members.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+    groups.push(members.map(m => m.teamId));
+  }
+  return groups;
+}
+
+/** order 的成員集合是否剛好等於某一群待裁定同分（順序不計）。 */
+export function matchesPendingTie(rows: StandingRow[], order: readonly string[]): boolean {
+  if (order.length < 2 || new Set(order).size !== order.length) return false;
+  return pendingTieGroups(rows).some(g => g.length === order.length && order.every(id => g.includes(id)));
 }
 
 /** 第幾名與第幾名靠哪一條分開。messageKey 給畫面，引擎不組中文句子。 */
@@ -142,13 +219,14 @@ function rankInternal(
   rows: StandingRow[],
   matches: MatchLike[] | null | undefined,
   rule: Pick<RankingRule, 'criteria' | 'points'> | null | undefined,
-  opts: TallyOpts = {}
+  opts: TallyOpts = {},
+  explain?: TieExplainStep[]
 ): { rows: StandingRow[]; hasUnresolvedTie: boolean; separations: RawSeparation[] } {
   const criteria: string[] = rule?.criteria?.length ? [...rule.criteria] : ['points'];
   const points = { ...DEFAULT_POINTS, ...(rule?.points || {}) };
   const work = rows.map(r => ({ ...r, tieBreakTrace: [] as string[], hasUnresolvedTie: false, tiedWith: [] as string[] }));
   const separations: RawSeparation[] = [];
-  const ctx: RankCtx = { matches: matches || [], criteria, points, opts, separations };
+  const ctx: RankCtx = { matches: matches || [], criteria, points, opts, separations, explain };
   const result = orderTied(work, ctx, 0);
   result.ordered.forEach((r, i) => { r.rank = i + 1; });
   return { rows: result.ordered, hasUnresolvedTie: result.unresolved, separations };
@@ -198,6 +276,69 @@ export function explainRanking(
   return { rows: ranked.rows, hasUnresolvedTie: ranked.hasUnresolvedTie, separations };
 }
 
+/**
+ * 解釋這幾隊為什麼排成這樣。
+ * 列上的積分必須已經用全組場次算過（直接對戰才改看迷你表）。
+ * 排序仍走 orderTied：拆群後條件從頭比，不另寫一套。
+ */
+export function explainTie(
+  rows: StandingRow[],
+  matches: MatchLike[] | null | undefined,
+  rule: Pick<RankingRule, 'criteria' | 'points'> | null | undefined,
+  teamIds: readonly string[],
+  opts: TallyOpts = {}
+): TieExplanation {
+  if (teamIds.length < 2 || new Set(teamIds).size !== teamIds.length) {
+    throw new Error('explainTie: teamIds');
+  }
+  const subset: StandingRow[] = [];
+  for (const id of teamIds) {
+    const row = rows.find(r => r.teamId === id);
+    if (!row) throw new Error('explainTie: teamIds');
+    subset.push(row);
+  }
+  const steps: TieExplainStep[] = [];
+  const ranked = rankInternal(subset, matches, rule, opts, steps);
+  const points = { ...DEFAULT_POINTS, ...(rule?.points || {}) };
+  const { countedMatchIds } = tallyMatches([...teamIds], matches || [], {
+    ...opts,
+    points,
+    onlyBetweenTeams: true,
+    withdrawnTeamIds: []
+  });
+  const pendingCriterion = pendingCriterionOf(steps, ranked.hasUnresolvedTie);
+  return {
+    naturalOrder: ranked.rows.map(r => r.teamId),
+    steps,
+    splits: ranked.separations
+      .filter(s => s.kind === 'separated')
+      .map(s => ({ criterion: s.criterion, aboveTeamIds: s.aboveTeamIds, belowTeamIds: s.belowTeamIds })),
+    decidedCriterion: pendingCriterion ? null : lastSplitCriterion(steps),
+    pending: pendingCriterion != null,
+    pendingCriterion,
+    matchIds: [...countedMatchIds]
+  };
+}
+
+function pendingCriterionOf(
+  steps: TieExplainStep[],
+  unresolved: boolean
+): 'manual' | 'drawLots' | 'exhausted' | null {
+  if (!unresolved) return null;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const c = steps[i]?.criterion;
+    if (c === 'manual' || c === 'drawLots' || c === 'exhausted') return c;
+  }
+  return 'exhausted';
+}
+
+function lastSplitCriterion(steps: TieExplainStep[]): string | null {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i]?.split) return steps[i]?.criterion ?? null;
+  }
+  return null;
+}
+
 function orderTied(
   group: StandingRow[],
   ctx: RankCtx,
@@ -219,6 +360,7 @@ function orderTied(
       ctx.separations.push({
         kind: 'unresolved', criterion: c, aboveTeamIds: [], belowTeamIds: [], teamIds: [...ids]
       });
+      pushExplain(ctx, ids, c, ids.map(teamId => ({ teamId, value: null })), false);
       return { ordered, unresolved: true };
     }
 
@@ -234,6 +376,11 @@ function orderTied(
     for (const r of group) trace(r, `${code}=${fmt(values.get(r.teamId))}${scopeFor(r)}`);
 
     const buckets = splitByValue(group, values);
+    pushExplain(
+      ctx, ids, c,
+      ids.map(teamId => ({ teamId, value: values.get(teamId) ?? null })),
+      buckets.length > 1
+    );
     if (buckets.length <= 1) continue;
 
     for (let b = 0; b < buckets.length - 1; b++) {
@@ -274,7 +421,18 @@ function orderTied(
   ctx.separations.push({
     kind: 'unresolved', criterion: 'exhausted', aboveTeamIds: [], belowTeamIds: [], teamIds: [...ids]
   });
+  pushExplain(ctx, ids, 'exhausted', ids.map(teamId => ({ teamId, value: null })), false);
   return { ordered, unresolved: true };
+}
+
+function pushExplain(
+  ctx: RankCtx,
+  teamIds: string[],
+  criterion: string,
+  values: Array<{ teamId: string; value: number | null }>,
+  split: boolean
+): void {
+  ctx.explain?.push({ teamIds: [...teamIds], criterion, values, split });
 }
 
 function criterionValues(c: string, group: StandingRow[], ctx: RankCtx): Map<string, number | null> | null {

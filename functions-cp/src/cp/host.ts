@@ -1,6 +1,6 @@
 /**
  * cpHost 第 2 步動作：create、update、publish、setStatus、delete（§6.1）。
- * 第 3 步動作（排賽程、改期、登錄比分、確認、棄權、重置、積分重算）在 match-host.ts，於 HOST_ACTIONS 合併。
+ * 第 3 步動作（排賽程、改期、登錄比分、確認、棄權、重置、積分重算、同分裁定與查詢）在 match-host.ts，於 HOST_ACTIONS 合併。
  * assignStaff、createInvite、revokeInvite 屬第 4 步，這裡回 UNKNOWN_ACTION（未實作的動作一律拒絕，不靜默成功）。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';

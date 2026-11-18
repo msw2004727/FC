@@ -2,6 +2,7 @@
  * 第 3 步 Rules：伺服器寫的積分、摘要、賽程欄位，用戶端一律不能寫；
  * 已確認／棄權／改期／待確認（主辦登錄）場次不能直寫記分；公開讀取照父文件條件。
  * F1：用戶端不能把場次改成 cancelled，也不能寫賽事 endedBy／endReason。
+ * F3：用戶端不能直寫積分榜的 manualOverride 或列上的 decidedBy。
  * （Rules 檔本步未改；本檔只補拒絕與通過案例，防止之後改 Rules 時退步。）
  */
 import { afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -104,6 +105,25 @@ describe('F1：用戶端不能寫取消與結束欄位', () => {
       await assertFails(updateDoc(doc(db, 'competitions/cp_pub'), { endReason: '提前結束' }));
       await assertFails(updateDoc(doc(db, 'competitions/cp_pub'), { endedAt: new Date(), endedBy: 'host', endReason: '提前結束' }));
       await assertFails(updateDoc(doc(db, base()), { status: 'cancelled', rev: 4, updatedAt: serverTimestamp() }));
+    });
+  }
+});
+
+describe('F3：用戶端不能直寫同分裁定', () => {
+  for (const who of [['host'], ['co'], ['s1'], ['admin', 'admin']] as Array<[string, string?]>) {
+    it(`${who[0]} 不能寫 manualOverride，也不能寫列上的 decidedBy`, async () => {
+      const db = as(who[0], who[1]);
+      const ref = doc(db, 'competitions/cp_pub/standings/dv_1__group__A');
+      await assertFails(updateDoc(ref, {
+        manualOverride: { enabled: true, by: 'x', at: null, reason: '裁定', method: 'host', order: ['en_h'], decidedAt: null }
+      }));
+      await assertFails(updateDoc(ref, {
+        rows: [{ teamId: 'en_h', decidedBy: 'host', rank: 1, locked: true }]
+      }));
+      await assertFails(setDoc(ref, {
+        manualOverride: { enabled: true, method: 'drawLots', order: ['en_h'] },
+        rows: [{ teamId: 'en_h', decidedBy: 'drawLots' }]
+      }));
     });
   }
 });

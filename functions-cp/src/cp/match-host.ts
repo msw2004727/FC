@@ -1,21 +1,28 @@
 /**
  * cpHost 第 3 步動作：排賽程、改期、主辦登錄比分、比分確認、棄權、重置、積分全量重算。
  * F1（§3.272）：取消單場、主辦手動結束、管理員恢復。
+ * F3（§3.272）：同分裁定 resolveTie、撤銷 clearTieDecision、逐項比較 explainTie（唯讀，不寫稽核）。
  * 契約：docs/specs/tournament-research/cp-step3/contract.md（local-only）、.grok-input/contract.md §3.272。
  *
  * 原則
  * - 權限：launchGate（內部期）→ 交易內 loadComp → assertCompVisible → assertHostOrCo（主辦、共同主辦、管理員）。
  * - 場次寫入一律 Admin SDK；公開場次文件不放 uid（操作者只進雜湊稽核）。
  * - rev 只增不退（§3.250-6）：每次伺服器改場次都 +1，讓離線的舊直寫在 Rules 被拒；resetMatch 另記 resetRev。
- * - 積分只算 confirmed／walkover（§6.3-7）；取消不計分。積分榜由觸發器重算（match-trigger.ts），本檔只有全量重算鈕。
+ * - 積分只算 confirmed／walkover（§6.3-7）；取消不計分。積分榜由觸發器重算（match-trigger.ts）。
+ *   同分裁定在同一筆交易裡重算該組，失效規則在 buildStanding。
  * - 第 3 步只開單一組循環；多組與淘汰屬第 5 步。
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
-import { DEFAULT_WALKOVER, matchResult, type MatchResult } from '../engine/index.js';
+import {
+  DEFAULT_WALKOVER, buildStanding, clearedManualOverride, computeRows, explainTie as explainTieCalc,
+  matchResult, matchesPendingTie, tieDecisionView,
+  type ManualOverride, type MatchLike, type MatchResult, type StandingDoc, type StandingRow
+} from '../engine/index.js';
 import { CpError, bad, deny, pre } from './errors.js';
 import {
   CID_RE,
   DVID_RE,
+  ENID_RE,
   FieldValue,
   assertCompVisible,
   assertHostOrCo,
@@ -27,6 +34,7 @@ import {
   requireId,
   ts,
   writeAudit,
+  actorHash,
   type Caller,
   type CompDoc,
   type CpDeps,
@@ -40,6 +48,8 @@ import {
   derivedScoreOf,
   planRoundRobin,
   publicMatchDoc,
+  rankingRuleOf,
+  standingMatchesOf,
   statusAfterReset,
   type PlanDay
 } from './schedule-plan.js';
@@ -601,6 +611,212 @@ export async function recalcStandings(deps: CpDeps, caller: Caller, gate: GateRe
   return { dvId, standings: written };
 }
 
+/** 裁定原因：既有單行清理與禁用詞，1～200 字（空字串當缺欄位）。 */
+const TIE_REASON_MAX = 200;
+const GROUP_RE = /^[A-Za-z0-9]{1,8}$/;
+
+function tieReasonOf(v: unknown, bannedWords: readonly string[]): string {
+  const reason = requireLine(v, 'reason', 1, TIE_REASON_MAX);
+  if (findBannedWord(reason, bannedWords)) throw bad('BANNED_WORD', { field: 'reason' });
+  return reason;
+}
+
+function groupIdOf(v: unknown): string {
+  if (v == null || v === '') return 'A';
+  if (typeof v !== 'string' || !GROUP_RE.test(v)) throw bad('FIELD_FORMAT', { field: 'groupId' });
+  return v;
+}
+
+function idListOf(v: unknown, field: string): string[] {
+  if (!Array.isArray(v) || v.length < 2 || v.length > SCHEDULE_LIMITS.teamsMax) {
+    throw bad('FIELD_RANGE', { field, min: 2, max: SCHEDULE_LIMITS.teamsMax });
+  }
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const x of v) {
+    const id = requireId(x, ENID_RE, field);
+    if (seen.has(id)) throw bad('FIELD_RANGE', { field, min: 2, max: SCHEDULE_LIMITS.teamsMax });
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+interface TieGroup {
+  ref: DocumentReference;
+  version: number;
+  prev: Partial<StandingDoc> | null;
+  teamIds: string[];
+  matches: MatchLike[];
+  preset: 'h2hFirst' | 'goalDiffFirst';
+  names: Record<string, string>;
+}
+
+/** 交易內讀組別、積分榜、該組場次。expectedVersion 有帶且不符就 REV_CONFLICT（此時還沒讀場次）。 */
+async function loadTieGroup(
+  deps: CpDeps,
+  tx: Transaction,
+  cid: string,
+  dvId: string,
+  groupId: string,
+  expectedVersion: number | null
+): Promise<TieGroup> {
+  const dv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/divisions/${dvId}`));
+  if (!dv.exists) throw new CpError('not-found', 'DIVISION_NOT_FOUND');
+  const schedule = dv.get('schedule') as { ranking?: unknown; groups?: Array<{ groupId?: unknown; teamIds?: unknown }> } | undefined;
+  const groups = Array.isArray(schedule?.groups) ? schedule.groups : [];
+  const group = groups.find(g => g?.groupId === groupId);
+  const teamIds = Array.isArray(group?.teamIds)
+    ? group.teamIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  if (!schedule || teamIds.length < 2) throw pre('SCHEDULE_REQUIRED');
+  const ref = standingRef(deps, cid, dvId, 'group', groupId);
+  const prevSnap = await readDoc(deps, tx, ref);
+  if (!prevSnap.exists) throw new CpError('not-found', 'STANDING_NOT_FOUND');
+  const prev = prevSnap.data() as Partial<StandingDoc>;
+  const version = prev.version;
+  if (typeof version !== 'number' || !Number.isInteger(version)) throw pre('STANDING_CORRUPT');
+  if (expectedVersion != null && version !== expectedVersion) throw pre('REV_CONFLICT', { version });
+  const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
+    .where('divisionId', '==', dvId).where('stageId', '==', 'group').where('groupId', '==', groupId).limit(400));
+  const all = snap.docs.map(d => ({ matchId: d.id, ...d.data() }) as MatchLike);
+  const names: Record<string, string> = {};
+  for (const m of all) {
+    for (const side of ['home', 'away'] as const) {
+      const t = m[side];
+      if (t && typeof t.teamId === 'string' && typeof t.name === 'string') names[t.teamId] = t.name;
+    }
+  }
+  const counted = standingMatchesOf(all);
+  return {
+    ref, version, prev, teamIds, matches: counted, names,
+    preset: schedule.ranking === 'goalDiffFirst' ? 'goalDiffFirst' : 'h2hFirst'
+  };
+}
+
+function writeGroupStanding(
+  tx: Transaction,
+  cid: string,
+  dvId: string,
+  groupId: string,
+  bundle: TieGroup,
+  override: ManualOverride,
+  computedBy: string
+): StandingDoc {
+  const doc = buildStanding({
+    competitionId: cid, divisionId: dvId, stageId: 'group', groupId,
+    teamIds: bundle.teamIds, matches: bundle.matches,
+    rule: rankingRuleOf(bundle.preset),
+    opts: { teamMeta: Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }])) },
+    prev: { version: bundle.version, manualOverride: override, rows: bundle.prev?.rows }
+  });
+  const now = FieldValue.serverTimestamp();
+  tx.set(bundle.ref, { ...doc, computedBy, updatedAt: now });
+  return doc;
+}
+
+function rankBrief(rows: StandingRow[]) {
+  return rows.map(r => ({
+    teamId: r.teamId,
+    rank: typeof r.rank === 'number' ? r.rank : null,
+    decidedBy: r.decidedBy === 'host' || r.decidedBy === 'drawLots' ? r.decidedBy : null
+  }));
+}
+
+export async function resolveTie(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId', 'groupId', 'order', 'method', 'reason', 'expectedVersion']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  const groupId = groupIdOf(input.groupId);
+  const order = idListOf(input.order, 'order');
+  const method = requireEnum(input.method, ['host', 'drawLots'] as const, 'method');
+  const reason = tieReasonOf(input.reason, gate.bannedWords);
+  const expectedVersion = int(input.expectedVersion, 'expectedVersion', 0, 1_000_000);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, expectedVersion);
+    // 用目前場次重算後的自然名次判斷，不沿用可能已過期的列。先不套用舊裁定。
+    const natural = buildStanding({
+      competitionId: cid, divisionId: dvId, stageId: 'group', groupId,
+      teamIds: bundle.teamIds, matches: bundle.matches,
+      rule: rankingRuleOf(bundle.preset),
+      opts: { teamMeta: Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }])) },
+      prev: { version: bundle.version, manualOverride: { enabled: false, by: null, at: null, reason: null } }
+    });
+    if (!matchesPendingTie(natural.rows, order)) throw pre('TIE_NOT_PENDING');
+    const now = FieldValue.serverTimestamp();
+    const override: ManualOverride = {
+      enabled: true, by: actorHash(cid, caller.uid), at: now, reason, method, order, decidedAt: now
+    };
+    const doc = writeGroupStanding(tx, cid, dvId, groupId, bundle, override, 'cpHost:resolveTie');
+    writeAudit(deps, tx, cid, caller, 'resolveTie', { dvId, groupId, method, reason, order, fromVersion: bundle.version });
+    return { dvId, groupId, version: doc.version, method, hasUnresolvedTie: doc.hasUnresolvedTie, rows: rankBrief(doc.rows) };
+  });
+}
+
+export async function clearTieDecision(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId', 'groupId', 'reason', 'expectedVersion']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  const groupId = groupIdOf(input.groupId);
+  const reason = tieReasonOf(input.reason, gate.bannedWords);
+  const expectedVersion = int(input.expectedVersion, 'expectedVersion', 0, 1_000_000);
+  return deps.db.runTransaction(async tx => {
+    const comp = await hostComp(deps, tx, caller, gate, cid);
+    assertNotEnded(deps, comp, caller);
+    const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, expectedVersion);
+    if (!tieDecisionView(bundle.prev?.manualOverride)) throw pre('TIE_NO_DECISION');
+    const doc = writeGroupStanding(tx, cid, dvId, groupId, bundle, clearedManualOverride(), 'cpHost:clearTieDecision');
+    writeAudit(deps, tx, cid, caller, 'clearTieDecision', { dvId, groupId, reason, fromVersion: bundle.version });
+    return { dvId, groupId, version: doc.version, hasUnresolvedTie: doc.hasUnresolvedTie, rows: rankBrief(doc.rows) };
+  });
+}
+
+/**
+ * 唯讀。查詢不寫稽核：紀錄只留在裁定與撤銷。
+ * 放在 cpHost 是因為要比對主辦身分，而且讀取預算要能用 ReadMeter 斷言。
+ * 逐項數字走引擎 explainTie（orderTied／miniTable），不在這裡重算一套排序。
+ */
+export async function explainTie(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId', 'groupId', 'teamIds']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  const groupId = groupIdOf(input.groupId);
+  const teamIds = idListOf(input.teamIds, 'teamIds');
+  return deps.db.runTransaction(async tx => {
+    await hostComp(deps, tx, caller, gate, cid);
+    const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, null);
+    if (teamIds.some(id => !bundle.teamIds.includes(id))) throw pre('TEAM_NOT_IN_STANDING');
+    const rule = rankingRuleOf(bundle.preset);
+    const meta = Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }]));
+    // 列上的積分用全組場次。explainTie 自己再跑同一套 orderTied，這裡不先排名。
+    const rows = computeRows(bundle.teamIds, bundle.matches, rule, { teamMeta: meta });
+    // Flash 初審 P2：只比較積分相同的隊伍，避免對任意子集重比而得出和全組名次不一致的說明
+    const pts = new Set(rows.filter(r => teamIds.includes(r.teamId)).map(r => r.points));
+    if (pts.size !== 1) throw pre('TIE_NOT_SAME_POINTS');
+    const explained = explainTieCalc(rows, bundle.matches, rule, teamIds);
+    const stored = new Map((bundle.prev?.rows ?? []).map(r => [r.teamId, r]));
+    const marks = teamIds.map(teamId => {
+      const row = stored.get(teamId);
+      const decidedBy = row?.decidedBy === 'host' || row?.decidedBy === 'drawLots' ? row.decidedBy : null;
+      return { teamId, rank: typeof row?.rank === 'number' ? row.rank : null, decidedBy };
+    });
+    return {
+      dvId, groupId,
+      naturalOrder: explained.naturalOrder,
+      steps: explained.steps,
+      splits: explained.splits,
+      decidedCriterion: explained.decidedCriterion,
+      pending: explained.pending,
+      pendingCriterion: explained.pendingCriterion,
+      matchIds: explained.matchIds,
+      decision: tieDecisionView(bundle.prev?.manualOverride ?? null, bundle.prev?.rows ?? null),
+      marks
+    };
+  });
+}
+
 export const MATCH_HOST_ACTIONS = {
   generateSchedule,
   clearSchedule,
@@ -612,5 +828,8 @@ export const MATCH_HOST_ACTIONS = {
   cancelMatch,
   endCompetition,
   restoreCompetition,
-  recalcStandings
+  recalcStandings,
+  resolveTie,
+  clearTieDecision,
+  explainTie
 } as const;

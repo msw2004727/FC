@@ -20,8 +20,11 @@ export {
   buildStanding,
   standingIdOf,
   isStaleWrite,
-  diffRanking
+  diffRanking,
+  clearedManualOverride,
+  tieDecisionView
 } from './standing.js';
+export type { TieDecisionView } from './standing.js';
 
 export {
   FORMATS,
