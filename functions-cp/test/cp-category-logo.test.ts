@@ -1,7 +1,8 @@
 /**
  * §3.264 純函式：分類白名單、categoryOf 缺值、隊徽網址正規化。不需模擬器。
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { allowedLogoBuckets } from '../src/cp/logo-hosts.js';
 import { CpError } from '../src/cp/errors.js';
 import { CATEGORIES, TEAM_LOGO_MAX, categoryInput, categoryOf, teamLogoOf } from '../src/cp/validate.js';
 
@@ -52,26 +53,45 @@ describe('categoryOf 缺值視為 league', () => {
   });
 });
 
-describe('teamLogoOf 網址正規化（對齊 tournamentCards image）', () => {
-  const ok = 'https://cdn.example/a.png';
+describe('teamLogoOf 網址正規化＋本專案 Storage 白名單（顧問 §3.278 P2）', () => {
+  const B = 'demo-cp.firebasestorage.app';
+  const base = `https://firebasestorage.googleapis.com/v0/b/${B}/o/`;
+  const ok = `${base}teams%2Fclub_a%2Flogo.png?alt=media&token=ab`;
+  const prev = process.env.CP_LOGO_BUCKETS;
+  beforeEach(() => { process.env.CP_LOGO_BUCKETS = B; });
+  afterEach(() => { if (prev === undefined) delete process.env.CP_LOGO_BUCKETS; else process.env.CP_LOGO_BUCKETS = prev; });
 
-  it('合格 https 網址原樣留下，不去改路徑', () => {
+  it('本專案 Storage 下載網址原樣留下，不去改路徑', () => {
     expect(teamLogoOf(ok)).toBe(ok);
-    expect(teamLogoOf('https://cdn.example')).toBe('https://cdn.example');
-    expect(teamLogoOf('https://cdn.example/a.png?token=ab')).toBe('https://cdn.example/a.png?token=ab');
+    expect(teamLogoOf(`${base}a.png`)).toBe(`${base}a.png`);
   });
 
-  it('去頭尾空白，並做 NFKC（全形）', () => {
-    expect(teamLogoOf(`  ${ok}\n`)).toBe(ok);
-    expect(teamLogoOf('ｈｔｔｐｓ：／／ｃｄｎ．ｅｘａｍｐｌｅ／ａ．ｐｎｇ')).toBe(ok);
+  it('去頭尾空白，並做 NFKC', () => {
+    expect(teamLogoOf(`  ${ok}
+`)).toBe(ok);
   });
 
   it('長度到上限（1200，同主站 image）留、超過丟', () => {
-    const head = 'https://a.com/';
-    const atMax = head + 'a'.repeat(TEAM_LOGO_MAX - head.length);
+    const atMax = base + 'a'.repeat(TEAM_LOGO_MAX - base.length);
     expect(atMax.length).toBe(TEAM_LOGO_MAX);
     expect(teamLogoOf(atMax)).toBe(atMax);
     expect(teamLogoOf(atMax + 'a')).toBeNull();
+  });
+
+  it('沒有設定任何 bucket 時一律不收（fail-closed）', () => {
+    delete process.env.CP_LOGO_BUCKETS;
+    const fc = process.env.FIREBASE_CONFIG;
+    delete process.env.FIREBASE_CONFIG;
+    try {
+      expect(teamLogoOf(ok)).toBeNull();
+    } finally {
+      if (fc !== undefined) process.env.FIREBASE_CONFIG = fc;
+    }
+  });
+
+  it('bucket 也可從 FIREBASE_CONFIG.storageBucket 讀', () => {
+    expect(allowedLogoBuckets({ FIREBASE_CONFIG: JSON.stringify({ storageBucket: B }) } as NodeJS.ProcessEnv)).toEqual([B]);
+    expect(allowedLogoBuckets({ FIREBASE_CONFIG: '{壞掉' } as NodeJS.ProcessEnv)).toEqual([]);
   });
 
   it.each([
@@ -79,12 +99,18 @@ describe('teamLogoOf 網址正規化（對齊 tournamentCards image）', () => {
     ['null', null],
     ['空字串', ''],
     ['只有空白', '   '],
-    ['http', 'http://cdn.example/a.png'],
+    ['外部任意 https（追蹤圖）', 'https://cdn.example/a.png'],
+    ['http', `http://firebasestorage.googleapis.com/v0/b/${B}/o/a.png`],
+    ['別的 bucket', 'https://firebasestorage.googleapis.com/v0/b/other-proj.appspot.com/o/a.png'],
+    ['假冒主機（子網域）', `https://firebasestorage.googleapis.com.evil.example/v0/b/${B}/o/a.png`],
+    ['帶帳密', `https://x@firebasestorage.googleapis.com/v0/b/${B}/o/a.png`],
+    ['帶連接埠', `https://firebasestorage.googleapis.com:8443/v0/b/${B}/o/a.png`],
+    ['路徑不是下載格式', `https://firebasestorage.googleapis.com/${B}/a.png`],
+    ['沒有物件路徑', `https://firebasestorage.googleapis.com/v0/b/${B}/o/`],
     ['只有 https://', 'https://'],
-    ['中間有空白', 'https://cdn.example/a b.png'],
+    ['中間有空白', `${base}a b.png`],
     ['javascript', 'javascript:alert(1)'],
-    ['零寬字元', 'https://cdn.example/\u200ba.png'],
-    ['非 ASCII 主機', 'https://例子.example/a.png']
+    ['零寬字元', `${base}​a.png`]
   ])('不合格寫 null：%s', (_label, value) => {
     expect(teamLogoOf(value)).toBeNull();
   });

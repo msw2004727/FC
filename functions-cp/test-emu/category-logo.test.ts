@@ -10,8 +10,11 @@ import { handleCpEntry } from '../src/cp/entry.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { ADMIN, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
 
-const LOGO_A = 'https://cdn.example/a.png';
-const LOGO_B = 'https://cdn.example/b.png';
+// 顧問 §3.278 P2：隊徽只收本專案 Storage 下載網址；測試用假 bucket
+process.env.CP_LOGO_BUCKETS = 'demo-cp.firebasestorage.app';
+const LOGO_BASE = 'https://firebasestorage.googleapis.com/v0/b/demo-cp.firebasestorage.app/o/';
+const LOGO_A = `${LOGO_BASE}teams%2Fa.png?alt=media`;
+const LOGO_B = `${LOGO_BASE}teams%2Fb.png?alt=media`;
 
 async function published(over: Record<string, unknown> = {}) {
   const c = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({
@@ -111,6 +114,15 @@ describe('報隊隊徽 teamLogo（§3.264）', () => {
       action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a'
     }));
     expect((await adminDb().doc(`competitions/${cid}/entries/${enId}`).get()).get('teamLogo')).toBe(LOGO_A);
+  });
+
+  it('外部任意 https 網址（非本專案 Storage）寫 null（顧問 §3.278 P2）', async () => {
+    await adminDb().doc('cpClubs/club_a').update({ image: 'https://cdn.example/track.png' });
+    const { cid, dvIds } = await published();
+    const out = await ok<{ enId: string }>(call(handleCpEntry, TESTER, {
+      action: 'registerEntry', cid, dvId: dvIds[0], teamId: 'club_a'
+    }));
+    expect((await adminDb().doc(`competitions/${cid}/entries/${out.enId}`).get()).get('teamLogo')).toBeNull();
   });
 
   it('非 https 網址寫 null、報隊不報錯', async () => {

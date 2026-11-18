@@ -4,6 +4,7 @@
  */
 import { bad } from './errors.js';
 import { cleanLine, findBannedWord, isAllowedLiveLink, optionalLine, optionalText, requireLine } from './text.js';
+import { isAllowedLogoUrl } from './logo-hosts.js';
 
 /** 賽事分類（顧問 §3.264）。讀取端缺值用 categoryOf，不在這裡默認。 */
 export const CATEGORIES = ['league', 'cup', 'friendly'] as const;
@@ -102,11 +103,13 @@ export function categoryInput(v: unknown): CompetitionCategory {
 export const TEAM_LOGO_MAX = 1200;
 const TEAM_LOGO_RE = /^https:\/\/[!-~]+$/;
 
-export function teamLogoOf(raw: unknown): string | null {
+export function teamLogoOf(raw: unknown, buckets?: readonly string[]): string | null {
   if (typeof raw !== 'string') return null;
   const s = raw.normalize('NFKC').trim();
   if (s.length === 0 || s.length > TEAM_LOGO_MAX) return null;
   if (!TEAM_LOGO_RE.test(s)) return null;
+  // 顧問 §3.278 P2：只收本專案 Storage 下載網址，其餘寫 null（防追蹤圖、洩漏觀眾 IP）
+  if (!isAllowedLogoUrl(s, buckets)) return null;
   return s;
 }
 
