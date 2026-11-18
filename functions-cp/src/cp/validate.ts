@@ -191,6 +191,14 @@ export function divisionOf(v: unknown, i: number): DivisionInput {
   return out;
 }
 
+/** 報名費只限俱樂部主辦（顧問 §3.257，站長親口）：個人主辦的組別 feePerTeam 只能是 0，帶正數回錯（比照 FEE_NOTE_NOT_ALLOWED） */
+export function assertFeeAllowed(divisions: readonly DivisionInput[], hostType: 'personal' | 'club'): void {
+  if (hostType === 'club') return;
+  divisions.forEach((d, i) => {
+    if (d.feePerTeam > 0) throw bad('FEE_NOT_ALLOWED', { field: `divisions.${i}.feePerTeam` });
+  });
+}
+
 export function divisionsOf(v: unknown): DivisionInput[] {
   if (!Array.isArray(v) || v.length < 1 || v.length > LIMITS.divisionsMax) {
     throw bad('FIELD_RANGE', { field: 'divisions', min: 1, max: LIMITS.divisionsMax });

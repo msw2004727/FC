@@ -34,6 +34,7 @@ import {
   SPORTS,
   TIMEZONES,
   asRecord,
+  assertFeeAllowed,
   competitionName,
   divisionsOf,
   feeNoteOf,
@@ -95,6 +96,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const liveLinks = liveLinksOf(input.liveLinks);
   const feeNote = feeNoteOf(input.feeNote, hostType);
   const divisions = divisionsOf(input.divisions);
+  assertFeeAllowed(divisions, hostType);
   if (divisions.some(d => d.dvId)) throw bad('BAD_ID', { field: 'divisions' });
 
   let hostTeamId: string | null = null;
@@ -224,6 +226,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
     await assertHostOrCo(deps, tx, cid, comp, caller);
     if (comp.status === 'cancelled' || comp.endedAt) throw pre('COMPETITION_CLOSED');
     if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
+    if (divisions) assertFeeAllowed(divisions, comp.hostType);
 
     const patch: Record<string, unknown> = {};
     if (has('name')) patch.name = competitionName(input.name, gate.bannedWords);
