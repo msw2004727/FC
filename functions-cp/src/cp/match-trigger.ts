@@ -7,6 +7,7 @@
  * - 全部場次已解決（confirmed／walkover／cancelled）後寫 endedAt（endedBy:'confirm'）。
  *   已解決場次回到未解決（含取消恢復成未賽）就清掉這次確認結束。手動結束（host）與自動結束（auto）不在這裡清。
  */
+import { LIMITS } from './validate.js';
 import type { DocumentData, DocumentReference } from 'firebase-admin/firestore';
 import { buildStanding, standingIdOf, type StandingDoc } from '../engine/index.js';
 import { FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
@@ -134,11 +135,13 @@ async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isReso
     const comp = await readDoc(deps, tx, compRef);
     if (!comp.exists) return null;
     const matches = deps.db.collection(`competitions/${cid}/matches`);
-    if (isResolved && !comp.get('endedAt')) {
+    // 只在「未解決 → 已解決」的那次轉換才判斷結束（Flash 初審 P2）：管理員恢復手動結束後，
+    // 已解決場次的其他欄位更新不會把賽事又自動結束成 endedBy:'confirm'（主辦會多拿到寬限）。
+    if (isResolved && !wasResolved && !comp.get('endedAt')) {
       // 多組別：每個組別都要已排賽程才可能結束（Opus 終審 P1-1：只看既有場次時，
       // 先打完的組別會讓整場賽事被判結束）。沒排賽程的組別（隊數不足等）交給每日自動結束（§7）。
       // 已解決＝confirmed／walkover／cancelled。最後一場是被取消的，也會走到這裡。
-      const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
+      const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
       if (divs.empty || divs.docs.some(d => !d.get('schedule'))) return null;
       const remaining = await readCount(deps, tx, matches.where('status', 'not-in', [...RESOLVED_STATUSES]).count());
       if (remaining > 0) return null;

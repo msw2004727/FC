@@ -33,7 +33,7 @@ import {
   type GateResult
 } from './context.js';
 import { findBannedWord, requireLine } from './text.js';
-import { onlyKeys, requireEnum, statusReasonOf } from './validate.js';
+import { LIMITS, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
 import {
   canCancelMatch,
   canResetMatch,
@@ -523,12 +523,15 @@ export async function cancelMatch(deps: CpDeps, caller: Caller, gate: GateResult
   return deps.db.runTransaction(async tx => {
     const comp = await hostComp(deps, tx, caller, gate, cid);
     assertNotEnded(deps, comp, caller);
+    // Flash 初審 P2：與登錄比分、重置同一套賽事狀態檢查（只有 published 可改場次結果）
+    assertResultEditable(comp);
     const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
     if (!canCancelMatch(m.status)) throw pre('MATCH_STATE', { status: m.status });
     const rev = m.rev + 1;
     const now = FieldValue.serverTimestamp();
     tx.update(m.ref, {
-      status: 'cancelled', cancelReason: reason, cancelledAt: now, rev, updatedAt: now
+      // 取消待確認場次時解除鎖定，避免記分端仍以為比分鎖住（比分保留供稽核，不計分）
+      status: 'cancelled', cancelReason: reason, cancelledAt: now, lock: { locked: false }, rev, updatedAt: now
     });
     writeAudit(deps, tx, cid, caller, 'cancelMatch', { mtId, from: m.status, reason });
     return { mtId, status: 'cancelled' as const, rev };
@@ -544,7 +547,7 @@ export async function endCompetition(deps: CpDeps, caller: Caller, gate: GateRes
     if (comp.status !== 'published') throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
     if (comp.endedAt) throw pre('COMPETITION_ENDED');
     // 至少一個組別已有賽程即可。未確認場次留在原狀態，不在這裡改、也不計分。
-    const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
+    const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
     if (divs.empty || divs.docs.every(d => !d.get('schedule'))) throw pre('SCHEDULE_REQUIRED');
     const now = FieldValue.serverTimestamp();
     tx.update(deps.db.doc(`competitions/${cid}`), {

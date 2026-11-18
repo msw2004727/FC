@@ -8,7 +8,7 @@ import { adminDb } from '../test-rules/_harness.js';
 import { ReadMeter } from '../src/cp/context.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { handleMatchWritten } from '../src/cp/match-trigger.js';
-import { ADMIN, DAY, TESTER2, call, fails, makeDeps, ok, resetAll, setBannedWords, type Who } from './_cp.js';
+import { ADMIN, DAY, TESTER, TESTER2, call, fails, makeDeps, ok, resetAll, setBannedWords, type Who } from './_cp.js';
 import {
   LATER, act, generate, later, matchesOf, pairing, record, setupComp, standingOf, type Comp
 } from './_step3.js';
@@ -120,6 +120,33 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     expect(byCo.actionMeter.reads).toBeLessThanOrEqual(READ_BUDGET.cancelMatch);
     expect(byCo.after?.status).toBe('cancelled');
     expect(await slim(c)).toEqual(played);
+  });
+
+  it('管理員恢復手動結束後，已解決場次的其他更新不會又自動結束（Flash 初審 P2）', async () => {
+    await resetAll();
+    const c2 = await setupComp(['甲', '乙']);
+    await generate(c2);
+    const m = (await matchesOf(c2))[0];
+    await runAct(c2, ADMIN, { action: 'cancelMatch', mtId: m.id, expectedRev: 0, reason: '場地淹水' });
+    // 末場取消造成 confirm 結束；改成手動結束的情境：先清掉再手動結束
+    await adminDb().doc(`competitions/${c2.cid}`).update({ endedAt: null, endedBy: null });
+    await ok(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: c2.cid, reason: '提前收場' }, later()));
+    await ok(call(handleCpHost, ADMIN, { action: 'restoreCompetition', cid: c2.cid, reason: '恢復續賽' }, later()));
+    const ref = adminDb().doc(`competitions/${c2.cid}/matches/${m.id}`);
+    const before = (await ref.get()).data()!;
+    await ref.update({ updatedAt: Timestamp.now() });
+    const after = (await ref.get()).data()!;
+    const r = await handleMatchWritten(makeDeps(LATER), c2.cid, m.id, before, after);
+    expect(r.ended).toBeNull();
+    expect((await adminDb().doc(`competitions/${c2.cid}`).get()).get('endedAt')).toBeNull();
+  });
+
+  it('個人主辦本人可以手動結束，但不能恢復（只限管理員）', async () => {
+    await resetAll();
+    const c2 = await setupComp(['甲', '乙'], { host: TESTER });
+    await generate(c2);
+    await ok(call(handleCpHost, TESTER, { action: 'endCompetition', cid: c2.cid, reason: '提前收場' }, later()));
+    await fails(call(handleCpHost, TESTER, { action: 'restoreCompetition', cid: c2.cid, reason: '主辦想恢復' }, later()), 'NOT_ADMIN');
   });
 
   it('最後一場被取消也會自動結束；重置回未賽時清掉 confirm 結束', async () => {
