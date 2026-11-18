@@ -745,6 +745,13 @@ export async function resolveTie(deps: CpDeps, caller: Caller, gate: GateResult,
       prev: { version: bundle.version, manualOverride: { enabled: false, by: null, at: null, reason: null } }
     });
     if (!matchesPendingTie(natural.rows, order)) throw pre('TIE_NOT_PENDING');
+    // Opus 終審 P2：每份積分榜只存一筆裁定。另一群的裁定仍生效時不覆蓋（否則那群會靜默變回待裁定），
+    // 要先 clearTieDecision；同一群重新裁定（成員相同）可以直接覆蓋。
+    const existing = tieDecisionView(bundle.prev?.manualOverride, bundle.prev?.rows ?? null);
+    if (existing?.active) {
+      const same = existing.order.length === order.length && order.every(id => existing.order.includes(id));
+      if (!same) throw pre('TIE_DECISION_EXISTS');
+    }
     const now = FieldValue.serverTimestamp();
     const override: ManualOverride = {
       enabled: true, by: actorHash(cid, caller.uid), at: now, reason, method, order, decidedAt: now

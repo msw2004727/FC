@@ -92,6 +92,34 @@ describe('§3.272 F3 同分裁定與查詢', () => {
     expect((await auditActions(c)).length).toBe(beforeN);
   });
 
+  it('同組兩群同分：另一群裁定仍生效時不能覆蓋（TIE_DECISION_EXISTS）；同一群可重新裁定（Opus 終審 P2）', async () => {
+    await resetAll();
+    const c2 = await setupComp(['甲', '乙', '丙', '丁'], { host: TESTER });
+    await generate(c2, TESTER);
+    await record(c2, '甲', '乙', 1, 1);
+    await record(c2, '丙', '丁', 1, 1);
+    await record(c2, '甲', '丙', 1, 0);
+    await record(c2, '甲', '丁', 1, 0);
+    await record(c2, '乙', '丙', 1, 0);
+    await record(c2, '乙', '丁', 1, 0);
+    const top = [c2.enIdOf['乙'], c2.enIdOf['甲']];
+    const bottom = [c2.enIdOf['丁'], c2.enIdOf['丙']];
+    let v = (await standingDoc(c2)).version as number;
+    await ok(call(handleCpHost, TESTER, {
+      action: 'resolveTie', cid: c2.cid, dvId: c2.dvId, order: top, method: 'host', reason: '依報名先後', expectedVersion: v
+    }, makeDeps(2 * DAY)));
+    v = (await standingDoc(c2)).version as number;
+    await fails(call(handleCpHost, TESTER, {
+      action: 'resolveTie', cid: c2.cid, dvId: c2.dvId, order: bottom, method: 'drawLots', reason: '抽籤', expectedVersion: v
+    }, makeDeps(2 * DAY)), 'TIE_DECISION_EXISTS');
+    const st = await standingDoc(c2);
+    expect(st.manualOverride.order).toEqual(top);
+    await ok(call(handleCpHost, TESTER, {
+      action: 'resolveTie', cid: c2.cid, dvId: c2.dvId, order: [...top].reverse(), method: 'host', reason: '改判', expectedVersion: v
+    }, makeDeps(2 * DAY)));
+    expect((await standingDoc(c2)).manualOverride.order).toEqual([...top].reverse());
+  });
+
   it('逐項比較只收積分相同的隊伍；積分不同回 TIE_NOT_SAME_POINTS（Flash 初審 P2）', async () => {
     await resetAll();
     const c2 = await setupComp(TEAMS, { host: TESTER });
