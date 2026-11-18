@@ -87,4 +87,61 @@ describe('engine manifest', () => {
 
     expect(() => run(syncScript, ['--dest', root])).toThrow(/package\.json/);
   });
+
+  test('目的地 manifest 含非法路徑時同步中止且不刪檔', () => {
+    const beforeSource = fs.existsSync(sourceManifest) ? fs.readFileSync(sourceManifest) : null;
+    const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-fcb-guard-'));
+    fs.writeFileSync(path.join(dest, 'package.json'), '{"name":"fake","private":true}\n');
+    run(syncScript, ['--dest', dest]);
+    const sourceAfterSync = fs.readFileSync(sourceManifest);
+    const destEngine = path.join(dest, 'src', 'features', 'competitions', 'engine');
+    const destManifest = path.join(dest, 'engine.manifest.json');
+    const clean = fs.readFileSync(destManifest, 'utf8');
+    const sentinel = path.join(destEngine, '..', 'sentinel.txt');
+    fs.writeFileSync(sentinel, 'stay');
+    fs.writeFileSync(path.join(destEngine, 'keep-me.ts'), 'export const keep = 1;\n');
+    fs.writeFileSync(path.join(destEngine, 'stale-only.ts'), 'export const stale = 1;\n');
+
+    function snapshot(dir: string): string[] {
+      const out: string[] = [];
+      const walk = (current: string) => {
+        for (const ent of fs.readdirSync(current, { withFileTypes: true })) {
+          const abs = path.join(current, ent.name);
+          if (ent.isDirectory()) walk(abs);
+          else out.push(`${path.relative(dir, abs)}:${fs.statSync(abs).size}`);
+        }
+      };
+      walk(dir);
+      return out.sort();
+    }
+
+    const badPaths = [
+      '',
+      '.',
+      destEngine,
+      path.join(destEngine, 'escaped.ts'),
+      '../sentinel.txt',
+      'foo/../../sentinel.txt',
+      '..\\sentinel.txt',
+      'readme.md',
+      'notes.json',
+      'foo.tsx'
+    ];
+    for (const bad of badPaths) {
+      const prev = JSON.parse(clean) as { files: Record<string, string> };
+      prev.files[bad] = 'deadbeef';
+      prev.files['stale-only.ts'] = 'abc';
+      fs.writeFileSync(destManifest, JSON.stringify(prev, null, 2) + '\n');
+      const filesBefore = snapshot(dest);
+      const out = fail(syncScript, ['--dest', dest]);
+      expect(out).toContain('拒絕');
+      expect(snapshot(dest)).toEqual(filesBefore);
+      expect(fs.existsSync(path.join(destEngine, 'stale-only.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(destEngine, 'keep-me.ts'))).toBe(true);
+      expect(fs.existsSync(sentinel)).toBe(true);
+      expect(fs.readFileSync(sourceManifest)).toEqual(sourceAfterSync);
+    }
+    expect(fs.readFileSync(sourceManifest)).toEqual(sourceAfterSync);
+    if (beforeSource) expect(sourceAfterSync.length).toBeGreaterThan(0);
+  });
 });

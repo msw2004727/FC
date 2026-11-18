@@ -66,6 +66,8 @@ function sourceHits(
   if (src.type === 'matchWinner' || src.type === 'matchLoser') {
     return src.matchKey === changedKey || keys.has(src.matchKey);
   }
+  // 種子在開賽前就定了，比分與積分榜變動不會改它。下游若引用這場的勝隊，仍會沿 matchWinner 被收進來。
+  if (src.type === 'seed') return false;
   return false;
 }
 
@@ -105,7 +107,11 @@ export function affectedByMatchChange(
 ): MatchChangeEffect {
   const eventsChanged = opts.eventsChanged !== false;
   const stage = (format?.stages ?? []).find(s => s.stageId === match.stageId)
-    ?? (match.groupId ? (format?.stages ?? []).find(s => s.type === 'roundRobin') : undefined);
+    // 沒帶 stageId 時，只有「恰好一個循環階段」才推得出是哪一階段；多個循環階段時不猜（DeepSeek flash 審查 P2-1），
+    // 呼叫端（觸發器）一律從場次文件帶 stageId。
+    ?? (match.groupId && (format?.stages ?? []).filter(s => s.type === 'roundRobin').length === 1
+      ? (format?.stages ?? []).find(s => s.type === 'roundRobin')
+      : undefined);
   const standingIds: string[] = [];
   if (stage?.type === 'roundRobin' && match.groupId && match.divisionId) {
     standingIds.push(standingIdOf(match.divisionId, stage.stageId, match.groupId));
@@ -136,7 +142,8 @@ export function refreshAfterMatchChange({
   events,
   eventsChanged,
   competitionId = '',
-  stageMatches
+  stageMatches,
+  seeds
 }: {
   format: Format;
   match: AffectedMatch;
@@ -151,6 +158,7 @@ export function refreshAfterMatchChange({
   eventsChanged?: boolean;
   competitionId?: string;
   stageMatches?: AdvanceCtx['stageMatches'];
+  seeds?: string[];
 }): RefreshResult {
   const affected = affectedByMatchChange(format, match, { eventsChanged });
   const slotMatchKeys = affectedSlotKeys(format, match.divisionId, affected.standingIds, match.matchKey ?? null);
@@ -188,16 +196,34 @@ export function refreshAfterMatchChange({
 
   const merged: NonNullable<AdvanceCtx['standings']> = { ...standings };
   for (const doc of rebuilt) merged[doc.standingId] = doc;
+  // 受影響 slot 引用到的上游場次（matchWinner／matchLoser）也要放進 ctx：
+  // 例如四強一邊受影響、另一邊的八強沒受影響，仍要讀它的勝隊（DeepSeek flash 審查 P1-1）。
+  const sourceKeys = new Set<string>();
+  for (const stage of format.stages) {
+    for (const slot of stage.slots ?? []) {
+      if (!keySet.has(slot.matchKey)) continue;
+      for (const src of [slot.home, slot.away]) {
+        if (src && (src.type === 'matchWinner' || src.type === 'matchLoser')) sourceKeys.add(src.matchKey);
+      }
+    }
+  }
   const matchesByKey: NonNullable<AdvanceCtx['matchesByKey']> = {};
   for (const item of matches) {
-    if (item.matchKey && keySet.has(item.matchKey)) matchesByKey[item.matchKey] = item;
+    if (!item.matchKey) continue;
+    // 改變的那一場要留在表上，下游的 matchWinner／matchLoser 才解得出來。
+    // 種子對種子的第一輪本身不在影響範圍，但不能因此把勝負弄丟。
+    if (keySet.has(item.matchKey) || sourceKeys.has(item.matchKey) || item.matchKey === match.matchKey) {
+      matchesByKey[item.matchKey] = item;
+    }
   }
+  const extraSourceReads = [...sourceKeys].filter(k => !keySet.has(k)).length;
   const ctx: AdvanceCtx = {
     divisionId: match.divisionId,
     standings: merged,
     matchesByKey,
     teams,
-    stageMatches
+    stageMatches,
+    seeds
   };
 
   const resolutions: RefreshResult['resolutions'] = [];
@@ -220,7 +246,7 @@ export function refreshAfterMatchChange({
     matchReads,
     standingReads: affected.standingIds.length,
     standingWrites: rebuilt.length,
-    slotMatchReads: slotMatchKeys.length,
+    slotMatchReads: slotMatchKeys.length + extraSourceReads,
     slotMatchWrites,
     eventReads: 0,
     awardWrites: 0

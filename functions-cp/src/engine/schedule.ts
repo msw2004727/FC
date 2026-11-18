@@ -234,6 +234,7 @@ export function placeholderRefOf(
 ) {
   const label =
     src?.type === 'standing' ? `${groupNameOf(src.groupId, config)}第${src.rank}名`
+    : src?.type === 'seed' ? `種子第${src.rank}名`
     : src?.type === 'matchWinner' ? `${labels[src.matchKey] || src.matchKey} 勝隊`
     : src?.type === 'matchLoser' ? `${labels[src.matchKey] || src.matchKey} 敗隊`
     : '待定';

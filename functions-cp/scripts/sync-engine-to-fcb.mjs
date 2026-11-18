@@ -25,11 +25,34 @@ function parseArgs(argv) {
   return out;
 }
 
+function reject(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+/** 相對路徑必須是引擎資料夾裡的 .ts，不能是空字串、.、資料夾本身、絕對路徑或含 ..。 */
+function pathProblem(rel) {
+  if (typeof rel !== 'string' || rel.length === 0) return '拒絕路徑：空字串';
+  if (rel === '.' || rel === './' || rel === '.\\') return '拒絕路徑：.';
+  if (path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel) || rel.startsWith('/') || rel.startsWith('\\')) {
+    return `拒絕絕對路徑：${rel}`;
+  }
+  const parts = rel.split(/[\\/]/);
+  if (parts.some(part => part === '..')) return `拒絕含 .. 的路徑：${rel}`;
+  if (parts.some(part => part === '' || part === '.')) return `拒絕路徑：${rel}`;
+  if (path.posix.extname(rel.replace(/\\/g, '/')) !== '.ts') return `拒絕非 .ts 檔：${rel}`;
+  return null;
+}
+
 function inside(root, rel) {
-  const abs = path.resolve(root, rel);
-  const back = path.relative(root, abs);
-  if (back.startsWith('..') || path.isAbsolute(back)) {
-    throw new Error(`拒絕碰引擎資料夾以外的路徑：${rel}`);
+  const problem = pathProblem(rel);
+  if (problem) reject(problem);
+  const rootAbs = path.resolve(root);
+  const abs = path.resolve(rootAbs, rel);
+  if (abs === rootAbs) reject(`拒絕引擎資料夾本身：${rel}`);
+  const back = path.relative(rootAbs, abs);
+  if (back === '' || back.startsWith('..') || path.isAbsolute(back)) {
+    reject(`拒絕碰引擎資料夾以外的路徑：${rel}`);
   }
   return abs;
 }
@@ -60,19 +83,24 @@ function main() {
   }
 
   const stale = Object.keys(listed).filter(rel => !(rel in sourceFiles)).sort();
-  for (const rel of stale) {
-    const abs = inside(destDir, rel);
-    console.log(`${args.dryRun ? 'dry-run ' : ''}delete ${rel}`);
-    if (!args.dryRun && fs.existsSync(abs)) fs.rmSync(abs);
+  // 先檢查全部路徑。任一筆不合法就整次中止，不能先刪到一半。
+  const staleTargets = stale.map(rel => ({ rel, abs: inside(destDir, rel) }));
+  const copyTargets = Object.keys(sourceFiles).sort().map(rel => ({
+    rel,
+    from: path.join(sourceDir, rel),
+    to: inside(destDir, rel)
+  }));
+
+  for (const item of staleTargets) {
+    console.log(`${args.dryRun ? 'dry-run ' : ''}delete ${item.rel}`);
+    if (!args.dryRun && fs.existsSync(item.abs)) fs.rmSync(item.abs);
   }
 
-  for (const rel of Object.keys(sourceFiles).sort()) {
-    const from = path.join(sourceDir, rel);
-    const to = inside(destDir, rel);
-    console.log(`${args.dryRun ? 'dry-run ' : ''}copy ${rel}`);
+  for (const item of copyTargets) {
+    console.log(`${args.dryRun ? 'dry-run ' : ''}copy ${item.rel}`);
     if (!args.dryRun) {
-      fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.copyFileSync(from, to);
+      fs.mkdirSync(path.dirname(item.to), { recursive: true });
+      fs.copyFileSync(item.from, item.to);
     }
   }
 

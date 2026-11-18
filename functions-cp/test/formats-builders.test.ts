@@ -55,13 +55,13 @@ describe('賽制產生器', () => {
 
     const bye = buildKnockoutFormat({ teamCount: 6 });
     const sources = (bye.stages[0]?.slots ?? []).flatMap(s => [s.home, s.away]);
-    expect(sources.some(s => s.type === 'standing' && s.stageId === 'seed' && s.groupId === 'S')).toBe(true);
-    expect(bye.finalRankingMap.map(r => r.rank)).toEqual([1, 2]);
+    expect(sources.some(s => s.type === 'seed')).toBe(true);
+    expect(bye.finalRankingMap.map(r => r.rank)).toEqual([1, 2, 3, 3, 5, 5]);
 
     const withThird = buildKnockoutFormat({ teamCount: 8, thirdPlace: true });
     expect(built(withThird).matches).toHaveLength(8);
     expect(withThird.stages[0]?.slots?.some(s => s.matchKey === 'F3')).toBe(true);
-    expect(withThird.finalRankingMap.map(r => r.rank)).toEqual([1, 2, 3, 4]);
+    expect(withThird.finalRankingMap.map(r => r.rank)).toEqual([1, 2, 3, 4, 5, 5, 5, 5]);
     expect(withThird.stages[0]?.drawRule).toBe('penalty');
   });
 
@@ -91,7 +91,11 @@ describe('賽制產生器', () => {
       [1, 'matchWinner'],
       [2, 'matchLoser'],
       [3, 'matchWinner'],
-      [4, 'matchLoser']
+      [4, 'matchLoser'],
+      [5, 'standing'],
+      [5, 'standing'],
+      [7, 'standing'],
+      [7, 'standing']
     ]);
   });
 
@@ -111,5 +115,17 @@ describe('賽制產生器', () => {
       groupCount: 2, groupSize: 4, advancePerGroup: 3, thirdPlace: true
     })).toThrow(RangeError);
     expect(() => buildGroupKnockoutFormat({ groupCount: 16, groupSize: 8, advancePerGroup: 1 })).toThrow(RangeError);
+    expect(() => buildGroupKnockoutFormat({ groupCount: 32, groupSize: 2, advancePerGroup: 1 })).toThrow(RangeError);
+    expect(() => buildGroupKnockoutFormat({ groupCount: 27, groupSize: 2, advancePerGroup: 1 })).toThrow(RangeError);
+  });
+
+  test('組數 16 仍可用，組名停在 A–P', () => {
+    const format = buildGroupKnockoutFormat({ groupCount: 16, groupSize: 2, advancePerGroup: 1 });
+    const ids = format.stages
+      .flatMap(stage => stage.slots ?? [])
+      .flatMap(slot => [slot.home, slot.away])
+      .flatMap(src => src.type === 'standing' ? [src.groupId] : []);
+    expect([...new Set(ids)].sort().join('')).toBe('ABCDEFGHIJKLMNOP');
+    expect(format.finalRankingMap).toHaveLength(32);
   });
 });

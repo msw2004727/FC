@@ -167,6 +167,15 @@ describe('每一種非法 key', () => {
     expect(keysOf(config)).toContain('cp.config.format.groupCount.invalid');
   });
 
+  test('cp.config.format.groupCount.invalid：組數超過 26', () => {
+    const config = valid();
+    config.format = { kind: 'groupKnockout', groupCount: 32, groupSize: 2, advancePerGroup: 1 };
+    config.divisions[0].teamCount = 64;
+    const keys = keysOf(config);
+    expect(keys).toContain('cp.config.format.groupCount.invalid');
+    expect(keys).not.toContain('cp.config.format.thirdPlace.unavailable');
+  });
+
   test('cp.config.format.groupSize.invalid', () => {
     const config = valid();
     config.format = { kind: 'groupKnockout', groupCount: 2, groupSize: 1, advancePerGroup: 1 };

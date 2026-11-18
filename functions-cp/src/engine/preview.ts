@@ -184,7 +184,10 @@ function loadFromFormat(format: Format, errors: PreviewIssue[]): Load | null {
     return null;
   }
   let matchCount = 0;
+  // 多個循環階段（例如預賽＋複賽）：最多場數累加所有循環階段；最少場數只算第一個循環階段
+  // （後面的階段可能只有晉級隊伍參加）。DeepSeek flash 審查 P1-2。
   let groupGames = 0;
+  let firstGroupGames = -1;
   let sawGroup = false;
   const koSlots: Slot[] = [];
   for (const stage of format.stages) {
@@ -197,7 +200,8 @@ function loadFromFormat(format: Format, errors: PreviewIssue[]): Load | null {
         return null;
       }
       matchCount += groups * (size * (size - 1) / 2) * legs;
-      groupGames = (size - 1) * legs;
+      groupGames += (size - 1) * legs;
+      if (firstGroupGames < 0) firstGroupGames = (size - 1) * legs;
       sawGroup = true;
     } else {
       koSlots.push(...(stage.slots ?? []));
@@ -212,7 +216,7 @@ function loadFromFormat(format: Format, errors: PreviewIssue[]): Load | null {
   }
   const everyone = sawGroup && format.teamCount > 0 && entrants.size >= format.teamCount;
   const min = sawGroup
-    ? groupGames + (koSlots.length > 0 && everyone ? 1 : 0)
+    ? firstGroupGames + (koSlots.length > 0 && everyone ? 1 : 0)
     : (koSlots.length > 0 ? 1 : groupGames);
   const max = groupGames + (koSlots.length ? koDepth(koSlots) : 0);
   return { matchCount, min, max: Math.max(max, min) };
@@ -257,7 +261,7 @@ function loadFromSpec(
   const groupCount = spec.groupCount;
   const groupSize = spec.groupSize;
   const advance = spec.advancePerGroup;
-  if (!isInt(groupCount) || groupCount < 2 || (groupCount & (groupCount - 1)) !== 0) {
+  if (!isInt(groupCount) || groupCount < 2 || groupCount > 26 || (groupCount & (groupCount - 1)) !== 0) {
     push(errors, 'format.groupCount', 'cp.config.format.groupCount.invalid');
     return null;
   }

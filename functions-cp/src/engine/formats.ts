@@ -504,7 +504,7 @@ function seedOrder(size: number): number[] {
 }
 
 function seedSource(rank: number): TeamSource {
-  return { type: 'standing', stageId: 'seed', groupId: 'S', rank };
+  return { type: 'seed', rank };
 }
 
 function roundPrefix(teamsInRound: number): string {
@@ -527,14 +527,43 @@ interface BracketPiece {
   ranking: RankSource[];
 }
 
+interface KoRound {
+  slots: Slot[];
+  /** 這一輪打完後仍在淘汰賽裡的隊數（含輪空晉級，不含輪空本身的「敗者」）。 */
+  advancers: number;
+}
+
 /**
- * 單淘汰括號。輪空不產生場次：種子直接以 standing（stageId seed／groupId S）
- * 出現在下一輪，對上 matchWinner。這是小組第一輪空那種寫法，不是多排一場空比賽。
+ * 同一輪被淘汰的隊伍並列，名次＝該輪晉級隊數＋1。
+ * 有季軍賽時準決賽敗者改由 F3 分出第 3、4 名。輪空沒有場次，所以不算敗者。
+ */
+function appendTiedLosers(
+  ranking: RankSource[],
+  rounds: KoRound[],
+  thirdPlace: boolean,
+  rename: Map<string, string>
+): void {
+  const last = rounds.length - 1;
+  for (let i = last - 1; i >= 0; i--) {
+    const round = rounds[i];
+    if (!round) continue;
+    if (thirdPlace && i === last - 1) continue;
+    const rank = round.advancers + 1;
+    for (const slot of round.slots) {
+      const matchKey = rename.get(slot.matchKey) ?? slot.matchKey;
+      ranking.push({ rank, from: { type: 'matchLoser', matchKey } });
+    }
+  }
+}
+
+/**
+ * 單淘汰括號。輪空不產生場次：種子以 { type: 'seed', rank } 直接出現在下一輪，對上 matchWinner。
+ * 不是多排一場空比賽。
  */
 function knockoutSlots(teamCount: number, thirdPlace: boolean): BracketPiece {
   const size = 1 << Math.ceil(Math.log2(teamCount));
   let current: Array<TeamSource | null> = seedOrder(size).map(p => (p <= teamCount ? seedSource(p) : null));
-  const rounds: Slot[][] = [];
+  const rounds: KoRound[] = [];
 
   while (current.length > 1) {
     const teamsInRound = current.length;
@@ -561,11 +590,12 @@ function knockoutSlots(teamCount: number, thirdPlace: boolean): BracketPiece {
         next.push(null);
       }
     }
-    if (slots.length) rounds.push(slots);
+    const advancers = next.reduce((n, src) => n + (src ? 1 : 0), 0);
+    if (slots.length) rounds.push({ slots, advancers });
     current = next;
   }
 
-  const slots = rounds.flat();
+  const slots = rounds.flatMap(round => round.slots);
   if (slots.length !== teamCount - 1) {
     throw new RangeError(`淘汰賽場次應為 ${teamCount - 1}，實際 ${slots.length}`);
   }
@@ -577,16 +607,16 @@ function knockoutSlots(teamCount: number, thirdPlace: boolean): BracketPiece {
 
   if (thirdPlace) {
     const semis = rounds.length >= 2 ? rounds[rounds.length - 2] : undefined;
-    if (!semis || semis.length !== 2) {
+    if (!semis || semis.slots.length !== 2) {
       throw new RangeError('季軍賽需要恰好兩場準決賽（隊數至少 4，且準決賽不得因輪空少場）');
     }
-    const s1 = semis[0];
-    const s2 = semis[1];
+    const s1 = semis.slots[0];
+    const s2 = semis.slots[1];
     if (!s1 || !s2) throw new RangeError('季軍賽需要恰好兩場準決賽');
     slots.push({
       matchKey: 'F3',
       label: '季軍賽',
-      round: (s1.round ?? rounds.length) ,
+      round: (s1.round ?? rounds.length),
       home: { type: 'matchLoser', matchKey: s1.matchKey },
       away: { type: 'matchLoser', matchKey: s2.matchKey }
     });
@@ -596,13 +626,14 @@ function knockoutSlots(teamCount: number, thirdPlace: boolean): BracketPiece {
     );
   }
 
+  appendTiedLosers(ranking, rounds, thirdPlace, new Map());
   return { slots, ranking };
 }
 
 /** 後續輪次：奇數時第一個（通常是 A1 的勝隊）輪空；其餘 i 對 i+half，避免同組勝隊立刻再碰。 */
-function pairRest(entrants: TeamSource[], startRound: number, startSeq: number): { rounds: Slot[][]; flat: Slot[] } {
+function pairRest(entrants: TeamSource[], startRound: number, startSeq: number): KoRound[] {
   let current = entrants;
-  const rounds: Slot[][] = [];
+  const rounds: KoRound[] = [];
   let seq = startSeq;
   while (current.length > 1) {
     const next: TeamSource[] = [];
@@ -630,29 +661,30 @@ function pairRest(entrants: TeamSource[], startRound: number, startSeq: number):
       });
       next.push({ type: 'matchWinner', matchKey });
     }
-    if (slots.length) rounds.push(slots);
+    if (slots.length) rounds.push({ slots, advancers: next.length });
     current = next;
   }
-  return { rounds, flat: rounds.flat() };
+  return rounds;
 }
 
-function renameKnockoutKeys(rounds: Slot[][], thirdPlace: boolean): BracketPiece {
+function renameKnockoutKeys(rounds: KoRound[], thirdPlace: boolean): BracketPiece {
   const rename = new Map<string, string>();
   const finalRound = rounds[rounds.length - 1];
-  if (!finalRound || finalRound.length !== 1 || !finalRound[0]) {
+  const finalSlot = finalRound?.slots[0];
+  if (!finalRound || finalRound.slots.length !== 1 || !finalSlot) {
     throw new RangeError('淘汰賽缺少冠軍賽');
   }
-  rename.set(finalRound[0].matchKey, 'F1');
+  rename.set(finalSlot.matchKey, 'F1');
   const semis = rounds.length >= 2 ? rounds[rounds.length - 2] : undefined;
-  if (thirdPlace && (!semis || semis.length !== 2)) {
+  if (thirdPlace && (!semis || semis.slots.length !== 2)) {
     throw new RangeError('季軍賽需要恰好兩場準決賽（晉級隊數需能排出兩場準決賽，通常是 2 的冪且至少 4 隊）');
   }
-  if (semis && semis.length === 2 && semis[0] && semis[1]) {
-    rename.set(semis[0].matchKey, 'SF1');
-    rename.set(semis[1].matchKey, 'SF2');
+  if (semis && semis.slots.length === 2 && semis.slots[0] && semis.slots[1]) {
+    rename.set(semis.slots[0].matchKey, 'SF1');
+    rename.set(semis.slots[1].matchKey, 'SF2');
   }
-  const qf = rounds.find(r => r.length === 4);
-  if (qf) qf.forEach((slot, i) => rename.set(slot.matchKey, `QF${i + 1}`));
+  const qf = rounds.find(r => r.slots.length === 4);
+  if (qf) qf.slots.forEach((slot, i) => rename.set(slot.matchKey, `QF${i + 1}`));
 
   const apply = (src: TeamSource): TeamSource => {
     if ((src.type === 'matchWinner' || src.type === 'matchLoser') && rename.has(src.matchKey)) {
@@ -663,7 +695,7 @@ function renameKnockoutKeys(rounds: Slot[][], thirdPlace: boolean): BracketPiece
     return src;
   };
 
-  const slots: Slot[] = rounds.flat().map(slot => {
+  const slots: Slot[] = rounds.flatMap(round => round.slots).map(slot => {
     const matchKey = rename.get(slot.matchKey) ?? slot.matchKey;
     const prefix = matchKey === 'F1' ? 'F' : matchKey.startsWith('SF') ? 'SF' : matchKey.startsWith('QF') ? 'QF' : 'K';
     const idx = Number(matchKey.replace(/\D/g, '')) || 1;
@@ -680,11 +712,11 @@ function renameKnockoutKeys(rounds: Slot[][], thirdPlace: boolean): BracketPiece
     { rank: 1, from: { type: 'matchWinner', matchKey: 'F1' } },
     { rank: 2, from: { type: 'matchLoser', matchKey: 'F1' } }
   ];
-  if (thirdPlace && semis && semis.length === 2) {
+  if (thirdPlace && semis && semis.slots.length === 2) {
     slots.push({
       matchKey: 'F3',
       label: '季軍賽',
-      round: finalRound[0].round ?? rounds.length,
+      round: finalSlot.round ?? rounds.length,
       home: { type: 'matchLoser', matchKey: 'SF1' },
       away: { type: 'matchLoser', matchKey: 'SF2' }
     });
@@ -693,6 +725,7 @@ function renameKnockoutKeys(rounds: Slot[][], thirdPlace: boolean): BracketPiece
       { rank: 4, from: { type: 'matchLoser', matchKey: 'F3' } }
     );
   }
+  appendTiedLosers(ranking, rounds, thirdPlace, rename);
   return { slots, ranking };
 }
 
@@ -773,8 +806,9 @@ export function buildKnockoutFormat({
 
 /**
  * 分組循環（蛇形）後，各組前 advancePerGroup 名交叉進淘汰。
- * groupCount 必須是 2 的冪。A1 對 B2、B1 對 A2。
+ * groupCount 必須是 2 的冪，而且不能超過 26（再多組名會超出 A–Z）。A1 對 B2、B1 對 A2。
  * 淘汰場數為晉級隊數 − 1；thirdPlace 再加一場，且必須剛好有兩場準決賽。
+ * 未晉級的隊伍依各組名次並列，不另加比賽。
  */
 export function buildGroupKnockoutFormat({
   groupCount,
@@ -789,7 +823,7 @@ export function buildGroupKnockoutFormat({
   thirdPlace?: boolean;
   drawRule?: string;
 }): Format {
-  const groups = requireInt('groupCount', groupCount, 2, 32);
+  const groups = requireInt('groupCount', groupCount, 2, 26);
   const size = requireInt('groupSize', groupSize, 2, TEAM_MAX);
   const take = requireInt('advancePerGroup', advancePerGroup, 1, size);
   if (!isPow2(groups)) throw new RangeError('groupCount 必須是 2 的冪');
@@ -822,11 +856,23 @@ export function buildGroupKnockoutFormat({
   }
 
   const rest = pairRest(winners, 2, seq);
-  const piece = renameKnockoutKeys([first, ...rest.rounds], thirdPlace);
+  const firstRound: KoRound = { slots: first, advancers: winners.length };
+  const piece = renameKnockoutKeys([firstRound, ...rest], thirdPlace);
   const rrEach = (size * (size - 1)) / 2;
   const ko = advancing - 1 + (thirdPlace ? 1 : 0);
   if (piece.slots.length !== ko) {
     throw new RangeError(`分組淘汰的淘汰場數應為 ${ko}，實際 ${piece.slots.length}`);
+  }
+
+  const ranking: RankSource[] = piece.ranking.slice();
+  for (let place = take + 1; place <= size; place++) {
+    const rank = advancing + 1 + (place - take - 1) * groups;
+    for (let g = 0; g < groups; g++) {
+      ranking.push({
+        rank,
+        from: { type: 'standing', stageId: 'group', groupId: groupLabel(g), rank: place }
+      });
+    }
   }
 
   return {
@@ -855,7 +901,7 @@ export function buildGroupKnockoutFormat({
         slots: piece.slots
       }
     ],
-    finalRankingMap: piece.ranking
+    finalRankingMap: ranking
   };
 }
 

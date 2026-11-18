@@ -70,6 +70,15 @@ export function explainTeamSource(
       : miss(`${source.matchKey} 的 ${want} 尚無 teamId`);
   }
 
+  if (source.type === 'seed') {
+    const rank = source.rank;
+    const teamId = Array.isArray(ctx.seeds) && Number.isInteger(rank) && rank >= 1
+      ? ctx.seeds[rank - 1]
+      : undefined;
+    if (!teamId) return miss(`尚無第 ${rank} 種子`);
+    return hit(teamId, `種子第${rank}名`);
+  }
+
   const unknownType = (source as { type: string }).type;
   return miss(`未知的 TeamSource type：${unknownType}`);
 }
@@ -84,6 +93,7 @@ export function describeTeamSource(
 ): string {
   if (!source) return '待定';
   if (source.type === 'standing') return `${source.groupId}組第${source.rank}名`;
+  if (source.type === 'seed') return `種子第${source.rank}名`;
   if (source.type === 'matchWinner') return `${labels[source.matchKey] || source.matchKey}勝隊`;
   if (source.type === 'matchLoser') return `${labels[source.matchKey] || source.matchKey}敗隊`;
   return '待定';
@@ -124,6 +134,8 @@ export interface StageBlock {
 
 /**
  * 解算某個 Stage 的所有 slot。
+ * 帶 onlyMatchKeys 時只解那些 slot：回傳的 allResolved／resolvedCount 只代表這些 slot，
+ * 不代表整個階段都解完（要判斷整階段請省略 onlyMatchKeys 再呼叫一次）。
  */
 export function resolveStage(
   format: Format | null | undefined,
@@ -292,5 +304,26 @@ export function computeFinalRanking(format: Format | null | undefined, ctx: Adva
   }
 
   ranking.sort((a, b) => a.rank - b.rank);
-  return { ranking, complete: missing.length === 0, missing };
+  return { ranking, complete: rankingIsComplete(format, ranking, missing.length), missing };
+}
+
+/**
+ * 全部隊伍都有名次才算完成。並列名次可以重複，但每隊只能出現一次。
+ * 沒有 teamCount 的舊資料維持「來源都解出來就算完成」。
+ */
+function rankingIsComplete(
+  format: Format | null | undefined,
+  ranking: Array<{ teamId: string }>,
+  missingCount: number
+): boolean {
+  if (missingCount !== 0) return false;
+  const teamCount = format?.teamCount;
+  if (typeof teamCount !== 'number') return true;
+  if (ranking.length !== teamCount) return false;
+  const seen = new Set<string>();
+  for (const item of ranking) {
+    if (!item.teamId || seen.has(item.teamId)) return false;
+    seen.add(item.teamId);
+  }
+  return seen.size === teamCount;
 }

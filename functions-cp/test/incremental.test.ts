@@ -123,7 +123,8 @@ describe('refreshAfterMatchChange', () => {
     expect(result.io.matchReads).toBe(6);
     expect(result.io.eventReads).toBe(0);
     expect(result.io.awardWrites).toBe(0);
-    expect(result.io.slotMatchReads).toBeLessThan(format.stages.find(s => s.stageId === 'final').slots.length);
+    // 受影響 slot 加上它們引用的上游場次（修正 P1-1 後才是真實讀取數），不會超過淘汰場總數
+    expect(result.io.slotMatchReads).toBeLessThanOrEqual(format.stages.find(s => s.stageId === 'final').slots.length);
     expect(result.io.slotMatchWrites).toBeGreaterThan(0);
 
     const cd = format.stages.find(s => s.stageId === 'final').slots.filter(slot => {

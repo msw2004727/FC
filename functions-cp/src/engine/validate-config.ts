@@ -187,7 +187,7 @@ function validateFormat(errors: ConfigIssue[], path: string, value: unknown): nu
   const groupCount = value.groupCount;
   const groupSize = value.groupSize;
   const advance = value.advancePerGroup;
-  if (!isInt(groupCount) || groupCount < 2 || (groupCount & (groupCount - 1)) !== 0) {
+  if (!isInt(groupCount) || groupCount < 2 || groupCount > 26 || (groupCount & (groupCount - 1)) !== 0) {
     push(errors, path + '.groupCount', 'cp.config.format.groupCount.invalid');
   }
   if (!isInt(groupSize) || groupSize < 2) {
@@ -209,7 +209,7 @@ function validateFormat(errors: ConfigIssue[], path: string, value: unknown): nu
   const thirdPlace = value.thirdPlace === true;
   const drawRule = typeof value.drawRule === 'string' ? value.drawRule : 'penalty';
   if (isInt(advance) && advance >= 1 && advance <= groupSize && (DRAW_RULES as readonly string[]).includes(drawRule)
-    && (groupCount & (groupCount - 1)) === 0) {
+    && isInt(groupCount) && groupCount >= 2 && groupCount <= 26 && (groupCount & (groupCount - 1)) === 0) {
     try {
       buildGroupKnockoutFormat({
         groupCount, groupSize, advancePerGroup: advance, thirdPlace, drawRule
@@ -266,6 +266,10 @@ export function validateCompetitionConfig(config: CompetitionConfig | null | und
         push(errors, path + '.teamCount', 'cp.config.teamCount.mismatch', { expected, actual: teamCount });
       }
     });
+    // 每個組別都自帶 format 時，根層 format 仍要驗證（DeepSeek flash 審查 P2-3）
+    if (root.format !== undefined && rootExpected === undefined) {
+      validateFormat(errors, 'format', root.format);
+    }
   }
 
   if (!Array.isArray(root.fields) || root.fields.length === 0) {

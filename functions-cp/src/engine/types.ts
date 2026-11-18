@@ -22,7 +22,8 @@ export type TeamSource =
   | { type: 'standing'; stageId: string; groupId: string; rank: number }
   | { type: 'matchWinner'; matchKey: string }
   | { type: 'matchLoser'; matchKey: string }
-  | { type: 'fixed'; teamId: string };
+  | { type: 'fixed'; teamId: string }
+  | { type: 'seed'; rank: number };
 
 export interface Slot {
   matchKey: string;
@@ -276,6 +277,8 @@ export interface AdvanceCtx {
   matchesByKey?: Record<string, MatchLike>;
   teams?: Record<string, TeamInfo>;
   stageMatches?: Record<string, MatchLike[] | undefined>;
+  /** 種子序的 teamId。第 1 種子在 index 0。純淘汰的 `{ type: 'seed' }` 靠這份名單解算。 */
+  seeds?: string[];
 }
 
 export interface TallyOpts {
