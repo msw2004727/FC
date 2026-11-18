@@ -199,3 +199,18 @@ describe('公告文案', () => {
     expect(updates[0]?.updatedAt).toBeTruthy();
   });
 });
+
+describe('F2 初審修正（Flash）', () => {
+  it('撞期查詢窗涵蓋晚場跨午夜', () => {
+    const k = Date.parse('2027-01-09T23:00:00+08:00');
+    const w = conflictWindowOfKickoff(k);
+    expect(w.end).toBeGreaterThanOrEqual(k + LOOKBACK_MIN * 60_000);
+    expect(w.end).toBeGreaterThan(Date.parse('2027-01-10T00:30:00+08:00'));
+  });
+  it('長度不為正的區間不算重疊（含落在另一區間內部）', () => {
+    expect(rangesOverlap(50, 50, 0, 100)).toBe(false);
+    expect(rangesOverlap(0, 100, 50, 50)).toBe(false);
+    expect(rangesOverlap(0, 100, 50, 60)).toBe(true);
+  });
+});
+

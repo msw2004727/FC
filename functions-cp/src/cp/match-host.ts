@@ -498,14 +498,18 @@ function conflictAudit(hit: ScheduleConflict | null, force: boolean): Record<str
   return { force: true, conflictMtId: hit.mtId, conflictType: hit.type };
 }
 
+const SLOT_FALLBACK_MATCH_MIN = 180;
+const SLOT_FALLBACK_BUFFER_MIN = 60;
+
 async function divisionMinutes(deps: CpDeps, tx: Transaction, cid: string): Promise<Map<string, SlotMinutes>> {
   const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
   const map = new Map<string, SlotMinutes>();
   for (const doc of snap.docs) {
     const raw = doc.get('schedule');
     const o = raw && typeof raw === 'object' ? raw as { matchMinutes?: unknown; bufferMinutes?: unknown } : {};
-    const match = typeof o.matchMinutes === 'number' && Number.isInteger(o.matchMinutes) && o.matchMinutes > 0 ? o.matchMinutes : 0;
-    const buffer = typeof o.bufferMinutes === 'number' && Number.isInteger(o.bufferMinutes) && o.bufferMinutes > 0 ? o.bufferMinutes : 0;
+    // 缺分鐘設定時採保守值（不當 0，避免漏判撞期；Flash 初審 P2）。正常資料由 generateSchedule 寫入。
+    const match = typeof o.matchMinutes === 'number' && Number.isInteger(o.matchMinutes) && o.matchMinutes > 0 ? o.matchMinutes : SLOT_FALLBACK_MATCH_MIN;
+    const buffer = typeof o.bufferMinutes === 'number' && Number.isInteger(o.bufferMinutes) && o.bufferMinutes >= 0 ? o.bufferMinutes : SLOT_FALLBACK_BUFFER_MIN;
     map.set(doc.id, { match, buffer });
   }
   return map;
@@ -515,7 +519,7 @@ function occupySlot(
   mtId: string, startMs: number, divisionId: string, teamIds: readonly string[], venueIdx: number | null,
   durations: Map<string, SlotMinutes>
 ): SlotView {
-  const dur = durations.get(divisionId) ?? { match: 0, buffer: 0 };
+  const dur = durations.get(divisionId) ?? { match: SLOT_FALLBACK_MATCH_MIN, buffer: SLOT_FALLBACK_BUFFER_MIN };
   return { mtId, startMs, endMs: slotEndMs(startMs, dur.match, dur.buffer), teamIds, venueIdx };
 }
 
@@ -600,7 +604,8 @@ export async function shiftMatchDay(deps: CpDeps, caller: Caller, gate: GateResu
   const cid = requireId(input.cid, CID_RE, 'cid');
   const fromDate = ymdOf(input.fromDate, 'fromDate');
   const toDate = ymdOf(input.toDate, 'toDate');
-  if (fromDate === toDate) throw bad('FIELD_RANGE', { field: 'toDate' });
+  // 「順延」只能往後（Flash 初審 P2）；YYYY-MM-DD 字串可直接比大小
+  if (toDate <= fromDate) throw bad('FIELD_RANGE', { field: 'toDate' });
   const reason = hostReasonOf(input.reason, gate.bannedWords);
   const force = forceOf(input.force);
   const fromWin = taipeiDayWindow(fromDate);

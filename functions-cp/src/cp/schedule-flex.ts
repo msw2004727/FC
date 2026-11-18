@@ -86,10 +86,13 @@ export function taipeiDayWindow(ymd: string): { start: number; end: number } | n
   return { start, end: start + DAY_MS };
 }
 
-/** 撞期查詢窗：目標台北日再往前 LOOKBACK_MIN，到該日結束（不含次日）。 */
+/**
+ * 撞期查詢窗：目標台北日再往前 LOOKBACK_MIN；終點取「該日結束」與「候選開賽＋LOOKBACK_MIN」較晚者，
+ * 涵蓋晚場延伸到隔天凌晨的情況（Flash 初審 P1：23:00 開賽會跨午夜）。
+ */
 export function conflictWindowOfKickoff(kickoffMs: number): { start: number; end: number } {
   const day = taipeiDayStartMs(kickoffMs);
-  return { start: day - LOOKBACK_MIN * 60_000, end: day + DAY_MS };
+  return { start: day - LOOKBACK_MIN * 60_000, end: Math.max(day + DAY_MS, kickoffMs + LOOKBACK_MIN * 60_000) };
 }
 
 export interface KickoffBounds {
@@ -168,7 +171,8 @@ export function slotEndMs(startMs: number, matchMinutes: number, bufferMinutes: 
 
 /** 半開區間。端點相接（上一場結束＝下一場開始）不算重疊。 */
 export function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
-  return aStart < bEnd && bStart < aEnd;
+  // 長度不為正的區間不算重疊（Flash 初審 P2）
+  return aStart < aEnd && bStart < bEnd && aStart < bEnd && bStart < aEnd;
 }
 
 export interface ScheduleConflict {
