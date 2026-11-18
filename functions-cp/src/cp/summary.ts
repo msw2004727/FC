@@ -14,6 +14,8 @@ export interface SummaryEntry {
   s: [number, number];
   st: string;
   wo: string | null;
+  /** 取消原因（只有 st 為 cancelled 時有值；G1 Opus 終審 P2：讓前端不必為了原因另讀場次） */
+  cr?: string | null;
 }
 
 const OFFSET_RE = /^([+-])(\d{2}):(\d{2})$/;
@@ -74,7 +76,8 @@ export function summaryEntryOf(match: Record<string, unknown>, kickoffMs: number
     a: sideOf(match.away),
     s: [scoreNum(score.home), scoreNum(score.away)],
     st: typeof match.status === 'string' ? match.status : '',
-    wo: typeof match.walkoverSide === 'string' ? match.walkoverSide : null
+    wo: typeof match.walkoverSide === 'string' ? match.walkoverSide : null,
+    ...(match.status === 'cancelled' && typeof match.cancelReason === 'string' ? { cr: match.cancelReason.slice(0, 100) } : {})
   };
 }
 

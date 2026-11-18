@@ -492,6 +492,13 @@ describe('summary', () => {
     expect(summaryShardIdOf(Date.parse('2026-12-05T16:30:00Z'), '+00:00')).toBe('d20261205');
   });
 
+  it('summaryEntryOf：已取消場次帶取消原因 cr（截 100 字），其他狀態不帶（G1 Opus 終審 P2）', () => {
+    const base = { divisionId: 'dv1', round: 1, matchNo: 1, home: { teamId: 'a', name: '甲' }, away: { teamId: 'b', name: '乙' }, score: { home: 0, away: 0 } };
+    expect(summaryEntryOf({ ...base, status: 'cancelled', cancelReason: '場地積水' }, null).cr).toBe('場地積水');
+    expect(summaryEntryOf({ ...base, status: 'cancelled', cancelReason: 'x'.repeat(150) }, null).cr).toHaveLength(100);
+    expect('cr' in summaryEntryOf({ ...base, status: 'scheduled', cancelReason: '舊原因' }, null)).toBe(false);
+  });
+
   it('summaryEntryOf 只留契約欄位，非整數比分當 0，名字截 30 字', () => {
     const long = '名'.repeat(31);
     const claps = '👍'.repeat(31);
