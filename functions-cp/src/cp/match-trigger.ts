@@ -25,11 +25,14 @@ function teamMetaOf(names: Record<string, string>) {
   return Object.fromEntries(Object.entries(names).map(([id, name]) => [id, { teamId: id, name }]));
 }
 
-/** 產生賽程時的全 0 積分榜（名次照抽籤順序，畫面在全部 0 場時不顯示同分標記）。 */
-export function zeroStandingDoc(cid: string, dvId: string, teamIds: string[], names: Record<string, string>, preset: Preset) {
+/**
+ * 產生賽程時的全 0 積分榜（名次照抽籤順序，畫面在全部 0 場時不顯示同分標記）。
+ * prevVersion：重排時沿用舊版本 +1，避免版本倒退被 isStaleWrite 當成舊資料（Opus 終審 P3-2）。
+ */
+export function zeroStandingDoc(cid: string, dvId: string, teamIds: string[], names: Record<string, string>, preset: Preset, prevVersion = 0) {
   const doc = buildStanding({
     competitionId: cid, divisionId: dvId, stageId: 'group', groupId: 'A', teamIds, matches: [],
-    rule: rankingRuleOf(preset), opts: { teamMeta: teamMetaOf(names) }
+    rule: rankingRuleOf(preset), opts: { teamMeta: teamMetaOf(names) }, prev: { version: prevVersion }
   });
   return { ...doc, computedBy: 'cpHost:generateSchedule', updatedAt: FieldValue.serverTimestamp() };
 }
@@ -44,6 +47,9 @@ function kickoffMsOf(d: DocumentData | null | undefined): number | null {
 export async function recomputeStanding(deps: CpDeps, cid: string, dvId: string, stageId: string, groupId: string): Promise<boolean> {
   return deps.db.runTransaction(async tx => {
     const ref = standingRef(deps, cid, dvId, stageId, groupId);
+    // 刪除賽事進行中（recursiveDelete 與觸發器競速）不重建積分榜（Opus 終審 P3-5）
+    const comp = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}`));
+    if (!comp.exists || comp.get('deletingAt')) return false;
     const dv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/divisions/${dvId}`));
     const schedule = dv.exists ? dv.get('schedule') : null;
     const group = Array.isArray(schedule?.groups)
@@ -128,6 +134,10 @@ async function syncEnded(deps: CpDeps, cid: string, wasCounted: boolean, isCount
     if (!comp.exists) return null;
     const matches = deps.db.collection(`competitions/${cid}/matches`);
     if (isCounted && !comp.get('endedAt')) {
+      // 多組別：每個組別都要已排賽程才可能結束（Opus 終審 P1-1：只看既有場次時，
+      // 先打完的組別會讓整場賽事被判結束）。沒排賽程的組別（隊數不足等）交給每日自動結束（§7）。
+      const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(20));
+      if (divs.empty || divs.docs.some(d => !d.get('schedule'))) return null;
       const remaining = await readCount(deps, tx, matches.where('status', 'not-in', [...COUNTED_STATUSES]).count());
       if (remaining > 0) return null;
       const total = await readCount(deps, tx, matches.count());
@@ -138,7 +148,8 @@ async function syncEnded(deps: CpDeps, cid: string, wasCounted: boolean, isCount
       });
       return 'set';
     }
-    if (wasCounted && !isCounted && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
+    // 有任何場次不計入（重置、新排的場次）就解除末場確認造成的結束（Opus 終審 P1-1 (c)）
+    if (!isCounted && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
       tx.update(compRef, {
         endedAt: null, endedBy: null,
         stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()

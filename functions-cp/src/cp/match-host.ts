@@ -47,6 +47,8 @@ export const SCHEDULE_LIMITS = Object.freeze({
   endedGraceMs: 3 * 86400_000
 });
 const UTC_OFFSET = '+08:00';
+/** 一場比分對帳最多讀的事件數（一場正常約 20～60 筆） */
+const TIMELINE_MAX = 500;
 const DAY = 86400_000;
 const EDITABLE_SCHEDULE = ['scheduled', 'postponed'];
 
@@ -228,6 +230,12 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     ];
     const shards = await readShards(deps, tx, cid, shardIds);
     const prevSchedule = dv.get('schedule');
+    // Firestore 單一交易最多 500 筆寫入：舊場次刪除＋新場次＋摘要片＋積分＋組別＋稽核＋賽事。
+    // 改期把舊場次散到很多天後直接重排可能超過（Grok 審查 P1-1）→ 失敗關閉，請主辦先清除賽程再排。
+    const writeCount = old.length + docs.length + new Set(shardIds).size + 4;
+    if (writeCount > 490) throw pre('SCHEDULE_REPLACE_TOO_LARGE', { writes: writeCount });
+    const prevStanding = await readDoc(deps, tx, standingRef(deps, cid, dvId, 'group', 'A'));
+    const prevStandingVersion = prevStanding.exists && typeof prevStanding.get('version') === 'number' ? prevStanding.get('version') as number : 0;
 
     // ── 寫入（交易內全部讀完之後）──
     for (const m of old) {
@@ -242,7 +250,13 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     writeShards(tx, shards);
     const groups = plan.groups.map(g => ({ groupId: g.groupId, teamIds: [...g.teamIds] }));
     const names = Object.fromEntries(teams.map(t => [t.enId, t.name]));
-    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking));
+    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking, prevStandingVersion));
+    // 末場確認造成的結束（例如另一組別先打完）在新排賽程時解除（Opus 終審 P1-1 (b)）
+    if (comp.endedAt && comp.endedBy === 'confirm') {
+      tx.update(deps.db.doc(`competitions/${cid}`), {
+        endedAt: null, endedBy: null, stateVersion: FieldValue.increment(1), updatedAt: now
+      });
+    }
     tx.update(dvRef, {
       schedule: {
         format: 'roundRobin', legs, ranking, matchMinutes, bufferMinutes, minRestMinutes, seed,
@@ -331,7 +345,8 @@ export async function rescheduleMatch(deps: CpDeps, caller: Caller, gate: GateRe
     assertNotEnded(deps, comp, caller);
     if (!['draft', 'published'].includes(comp.status)) throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
     const venues = Array.isArray(comp.venues) ? (comp.venues as Array<{ name?: unknown }>) : [];
-    const venueIdx = input.venueIdx == null ? null : int(input.venueIdx, 'venueIdx', 0, Math.max(0, venues.length - 1));
+    if (input.venueIdx != null && venues.length === 0) throw bad('FIELD_RANGE', { field: 'venueIdx', min: 0, max: 0 });
+    const venueIdx = input.venueIdx == null ? null : int(input.venueIdx, 'venueIdx', 0, venues.length - 1);
     if (kickoffAt != null) {
       const lo = comp.firstMatchAt.toMillis() - (comp.firstMatchAt.toMillis() + 8 * 3600_000) % DAY;
       const hi = comp.lastMatchAt.toMillis() - (comp.lastMatchAt.toMillis() + 8 * 3600_000) % DAY + DAY;
@@ -380,6 +395,9 @@ export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResul
       clockBase: { ...CLEAR_CLOCK, period: 'ft' },
       rev: m.rev + 1, updatedAt: now
     });
+    // 主辦登錄後一律清掉目前記分者：否則記分者可在 finishedAt 後 3 分鐘內 undoFinish 撤回主辦的結果，
+    // 且 resultSource=host 會讓之後的進球免對帳（Grok 審查 P1-2、Opus 終審 P3-1）。要再記分須重新接手。
+    tx.delete(m.ref.collection('control').doc('scorer'));
     writeAudit(deps, tx, cid, caller, 'recordResult', { mtId, score, confirm });
     return { mtId, status, rev: m.rev + 1 };
   });
@@ -395,8 +413,10 @@ export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: Gat
     const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
     if (m.status !== 'finished') throw pre('MATCH_STATE', { status: m.status });
     // §6.3-7 比分對帳：事件明細是真相。主辦親自登錄（resultSource=host）時以主辦裁定為準。
-    const tl = await readQuery(deps, tx, m.ref.collection('timeline').where('seq', '>', m.resetRev).limit(300));
-    const vd = await readQuery(deps, tx, m.ref.collection('voids').limit(300));
+    // 讀全部事件才能對帳；超過上限時失敗關閉，不用截斷的明細確認（Grok 審查 P2-2）
+    const tl = await readQuery(deps, tx, m.ref.collection('timeline').where('seq', '>', m.resetRev).limit(TIMELINE_MAX + 1));
+    const vd = await readQuery(deps, tx, m.ref.collection('voids').limit(TIMELINE_MAX + 1));
+    if (tl.size > TIMELINE_MAX || vd.size > TIMELINE_MAX) throw pre('TIMELINE_TOO_LONG');
     const voided = new Set<number>(vd.docs.map(d => Number(d.id)).filter(n => Number.isInteger(n)));
     const derived = derivedScoreOf(tl.docs.map(d => d.data()), voided, m.resetRev);
     const score = { home: Number(m.snap.get('score.home')) || 0, away: Number(m.snap.get('score.away')) || 0 };
@@ -441,6 +461,7 @@ export async function setWalkover(deps: CpDeps, caller: Caller, gate: GateResult
       clockBase: CLEAR_CLOCK, rev: m.rev + 1, updatedAt: now
     });
     // 原因只進稽核（可能含個資），公開場次只放棄權方
+    tx.delete(m.ref.collection('control').doc('scorer'));
     writeAudit(deps, tx, cid, caller, 'setWalkover', { mtId, forfeitSide, reason });
     return { mtId, status: 'walkover', rev: m.rev + 1 };
   });
@@ -476,9 +497,10 @@ export async function recalcStandings(deps: CpDeps, caller: Caller, gate: GateRe
   const dvId = requireId(input.dvId, DVID_RE, 'dvId');
   // 權限在交易外先判（全量重算本身各組各自交易）
   await deps.db.runTransaction(async tx => {
-    const comp = await loadComp(deps, tx, cid);
-    assertCompVisible(comp, gate);
-    await assertHostOrCo(deps, tx, cid, comp, caller);
+    await hostComp(deps, tx, caller, gate, cid);
+    const dv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/divisions/${dvId}`));
+    if (!dv.exists) throw new CpError('not-found', 'DIVISION_NOT_FOUND');
+    if (!dv.get('schedule')) throw pre('SCHEDULE_REQUIRED');
   });
   const written = await recomputeDivisionStandings(deps, cid, dvId);
   await deps.db.runTransaction(async tx => {

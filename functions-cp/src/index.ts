@@ -69,5 +69,15 @@ export const cpOnMatchWritten = onDocumentWritten({
 }, async event => {
   const before = event.data?.before?.exists ? event.data.before.data() ?? null : null;
   const after = event.data?.after?.exists ? event.data.after.data() ?? null : null;
-  await handleMatchWritten(getDeps(), event.params.cid, event.params.mtId, before, after);
+  try {
+    await handleMatchWritten(getDeps(), event.params.cid, event.params.mtId, before, after);
+  } catch (e) {
+    // 資料錯誤（TypeError／RangeError，例如場次欄位壞掉）重試也不會好：記 log 後吞掉，避免連續重試 7 天
+    // （Opus 終審 P3-6）。交易衝突、逾時等其他錯誤照拋，讓平台重試（處理函式冪等）。
+    if (e instanceof TypeError || e instanceof RangeError) {
+      logger.error('cpOnMatchWritten data error', { error: e.name });
+      return;
+    }
+    throw e;
+  }
 });

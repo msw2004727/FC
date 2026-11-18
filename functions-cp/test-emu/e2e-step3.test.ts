@@ -20,8 +20,8 @@ const SERVER_BUDGET: Record<string, number> = {
   generateSchedule: 1 + 1 + 1 + 16 + 1 + 2,
   // 閘門 1＋賽事 1＋場次 1
   recordResult: 3,
-  // 場次 1＋摘要片 1（＋舊片 1）＋場次重讀 1＋組別 1＋積分 1＋該組場次 ≤ 6＋賽事 1＋聚合 2
-  trigger: 1 + 2 + 1 + 1 + 1 + 6 + 1 + 2
+  // 場次 1＋摘要片 1（＋舊片 1）＋場次重讀 1＋賽事 1＋組別 1＋積分 1＋該組場次 ≤ 6＋賽事 1＋組別清單 1＋聚合 2（實測 15）
+  trigger: 1 + 2 + 1 + 1 + 1 + 1 + 6 + 1 + 1 + 2
 };
 const CLIENT_BUDGET = {
   detailWarmup: 39 + 3,  // 根 1＋組別 ≤ 4（+1）＋隊伍 ≤ 32（+1）；內部期 3 個請求各 +1

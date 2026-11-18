@@ -74,7 +74,7 @@ describe('場次：伺服器欄位與狀態不能被直寫', () => {
     });
   }
 
-  it('主辦登錄後待確認（finished＋locked）不能記進球；只有目前記分者能在三分鐘內撤回', async () => {
+  it('主辦登錄後待確認（finished＋locked）不能記進球；非目前記分者不能撤回（目前記分者可否撤回主辦結果留第 4 步定）', async () => {
     await patchMatch('cp_pub', { status: 'finished', lock: { locked: true }, finishedAt: new Date(), resultSource: 'host' });
     await assertFails(goalBatch('s1', 3));
     await setCurrentScorer('cp_pub', 's2');

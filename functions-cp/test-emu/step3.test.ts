@@ -288,3 +288,103 @@ describe('觸發器：增量＝全量、冪等、亂序', () => {
     expect(r).toEqual({ summary: false, standing: false, ended: null });
   });
 });
+
+describe('Opus 終審補測：多組別結束、棄權結束、寬限內主辦、拒絕路徑', () => {
+  beforeEach(() => resetAll());
+
+  it('P1-1 兩個組別：只有一組打完不判結束；兩組都排完打完才結束；寬限過後主辦仍能登錄另一組', async () => {
+    const c = await setupComp(TEAMS4);
+    // 第二個組別（直接種：2 隊已核准，名單已鎖）
+    const db = adminDb();
+    const dv2 = 'dv_' + 'B'.repeat(20);
+    await db.doc(`competitions/${c.cid}/divisions/${dv2}`).set({ name: '青年組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 10, order: 1 });
+    for (const [i, name] of ['子', '丑'].entries()) {
+      await db.doc(`competitions/${c.cid}/entries/en_${String(i).repeat(20)}`).set({ dvId: dv2, teamId: `club_x${i}`, name, status: 'approved', rosterCount: 1, rosterConfirmed: true });
+    }
+    await generate(c);
+    for (const [h, a] of [['甲', '乙'], ['甲', '丙'], ['甲', '丁'], ['乙', '丙'], ['乙', '丁'], ['丙', '丁']]) await record(c, h, a, 1, 0);
+    expect((await db.doc(`competitions/${c.cid}`).get()).get('endedAt') ?? null).toBeNull();
+    const c2 = { ...c, dvId: dv2, enIdOf: { 子: 'en_' + '0'.repeat(20), 丑: 'en_' + '1'.repeat(20) }, nameOf: { ['en_' + '0'.repeat(20)]: '子', ['en_' + '1'.repeat(20)]: '丑' } };
+    await adminDb().doc(`competitions/${c.cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
+    await generate(c2, TESTER2, {}, makeDeps(LATER + 4 * DAY));
+    await record(c2, '子', '丑', 2, 0, true, TESTER2);
+    const comp = (await db.doc(`competitions/${c.cid}`).get()).data()!;
+    expect(comp.endedBy).toBe('confirm');
+  });
+
+  it('棄權讓最後一場計入時也會結束；寬限內主辦（共同主辦）可重置', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const m = (await matchesOf(c))[0];
+    await act(c, ADMIN, { action: 'setWalkover', mtId: m.id, expectedRev: 0, forfeitSide: 'home', reason: '未到場' });
+    expect((await adminDb().doc(`competitions/${c.cid}`).get()).get('endedBy')).toBe('confirm');
+    // 測試時鐘：伺服器 endedAt 是真實時間、動作用 +25 天的時鐘；把 endedAt 對齊到測試時鐘的「1 天前」
+    const { Timestamp } = await import('firebase-admin/firestore');
+    await adminDb().doc(`competitions/${c.cid}`).update({ endedAt: Timestamp.fromMillis(Date.now() + LATER - DAY) });
+    await adminDb().doc(`competitions/${c.cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
+    await act(c, TESTER2, { action: 'resetMatch', mtId: m.id, expectedRev: 1, reason: '判錯隊' });
+    expect((await adminDb().doc(`competitions/${c.cid}`).get()).get('endedAt')).toBeNull();
+  });
+
+  it('拒絕路徑：recalcStandings 非主辦、沒賽程；已確認不能棄權；待確認／已確認不能改期', async () => {
+    const c = await setupComp(TEAMS4);
+    await fails(call(handleCpHost, ADMIN, { action: 'recalcStandings', cid: c.cid, dvId: c.dvId }), 'SCHEDULE_REQUIRED');
+    await generate(c);
+    await fails(call(handleCpHost, TESTER2, { action: 'recalcStandings', cid: c.cid, dvId: c.dvId }), 'NOT_HOST');
+    await fails(call(handleCpHost, STRANGER, { action: 'recalcStandings', cid: c.cid, dvId: c.dvId }), 'INTERNAL_PERIOD');
+    const ms = await matchesOf(c);
+    await act(c, ADMIN, { action: 'recordResult', mtId: ms[0].id, expectedRev: 0, score: { home: 1, away: 0 }, confirm: true });
+    await act(c, ADMIN, { action: 'recordResult', mtId: ms[1].id, expectedRev: 0, score: { home: 1, away: 0 }, confirm: false });
+    await fails(call(handleCpHost, ADMIN, { action: 'setWalkover', cid: c.cid, mtId: ms[0].id, expectedRev: 1, forfeitSide: 'home', reason: '測試' }, later()), 'MATCH_STATE');
+    for (const m of [ms[0], ms[1]]) {
+      await fails(call(handleCpHost, ADMIN, { action: 'rescheduleMatch', cid: c.cid, mtId: m.id, expectedRev: 1, kickoffAt: null, venueIdx: null }), 'MATCH_STATE');
+    }
+  });
+
+  it('重排沿用積分榜版本（不倒退）', async () => {
+    const c = await setupComp(TEAMS4);
+    await generate(c);
+    const v1 = (await standingOf(c))!.version;
+    await ok(call(handleCpHost, ADMIN, { action: 'recalcStandings', cid: c.cid, dvId: c.dvId }));
+    const v2 = (await standingOf(c))!.version;
+    await generate(c);
+    expect(v2).toBeGreaterThan(v1);
+    expect((await standingOf(c))!.version).toBe(v2 + 1);
+  });
+});
+
+describe('Grok 審查補測', () => {
+  beforeEach(() => resetAll());
+
+  it('主辦登錄（先登錄）後清掉目前記分者，記分員不能撤回主辦結果', async () => {
+    const c = await setupComp(TEAMS4);
+    await generate(c);
+    const m = (await matchesOf(c))[0];
+    const ctl = adminDb().doc(`competitions/${c.cid}/matches/${m.id}/control/scorer`);
+    await ctl.set({ uid: 'tester', takenAt: new Date() });
+    await act(c, ADMIN, { action: 'recordResult', mtId: m.id, expectedRev: 0, score: { home: 1, away: 0 }, confirm: false });
+    expect((await ctl.get()).exists).toBe(false);
+  });
+
+  it('改期把場次散到很多天後直接重排：寫入數超過上限時失敗關閉（不寫），先清除再排可以', async () => {
+    const teams = Array.from({ length: 14 }, (_, k) => `隊${k + 1}`);
+    const c = await setupComp(teams);
+    const big = { legs: 2, matchMinutes: 5, bufferMinutes: 0, days: c.days.map(date => ({ date, start: '06:00', end: '23:55' })) };
+    await generate(c, ADMIN, big);
+    const ms = await matchesOf(c);
+    expect(ms.length).toBe(182);
+    // 模擬改期：把 182 場散到 182 個不同日期（直接改文件，等同逐場 rescheduleMatch 的結果）
+    const db = adminDb();
+    const base = (await db.doc(`competitions/${c.cid}`).get()).get('firstMatchAt').toMillis();
+    for (let k = 0; k < ms.length; k += 400) {
+      const b = db.batch();
+      ms.slice(k, k + 400).forEach((m, n) => b.update(db.doc(`competitions/${c.cid}/matches/${m.id}`), { kickoffAt: new Date(base + (k + n) * 86400_000) }));
+      await b.commit();
+    }
+    await fails(call(handleCpHost, ADMIN, scheduleInput(c, big)), 'SCHEDULE_REPLACE_TOO_LARGE');
+    expect((await matchesOf(c)).map(m => m.id).sort()).toEqual(ms.map(m => m.id).sort());
+    await ok(call(handleCpHost, ADMIN, { action: 'clearSchedule', cid: c.cid, dvId: c.dvId }));
+    await generate(c, ADMIN, big);
+    expect((await matchesOf(c)).length).toBe(182);
+  }, 120_000);
+});
