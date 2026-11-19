@@ -293,6 +293,39 @@ describe('組別比賽規則', () => {
     expect(meter.reads).toBe(3);
   });
 
+  it('已有確認比分時送不含 timeout 的完整規則：不重算、不要求原因', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    await record(c, '甲', '乙', 1, 0);
+    const before = (await standingOf(c))!;
+    const rules = legacyPayload();
+    delete (rules as { timeout?: unknown }).timeout;
+    const meter = new ReadMeter();
+    const res = await ok<{ recomputed: boolean }>(call(
+      handleCpHost, ADMIN,
+      rulesCall(c, rules),
+      makeDeps(0, meter)
+    ));
+    expect(res.recomputed).toBe(false);
+    expect((await standingOf(c))!.version).toBe(before.version);
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules.timeout')).toEqual({
+      enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null
+    });
+    expect(dv.get('rules.time')).toMatchObject({ periods: 1, halfMinutes: 20, halftime: { enabled: false, minutes: 0 } });
+    expect(dv.get('rulesChangedAt')).toBeUndefined();
+    const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ text?: string }> | undefined;
+    expect((notices ?? []).some(n => String(n.text ?? '').includes('比賽規則於'))).toBe(false);
+    const audits = (await adminDb().collection(`competitions/${c.cid}/audits`).get()).docs
+      .filter(d => d.get('action') === 'setDivisionRules');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].get('details.changed')).toEqual([]);
+    expect(audits[0].get('details.changes')).toEqual([]);
+    expect(audits[0].get('details.reason')).toBeNull();
+    expect(audits[0].get('details.recomputed')).toBe(false);
+    expect(meter.reads).toBe(3);
+  });
+
   it('非主辦、寬限外主辦、已取消都不能改', async () => {
     const hosted = await setupComp(['甲', '乙']);
     await fails(call(handleCpHost, TESTER2, rulesCall(hosted, legacyPayload())), 'NOT_HOST');

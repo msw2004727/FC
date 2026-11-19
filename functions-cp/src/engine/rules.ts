@@ -644,14 +644,17 @@ function inspect(input: unknown): Inspected {
     if (htEnabled === false && htMinutes != null && htMinutes > 0) errors.push({ field: 'time.halftime.minutes', reason: 'FIELD_RANGE' });
   }
 
-  const timeout = needRecord(errors, input.timeout, 'timeout');
-  let timeoutEnabled: boolean | null = null;
-  let timeoutPer: TimeoutPer | null = null;
-  let timeoutCount: number | null = null;
-  let timeoutSeconds: number | null = null;
-  let timeoutStops: boolean | null = null;
-  let timeoutExtra: number | null = null;
+  // 整段沒帶（缺鍵或 null）：視同關閉，存缺值，不回 FIELD_REQUIRED。有帶就照現行驗證。
+  const timeoutGiven = input.timeout != null;
+  const timeout = timeoutGiven && isRecord(input.timeout) ? input.timeout : null;
+  let timeoutEnabled: boolean | null = timeoutGiven ? null : false;
+  let timeoutPer: TimeoutPer | null = timeoutGiven ? null : 'half';
+  let timeoutCount: number | null = timeoutGiven ? null : 1;
+  let timeoutSeconds: number | null = timeoutGiven ? null : 60;
+  let timeoutStops: boolean | null = timeoutGiven ? null : true;
+  let timeoutExtra: number | null = timeoutGiven ? null : 0;
   let timeoutNote: string | null = null;
+  if (timeoutGiven && !timeout) errors.push({ field: 'timeout', reason: 'FIELD_TYPE' });
   if (timeout) {
     pushUnknown(errors, timeout, ['enabled', 'per', 'count', 'seconds', 'stopsClock', 'extraTimeCount', 'note'], 'timeout');
     if (typeof timeout.enabled !== 'boolean') {

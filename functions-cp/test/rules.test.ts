@@ -602,10 +602,45 @@ describe('validateRulesInput', () => {
     const onSeconds = withRules({});
     delete (onSeconds.timeout as unknown as Record<string, unknown>).seconds;
     expect(validateRulesInput(onSeconds).errors).toContainEqual({ field: 'timeout.seconds', reason: 'FIELD_REQUIRED' });
+  });
 
+  test('整段 timeout 可省略，視同關閉；有帶非法仍拒', () => {
+    const off = {
+      enabled: false, per: 'half' as const, count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null
+    };
     const missing = withRules({});
     delete (missing as unknown as Record<string, unknown>).timeout;
-    expect(validateRulesInput(missing).errors).toContainEqual({ field: 'timeout', reason: 'FIELD_REQUIRED' });
+    expect(validateRulesInput(missing).errors).toEqual([]);
+    const stored = rulesDocumentOf(missing);
+    expect(stored?.rules.timeout).toEqual(off);
+    expect(stored?.playersOnField).toBe(5);
+    expect(stored?.rules.points).toMatchObject({ win: 3, draw: 1, loss: 0 });
+    expect(resolveRules({ playersOnField: stored?.playersOnField, rules: stored?.rules }).timeout).toEqual(off);
+
+    const asNull = withRules({});
+    (asNull as unknown as Record<string, unknown>).timeout = null;
+    expect(validateRulesInput(asNull).errors).toEqual([]);
+    expect(rulesDocumentOf(asNull)?.rules.timeout).toEqual(off);
+
+    const empty = withRules({});
+    empty.timeout = {} as typeof empty.timeout;
+    expect(validateRulesInput(empty).errors).toContainEqual({ field: 'timeout.enabled', reason: 'FIELD_REQUIRED' });
+    expect(rulesDocumentOf(empty)).toBeNull();
+
+    const text = withRules({});
+    (text as unknown as Record<string, unknown>).timeout = '關';
+    expect(validateRulesInput(text).errors).toContainEqual({ field: 'timeout', reason: 'FIELD_TYPE' });
+    expect(rulesDocumentOf(text)).toBeNull();
+
+    const bad = withRules({});
+    bad.timeout.count = 9;
+    expect(validateRulesInput(bad).errors).toContainEqual({ field: 'timeout.count', reason: 'FIELD_RANGE' });
+    expect(rulesDocumentOf(bad)).toBeNull();
+
+    const other = withRules({});
+    delete (other as unknown as Record<string, unknown>).points;
+    expect(validateRulesInput(other).errors).toContainEqual({ field: 'points', reason: 'FIELD_REQUIRED' });
+    expect(validateRulesInput(other).errors).not.toContainEqual({ field: 'timeout', reason: 'FIELD_REQUIRED' });
   });
 
   test('範本：五人制暫停開啟，七人與十一人關閉', () => {
