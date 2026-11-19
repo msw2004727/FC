@@ -2,6 +2,7 @@
  * cpHost.setDivisionRules：寫入組別比賽規則。
  * 掛在 HOST_ACTIONS，不放進 MATCH_HOST_ACTIONS（本檔要引用 match-host，避免循環）。
  * 計分有沒有變看 sameScoringInputs，不看鍵名清單：關閉的仁慈只改 cap 不算（cap 不參與計算）；只改 preset、criteria 沒變也不算。
+ * 球隊暫停整段只顯示，不重算、不要求原因、不發公告。
  * 已有 confirmed 或 walkover 且計分有變才要求原因、公告、rulesChangedAt。finished 不算已確認。
  * 公告只列影響計分且值有變的項目，格式是「顯示名 改前→改後」，不列區塊標題、不出現鍵名。
  * 確認或棄權是否存在用聚合 count，不靠場次清單。重算改為每組各查一次，上限 240，多讀 1 筆用來發現截斷。
@@ -53,6 +54,13 @@ function leavesOf(r: ResolvedRules): Record<string, unknown> {
     'time.halftime.enabled': r.time.halftime.enabled,
     'time.halftime.minutes': r.time.halftime.minutes,
     'time.note': r.time.note,
+    'timeout.enabled': r.timeout.enabled,
+    'timeout.per': r.timeout.per,
+    'timeout.count': r.timeout.count,
+    'timeout.seconds': r.timeout.seconds,
+    'timeout.stopsClock': r.timeout.stopsClock,
+    'timeout.extraTimeCount': r.timeout.extraTimeCount,
+    'timeout.note': r.timeout.note,
     'substitution.mode': r.substitution.mode,
     'substitution.maxCount': r.substitution.maxCount,
     'substitution.note': r.substitution.note,

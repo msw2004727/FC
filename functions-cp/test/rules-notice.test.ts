@@ -177,6 +177,21 @@ describe('規則公告文字', () => {
     expect(sameScoringInputs(before, capOnly)).toBe(true);
   });
 
+  it('只改球隊暫停不進公告', () => {
+    const before = base();
+    const after = base();
+    after.timeout.enabled = false;
+    after.timeout.per = 'match';
+    after.timeout.count = 2;
+    after.timeout.seconds = 90;
+    after.timeout.stopsClock = false;
+    after.timeout.extraTimeCount = 1;
+    after.timeout.note = '每場兩次';
+    expect(rulesNoticeItems(before, after)).toEqual([]);
+    expect(scoringChangesOf(before, after)).toEqual([]);
+    expect(sameScoringInputs(before, after)).toBe(true);
+  });
+
   it('只改補充說明或比賽時間不進公告', () => {
     const before = base();
     const after = base();

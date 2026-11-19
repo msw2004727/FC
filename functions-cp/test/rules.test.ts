@@ -430,6 +430,202 @@ describe('validateRulesInput', () => {
     expect(validateRulesInput(badCap).errors).toContainEqual({ field: 'mercy.cap', reason: 'FIELD_RANGE' });
   });
 
+  test('球隊暫停缺值是關閉；寫了也不改計分', () => {
+    const off = {
+      enabled: false, per: 'half' as const, count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null
+    };
+    const bare = resolveRules({});
+    const gdBare = resolveRules({ schedule: { ranking: 'goalDiffFirst' } });
+    expect(bare.timeout).toEqual(off);
+    expect(gdBare.timeout).toEqual(off);
+    expect(resolveRules({ playersOnField: 11, schedule: { matchMinutes: 40 } }).timeout).toEqual(off);
+
+    const on = resolveRules({
+      rules: {
+        timeout: {
+          enabled: true, per: 'period', count: 0, seconds: 180, stopsClock: false, extraTimeCount: 3,
+          note: '  每節\n\n\n一次  '
+        }
+      }
+    });
+    expect(on.timeout).toEqual({
+      enabled: true, per: 'period', count: 0, seconds: 180, stopsClock: false, extraTimeCount: 3, note: '每節\n\n一次'
+    });
+    expect(sameScoringInputs(bare, on)).toBe(true);
+    expect(engineInputsOf(on)).toEqual(engineInputsOf(bare));
+    expect(Object.keys(engineInputsOf(on).opts).sort()).toEqual(['fairPlay', 'mercyRule', 'walkover']);
+
+    const partial = resolveRules({ rules: { timeout: { count: 2, per: 'nope', seconds: 45 } } });
+    expect(partial.timeout).toEqual({ ...off, count: 2, seconds: 45 });
+    expect(sameScoringInputs(gdBare, resolveRules({
+      schedule: { ranking: 'goalDiffFirst' },
+      rules: { timeout: { enabled: true, per: 'match', count: 5, seconds: 30 } }
+    }))).toBe(true);
+
+    const junk = resolveRules({
+      rules: { timeout: { enabled: 'no', per: 'game', count: 6, seconds: 29, stopsClock: 'yes', extraTimeCount: -1, note: 1 } }
+    });
+    expect(junk.timeout).toEqual(off);
+
+    const ids = ['A', 'B', 'C', 'D'];
+    const withTimeout = { rules: { timeout: { enabled: true, count: 2, seconds: 90, stopsClock: false } } };
+    expect(brief(stand(ids, T05, withTimeout))).toEqual(brief(standRule(ids, T05, 'h2hFirst')));
+    expect(brief(stand(ids, T06, withTimeout))).toEqual(brief(standRule(ids, T06, 'h2hFirst')));
+    expect(brief(stand(['A', 'B', 'C', 'D', 'E'], T07, withTimeout))).toEqual(brief(standRule(['A', 'B', 'C', 'D', 'E'], T07, 'h2hFirst')));
+    expect(brief(stand(['A', 'B', 'C'], T09, withTimeout))).toEqual(brief(standRule(['A', 'B', 'C'], T09, 'h2hFirst')));
+    expect(brief(stand(ids, T05, { schedule: { ranking: 'goalDiffFirst' }, ...withTimeout })))
+      .toEqual(brief(standRule(ids, T05, 'goalDiffFirst')));
+    expect(brief(stand(ids, T06, { schedule: { ranking: 'goalDiffFirst' }, ...withTimeout })))
+      .toEqual(brief(standRule(ids, T06, 'goalDiffFirst')));
+  });
+
+  test('球隊暫停範圍：次數 0–5、秒數 30–180、加時 0–3', () => {
+    const edge = withRules({});
+    edge.timeout.count = 0;
+    edge.timeout.seconds = 30;
+    edge.timeout.extraTimeCount = 0;
+    edge.timeout.per = 'half';
+    expect(validateRulesInput(edge).errors).toEqual([]);
+    edge.timeout.count = 5;
+    edge.timeout.seconds = 180;
+    edge.timeout.extraTimeCount = 3;
+    edge.timeout.per = 'period';
+    expect(validateRulesInput(edge).errors).toEqual([]);
+    edge.timeout.per = 'match';
+    expect(validateRulesInput(edge).errors).toEqual([]);
+
+    const lowCount = withRules({});
+    lowCount.timeout.count = -1;
+    expect(validateRulesInput(lowCount).errors).toContainEqual({ field: 'timeout.count', reason: 'FIELD_RANGE' });
+    const highCount = withRules({});
+    highCount.timeout.count = 6;
+    expect(validateRulesInput(highCount).errors).toContainEqual({ field: 'timeout.count', reason: 'FIELD_RANGE' });
+    const lowSec = withRules({});
+    lowSec.timeout.seconds = 29;
+    expect(validateRulesInput(lowSec).errors).toContainEqual({ field: 'timeout.seconds', reason: 'FIELD_RANGE' });
+    const highSec = withRules({});
+    highSec.timeout.seconds = 181;
+    expect(validateRulesInput(highSec).errors).toContainEqual({ field: 'timeout.seconds', reason: 'FIELD_RANGE' });
+    const lowExtra = withRules({});
+    lowExtra.timeout.extraTimeCount = -1;
+    expect(validateRulesInput(lowExtra).errors).toContainEqual({ field: 'timeout.extraTimeCount', reason: 'FIELD_RANGE' });
+    const highExtra = withRules({});
+    highExtra.timeout.extraTimeCount = 4;
+    expect(validateRulesInput(highExtra).errors).toContainEqual({ field: 'timeout.extraTimeCount', reason: 'FIELD_RANGE' });
+
+    const frac = withRules({});
+    frac.timeout.seconds = 60.5;
+    expect(validateRulesInput(frac).errors).toContainEqual({ field: 'timeout.seconds', reason: 'FIELD_TYPE' });
+    const badPer = withRules({});
+    badPer.timeout.per = 'game' as 'half';
+    expect(validateRulesInput(badPer).errors).toContainEqual({ field: 'timeout.per', reason: 'FIELD_ENUM' });
+    const badBool = withRules({});
+    badBool.timeout.stopsClock = 1 as unknown as boolean;
+    expect(validateRulesInput(badBool).errors).toContainEqual({ field: 'timeout.stopsClock', reason: 'FIELD_TYPE' });
+    const badEnabled = withRules({});
+    badEnabled.timeout.enabled = 'yes' as unknown as boolean;
+    expect(validateRulesInput(badEnabled).errors).toContainEqual({ field: 'timeout.enabled', reason: 'FIELD_TYPE' });
+
+    const unk = withRules({});
+    (unk.timeout as unknown as Record<string, unknown>).extra = true;
+    expect(validateRulesInput(unk).errors).toContainEqual({ field: 'timeout.extra', reason: 'UNKNOWN_FIELD' });
+
+    const note = withRules({});
+    note.timeout.note = '備'.repeat(200);
+    expect(validateRulesInput(note).errors).toEqual([]);
+    expect(rulesDocumentOf(note)?.rules.timeout.note).toBe('備'.repeat(200));
+    note.timeout.note = '備'.repeat(201);
+    expect(validateRulesInput(note).errors).toContainEqual({ field: 'timeout.note', reason: 'FIELD_LENGTH' });
+  });
+
+  test('球隊暫停關閉時可省略其餘欄位，開啟時必填', () => {
+    const omit = withRules({});
+    omit.timeout.enabled = false;
+    const raw = omit.timeout as unknown as Record<string, unknown>;
+    delete raw.per;
+    delete raw.count;
+    delete raw.seconds;
+    delete raw.stopsClock;
+    delete raw.extraTimeCount;
+    expect(validateRulesInput(omit).errors).toEqual([]);
+    expect(rulesDocumentOf(omit)?.rules.timeout).toEqual({
+      enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null
+    });
+
+    const noteOnly = withRules({});
+    noteOnly.timeout = { enabled: false, note: '  看錶  ' } as typeof noteOnly.timeout;
+    expect(rulesDocumentOf(noteOnly)?.rules.timeout).toEqual({
+      enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: '看錶'
+    });
+
+    const nulled = withRules({});
+    nulled.timeout.enabled = false;
+    nulled.timeout.per = null as unknown as 'half';
+    nulled.timeout.count = null as unknown as number;
+    nulled.timeout.seconds = null as unknown as number;
+    nulled.timeout.stopsClock = null as unknown as boolean;
+    nulled.timeout.extraTimeCount = null as unknown as number;
+    expect(rulesDocumentOf(nulled)?.rules.timeout).toMatchObject({
+      enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0
+    });
+
+    const kept = withRules({});
+    kept.timeout.enabled = false;
+    kept.timeout.per = 'match';
+    kept.timeout.count = 4;
+    kept.timeout.seconds = 45;
+    kept.timeout.stopsClock = false;
+    kept.timeout.extraTimeCount = 2;
+    const keptDoc = rulesDocumentOf(kept);
+    expect(keptDoc?.rules.timeout).toMatchObject({
+      enabled: false, per: 'match', count: 4, seconds: 45, stopsClock: false, extraTimeCount: 2
+    });
+    expect(sameScoringInputs(resolveRules({ rules: keptDoc?.rules }), resolveRules({}))).toBe(true);
+
+    const badOff = withRules({});
+    badOff.timeout.enabled = false;
+    badOff.timeout.count = 9;
+    expect(validateRulesInput(badOff).errors).toContainEqual({ field: 'timeout.count', reason: 'FIELD_RANGE' });
+
+    const onCount = withRules({});
+    delete (onCount.timeout as unknown as Record<string, unknown>).count;
+    expect(validateRulesInput(onCount).errors).toContainEqual({ field: 'timeout.count', reason: 'FIELD_REQUIRED' });
+    const onPer = withRules({});
+    delete (onPer.timeout as unknown as Record<string, unknown>).per;
+    expect(validateRulesInput(onPer).errors).toContainEqual({ field: 'timeout.per', reason: 'FIELD_REQUIRED' });
+    const onStops = withRules({});
+    onStops.timeout.stopsClock = null as unknown as boolean;
+    expect(validateRulesInput(onStops).errors).toContainEqual({ field: 'timeout.stopsClock', reason: 'FIELD_REQUIRED' });
+    const onExtra = withRules({});
+    delete (onExtra.timeout as unknown as Record<string, unknown>).extraTimeCount;
+    expect(validateRulesInput(onExtra).errors).toContainEqual({ field: 'timeout.extraTimeCount', reason: 'FIELD_REQUIRED' });
+    const onSeconds = withRules({});
+    delete (onSeconds.timeout as unknown as Record<string, unknown>).seconds;
+    expect(validateRulesInput(onSeconds).errors).toContainEqual({ field: 'timeout.seconds', reason: 'FIELD_REQUIRED' });
+
+    const missing = withRules({});
+    delete (missing as unknown as Record<string, unknown>).timeout;
+    expect(validateRulesInput(missing).errors).toContainEqual({ field: 'timeout', reason: 'FIELD_REQUIRED' });
+  });
+
+  test('範本：五人制暫停開啟，七人與十一人關閉', () => {
+    const on = {
+      enabled: true, per: 'half' as const, count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null
+    };
+    const off = { ...on, enabled: false };
+    expect(RULE_TEMPLATES.five.timeout).toEqual(on);
+    expect(RULE_TEMPLATES.seven.timeout).toEqual(off);
+    expect(RULE_TEMPLATES.eleven.timeout).toEqual(off);
+    expect(validateRulesInput(RULE_TEMPLATES.five).errors).toEqual([]);
+    const changed = structuredClone(RULE_TEMPLATES.eleven);
+    changed.timeout = {
+      enabled: true, per: 'match', count: 5, seconds: 180, stopsClock: false, extraTimeCount: 3, note: '加時可再要'
+    };
+    expect(sameScoringInputs(RULE_TEMPLATES.eleven, changed)).toBe(true);
+    expect(sameScoringInputs(RULE_TEMPLATES.five, RULE_TEMPLATES.seven)).toBe(true);
+    expect(engineInputsOf(changed)).toEqual(engineInputsOf(RULE_TEMPLATES.eleven));
+  });
+
   test('仁慈關閉時只改 cap，計分輸入相同', () => {
     const off7 = resolveRules({ rules: { mercy: { enabled: false, cap: 7 } } });
     const off9 = resolveRules({ rules: { mercy: { enabled: false, cap: 9 } } });

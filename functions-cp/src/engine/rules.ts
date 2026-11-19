@@ -2,7 +2,7 @@
  * 組別比賽規則：讀取時解析成一份，計分與畫面共用。
  * 舊文件沒有 rules 時，結果必須等於現在的 rankingRuleOf(presetOf(schedule.ranking))
  * ＋ DEFAULT_WALKOVER ＋不壓球差。缺值不展開成 feda2026。
- * 純函式。禁用詞不在這裡查（Callable 用已讀過的清單）。
+ * 球隊暫停只顯示，不進計分輸入。純函式。禁用詞不在這裡查（Callable 用已讀過的清單）。
  */
 import { RANKING_RULES } from './formats.js';
 import type { Criterion, FairPlayConfig, PointsRule, RankingRule, TallyOpts, WalkoverConfig } from './types.js';
@@ -11,6 +11,7 @@ export type PlayersOnField = 5 | 7 | 8 | 9 | 11;
 export type TiePreset = 'h2hFirst' | 'goalDiffFirst' | 'feda2026' | 'youth' | 'fifa2026' | 'custom';
 export type SubMode = 'unlimitedReturn' | 'limitedCount';
 export type EquipChoice = 'unset' | 'required' | 'notRequired';
+export type TimeoutPer = 'half' | 'match' | 'period';
 
 export interface ResolvedRules {
   playersOnField: PlayersOnField;
@@ -19,6 +20,15 @@ export interface ResolvedRules {
     periods: 1 | 2;
     halfMinutes: number;
     halftime: { enabled: boolean; minutes: number };
+    note: string | null;
+  };
+  timeout: {
+    enabled: boolean;
+    per: TimeoutPer;
+    count: number;
+    seconds: number;
+    stopsClock: boolean;
+    extraTimeCount: number;
     note: string | null;
   };
   substitution: { mode: SubMode; maxCount: number | null; note: string | null };
@@ -62,6 +72,7 @@ const CRITERIA: readonly Criterion[] = [
 ];
 const PRESETS: readonly TiePreset[] = ['h2hFirst', 'goalDiffFirst', 'feda2026', 'youth', 'fifa2026', 'custom'];
 const EQUIP: readonly EquipChoice[] = ['unset', 'required', 'notRequired'];
+const TIMEOUT_PER: readonly TimeoutPer[] = ['half', 'match', 'period'];
 const NOTE_MAX = 200;
 
 const H2H_CRITERIA = [...RANKING_RULES.RR_FEDA_DEFAULT.criteria] as Criterion[];
@@ -154,6 +165,7 @@ function blank(playersOnField: PlayersOnField, periods: 1 | 2, halfMinutes: numb
       halftime: { enabled: halftimeMin > 0, minutes: halftimeMin },
       note: null
     },
+    timeout: { enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null },
     substitution: { mode: 'unlimitedReturn', maxCount: null, note: null },
     points: { win: 3, draw: 1, loss: 0, note: null },
     tieBreak: {
@@ -173,9 +185,14 @@ function blank(playersOnField: PlayersOnField, periods: 1 | 2, halfMinutes: numb
   };
 }
 
-/** 五人制一般、七人制、十一人制。一鍵填值；存進文件的是展開後的鍵值，不是範本 id。 */
+/** 五人制一般、七人制、十一人制。一鍵填值；存進文件的是展開後的鍵值，不是範本 id。
+ *  五人制球隊暫停開啟（每半場 1 次、60 秒、停錶）。七人、十一人關閉。其餘暫停欄位用缺值預設。
+ */
+const fiveTemplate = blank(5, 2, 20, 5);
+fiveTemplate.timeout.enabled = true;
+
 export const RULE_TEMPLATES: Record<'five' | 'seven' | 'eleven', ResolvedRules> = {
-  five: blank(5, 2, 20, 5),
+  five: fiveTemplate,
   seven: blank(7, 2, 25, 5),
   eleven: blank(11, 2, 35, 10)
 };
@@ -221,6 +238,21 @@ function overlay(base: ResolvedRules, rules: Record<string, unknown>): void {
       base.time.halftime = ht.enabled ? { enabled: true, minutes } : { enabled: false, minutes: 0 };
     }
     base.time.note = readNote(time.note);
+  }
+
+  const timeout = isRecord(rules.timeout) ? rules.timeout : null;
+  if (timeout) {
+    if (typeof timeout.enabled === 'boolean') base.timeout.enabled = timeout.enabled;
+    const per = oneOf(timeout.per, TIMEOUT_PER);
+    if (per) base.timeout.per = per;
+    const count = intIn(timeout.count, 0, 5);
+    if (count != null) base.timeout.count = count;
+    const seconds = intIn(timeout.seconds, 30, 180);
+    if (seconds != null) base.timeout.seconds = seconds;
+    if (typeof timeout.stopsClock === 'boolean') base.timeout.stopsClock = timeout.stopsClock;
+    const extraTimeCount = intIn(timeout.extraTimeCount, 0, 3);
+    if (extraTimeCount != null) base.timeout.extraTimeCount = extraTimeCount;
+    base.timeout.note = readNote(timeout.note);
   }
 
   const sub = isRecord(rules.substitution) ? rules.substitution : null;
@@ -386,7 +418,7 @@ function sameFair(a: FairPlayConfig, b: FairPlayConfig): boolean {
 
 /**
  * 組裝約定：rule 的 points／criteria／fairPlay，opts 的 fairPlay（同一份物件）、walkover、mercyRule。
- * 不放 cardEvents。舊的兩種捷徑且積分、清單、行為分都沒改時，rule 與 rankingRuleOf 同一份身分。
+ * 不放 cardEvents，也不放球隊暫停。舊的兩種捷徑且積分、清單、行為分都沒改時，rule 與 rankingRuleOf 同一份身分。
  */
 export function engineInputsOf(resolved: ResolvedRules): { rule: RankingRule; opts: Partial<TallyOpts> } {
   const points: PointsRule = { win: resolved.points.win, draw: resolved.points.draw, loss: resolved.points.loss };
@@ -428,6 +460,7 @@ export function engineInputsOf(resolved: ResolvedRules): { rule: RankingRule; op
 /**
  * 兩份解析結果交給引擎的計分輸入是否相同。相同就不重算。
  * 仁慈關著時 mercyRule 是 `{ enabled: false }`，不帶 cap。只改 cap 仍相同：關閉時 cap 不參與計算。
+ * 球隊暫停不在這份輸入裡。只改 timeout 仍相同。
  */
 export function sameScoringInputs(a: ResolvedRules, b: ResolvedRules): boolean {
   const left = engineInputsOf(a);
@@ -443,7 +476,7 @@ export function sameScoringInputs(a: ResolvedRules, b: ResolvedRules): boolean {
 }
 
 const TOP_KEYS = [
-  'playersOnField', 'squad', 'time', 'substitution', 'points', 'tieBreak', 'draw',
+  'playersOnField', 'squad', 'time', 'timeout', 'substitution', 'points', 'tieBreak', 'draw',
   'walkover', 'late', 'suspension', 'fairPlay', 'mercy', 'equipment', 'appeal'
 ] as const;
 
@@ -511,6 +544,33 @@ function closedInt(
 ): number | null {
   if (!enabled && value == null) return fallback;
   return needInt(errors, value, field, min, max);
+}
+
+function closedEnum<T extends string>(
+  errors: RulesIssue[],
+  value: unknown,
+  field: string,
+  allowed: readonly T[],
+  enabled: boolean,
+  fallback: T
+): T | null {
+  if (!enabled && value == null) return fallback;
+  return needEnum(errors, value, field, allowed);
+}
+
+function closedBool(
+  errors: RulesIssue[],
+  value: unknown,
+  field: string,
+  enabled: boolean,
+  fallback: boolean
+): boolean | null {
+  if (!enabled && value == null) return fallback;
+  if (typeof value !== 'boolean') {
+    errors.push({ field, reason: value == null ? 'FIELD_REQUIRED' : 'FIELD_TYPE' });
+    return null;
+  }
+  return value;
 }
 
 function inspectCriteria(errors: RulesIssue[], value: unknown): Criterion[] | null {
@@ -582,6 +642,29 @@ function inspect(input: unknown): Inspected {
     if (periods === 1 && htEnabled === true) errors.push({ field: 'time.halftime.enabled', reason: 'FIELD_RANGE' });
     if (periods === 1 && htMinutes != null && htMinutes > 0) errors.push({ field: 'time.halftime.minutes', reason: 'FIELD_RANGE' });
     if (htEnabled === false && htMinutes != null && htMinutes > 0) errors.push({ field: 'time.halftime.minutes', reason: 'FIELD_RANGE' });
+  }
+
+  const timeout = needRecord(errors, input.timeout, 'timeout');
+  let timeoutEnabled: boolean | null = null;
+  let timeoutPer: TimeoutPer | null = null;
+  let timeoutCount: number | null = null;
+  let timeoutSeconds: number | null = null;
+  let timeoutStops: boolean | null = null;
+  let timeoutExtra: number | null = null;
+  let timeoutNote: string | null = null;
+  if (timeout) {
+    pushUnknown(errors, timeout, ['enabled', 'per', 'count', 'seconds', 'stopsClock', 'extraTimeCount', 'note'], 'timeout');
+    if (typeof timeout.enabled !== 'boolean') {
+      errors.push({ field: 'timeout.enabled', reason: timeout.enabled == null ? 'FIELD_REQUIRED' : 'FIELD_TYPE' });
+    } else timeoutEnabled = timeout.enabled;
+    // 關閉時其餘欄位可省略或 null，存成預設。開啟時仍必填。有送的值照範圍驗，不改成預設。
+    const timeoutOn = timeoutEnabled === true;
+    timeoutPer = closedEnum(errors, timeout.per, 'timeout.per', TIMEOUT_PER, timeoutOn, 'half');
+    timeoutCount = closedInt(errors, timeout.count, 'timeout.count', 0, 5, timeoutOn, 1);
+    timeoutSeconds = closedInt(errors, timeout.seconds, 'timeout.seconds', 30, 180, timeoutOn, 60);
+    timeoutStops = closedBool(errors, timeout.stopsClock, 'timeout.stopsClock', timeoutOn, true);
+    timeoutExtra = closedInt(errors, timeout.extraTimeCount, 'timeout.extraTimeCount', 0, 3, timeoutOn, 0);
+    timeoutNote = takeNote(errors, timeout.note, 'timeout.note');
   }
 
   const sub = needRecord(errors, input.substitution, 'substitution');
@@ -738,6 +821,8 @@ function inspect(input: unknown): Inspected {
 
   if (
     playersOnField == null || periods == null || halfMinutes == null || htEnabled == null || htMinutes == null
+    || timeoutEnabled == null || timeoutPer == null || timeoutCount == null || timeoutSeconds == null
+    || timeoutStops == null || timeoutExtra == null
     || subMode == null || win == null || drawPts == null || loss == null || preset == null || criteria == null
     || scoreFor == null || scoreAgainst == null || awardPoints == null || penaltyPoints == null || countInGoalStats == null
     || susEnabled == null || yellowThreshold == null || yellowBanMatches == null || directRedBanMatches == null
@@ -756,6 +841,15 @@ function inspect(input: unknown): Inspected {
       halfMinutes,
       halftime: { enabled: htEnabled, minutes: htEnabled ? htMinutes : 0 },
       note: timeNote
+    },
+    timeout: {
+      enabled: timeoutEnabled,
+      per: timeoutPer,
+      count: timeoutCount,
+      seconds: timeoutSeconds,
+      stopsClock: timeoutStops,
+      extraTimeCount: timeoutExtra,
+      note: timeoutNote
     },
     substitution: { mode: subMode, maxCount: subMode === 'limitedCount' ? maxCount : null, note: subNote },
     points: { win, draw: drawPts, loss, note: pointsNote },

@@ -22,6 +22,8 @@ function legacyPayload(patch?: (r: ResolvedRules) => void): ResolvedRules {
   const r = structuredClone(RULE_TEMPLATES.five);
   r.playersOnField = 5;
   r.time = { periods: 1, halfMinutes: 20, halftime: { enabled: false, minutes: 0 }, note: null };
+  // 五人制範本開啟球隊暫停。已排、尚未寫 rules 的解析是關閉。對回缺值，這份才等於舊組別。
+  r.timeout = { enabled: false, per: 'half', count: 1, seconds: 60, stopsClock: true, extraTimeCount: 0, note: null };
   patch?.(r);
   return r;
 }
@@ -247,6 +249,47 @@ describe('組別比賽規則', () => {
     expect(dv.get('rulesChangedAt')).toBeUndefined();
     const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ text?: string }> | undefined;
     expect((notices ?? []).some(n => String(n.text ?? '').includes('比賽規則於'))).toBe(false);
+    expect(meter.reads).toBe(3);
+  });
+
+  it('已有確認比分時只改球隊暫停：不要求原因、積分榜 version 不變', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    await record(c, '甲', '乙', 1, 0);
+    const before = (await standingOf(c))!;
+    const meter = new ReadMeter();
+    const res = await ok<{ recomputed: boolean }>(call(
+      handleCpHost, ADMIN,
+      rulesCall(c, legacyPayload(r => {
+        r.timeout.enabled = true;
+        r.timeout.per = 'match';
+        r.timeout.count = 2;
+        r.timeout.seconds = 90;
+        r.timeout.stopsClock = false;
+        r.timeout.extraTimeCount = 1;
+        r.timeout.note = '每隊每場兩次';
+      })),
+      makeDeps(0, meter)
+    ));
+    expect(res.recomputed).toBe(false);
+    expect((await standingOf(c))!.version).toBe(before.version);
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules.timeout')).toEqual({
+      enabled: true, per: 'match', count: 2, seconds: 90, stopsClock: false, extraTimeCount: 1, note: '每隊每場兩次'
+    });
+    expect(dv.get('rulesChangedAt')).toBeUndefined();
+    const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ text?: string }> | undefined;
+    expect((notices ?? []).some(n => String(n.text ?? '').includes('比賽規則於'))).toBe(false);
+    const audits = (await adminDb().collection(`competitions/${c.cid}/audits`).get()).docs
+      .filter(d => d.get('action') === 'setDivisionRules');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].get('details.changed')).toEqual([
+      'timeout.enabled', 'timeout.per', 'timeout.count', 'timeout.seconds',
+      'timeout.stopsClock', 'timeout.extraTimeCount', 'timeout.note'
+    ]);
+    expect(audits[0].get('details.changes')).toEqual([]);
+    expect(audits[0].get('details.reason')).toBeNull();
+    expect(audits[0].get('details.recomputed')).toBe(false);
     expect(meter.reads).toBe(3);
   });
 
