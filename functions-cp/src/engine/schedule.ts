@@ -429,7 +429,8 @@ interface PlaceMatch extends SchedMatch {
 export function placeMatches({
   matches, occupied = [], venues = [],
   dayStartMs, dayEndMs, slotMin, bufferMin = 0,
-  divisions = [], durationMin, playersOnField, minRestMin = 0
+  divisions = [], durationMin, playersOnField, minRestMin = 0,
+  kickoffBeforeMs = Number.POSITIVE_INFINITY
 }: {
   matches: PlaceMatch[];
   occupied?: Array<{ venueId?: string; startMs: number; endMs: number; teamIds?: Array<string | null> }>;
@@ -442,6 +443,8 @@ export function placeMatches({
   durationMin?: number;
   playersOnField?: number;
   minRestMin?: number;
+  /** 開賽必須早於這個瞬間。省略則只受 dayEndMs 限制（與改前相同）。 */
+  kickoffBeforeMs?: number;
 }): { placed: Array<PlaceMatch & { kickoffMs: number; venueId: string; venueName: string }>; unplaced: Array<{ match: PlaceMatch; reason: string }> } {
   if (!Number.isFinite(dayStartMs) || !Number.isFinite(dayEndMs)) {
     throw new TypeError('placeMatches：dayStartMs / dayEndMs 必須是毫秒數字');
@@ -469,6 +472,10 @@ export function placeMatches({
   const slotMs = slotMin * 60000;
   const slotCount = Math.max(0, Math.floor((dayEndMs - dayStartMs) / slotMs) + 1);
   const restMs = intOr(minRestMin, 0) * 60000;
+  // 有限正數才當成開賽上限。省略時是 Infinity，既有呼叫點的排法不變。
+  const kickoffCap = typeof kickoffBeforeMs === 'number' && kickoffBeforeMs > 0
+    ? kickoffBeforeMs
+    : Number.POSITIVE_INFINITY;
   const unplacedReason = '當天排不下（場地或時間不足）。可以增加場地、延後結束時間，或降低休息下限。';
   // 同一規格的場地已經沒有空隙時，後面更長或一樣長的場次不必再掃。
   let saturated: { durationMin: number; playersOnField: number | undefined } | null = null;
@@ -488,6 +495,7 @@ export function placeMatches({
     let free = false;
     for (let i = 0; i < slotCount; i++) {
       const startMs = dayStartMs + i * slotMs;
+      if (startMs >= kickoffCap) break;
       if (startMs + playMs > dayEndMs) break;
       const endMs = startMs + spanMs;
       for (const v of venues) {
@@ -520,6 +528,7 @@ export function placeMatches({
     while (i < slotCount && !fitted) {
       const startMs = dayStartMs + i * slotMs;
       const endMs = startMs + span * 60000;
+      if (startMs >= kickoffCap) break;
       if (startMs + spec.durationMin * 60000 > dayEndMs) break;
 
       const teamClear = teamBlockClear(index.byTeam, m.teamIds, startMs - restMs, endMs + restMs, restMs);

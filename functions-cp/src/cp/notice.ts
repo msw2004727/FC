@@ -6,6 +6,7 @@
  * 作者只存稽核用的雜湊（`by`），不寫 uid。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
+import { matchDayOf } from '../engine/index.js';
 import { CpError, bad } from './errors.js';
 import { FieldValue, Timestamp, newId } from './context.js';
 import { clipCodePoints, findBannedWord, optionalText } from './text.js';
@@ -96,18 +97,72 @@ function clipText(text: string, max: number): string {
   return clipCodePoints(text, max);
 }
 
-/** 台北月／日，不補零。例：1/9。無開賽時間回 null。 */
-export function taipeiMonthDay(ms: number | null): string | null {
-  if (ms == null) return null;
-  const d = new Date(ms + 8 * 3600_000);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+const TAIPEI_OFFSET_MS = 8 * 3_600_000;
+/** 凌晨 00:00～04:59。05:00 起算當天，取消公告不再補時刻。 */
+const EARLY_MINUTES = 5 * 60;
+
+function taipeiClock(ms: number): { month: number; day: number; minutes: number } | null {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return null;
+  const d = new Date(ms + TAIPEI_OFFSET_MS);
+  return {
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+    minutes: d.getUTCHours() * 60 + d.getUTCMinutes()
+  };
 }
 
-/** 取消場次的系統公告。例：「1/9 甲隊對乙隊已取消：原因」。超過 300 字就截斷，不讓取消失敗。 */
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * 不帶時刻的日期標籤：比賽日月／日，不補零。例：1/9。
+ * 凌晨 00:00～04:59 顯示前一個比賽日。無開賽時間回 null。
+ */
+export function matchDayLabel(ms: number | null): string | null {
+  if (ms == null || typeof ms !== 'number' || !Number.isFinite(ms)) return null;
+  const ymd = matchDayOf(ms);
+  return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+}
+
+/** 與 matchDayLabel 相同。不帶時刻的公告標籤用比賽日。 */
+export function taipeiMonthDay(ms: number | null): string | null {
+  return matchDayLabel(ms);
+}
+
+/**
+ * 日期與時刻寫在一起：台北日曆日＋時刻，不補月日的零。例：1/10 01:30。
+ * 午夜不往前挪到前一個比賽日。無開賽時間回 null。
+ */
+export function taipeiMonthDayTime(ms: number | null): string | null {
+  if (ms == null) return null;
+  const clock = taipeiClock(ms);
+  if (clock == null) return null;
+  const hm = `${pad2(Math.floor(clock.minutes / 60))}:${pad2(clock.minutes % 60)}`;
+  return `${clock.month}/${clock.day} ${hm}`;
+}
+
+/**
+ * 公告裡指稱「原本那一場」的標籤：白天場用比賽日（不帶時刻），
+ * 凌晨 00:00～04:59 補上時刻並用日曆日，避免同一句裡比賽日與日曆日混用而看起來早一天。
+ * 取消與改期共用（PM 收 K5-fix 時統一：原本改期的原場次仍用比賽日標籤）。
+ */
+export function noticeMatchLabel(ms: number | null): string | null {
+  if (ms == null) return null;
+  const clock = taipeiClock(ms);
+  if (clock == null) return null;
+  return clock.minutes < EARLY_MINUTES ? taipeiMonthDayTime(ms) : matchDayLabel(ms);
+}
+
+/**
+ * 取消場次的系統公告。例：「1/9 甲隊對乙隊已取消：原因」。
+ * 凌晨 00:00～04:59 補上時刻並用日曆日，例：「1/10 01:30 甲隊對乙隊已取消：原因」。
+ * 超過 300 字就截斷，不讓取消失敗。
+ */
 export function cancelNoticeText(input: { kickoffMs: number | null; homeName: string; awayName: string; reason: string }): string {
-  const date = taipeiMonthDay(input.kickoffMs);
-  const head = date
-    ? `${date} ${input.homeName}對${input.awayName}已取消：`
+  const when = noticeMatchLabel(input.kickoffMs);
+  const head = when
+    ? `${when} ${input.homeName}對${input.awayName}已取消：`
     : `${input.homeName}對${input.awayName}已取消：`;
   return clipText(head + input.reason, NOTICE_LIMITS.textMax);
 }

@@ -9,7 +9,7 @@ import {
   drawOrder,
   placeMatches,
   planGeneration,
-  taipeiMs,
+  scheduleDayWindow,
   type RankingRule
 } from '../engine/index.js';
 
@@ -99,7 +99,8 @@ function assertDays(days: unknown): PlanDay[] {
     if (typeof day.date !== 'string' || !validYmd(day.date)) fail('days');
     if (typeof day.start !== 'string' || typeof day.end !== 'string') fail('days');
     if (!validHhmm(day.start) || !validHhmm(day.end)) fail('days');
-    if (day.start >= day.end) fail('days');
+    // end <= start 是隔天結束，不在這裡拒絕。
+    // start 早於 05:00、總長不合、開賽不早於隔天 05:00，都由 scheduleDayWindow 回 null。
     if (prev && day.date <= prev) fail('days');
     prev = day.date;
   }
@@ -186,16 +187,17 @@ export function planRoundRobin(input: PlanInput): PlanResult {
   let finalUnplaced: Array<{ reason: string }> = [];
 
   for (const day of days) {
-    const dayStartMs = taipeiMs(day.date, day.start, utcOffset);
-    const dayEndMs = taipeiMs(day.date, day.end, utcOffset);
-    if (dayStartMs == null || dayEndMs == null) fail('days');
+    // 隔天 05:00 之後仍可當結束時間（比賽可踢過切點），開賽必須早於切點。
+    const win = scheduleDayWindow(day.date, day.start, day.end, utcOffset);
+    if (!win) fail('days');
 
     const { placed, unplaced } = placeMatches({
       matches: pending,
       occupied,
       venues: engineVenues,
-      dayStartMs,
-      dayEndMs,
+      dayStartMs: win.startMs,
+      dayEndMs: win.endMs,
+      kickoffBeforeMs: win.kickoffBeforeMs,
       slotMin: 5,
       durationMin: matchMinutes,
       bufferMin: bufferMinutes,

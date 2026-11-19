@@ -17,8 +17,8 @@
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import {
-  buildStanding, clearedManualOverride, computeRows, engineInputsOf, explainTie as explainTieCalc,
-  matchResult, matchesPendingTie, resolveRules, tieDecisionView,
+  buildStanding, civilYmd, clearedManualOverride, computeRows, engineInputsOf, explainTie as explainTieCalc,
+  matchResult, matchesPendingTie, resolveRules, scheduleDayWindow, tieDecisionView,
   type ManualOverride, type MatchLike, type MatchResult, type StandingDoc, type StandingRow
 } from '../engine/index.js';
 import { CpError, bad, deny, pre } from './errors.js';
@@ -109,6 +109,7 @@ function int(v: unknown, field: string, min: number, max: number, dflt?: number)
   return v;
 }
 
+/** 官方賽期的日期標籤（台北日曆日）。午夜標記不能用 matchDayOf，否則會掉到前一個比賽日。 */
 function taipeiYmd(ms: number): string {
   const d = new Date(ms + 8 * 3600_000);
   return d.toISOString().slice(0, 10);
@@ -167,7 +168,18 @@ function daysOf(v: unknown): PlanDay[] {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.date` });
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.start as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.start` });
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.end as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.end` });
-    return { date: o.date as string, start: o.start as string, end: o.end as string };
+    const day = { date: o.date as string, start: o.start as string, end: o.end as string };
+    // 起點早於 05:00 一律拒。凌晨場請把前一天的 end 拉過午夜（end <= start）。
+    // 前端文案留給 U7；這裡只在 details 帶 reason，錯誤代碼仍是 FIELD_RANGE。
+    if (day.start < '05:00') {
+      throw bad('FIELD_RANGE', { field: 'days', reason: 'startBeforeCutoff' });
+    }
+    // end <= start 視為隔天結束。總長不合、或起點已不早於隔天 05:00，回既有 FIELD_RANGE。
+    // 窗可以晚於隔天 05:00 收（比賽可踢過切點）；開賽上限在 planRoundRobin 擋。
+    if (civilYmd(day.date) && scheduleDayWindow(day.date, day.start, day.end) == null) {
+      throw bad('FIELD_RANGE', { field: 'days' });
+    }
+    return day;
   });
 }
 

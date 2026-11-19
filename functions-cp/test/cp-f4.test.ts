@@ -111,14 +111,21 @@ describe('公告文字與取消文案', () => {
     expect(reasonOf(() => noticeTextOf('這是官方公告', W))).toBe('BANNED_WORD');
   });
 
-  it('取消文案：有開賽時間寫月／日，沒有就不寫日期，超長截斷', () => {
-    const ms = Date.UTC(2026, 0, 8, 16, 0, 0);
-    expect(taipeiMonthDay(ms)).toBe('1/9');
-    expect(cancelNoticeText({ kickoffMs: ms, homeName: '甲隊', awayName: '乙隊', reason: '雨停' }))
+  it('取消文案：白天寫比賽日，凌晨補日曆日與時刻；沒有開賽就不寫日期；超長截斷', () => {
+    const midnight = Date.UTC(2026, 0, 8, 16, 0, 0);
+    const daytime = Date.parse('2026-01-09T08:00:00+08:00');
+    expect(taipeiMonthDay(midnight)).toBe('1/8');
+    expect(taipeiMonthDay(Date.parse('2026-01-09T01:30:00+08:00'))).toBe('1/8');
+    expect(taipeiMonthDay(Date.parse('2026-01-09T04:59:00+08:00'))).toBe('1/8');
+    expect(taipeiMonthDay(Date.parse('2026-01-09T05:00:00+08:00'))).toBe('1/9');
+    expect(taipeiMonthDay(daytime)).toBe('1/9');
+    expect(cancelNoticeText({ kickoffMs: midnight, homeName: '甲隊', awayName: '乙隊', reason: '雨停' }))
+      .toBe('1/9 00:00 甲隊對乙隊已取消：雨停');
+    expect(cancelNoticeText({ kickoffMs: daytime, homeName: '甲隊', awayName: '乙隊', reason: '雨停' }))
       .toBe('1/9 甲隊對乙隊已取消：雨停');
     expect(cancelNoticeText({ kickoffMs: null, homeName: '甲隊', awayName: '乙隊', reason: '改期待定' }))
       .toBe('甲隊對乙隊已取消：改期待定');
-    const long = cancelNoticeText({ kickoffMs: ms, homeName: '甲', awayName: '乙', reason: '因'.repeat(400) });
+    const long = cancelNoticeText({ kickoffMs: daytime, homeName: '甲', awayName: '乙', reason: '因'.repeat(400) });
     expect([...long]).toHaveLength(300);
   });
 });

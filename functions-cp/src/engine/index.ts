@@ -62,6 +62,9 @@ export {
   checkSchedule
 } from './schedule.js';
 
+export { civilYmd, matchDayOf, matchDayWindow, scheduleDayWindow } from './match-day.js';
+export type { ScheduleDayWindow } from './match-day.js';
+
 export { planGeneration, matchDocOf } from './schedule-doc.js';
 
 export {

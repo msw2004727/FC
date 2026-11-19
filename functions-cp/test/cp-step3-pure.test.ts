@@ -2,7 +2,7 @@
  * 賽事第 3 步純函式。不改 process.env.TZ：日期只靠 utcOffset 換算。
  */
 import { describe, expect, it } from 'vitest';
-import { RANKING_RULES, drawOrder, taipeiMs } from '../src/engine/index.js';
+import { RANKING_RULES, drawOrder, scheduleDayWindow } from '../src/engine/index.js';
 import {
   CANCELLABLE_STATUSES,
   COUNTED_STATUSES,
@@ -75,10 +75,10 @@ function assertSchedule(result: PlanResult, spec: { matchMinutes: number; buffer
     expect(m.home.logo).toBeNull();
     expect(m.away.logo).toBeNull();
     const window = spec.days.find(d => {
-      const start = taipeiMs(d.date, d.start, '+08:00');
-      const end = taipeiMs(d.date, d.end, '+08:00');
-      return start != null && end != null && m.kickoffMs >= start && m.kickoffMs + play <= end
-        && (m.kickoffMs - start) % (5 * 60_000) === 0;
+      const win = scheduleDayWindow(d.date, d.start, d.end, '+08:00');
+      if (!win) return false;
+      return m.kickoffMs >= win.startMs && m.kickoffMs < win.kickoffBeforeMs && m.kickoffMs + play <= win.endMs
+        && (m.kickoffMs - win.startMs) % (5 * 60_000) === 0;
     });
     expect(window, `${m.matchNo} 落在可用時段`).toBeTruthy();
     const vlist = byVenue.get(m.venueIdx as number) ?? [];
@@ -312,8 +312,6 @@ describe('planRoundRobin', () => {
     }, 'days');
     expectRange({ days: [day('2026-12-06'), day('2026-12-05')] }, 'days');
     expectRange({ days: [day('2026-12-05'), day('2026-12-05', '19:00', '21:00')] }, 'days');
-    expectRange({ days: [day('2026-12-05', '18:00', '09:00')] }, 'days');
-    expectRange({ days: [day('2026-12-05', '09:00', '09:00')] }, 'days');
     expectRange({ days: [day('2026-12-05', '9:00', '18:00')] }, 'days');
     expectRange({ days: [day('2026-02-31')] }, 'days');
     expectRange({ venues: [] }, 'venues');
@@ -337,6 +335,27 @@ describe('planRoundRobin', () => {
       days: Array.from({ length: 14 }, (_, i) => day(`2026-12-${String(i + 1).padStart(2, '0')}`, '09:00', '12:00'))
     });
     expect(full.unplacedCount).toBe(0);
+  });
+
+  it('結束不大於開始視為隔天；開賽仍須早於隔天 05:00，飛達盃白天排法不變', () => {
+    const cap = Date.parse('2026-12-06T05:00:00+08:00');
+    const overnight = plan({ days: [day('2026-12-05', '18:00', '09:00')] });
+    expect(overnight.unplacedCount).toBe(0);
+    assertSchedule(overnight, {
+      matchMinutes: 30, bufferMinutes: 10, minRestMinutes: 0, days: [day('2026-12-05', '18:00', '09:00')]
+    });
+    const around = plan({ days: [day('2026-12-05', '09:00', '09:00')] });
+    expect(around.unplacedCount).toBe(0);
+    assertSchedule(around, {
+      matchMinutes: 30, bufferMinutes: 10, minRestMinutes: 0, days: [day('2026-12-05', '09:00', '09:00')]
+    });
+    for (const m of [...overnight.matches, ...around.matches]) {
+      expect(m.kickoffMs).toBeLessThan(cap);
+    }
+    const daytime = plan();
+    const start = Date.parse('2026-12-05T09:00:00+08:00');
+    expect(daytime.matches.map(m => m.kickoffMs).sort((a, b) => (a ?? 0) - (b ?? 0)))
+      .toEqual([0, 0, 1, 1, 2, 2].map(i => start + i * 40 * 60_000));
   });
 });
 
@@ -577,9 +596,16 @@ describe('goalAfterPkStart', () => {
 describe('summary', () => {
   it('summaryShardIdOf 跨午夜與 null（不改 process.env.TZ）', () => {
     expect(summaryShardIdOf(null)).toBe('tbd');
+    expect(summaryShardIdOf(Number.NaN)).toBe('tbd');
     expect(summaryShardIdOf(Date.parse('2026-12-05T23:30:00+08:00'))).toBe('d20261205');
-    expect(summaryShardIdOf(Date.parse('2026-12-05T16:30:00Z'))).toBe('d20261206');
+    // 台北 2026-12-06 00:30，比賽日是 12/5
+    expect(summaryShardIdOf(Date.parse('2026-12-05T16:30:00Z'))).toBe('d20261205');
+    expect(summaryShardIdOf(Date.parse('2026-12-06T04:59:00+08:00'))).toBe('d20261205');
+    expect(summaryShardIdOf(Date.parse('2026-12-06T05:00:00+08:00'))).toBe('d20261206');
     expect(summaryShardIdOf(Date.parse('2026-12-05T03:30:00Z'), '-05:00')).toBe('d20261204');
+    // 當地 04:59 歸前一天；05:00 起算當天
+    expect(summaryShardIdOf(Date.parse('2026-12-05T09:59:00Z'), '-05:00')).toBe('d20261204');
+    expect(summaryShardIdOf(Date.parse('2026-12-05T10:00:00Z'), '-05:00')).toBe('d20261205');
     expect(summaryShardIdOf(Date.parse('2026-12-05T16:30:00Z'), '+00:00')).toBe('d20261205');
   });
 

@@ -3,7 +3,8 @@
  * 不讀時鐘、不碰 Firestore。台北一律 +08:00，不看執行環境時區。
  * 重疊區間與引擎 placeMatches 相同：半開 [開始, 開始＋比賽分鐘＋緩衝)。
  */
-import { taipeiMonthDay } from './notice.js';
+import { matchDayOf, matchDayWindow } from '../engine/index.js';
+import { matchDayLabel, noticeMatchLabel, taipeiMonthDayTime } from './notice.js';
 
 const DAY_MS = 86_400_000;
 const TAIPEI_OFFSET_MS = 8 * 3_600_000;
@@ -72,27 +73,26 @@ export function addDaysYmd(ymd: string, days: number): string | null {
   return taipeiYmd(start + days * DAY_MS);
 }
 
-/** `2026-01-09` → `1/9`（不補零）。非法回 null。 */
+/** `2026-01-09` → `1/9`（不補零）。這是日期標籤，不把午夜再往前挪一天。非法回 null。 */
 export function ymdMonthDay(ymd: string): string | null {
-  const start = ymdToStartMs(ymd);
-  if (start == null) return null;
-  return taipeiMonthDay(start);
+  if (!validYmd(ymd)) return null;
+  return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
 }
 
-/** 整天順延要搬的那一天（不含前一日跨日）。 */
+/** 整天順延要搬的那一個比賽日：當天 05:00 到隔天 05:00（含凌晨場）。 */
 export function taipeiDayWindow(ymd: string): { start: number; end: number } | null {
-  const start = ymdToStartMs(ymd);
-  if (start == null) return null;
-  return { start, end: start + DAY_MS };
+  return matchDayWindow(ymd);
 }
 
 /**
- * 撞期查詢窗：目標台北日再往前 LOOKBACK_MIN；終點取「該日結束」與「候選開賽＋LOOKBACK_MIN」較晚者，
- * 涵蓋晚場延伸到隔天凌晨的情況（Flash 初審 P1：23:00 開賽會跨午夜）。
+ * 撞期查詢窗：該比賽日再往前 LOOKBACK_MIN；終點取「比賽日結束」與「候選開賽＋LOOKBACK_MIN」較晚者。
+ * 23:00 與隔天 01:30 屬同一個比賽日，會落在同一窗。
  */
 export function conflictWindowOfKickoff(kickoffMs: number): { start: number; end: number } {
-  const day = taipeiDayStartMs(kickoffMs);
-  return { start: day - LOOKBACK_MIN * 60_000, end: Math.max(day + DAY_MS, kickoffMs + LOOKBACK_MIN * 60_000) };
+  const day = matchDayWindow(matchDayOf(kickoffMs));
+  const start = day ? day.start : taipeiDayStartMs(kickoffMs);
+  const end = day ? day.end : start + DAY_MS;
+  return { start: start - LOOKBACK_MIN * 60_000, end: Math.max(end, kickoffMs + LOOKBACK_MIN * 60_000) };
 }
 
 export interface KickoffBounds {
@@ -102,20 +102,24 @@ export interface KickoffBounds {
   maxYmd: string;
   /** 含 */
   lo: number;
-  /** 不含：上限日的次日 00:00 */
+  /** 不含：上限比賽日的隔天 05:00 */
   hi: number;
 }
 
-/** 允許的開賽窗。原末場日 D 可排到 D+60 當天，D+61 的 00:00 起拒絕。 */
+/**
+ * 允許的開賽窗。日期標籤仍是官方時間的台北日曆日。
+ * 起點是首場日 05:00，終點是上限比賽日的隔天 05:00（不含）。
+ * 所以上限日的隔天 00:00～04:59 仍屬該比賽日。
+ */
 export function kickoffBounds(firstMs: number, originLastMs: number, extendDays = EXTEND_DAYS): KickoffBounds {
-  const lo = taipeiDayStartMs(firstMs);
-  const originDay = taipeiDayStartMs(originLastMs);
-  return {
-    minYmd: taipeiYmd(lo),
-    maxYmd: taipeiYmd(originDay + extendDays * DAY_MS),
-    lo,
-    hi: originDay + (extendDays + 1) * DAY_MS
-  };
+  const minYmd = taipeiYmd(firstMs);
+  const originYmd = taipeiYmd(originLastMs);
+  const maxYmd = addDaysYmd(originYmd, extendDays) ?? originYmd;
+  const firstWin = matchDayWindow(minYmd);
+  const lastWin = matchDayWindow(maxYmd);
+  const lo = firstWin ? firstWin.start : taipeiDayStartMs(firstMs);
+  const hi = lastWin ? lastWin.end : lo + (extendDays + 1) * DAY_MS;
+  return { minYmd, maxYmd, lo, hi };
 }
 
 /** 在窗內回 null。窗外回首場日與上限日，給 `SCHEDULE_OUT_OF_RANGE` 的 params。 */
@@ -131,19 +135,20 @@ export function kickoffOutOfRange(
 }
 
 /**
- * 新開賽所在台北日的 00:00。只在比目前末場「日」更晚時回傳（只能延後、不能提前，同一日不改）。
- * 多個開賽取最晚的那一天。
+ * 新開賽的比賽日比目前末場的日曆標籤更晚時，回該比賽日的台北 00:00（只能延後、不能提前）。
+ * 末場若是午夜標記，用日曆日當標籤，不用 matchDayOf（午夜會掉到前一天）。
+ * 凌晨 00:00～04:59 的開賽算前一個比賽日，不會因此把末場再延一天。
  */
 export function nextLastMatchDayStart(currentLastMs: number, kickoffs: readonly (number | null)[]): number | null {
-  const cur = taipeiDayStartMs(currentLastMs);
-  let best: number | null = null;
+  const cur = taipeiYmd(currentLastMs);
+  let best: string | null = null;
   for (const kick of kickoffs) {
     if (kick == null) continue;
-    const day = taipeiDayStartMs(kick);
+    const day = matchDayOf(kick);
     if (day <= cur) continue;
     if (best == null || day > best) best = day;
   }
-  return best;
+  return best == null ? null : ymdToStartMs(best);
 }
 
 /** 維持台北時刻，只換日期。`fromYmd` 是原開賽那天。 */
@@ -220,14 +225,18 @@ export interface NoticeSide {
   venueName?: string | null;
 }
 
-/** 「1/10 甲隊對乙隊改至 1/24 14:00 2號場」。沒有新時間則「改至待定」。 */
+/**
+ * 「1/10 甲隊對乙隊改至 1/24 14:00 2號場」。沒有新時間則「改至待定」。
+ * 原場次：白天用比賽日標籤；凌晨場補時刻並用日曆日（noticeMatchLabel，與取消公告一致）。
+ * 改至的日期與時刻寫在一起，用日曆日。
+ */
 export function rescheduleNoticeText(input: NoticeSide & { toMs: number | null; venueName: string | null }): string {
   const who = `${input.homeName}對${input.awayName}`;
-  const from = taipeiMonthDay(input.kickoffMs);
+  const from = noticeMatchLabel(input.kickoffMs);
   const head = from ? `${from} ${who}` : who;
   if (input.toMs == null) return `${head}改至待定`;
   const venue = input.venueName && input.venueName.trim() ? ` ${input.venueName.trim()}` : '';
-  return `${head}改至 ${taipeiMonthDay(input.toMs)} ${taipeiHm(input.toMs)}${venue}`;
+  return `${head}改至 ${taipeiMonthDayTime(input.toMs)}${venue}`;
 }
 
 /** 「1/9 全天賽程順延至 1/16」。日期必須是合法台北日；不合法回空字串，呼叫端不會拿去發公告。 */
@@ -239,12 +248,12 @@ export function shiftDayNoticeText(fromYmd: string, toYmd: string): string {
 }
 
 function swapBrief(side: NoticeSide): string {
-  const date = taipeiMonthDay(side.kickoffMs);
-  if (date == null) return `${side.homeName}對${side.awayName}`;
-  return `${date} ${taipeiHm(side.kickoffMs!)} ${side.homeName}對${side.awayName}`;
+  const when = taipeiMonthDayTime(side.kickoffMs);
+  if (when == null) return `${side.homeName}對${side.awayName}`;
+  return `${when} ${side.homeName}對${side.awayName}`;
 }
 
-/** 「兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊」。時間用對調前的開賽，方便認出是哪兩場。 */
+/** 「兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊」。時間用對調前的開賽。日期與時刻一起寫，用日曆日。 */
 export function swapNoticeText(a: NoticeSide, b: NoticeSide): string {
   return `兩場對調：${swapBrief(a)} 與 ${swapBrief(b)}`;
 }
