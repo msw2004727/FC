@@ -11,8 +11,13 @@ import { ADMIN, DAY, TESTER, TESTER2, TESTER3, call, fails, makeDeps, ok, resetA
 import { generate, record, setupComp, type Comp } from './_step3.js';
 
 const TEAMS = ['甲', '乙', '丙'];
-/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋組別 1＋積分 1＋該組場次（3 場＝3） */
+/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋組別 1＋積分 1＋該組場次（3 場＝3）。查詢仍用這個上限。 */
 const READ_BUDGET = 10;
+/**
+ * 裁定／撤銷在 endedBy confirm 時多讀：組別集合（此賽 1 份）＋各組積分榜（此賽 1 組，本組再讀 1 次）。
+ * 共同主辦實際 11＝改前 9＋2。上限 12＝原預算 10＋2。
+ */
+const RESOLVE_READ_BUDGET = 12;
 
 async function tiedComp(): Promise<Comp> {
   const c = await setupComp(TEAMS, { host: TESTER });
@@ -48,8 +53,8 @@ describe('§3.272 F3 同分裁定與查詢', () => {
         action: 'resolveTie', cid: c.cid, dvId: c.dvId, order, method: 'host', reason, expectedVersion: before.version
       }, makeDeps(2 * DAY, meter))
     );
-    expect(meter.reads).toBe(9);
-    expect(meter.reads).toBeLessThanOrEqual(READ_BUDGET);
+    expect(meter.reads).toBe(11);
+    expect(meter.reads).toBeLessThanOrEqual(RESOLVE_READ_BUDGET);
     expect(r.version).toBe(before.version + 1);
     expect(r.hasUnresolvedTie).toBe(false);
     expect(r.rows.map(row => row.teamId)).toEqual(order);
@@ -139,9 +144,12 @@ describe('§3.272 F3 同分裁定與查詢', () => {
     const mid = await standingDoc(c);
     expect(mid.rows.map((row: { decidedBy?: string }) => row.decidedBy)).toEqual(['drawLots', 'drawLots', 'drawLots']);
 
+    const clearMeter = new ReadMeter();
     const cleared = await ok<{ rows: Array<{ teamId: string; decidedBy: string | null }> }>(call(handleCpHost, TESTER2, {
       action: 'clearTieDecision', cid: c.cid, dvId: c.dvId, reason: '改回自動', expectedVersion: mid.version
-    }, makeDeps(2 * DAY)));
+    }, makeDeps(2 * DAY, clearMeter)));
+    expect(clearMeter.reads).toBe(11);
+    expect(clearMeter.reads).toBeLessThanOrEqual(RESOLVE_READ_BUDGET);
     const natural = [...order].sort((a, b) => a.localeCompare(b));
     expect(cleared.rows.map(row => row.teamId)).toEqual(natural);
     expect(cleared.rows.every(row => row.decidedBy == null)).toBe(true);

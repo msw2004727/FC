@@ -11,7 +11,7 @@ import { handleMatchWritten } from '../src/cp/match-trigger.js';
 import { handleScorerWritten } from '../src/cp/scorer-trigger.js';
 import { summaryEntryOf, summaryShardIdOf } from '../src/cp/summary.js';
 import { statsRef, syncMatchStats } from '../src/cp/stats.js';
-import { ADMIN, call, makeDeps, ok, resetAll } from './_cp.js';
+import { ADMIN, DAY, TESTER, call, makeDeps, ok, resetAll } from './_cp.js';
 import { act, generate, later, matchesOf, record, setupComp, type Comp } from './_step3.js';
 
 const CID = 'cp_' + 'c'.repeat(20);
@@ -68,10 +68,10 @@ describe('K3 接手稽核', () => {
     const takenAt = Timestamp.fromMillis(ms);
     const wrote = await handleScorerWritten(deps, CID, MT, null, { uid, sid, takenAt });
     expect(wrote).toBe(true);
-    const id = `tk_${ms}_${actorHash(CID, uid)}`;
+    const id = `tk_${ms}_${MT}_${actorHash(CID, uid)}`;
     const snap = await adminDb().doc(`competitions/${CID}/audits/${id}`).get();
     expect(snap.exists).toBe(true);
-    expect(snap.id).toMatch(/^tk_\d+_[0-9a-f]{16}$/);
+    expect(snap.id).toMatch(/^tk_\d+_mt_[A-Za-z0-9]{20}_[0-9a-f]{16}$/);
     const data = snap.data()!;
     expect(data).toMatchObject({
       action: 'takeScorer', actor: actorHash(CID, uid), mtId: MT, sidChanged: false, prev: null
@@ -95,7 +95,7 @@ describe('K3 接手稽核', () => {
       { uid: next, sid: 'new-sid-value', takenAt: Timestamp.fromMillis(ms2) }
     );
     expect(changed).toBe(true);
-    const nextId = `tk_${ms2}_${actorHash(CID, next)}`;
+    const nextId = `tk_${ms2}_${MT}_${actorHash(CID, next)}`;
     const nextDoc = (await adminDb().doc(`competitions/${CID}/audits/${nextId}`).get()).data()!;
     expect(nextDoc.prev).toBe(actorHash(CID, uid));
     expect(nextDoc.sidChanged).toBe(true);
@@ -107,6 +107,25 @@ describe('K3 接手稽核', () => {
     expect((await adminDb().collection(`competitions/${CID}/audits`).get()).size).toBe(beforeDelete);
 
     expect(await handleScorerWritten(deps, CID, MT, null, { uid: '', takenAt })).toBe(false);
+  });
+
+  it('同一人同一毫秒接手兩場各寫一筆', async () => {
+    const deps = makeDeps();
+    const mt2 = 'mt_' + 'n'.repeat(20);
+    const takenAt = Timestamp.fromMillis(ms);
+    expect(await handleScorerWritten(deps, CID, MT, null, { uid, sid, takenAt })).toBe(true);
+    expect(await handleScorerWritten(deps, CID, mt2, null, { uid, sid, takenAt })).toBe(true);
+    const hash = actorHash(CID, uid);
+    const first = await adminDb().doc(`competitions/${CID}/audits/tk_${ms}_${MT}_${hash}`).get();
+    const second = await adminDb().doc(`competitions/${CID}/audits/tk_${ms}_${mt2}_${hash}`).get();
+    expect(first.exists).toBe(true);
+    expect(second.exists).toBe(true);
+    expect(first.get('mtId')).toBe(MT);
+    expect(second.get('mtId')).toBe(mt2);
+    expect(first.get('actor')).toBe(hash);
+    expect(second.get('actor')).toBe(hash);
+    expect((await adminDb().collection(`competitions/${CID}/audits`).get()).size).toBe(2);
+    expect(JSON.stringify([first.id, second.id, first.get('actor'), second.get('actor')]).includes(uid)).toBe(false);
   });
 });
 
@@ -378,5 +397,116 @@ describe('K3 確認、重置、再確認與冠軍名', () => {
       expect(packed.includes(String(value))).toBe(false);
     }
     expect(packed.includes(uid)).toBe(false);
+  });
+});
+
+describe('K3 確認結束後裁定同分補冠軍名', () => {
+  beforeEach(() => resetAll());
+
+  it('末場確認時未裁定的組不在 champions；裁定後寫入；撤銷後拿掉', async () => {
+    const c = await setupComp(['甲', '乙', '丙'], { host: TESTER });
+    await generate(c, TESTER);
+    await record(c, '甲', '乙', 1, 1);
+    await record(c, '甲', '丙', 1, 1);
+    await record(c, '乙', '丙', 1, 1);
+
+    const compRef = adminDb().doc(`competitions/${c.cid}`);
+    const ended = (await compRef.get()).data()!;
+    expect(ended.endedBy).toBe('confirm');
+    expect(ended.champions).toEqual([]);
+
+    const standing = await adminDb().doc(`competitions/${c.cid}/standings/${c.dvId}__group__A`).get();
+    const order = [c.enIdOf['丙'], c.enIdOf['甲'], c.enIdOf['乙']];
+    const resolved = await ok<{ hasUnresolvedTie: boolean; rows: Array<{ teamId: string }> }>(call(handleCpHost, TESTER, {
+      action: 'resolveTie', cid: c.cid, dvId: c.dvId, order, method: 'host', reason: '抽籤後登錄', expectedVersion: standing.get('version')
+    }, makeDeps(2 * DAY)));
+    expect(resolved.hasUnresolvedTie).toBe(false);
+    expect(resolved.rows.map(row => row.teamId)).toEqual(order);
+
+    const after = (await compRef.get()).data()!;
+    expect(after.endedBy).toBe('confirm');
+    expect(after.endedAt).toBeTruthy();
+    expect(after.champions).toEqual([{ dv: c.dvId, n: '丙' }]);
+
+    const mid = await adminDb().doc(`competitions/${c.cid}/standings/${c.dvId}__group__A`).get();
+    const cleared = await ok<{ hasUnresolvedTie: boolean }>(call(handleCpHost, TESTER, {
+      action: 'clearTieDecision', cid: c.cid, dvId: c.dvId, reason: '改回自動', expectedVersion: mid.get('version')
+    }, makeDeps(2 * DAY)));
+    expect(cleared.hasUnresolvedTie).toBe(true);
+
+    const back = (await compRef.get()).data()!;
+    expect(back.endedBy).toBe('confirm');
+    expect(back.endedAt).toBeTruthy();
+    expect(back.champions).toEqual([]);
+  });
+});
+
+describe('K3 確認與重置亂序', () => {
+  beforeEach(() => resetAll());
+
+  async function confirmedGoal(): Promise<{ c: Comp; id: string; confirmed: Record<string, unknown> }> {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const db = adminDb();
+    const m = (await matchesOf(c))[0]!;
+    await db.doc(`competitions/${c.cid}/roster/${PLA}`).set({ displayName: '王大明' });
+    await db.doc(`competitions/${c.cid}/matches/${m.id}/timeline/1`).set({
+      seq: 1, type: 'goal', goalKind: 'normal', plId: PLA, side: 'home'
+    });
+    await record(c, '甲', '乙', 1, 0);
+    const confirmed = (await db.doc(`competitions/${c.cid}/matches/${m.id}`).get()).data();
+    if (!confirmed) throw new Error('確認後的場次不存在');
+    return { c, id: m.id, confirmed };
+  }
+
+  function resetShape(confirmed: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...confirmed,
+      status: 'scheduled',
+      score: { home: 0, away: 0 },
+      result: null,
+      confirmedAt: null,
+      lock: { locked: false }
+    };
+  }
+
+  /** 依重讀後的場次狀態斷言。不看最後一個事件 hint。 */
+  async function assertFollowsReread(c: Comp, mtId: string): Promise<string> {
+    const cur = (await adminDb().doc(`competitions/${c.cid}/matches/${mtId}`).get()).data()!;
+    const comp = (await adminDb().doc(`competitions/${c.cid}`).get()).data()!;
+    const stats = await adminDb().doc(statsRef(c.cid, c.dvId)).get();
+    const line = stats.exists ? (stats.get('m') as Record<string, unknown> | undefined)?.[mtId] : undefined;
+    if (cur.status === 'confirmed') {
+      expect(line).toEqual({ [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } });
+      expect(comp.endedAt).toBeTruthy();
+      expect(comp.endedBy).toBe('confirm');
+      expect(comp.champions).toEqual([{ dv: c.dvId, n: '甲' }]);
+    } else {
+      expect(line).toBeUndefined();
+      expect(comp.endedAt ?? null).toBeNull();
+      expect(comp.endedBy ?? null).toBeNull();
+      expect(comp.champions).toBeUndefined();
+    }
+    return String(cur.status);
+  }
+
+  it('重置的事件先到、確認的事件後到：實際已是重置，不以確認 hint 寫回', async () => {
+    const { c, id, confirmed } = await confirmedGoal();
+    await adminDb().doc(`competitions/${c.cid}/matches/${id}`).set(resetShape(confirmed));
+    const resetNow = (await adminDb().doc(`competitions/${c.cid}/matches/${id}`).get()).data()!;
+    const deps = makeDeps();
+    await handleMatchWritten(deps, c.cid, id, confirmed, resetNow);
+    await handleMatchWritten(deps, c.cid, id, resetNow, confirmed);
+    expect(await assertFollowsReread(c, id)).toBe('scheduled');
+  });
+
+  it('確認的事件先到、重置的事件後到：實際仍是確認，不以重置 hint 清掉', async () => {
+    const { c, id, confirmed } = await confirmedGoal();
+    const resetHint = resetShape(confirmed);
+    await adminDb().doc(statsRef(c.cid, c.dvId)).delete();
+    const deps = makeDeps();
+    await handleMatchWritten(deps, c.cid, id, resetHint, confirmed);
+    await handleMatchWritten(deps, c.cid, id, confirmed, resetHint);
+    expect(await assertFollowsReread(c, id)).toBe('confirmed');
   });
 });

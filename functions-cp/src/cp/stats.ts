@@ -8,7 +8,11 @@ import { CID_RE, DVID_RE, FieldValue, readDoc, readQuery, type CpDeps } from './
 
 /** 單場事件／作廢標記上限（與 Rules、confirm 對帳的 200 相同）。查詢多讀 1 筆用來分辨剛好滿額。 */
 export const STATS_EVENT_MAX = 200;
-/** 進球與得牌球員要寫名字時，一批最多讀這麼多份公開名單。超過就只留 plId。 */
+/**
+ * 進球與得牌者要寫名字時，一批最多讀這麼多份公開名單。
+ * 保守策略：本場進球與得牌者合計超過 22 人就整批不寫名（進球者也一起不寫），只留 plId。
+ * 不把進球者與只得牌的人分開計額。
+ */
 export const STATS_NAME_BATCH = 22;
 export const STATS_DOC_MAX_BYTES = 200 * 1024;
 const NAME_MAX = 30;
@@ -26,7 +30,7 @@ export interface StatLine {
   g: number;
   /** 黃牌張數。第二黃不計在這裡。 */
   y: number;
-  /** 直接紅牌，加上每一張對得上第一黃的第二黃。 */
+  /** 直接紅牌，加上對得上且尚未被引用過的第一黃。同一張第一黃只計一次。 */
   r: number;
 }
 
@@ -106,6 +110,8 @@ export function buildMatchStat(
     if (ev.type === 'card' && ev.cardType === 'yellow' && plId) yellows.set(seq, plId);
   }
   const players: MatchStat = {};
+  // 同一張第一黃以 (plId, refSeq) 標記已用。第二張第二黃再引用就不計紅。
+  const usedFirstYellow = new Set<string>();
   for (const ev of active) {
     if (ev.type === 'goal' && COUNTED_GOAL_KINDS.has(ev.goalKind) && ev.plId) {
       bump(players, ev.plId, 'g');
@@ -115,6 +121,9 @@ export function buildMatchStat(
     if (ev.cardType === 'yellow') bump(players, ev.plId, 'y');
     else if (ev.cardType === 'red') bump(players, ev.plId, 'r');
     else if (ev.cardType === 'second_yellow' && ev.refSeq != null && yellows.get(ev.refSeq) === ev.plId) {
+      const key = `${ev.plId}:${ev.refSeq}`;
+      if (usedFirstYellow.has(key)) continue;
+      usedFirstYellow.add(key);
       // 每張第二黃對上自己的第一黃就計一紅。同一人兩張獨立黃牌各被引用時各計一紅。
       bump(players, ev.plId, 'r');
     }
@@ -125,7 +134,11 @@ export function buildMatchStat(
   return { ok: true, players: ordered, nameIds };
 }
 
-/** includeNames 為 false（超過 22 人）時整批不寫名字。缺名字或空白就省略 n。 */
+/**
+ * includeNames 為 false 時整批不寫名字。
+ * 這是保守策略：本場進球與得牌者合計超過 22 人就整批不寫名，不先保住進球者。
+ * 缺名字或空白就省略 n。
+ */
 export function attachNames(
   players: MatchStat,
   names: ReadonlyMap<string, string | null>,
@@ -340,6 +353,7 @@ export async function syncMatchStats(
       logger.error('cp stats event cap', { cid, mtId, reason: built.reason });
       return 'reject';
     }
+    // 保守策略：本場進球與得牌者合計超過 22 人就整批不寫名，不先保住進球者。
     const includeNames = built.nameIds.length <= STATS_NAME_BATCH;
     const names = new Map<string, string | null>();
     if (includeNames) {

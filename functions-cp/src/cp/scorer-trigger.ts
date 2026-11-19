@@ -1,5 +1,6 @@
 /**
- * 接手稽核。control/scorer 建立或換人時寫私密 audits/tk_{takenAtMs}_{actorHash}。
+ * 接手稽核。control/scorer 建立或換人時寫私密 audits/tk_{takenAtMs}_{mtId}_{actorHash}。
+ * mtId 是場次路徑上的 id，建立場次時已過 mt_[A-Za-z0-9]{20}。同一毫秒接手兩場因此各寫一筆。
  * 文件 id 與內容都不含 uid 原文。同 id 已存在就不寫。刪除、同一人只換 sid 不寫。
  */
 import { logger } from 'firebase-functions/v2';
@@ -55,7 +56,7 @@ export function scorerAuditPlan(
   return {
     kind: 'write',
     audit: {
-      id: `tk_${ms}_${actor}`,
+      id: `tk_${ms}_${mtId}_${actor}`,
       actor,
       mtId,
       takenAt: after.takenAt,

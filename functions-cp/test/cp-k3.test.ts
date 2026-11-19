@@ -70,6 +70,25 @@ describe('射手榜純函式', () => {
     expect(lineOf(two, PLA)).toEqual({ g: 0, y: 2, r: 2 });
   });
 
+  it('同一張第一黃被兩張第二黃引用只計一紅', () => {
+    const twice = buildMatchStat([
+      card(1, PLA, 'yellow'),
+      card(2, PLA, 'second_yellow', 1),
+      card(3, PLA, 'second_yellow', 1)
+    ], new Set(), 0);
+    expect(lineOf(twice, PLA)).toEqual({ g: 0, y: 1, r: 1 });
+
+    const otherFirst = buildMatchStat([
+      card(1, PLA, 'yellow'),
+      card(2, PLA, 'second_yellow', 1),
+      card(3, PLB, 'yellow'),
+      card(4, PLB, 'second_yellow', 3),
+      card(5, PLA, 'second_yellow', 1)
+    ], new Set(), 0);
+    expect(lineOf(otherFirst, PLA)).toEqual({ g: 0, y: 1, r: 1 });
+    expect(lineOf(otherFirst, PLB)).toEqual({ g: 0, y: 1, r: 1 });
+  });
+
   it('第二黃對不上有效的本人第一黃就不計紅', () => {
     const voided = buildMatchStat([
       card(1, PLA, 'yellow'),
@@ -269,12 +288,12 @@ describe('接手稽核計畫', () => {
     expect(created.kind).toBe('write');
     if (created.kind !== 'write') return;
     const hash = actorHash(CID, uid);
-    expect(created.audit.id).toBe(`tk_${ms}_${hash}`);
+    expect(created.audit.id).toBe(`tk_${ms}_${MT}_${hash}`);
     expect(created.audit).toMatchObject({ actor: hash, mtId: MT, sidChanged: false, prev: null });
     const packed = JSON.stringify(created.audit);
     expect(packed.includes(uid)).toBe(false);
     expect(packed.includes(sid)).toBe(false);
-    expect(created.audit.id).toMatch(/^tk_\d+_[0-9a-f]{16}$/);
+    expect(created.audit.id).toMatch(/^tk_\d+_mt_[A-Za-z0-9]{20}_[0-9a-f]{16}$/);
 
     const next = 'NextScorerPlainUID';
     const changed = scorerAuditPlan(CID, MT, { uid, sid, takenAt: at(ms) }, { uid: next, sid: 'new-sid', takenAt: at(ms + 1000) });
@@ -284,7 +303,25 @@ describe('接手稽核計畫', () => {
     expect(changed.audit.sidChanged).toBe(true);
     expect(changed.audit.actor).toBe(actorHash(CID, next));
     expect(JSON.stringify(changed.audit).includes(next)).toBe(false);
+    expect(changed.audit.id).toBe(`tk_${ms + 1000}_${MT}_${actorHash(CID, next)}`);
     expect(changed.audit.id.includes(uid)).toBe(false);
+  });
+
+  it('同一人同一毫秒接手兩場，id 含場次，不會撞成同一筆', () => {
+    const mt2 = 'mt_' + 'n'.repeat(20);
+    const hash = actorHash(CID, uid);
+    const a = scorerAuditPlan(CID, MT, null, { uid, sid, takenAt: at(ms) });
+    const b = scorerAuditPlan(CID, mt2, null, { uid, sid, takenAt: at(ms) });
+    expect(a.kind).toBe('write');
+    expect(b.kind).toBe('write');
+    if (a.kind !== 'write' || b.kind !== 'write') return;
+    expect(a.audit.id).toBe(`tk_${ms}_${MT}_${hash}`);
+    expect(b.audit.id).toBe(`tk_${ms}_${mt2}_${hash}`);
+    expect(a.audit.id).not.toBe(b.audit.id);
+    expect(a.audit.mtId).toBe(MT);
+    expect(b.audit.mtId).toBe(mt2);
+    expect(JSON.stringify(a.audit).includes(uid)).toBe(false);
+    expect(JSON.stringify(b.audit).includes(uid)).toBe(false);
   });
 
   it('uid 或 takenAt 不合法就拒絕，不組文件', () => {

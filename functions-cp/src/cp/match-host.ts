@@ -12,6 +12,7 @@
  * - rev 只增不退（§3.250-6）：每次伺服器改場次都 +1，讓離線的舊直寫在 Rules 被拒；resetMatch 另記 resetRev。
  * - 積分只算 confirmed／walkover（§6.3-7）；取消不計分。積分榜由觸發器重算（match-trigger.ts）。
  *   同分裁定在同一筆交易裡重算該組，失效規則在 buildStanding。
+ *   賽事 endedBy 為 confirm 時，裁定與撤銷在同一筆交易重算 champions；其他欄位與回傳不變。
  * - 第 3 步只開單一組循環；多組與淘汰屬第 5 步。
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
@@ -56,7 +57,7 @@ import {
   type PlanDay
 } from './schedule-plan.js';
 import { summaryEntryOf, summaryShardIdOf } from './summary.js';
-import { recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
+import { loadChampions, recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
 import {
   NOTICE_ID_RE,
   appendSystemNotice,
@@ -1145,26 +1146,60 @@ async function loadTieGroup(
   };
 }
 
-function writeGroupStanding(
-  tx: Transaction,
+function buildGroupStanding(
   cid: string,
   dvId: string,
   groupId: string,
   bundle: TieGroup,
-  override: ManualOverride,
-  computedBy: string
+  override: ManualOverride
 ): StandingDoc {
   const teamMeta = Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }]));
-  const doc = buildStanding({
+  return buildStanding({
     competitionId: cid, divisionId: dvId, stageId: 'group', groupId,
     teamIds: bundle.teamIds, matches: bundle.matches,
     rule: bundle.inputs.rule,
     opts: { ...bundle.inputs.opts, teamMeta },
     prev: { version: bundle.version, manualOverride: override, rows: bundle.prev?.rows }
   });
+}
+
+function commitGroupStanding(tx: Transaction, bundle: TieGroup, doc: StandingDoc, computedBy: string): void {
   const now = FieldValue.serverTimestamp();
   tx.set(bundle.ref, { ...doc, divisionName: bundle.divisionName, computedBy, updatedAt: now });
-  return doc;
+}
+
+function sameChampions(prev: unknown, next: readonly { dv: string; n: string }[]): boolean {
+  if (!Array.isArray(prev) || prev.length !== next.length) return false;
+  return next.every((item, i) => {
+    const row = prev[i];
+    if (!row || typeof row !== 'object') return false;
+    const o = row as Record<string, unknown>;
+    return o.dv === item.dv && o.n === item.n;
+  });
+}
+
+/**
+ * 末場確認（endedBy === 'confirm'）之後，裁定或撤銷在同一筆交易重算冠軍名。
+ * 組別集合的讀法與 syncEnded 相同，各組積分榜走 loadChampions（與確認結束共用 championsFromStandings）。
+ * 本組用剛算好的列，因為交易讀不到自己還沒寫出去的積分榜。
+ * 其他 endedBy 不讀、不寫。名單與目前相同就不寫，不改賽事文件的其他欄位。
+ */
+async function refreshConfirmChampions(
+  deps: CpDeps,
+  tx: Transaction,
+  cid: string,
+  comp: CompDoc,
+  fresh: { divisionId: string; groupId: string; rows: StandingRow[] }
+): Promise<void> {
+  if (comp.endedBy !== 'confirm') return;
+  const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
+  const champions = await loadChampions(deps, tx, cid, divs.docs, {
+    divisionId: fresh.divisionId,
+    groupId: fresh.groupId,
+    rows: fresh.rows
+  });
+  if (sameChampions(comp.champions, champions)) return;
+  tx.update(deps.db.doc(`competitions/${cid}`), { champions });
 }
 
 function rankBrief(rows: StandingRow[]) {
@@ -1209,7 +1244,9 @@ export async function resolveTie(deps: CpDeps, caller: Caller, gate: GateResult,
     const override: ManualOverride = {
       enabled: true, by: actorHash(cid, caller.uid), at: now, reason, method, order, decidedAt: now
     };
-    const doc = writeGroupStanding(tx, cid, dvId, groupId, bundle, override, 'cpHost:resolveTie');
+    const doc = buildGroupStanding(cid, dvId, groupId, bundle, override);
+    await refreshConfirmChampions(deps, tx, cid, comp, { divisionId: dvId, groupId, rows: doc.rows });
+    commitGroupStanding(tx, bundle, doc, 'cpHost:resolveTie');
     writeAudit(deps, tx, cid, caller, 'resolveTie', { dvId, groupId, method, reason, order, fromVersion: bundle.version });
     return { dvId, groupId, version: doc.version, method, hasUnresolvedTie: doc.hasUnresolvedTie, rows: rankBrief(doc.rows) };
   });
@@ -1227,7 +1264,9 @@ export async function clearTieDecision(deps: CpDeps, caller: Caller, gate: GateR
     assertNotEnded(deps, comp, caller);
     const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, expectedVersion);
     if (!tieDecisionView(bundle.prev?.manualOverride)) throw pre('TIE_NO_DECISION');
-    const doc = writeGroupStanding(tx, cid, dvId, groupId, bundle, clearedManualOverride(), 'cpHost:clearTieDecision');
+    const doc = buildGroupStanding(cid, dvId, groupId, bundle, clearedManualOverride());
+    await refreshConfirmChampions(deps, tx, cid, comp, { divisionId: dvId, groupId, rows: doc.rows });
+    commitGroupStanding(tx, bundle, doc, 'cpHost:clearTieDecision');
     writeAudit(deps, tx, cid, caller, 'clearTieDecision', { dvId, groupId, reason, fromVersion: bundle.version });
     return { dvId, groupId, version: doc.version, hasUnresolvedTie: doc.hasUnresolvedTie, rows: rankBrief(doc.rows) };
   });

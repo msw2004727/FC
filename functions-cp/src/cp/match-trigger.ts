@@ -8,6 +8,7 @@
  *   已解決場次回到未解決（含取消恢復成未賽）就清掉這次確認結束。手動結束（host）與自動結束（auto）不在這裡清。
  * - K3：進入或離開 confirmed 時更新射手榜。確認結束的同一筆寫入冠軍名，解除時刪除。
  *   進行中的進球、牌、換人、改期只寫摘要（afterHint 有值且兩邊都未計分、未解決時不重讀）。
+ *   確認結束後的同分裁定與撤銷由 match-host 呼叫 loadChampions 重算冠軍名。
  */
 import { LIMITS } from './validate.js';
 import type { DocumentData, DocumentReference, Transaction } from 'firebase-admin/firestore';
@@ -215,14 +216,23 @@ async function syncSummaryTx(
 
 const GROUP_ID_RE = /^[A-Za-z0-9]{1,8}$/;
 
-/** 只讀小組（stageId group）積分榜。組 id 不合形狀的略過。呼叫端已先確定要結束。 */
-async function loadChampions(
+type ChampionRow = NonNullable<ChampionStanding['rows']>[number];
+
+/**
+ * 只讀小組（stageId group）積分榜，再交給 championsFromStandings。
+ * 組 id 不合形狀的略過。呼叫端已先讀完組別文件。
+ * fresh：同一筆交易剛算好、尚未寫入的那一組。交易讀不到自己未提交的寫入，
+ * 所以仍讀該組積分榜（讀數與沒帶 fresh 相同），讀完後用這份列取代磁碟上的舊列。
+ */
+export async function loadChampions(
   deps: CpDeps,
   tx: Transaction,
   cid: string,
-  divs: ReadonlyArray<{ id: string; get(field: string): unknown }>
+  divs: ReadonlyArray<{ id: string; get(field: string): unknown }>,
+  fresh?: { divisionId: string; groupId: string; rows: readonly ChampionRow[] }
 ): Promise<Champion[]> {
   const items: ChampionStanding[] = [];
+  let usedFresh = !fresh;
   const docs = [...divs].sort((a, b) => a.id.localeCompare(b.id));
   for (const dv of docs) {
     if (!DVID_RE.test(dv.id)) continue;
@@ -238,9 +248,17 @@ async function loadChampions(
     )].sort();
     for (const groupId of groupIds) {
       const snap = await readDoc(deps, tx, standingRef(deps, cid, dv.id, 'group', groupId));
-      const rows = snap.exists ? snap.get('rows') : [];
-      items.push({ divisionId: dv.id, groupId, rows: Array.isArray(rows) ? rows : [] });
+      const stored = snap.exists ? snap.get('rows') : [];
+      if (fresh && dv.id === fresh.divisionId && groupId === fresh.groupId) {
+        usedFresh = true;
+        items.push({ divisionId: dv.id, groupId, rows: [...fresh.rows] });
+      } else {
+        items.push({ divisionId: dv.id, groupId, rows: Array.isArray(stored) ? stored : [] });
+      }
     }
+  }
+  if (fresh && !usedFresh) {
+    items.push({ divisionId: fresh.divisionId, groupId: fresh.groupId, rows: [...fresh.rows] });
   }
   return championsFromStandings(items);
 }
