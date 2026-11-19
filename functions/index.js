@@ -44,6 +44,7 @@ const { selectEnqueuePool } = require("./notification-pool");
 const { relationMode } = require("./notification-relation-enforcement");
 const { maskUid } = require("./notification-fields");
 const { createSubmitContactMessageCallable } = require("./contact-message");
+const { createLineLoginHandoffCallable } = require("./line-login-handoff");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   createUserAttendanceStatsExports,
@@ -19947,6 +19948,15 @@ exports.submitContactMessage = createSubmitContactMessageCallable({
   findUserDocByUidOrLineUserId,
   getLineRecipientUidFromUserDoc,
   isStaffRole: (role) => notificationGuards.isStaffRole(role),
+});
+
+// LINE 登入交接：瀏覽器暫存授權碼，主畫面 App 憑密鑰取回。
+exports.lineLoginHandoff = createLineLoginHandoffCallable({
+  onCall,
+  HttpsError,
+  db,
+  isLocalRequest: isLocalDevelopmentCreateCustomTokenRequest,
+  logger,
 });
 
 const { createOpsRollupExports } = require("./ops-daily-rollup");
