@@ -11,7 +11,7 @@ import { LIMITS } from './validate.js';
 import type { DocumentData, DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { buildStanding, engineInputsOf, resolveRules, standingIdOf, type MatchLike, type StandingDoc } from '../engine/index.js';
 import { FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
-import { RESOLVED_STATUSES, countedForStanding, rankingRuleOf, resolvedForEnd, standingMatchesOf } from './schedule-plan.js';
+import { RESOLVED_STATUSES, countedForStanding, resolvedForEnd, standingMatchesOf } from './schedule-plan.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from './summary.js';
 
 const UTC_OFFSET = '+08:00';
@@ -20,10 +20,23 @@ export function standingRef(deps: CpDeps, cid: string, dvId: string, stageId: st
   return deps.db.doc(`competitions/${cid}/standings/${standingIdOf(dvId, stageId, groupId)}`);
 }
 
-type Preset = 'h2hFirst' | 'goalDiffFirst';
+type RankingPreset = 'h2hFirst' | 'goalDiffFirst';
 
 function teamMetaOf(names: Record<string, string>) {
   return Object.fromEntries(Object.entries(names).map(([id, name]) => [id, { teamId: id, name }]));
+}
+
+/**
+ * 產生賽程這筆要寫的 ranking 疊進已讀的組別，不改呼叫端手上的物件，也不再讀。
+ * 沒有 rules 時解析才看 schedule.ranking，結果才與原本的捷徑相同。
+ */
+function divisionWithRanking(division: Record<string, unknown>, ranking: RankingPreset): Record<string, unknown> {
+  const prev = division.schedule;
+  const schedule = prev && typeof prev === 'object' && !Array.isArray(prev)
+    ? { ...(prev as Record<string, unknown>) }
+    : {};
+  schedule.ranking = ranking;
+  return { ...division, schedule };
 }
 
 /**
@@ -63,18 +76,30 @@ export function applyStanding(
 
 /**
  * 產生賽程時的全 0 積分榜（名次照抽籤順序，畫面在全部 0 場時不顯示同分標記）。
- * prevVersion：重排時沿用舊版本 +1，避免版本倒退被 isStaleWrite 當成舊資料（Opus 終審 P3-2）。
+ * prevVersion：重排時沿用舊版本 +1，避免版本倒退被 isStaleWrite 當成舊資料。
  * divisionName：組別文件上的名稱（呼叫端已讀過，這裡不再讀）。
+ * 排序用 engineInputsOf(resolveRules(division))。ranking 是這筆要寫進 schedule 的值，疊在已讀文件上，不另讀。
+ * 沒有 rules 時與原本的 rankingRuleOf(ranking) 相同。有 rules 時以解析結果為準。
+ * 文件帶 rankingRuleId、criteria，給這張全 0 表對得上解析結果。下次重算整份 set 會蓋掉這兩欄。
  */
 export function zeroStandingDoc(
-  cid: string, dvId: string, teamIds: string[], names: Record<string, string>, preset: Preset,
+  cid: string, dvId: string, teamIds: string[], names: Record<string, string>,
+  division: Record<string, unknown>, ranking: RankingPreset,
   prevVersion = 0, divisionName = ''
 ) {
+  const { rule, opts } = engineInputsOf(resolveRules(divisionWithRanking(division, ranking)));
   const doc = buildStanding({
     competitionId: cid, divisionId: dvId, stageId: 'group', groupId: 'A', teamIds, matches: [],
-    rule: rankingRuleOf(preset), opts: { teamMeta: teamMetaOf(names) }, prev: { version: prevVersion }
+    rule, opts: { ...opts, teamMeta: teamMetaOf(names) }, prev: { version: prevVersion }
   });
-  return { ...doc, divisionName, computedBy: 'cpHost:generateSchedule', updatedAt: FieldValue.serverTimestamp() };
+  return {
+    ...doc,
+    rankingRuleId: rule.rankingRuleId,
+    criteria: [...rule.criteria],
+    divisionName,
+    computedBy: 'cpHost:generateSchedule',
+    updatedAt: FieldValue.serverTimestamp()
+  };
 }
 
 function kickoffMsOf(d: DocumentData | null | undefined): number | null {

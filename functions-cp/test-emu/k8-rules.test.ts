@@ -8,10 +8,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { adminDb } from '../test-rules/_harness.js';
 import { ReadMeter } from '../src/cp/context.js';
 import { handleCpHost } from '../src/cp/host.js';
-import { RULE_TEMPLATES, type ResolvedRules } from '../src/engine/rules.js';
+import { buildStanding, engineInputsOf, resolveRules, RULE_TEMPLATES, type ResolvedRules } from '../src/engine/index.js';
+import { rankingRuleOf } from '../src/cp/schedule-plan.js';
 import { ADMIN, DAY, TESTER, TESTER2, call, fails, makeDeps, ok, resetAll, setBannedWords } from './_cp.js';
 import {
-  LATER, act, generate, later, matchesOf, orderNames, pairing, record, setupComp, standingOf
+  LATER, act, generate, later, matchesOf, orderNames, pairing, record, scheduleInput, setupComp, standingOf
 } from './_step3.js';
 
 type Row = [string, string, number, number];
@@ -190,7 +191,6 @@ describe('組別比賽規則', () => {
     // 閘門 1＋賽事 1＋組別 1＋確認或棄權聚合 1＋積分 1＋該組場次 1。
     // 聚合是這次退修多出來的 1 讀；原先整組場次一筆查詢時是 5。
     expect(meter.reads).toBe(6);
-    expect(meter.reads).toBeLessThanOrEqual(6 + 1 + 240 + 1);
   });
 
   it('只改補充說明不重算', async () => {
@@ -211,7 +211,6 @@ describe('組別比賽規則', () => {
     const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ text?: string }> | undefined;
     expect((notices ?? []).some(n => String(n.text ?? '').includes('比賽規則於'))).toBe(false);
     expect(meter.reads).toBe(3);
-    expect(meter.reads).toBeLessThanOrEqual(6);
   });
 
   it('非主辦、寬限外主辦、已取消都不能改', async () => {
@@ -379,5 +378,72 @@ describe('組別比賽規則', () => {
     }
     const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
     expect(dv.get('rules')).toBeUndefined();
+  });
+
+  it('沒有 rules 時，產生賽程的全 0 積分榜與 goalDiffFirst 捷徑相同', async () => {
+    const c = await setupComp(['甲', '乙']);
+    // 不跑場次觸發器。觸發器會整份重算，蓋掉這張全 0 表上的 rankingRuleId／criteria。
+    await ok(call(handleCpHost, ADMIN, scheduleInput(c, { ranking: 'goalDiffFirst' })));
+    const st = (await adminDb().doc(`competitions/${c.cid}/standings/${c.dvId}__group__A`).get()).data()!;
+    const rule = rankingRuleOf('goalDiffFirst');
+    const rows = st.rows as Array<{ teamId: string; name: string }>;
+    const expected = buildStanding({
+      competitionId: c.cid, divisionId: c.dvId, stageId: 'group', groupId: 'A',
+      teamIds: rows.map(r => r.teamId), matches: [], rule,
+      opts: { teamMeta: Object.fromEntries(rows.map(r => [r.teamId, { teamId: r.teamId, name: r.name }])) },
+      prev: { version: 0 }
+    });
+    expect(st.rows).toEqual(expected.rows);
+    expect(st.version).toBe(expected.version);
+    expect(st.hasUnresolvedTie).toBe(expected.hasUnresolvedTie);
+    expect(st.rankingRuleId).toBe(rule.rankingRuleId);
+    expect(st.criteria).toEqual([...rule.criteria]);
+    expect(st.computedBy).toBe('cpHost:generateSchedule');
+    const schedule = (await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get()).get('schedule');
+    expect(schedule.ranking).toBe('goalDiffFirst');
+  });
+
+  it('有 rules 時，產生賽程的全 0 積分榜跟解析結果一致', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await ok(call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => {
+      r.tieBreak.criteria = ['points', 'wins', 'manual'];
+    }))));
+    await ok(call(handleCpHost, ADMIN, scheduleInput(c, { ranking: 'h2hFirst' })));
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    const rule = engineInputsOf(resolveRules(dv.data())).rule;
+    const st = (await adminDb().doc(`competitions/${c.cid}/standings/${c.dvId}__group__A`).get()).data()!;
+    expect(st.rankingRuleId).toBe(rule.rankingRuleId);
+    expect(st.criteria).toEqual([...rule.criteria]);
+    expect(st.rankingRuleId).toBe('custom');
+    expect(st.criteria).toEqual(['points', 'wins', 'manual']);
+    expect(st.computedBy).toBe('cpHost:generateSchedule');
+    expect(dv.get('schedule.ranking')).toBe('h2hFirst');
+  });
+
+  it('同一組 241 筆場次時改計分回 TOO_MANY_MATCHES，而且不寫', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const before = (await standingOf(c))!;
+    const db = adminDb();
+    const batch = db.batch();
+    for (let i = 0; i < 241; i++) {
+      batch.set(db.doc(`competitions/${c.cid}/matches/mt_k8cap_${String(i).padStart(3, '0')}`), {
+        divisionId: c.dvId, stageId: 'group', groupId: 'A'
+      });
+    }
+    await batch.commit();
+    const out = await call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.points.win = 2; })));
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.error.code).toBe('failed-precondition');
+      expect(out.error.reason).toBe('TOO_MANY_MATCHES');
+      expect(out.error.params).toMatchObject({ count: 241, max: 240, groupId: 'A' });
+    }
+    const dv = await db.doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules')).toBeUndefined();
+    expect((await standingOf(c))!.version).toBe(before.version);
+    const audits = (await db.collection(`competitions/${c.cid}/audits`).get()).docs
+      .filter(d => d.get('action') === 'setDivisionRules');
+    expect(audits).toHaveLength(0);
   });
 });
