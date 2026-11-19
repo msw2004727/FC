@@ -8,8 +8,8 @@
  *   已解決場次回到未解決（含取消恢復成未賽）就清掉這次確認結束。手動結束（host）與自動結束（auto）不在這裡清。
  */
 import { LIMITS } from './validate.js';
-import type { DocumentData, DocumentReference } from 'firebase-admin/firestore';
-import { buildStanding, standingIdOf, type StandingDoc } from '../engine/index.js';
+import type { DocumentData, DocumentReference, Transaction } from 'firebase-admin/firestore';
+import { buildStanding, engineInputsOf, resolveRules, standingIdOf, type MatchLike, type StandingDoc } from '../engine/index.js';
 import { FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
 import { RESOLVED_STATUSES, countedForStanding, rankingRuleOf, resolvedForEnd, standingMatchesOf } from './schedule-plan.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from './summary.js';
@@ -21,10 +21,44 @@ export function standingRef(deps: CpDeps, cid: string, dvId: string, stageId: st
 }
 
 type Preset = 'h2hFirst' | 'goalDiffFirst';
-const presetOf = (v: unknown): Preset => (v === 'goalDiffFirst' ? 'goalDiffFirst' : 'h2hFirst');
 
 function teamMetaOf(names: Record<string, string>) {
   return Object.fromEntries(Object.entries(names).map(([id, name]) => [id, { teamId: id, name }]));
+}
+
+/**
+ * 交易內寫一張積分榜。呼叫端要先讀完組別、場次、前一版，這裡不再讀。
+ * 規則用傳入的組別文件：觸發器傳剛讀到的文件；setDivisionRules 傳記憶體裡的新規則，
+ * 不能再讀磁碟，否則同一筆交易會看到舊規則。
+ */
+export function applyStanding(
+  tx: Transaction,
+  ref: DocumentReference,
+  args: {
+    cid: string;
+    dvId: string;
+    stageId: string;
+    groupId: string;
+    teamIds: string[];
+    matches: MatchLike[];
+    division: Record<string, unknown>;
+    divisionName: string;
+    computedBy: string;
+    prev: { version?: number; manualOverride?: StandingDoc['manualOverride']; rows?: StandingDoc['rows'] } | null;
+    names: Record<string, string>;
+  }
+): StandingDoc {
+  const { rule, opts } = engineInputsOf(resolveRules(args.division));
+  const doc = buildStanding({
+    competitionId: args.cid, divisionId: args.dvId, stageId: args.stageId, groupId: args.groupId,
+    teamIds: args.teamIds,
+    matches: standingMatchesOf(args.matches),
+    rule,
+    opts: { ...opts, teamMeta: teamMetaOf(args.names) },
+    prev: args.prev
+  });
+  tx.set(ref, { ...doc, divisionName: args.divisionName, computedBy: args.computedBy, updatedAt: FieldValue.serverTimestamp() });
+  return doc;
 }
 
 /**
@@ -77,17 +111,17 @@ export async function recomputeStanding(deps: CpDeps, cid: string, dvId: string,
       }
     }
     const prevData = prev.exists ? (prev.data() as Partial<StandingDoc>) : null;
-    const doc = buildStanding({
-      competitionId: cid, divisionId: dvId, stageId, groupId,
-      teamIds: group.teamIds as string[],
-      matches: standingMatchesOf(all) as never,
-      rule: rankingRuleOf(presetOf(schedule?.ranking)),
-      opts: { teamMeta: teamMetaOf(names) },
-      prev: prevData ? { version: prevData.version, manualOverride: prevData.manualOverride, rows: prevData.rows } : null
-    });
-    // 組別文件這筆交易已經讀過，名稱直接帶上，不再讀。整份 set 會蓋掉舊欄位，所以一定要寫。
+    // 組別文件這筆交易已經讀過，名稱與規則直接帶上，不再讀。整份 set 會蓋掉舊欄位，所以一定要寫。
     const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
-    tx.set(ref, { ...doc, divisionName, computedBy: 'cpOnMatchWritten', updatedAt: FieldValue.serverTimestamp() });
+    const division = dv.exists ? (dv.data() as Record<string, unknown>) : {};
+    applyStanding(tx, ref, {
+      cid, dvId, stageId, groupId,
+      teamIds: group.teamIds as string[],
+      matches: all as MatchLike[],
+      division, divisionName, computedBy: 'cpOnMatchWritten',
+      prev: prevData ? { version: prevData.version, manualOverride: prevData.manualOverride, rows: prevData.rows } : null,
+      names
+    });
     return true;
   });
 }

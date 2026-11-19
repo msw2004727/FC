@@ -1,0 +1,286 @@
+/**
+ * cpHost.setDivisionRules：寫入組別比賽規則。
+ * 掛在 HOST_ACTIONS，不放進 MATCH_HOST_ACTIONS（本檔要引用 match-host，避免循環）。
+ * 計分有沒有變看 sameScoringInputs，不看鍵名清單：關閉的仁慈只改 cap 不算；只改 preset、criteria 沒變也不算。
+ * 已有 confirmed 或 walkover 且計分有變才要求原因、公告、rulesChangedAt。finished 不算已確認。
+ * 取消（status==='cancelled'）在結束寬限之前擋下，連管理員都是 COMPETITION_CLOSED。
+ */
+import type { Transaction } from 'firebase-admin/firestore';
+import {
+  resolveRules, rulesDocumentOf, sameScoringInputs, validateRulesInput,
+  type MatchLike, type ResolvedRules, type StandingDoc
+} from '../engine/index.js';
+import { bad, notFound, pre } from './errors.js';
+import {
+  CID_RE, DVID_RE, FieldValue, Timestamp, actorHash, readDoc, readQuery, requireId, writeAudit,
+  type Caller, type CompDoc, type CpDeps, type GateResult
+} from './context.js';
+import { assertNotEnded, hostComp } from './match-host.js';
+import { applyStanding, standingRef } from './match-trigger.js';
+import { appendSystemNotice, taipeiMonthDay } from './notice.js';
+import { cleanLine, findBannedWord } from './text.js';
+import { onlyKeys } from './validate.js';
+
+const REASON_MAX = 100;
+const MATCH_READ_MAX = 400;
+
+const TIME_LOCKS = ['time.periods', 'time.halfMinutes', 'time.halftime.enabled', 'time.halftime.minutes'] as const;
+const WALKOVER_LOCKS = [
+  'walkover.scoreFor', 'walkover.scoreAgainst', 'walkover.awardPoints', 'walkover.penaltyPoints', 'walkover.countInGoalStats'
+] as const;
+
+/** 草案 §1 標題，順序就是公告串接順序。squad.note 屬上場人數。 */
+const SECTIONS: ReadonlyArray<{ title: string; hit: (path: string) => boolean }> = [
+  { title: '上場人數', hit: p => p === 'playersOnField' || p.startsWith('squad.') },
+  { title: '比賽時間', hit: p => p.startsWith('time.') },
+  { title: '換人', hit: p => p.startsWith('substitution.') },
+  { title: '勝和負積分', hit: p => p.startsWith('points.') },
+  { title: '同分排序', hit: p => p.startsWith('tieBreak.') },
+  { title: '平手處理', hit: p => p.startsWith('draw.') },
+  { title: '棄權比分', hit: p => p.startsWith('walkover.') },
+  { title: '遲到寬限', hit: p => p.startsWith('late.') },
+  { title: '紅黃牌累積停賽', hit: p => p.startsWith('suspension.') },
+  { title: '公平競賽（行為分）', hit: p => p.startsWith('fairPlay.') },
+  { title: '仁慈規則（單場球差上限）', hit: p => p.startsWith('mercy.') },
+  { title: '裝備', hit: p => p.startsWith('equipment.') },
+  { title: '申訴時限', hit: p => p.startsWith('appeal.') }
+];
+
+type MatchRow = {
+  matchId: string;
+  status?: string;
+  stageId?: unknown;
+  groupId?: unknown;
+  home?: { teamId?: unknown; name?: unknown } | null;
+  away?: { teamId?: unknown; name?: unknown } | null;
+};
+
+function leavesOf(r: ResolvedRules): Record<string, unknown> {
+  return {
+    playersOnField: r.playersOnField,
+    'squad.note': r.squad.note,
+    'time.periods': r.time.periods,
+    'time.halfMinutes': r.time.halfMinutes,
+    'time.halftime.enabled': r.time.halftime.enabled,
+    'time.halftime.minutes': r.time.halftime.minutes,
+    'time.note': r.time.note,
+    'substitution.mode': r.substitution.mode,
+    'substitution.maxCount': r.substitution.maxCount,
+    'substitution.note': r.substitution.note,
+    'points.win': r.points.win,
+    'points.draw': r.points.draw,
+    'points.loss': r.points.loss,
+    'points.note': r.points.note,
+    'tieBreak.preset': r.tieBreak.preset,
+    'tieBreak.criteria': r.tieBreak.criteria,
+    'tieBreak.h2hScope': r.tieBreak.h2hScope,
+    'tieBreak.note': r.tieBreak.note,
+    'draw.roundRobin': r.draw.roundRobin,
+    'draw.knockout': r.draw.knockout,
+    'draw.note': r.draw.note,
+    'walkover.scoreFor': r.walkover.scoreFor,
+    'walkover.scoreAgainst': r.walkover.scoreAgainst,
+    'walkover.awardPoints': r.walkover.awardPoints,
+    'walkover.penaltyPoints': r.walkover.penaltyPoints,
+    'walkover.countInGoalStats': r.walkover.countInGoalStats,
+    'walkover.note': r.walkover.note,
+    'late.graceMin': r.late.graceMin,
+    'late.note': r.late.note,
+    'suspension.enabled': r.suspension.enabled,
+    'suspension.yellowThreshold': r.suspension.yellowThreshold,
+    'suspension.yellowBanMatches': r.suspension.yellowBanMatches,
+    'suspension.directRedBanMatches': r.suspension.directRedBanMatches,
+    'suspension.note': r.suspension.note,
+    'fairPlay.yellow': r.fairPlay.yellow,
+    'fairPlay.secondYellow': r.fairPlay.secondYellow,
+    'fairPlay.directRed': r.fairPlay.directRed,
+    'fairPlay.yellowThenRed': r.fairPlay.yellowThenRed,
+    'fairPlay.note': r.fairPlay.note,
+    'mercy.enabled': r.mercy.enabled,
+    'mercy.cap': r.mercy.cap,
+    'mercy.note': r.mercy.note,
+    'equipment.shinGuards': r.equipment.shinGuards,
+    'equipment.sameColorKit': r.equipment.sameColorKit,
+    'equipment.jerseyNumber': r.equipment.jerseyNumber,
+    'equipment.note': r.equipment.note,
+    'appeal.windowMin': r.appeal.windowMin,
+    'appeal.depositTwd': r.appeal.depositTwd,
+    'appeal.note': r.appeal.note
+  };
+}
+
+function changedLeaves(before: ResolvedRules, after: ResolvedRules): string[] {
+  const left = leavesOf(before);
+  const right = leavesOf(after);
+  const out: string[] = [];
+  for (const key of Object.keys(left)) {
+    if (JSON.stringify(left[key]) !== JSON.stringify(right[key])) out.push(key);
+  }
+  return out;
+}
+
+function firstLocked(changed: readonly string[], active: ReadonlySet<string>): string | null {
+  for (const field of changed) {
+    if (active.has(field)) return field;
+  }
+  return null;
+}
+
+function sectionTitles(changed: readonly string[]): string[] {
+  return SECTIONS.filter(s => changed.some(path => s.hit(path))).map(s => s.title);
+}
+
+/** 空白或未提供當沒填。有內容就驗 2～100 與禁用詞，就算這次還不必填原因。 */
+function optionalReason(v: unknown, banned: readonly string[]): string | null {
+  if (v == null) return null;
+  if (typeof v !== 'string') throw bad('FIELD_TYPE', { field: 'reason' });
+  const s = cleanLine(v);
+  if (!s) return null;
+  const len = [...s].length;
+  if (len < 2 || len > REASON_MAX) throw bad('FIELD_LENGTH', { field: 'reason', min: 2, max: REASON_MAX });
+  if (findBannedWord(s, banned)) throw bad('BANNED_WORD', { field: 'reason' });
+  return s;
+}
+
+function assertNotesClean(rules: object, banned: readonly string[]): void {
+  const visit = (prefix: string, node: unknown) => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      if (k === 'note') {
+        if (typeof v === 'string' && v.length > 0 && findBannedWord(v, banned)) throw bad('BANNED_WORD', { field: path });
+      } else if (v && typeof v === 'object') visit(path, v);
+    }
+  };
+  visit('', rules);
+}
+
+function namesOf(matches: readonly MatchRow[]): Record<string, string> {
+  const names: Record<string, string> = {};
+  for (const m of matches) {
+    for (const side of ['home', 'away'] as const) {
+      const t = m[side];
+      if (t && typeof t.teamId === 'string' && typeof t.name === 'string') names[t.teamId] = t.name;
+    }
+  }
+  return names;
+}
+
+export async function setDivisionRules(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'dvId', 'rules', 'reason']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const dvId = requireId(input.dvId, DVID_RE, 'dvId');
+  const checked = validateRulesInput(input.rules);
+  if (checked.errors.length > 0) {
+    const issue = checked.errors[0];
+    throw bad(issue.reason, { field: issue.field });
+  }
+  const stored = rulesDocumentOf(input.rules);
+  if (!stored) throw bad('FIELD_REQUIRED', { field: 'rules' });
+  assertNotesClean(stored.rules, gate.bannedWords);
+  const reason = optionalReason(input.reason, gate.bannedWords);
+
+  return deps.db.runTransaction(async (tx: Transaction) => {
+    const comp: CompDoc = await hostComp(deps, tx, caller, gate, cid);
+    if (comp.status === 'cancelled') throw pre('COMPETITION_CLOSED');
+    assertNotEnded(deps, comp, caller);
+
+    const dvRef = deps.db.doc(`competitions/${cid}/divisions/${dvId}`);
+    const dv = await readDoc(deps, tx, dvRef);
+    if (!dv.exists) throw notFound('DIVISION_NOT_FOUND');
+    const raw = (dv.data() ?? {}) as Record<string, unknown>;
+    const old = resolveRules(raw);
+    const nextDivision: Record<string, unknown> = { ...raw, playersOnField: stored.playersOnField, rules: stored.rules };
+    const next = resolveRules(nextDivision);
+    const changed = changedLeaves(old, next);
+
+    const schedule = raw.schedule;
+    const hasSchedule = !!schedule && typeof schedule === 'object';
+    const entryCount = raw.entryCount;
+    const hasEntries = typeof entryCount === 'number' && entryCount > 0;
+    const structural = new Set<string>();
+    if (hasEntries || hasSchedule) structural.add('playersOnField');
+    if (hasSchedule) for (const field of TIME_LOCKS) structural.add(field);
+    const structuralHit = firstLocked(changed, structural);
+    if (structuralHit) throw pre('RULES_LOCKED', { field: structuralHit });
+
+    const scoringChanged = !sameScoringInputs(old, next);
+    const walkoverChanged = WALKOVER_LOCKS.some(field => changed.includes(field));
+    let matches: MatchRow[] = [];
+    // 沒有賽程就不可能有場次。棄權鎖定用這一次查詢，不逐場讀。
+    if (hasSchedule && (scoringChanged || walkoverChanged)) {
+      const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
+        .where('divisionId', '==', dvId).limit(MATCH_READ_MAX));
+      matches = snap.docs.map(d => ({ matchId: d.id, ...d.data() }) as MatchRow);
+      if (walkoverChanged && matches.some(m => m.status === 'walkover')) {
+        const hit = firstLocked(changed, new Set<string>(WALKOVER_LOCKS));
+        if (hit) throw pre('RULES_LOCKED', { field: hit });
+      }
+    }
+    const transparent = scoringChanged && matches.some(m => m.status === 'confirmed' || m.status === 'walkover');
+    if (transparent && reason == null) throw bad('REASON_REQUIRED', { field: 'reason' });
+
+    const groups = hasSchedule && Array.isArray((schedule as { groups?: unknown }).groups)
+      ? (schedule as { groups: Array<{ groupId?: unknown; teamIds?: unknown }> }).groups
+      : [];
+    const pending: Array<{
+      ref: ReturnType<CpDeps['db']['doc']>;
+      groupId: string;
+      teamIds: string[];
+      prev: Partial<StandingDoc>;
+    }> = [];
+    if (scoringChanged) {
+      for (const g of groups) {
+        if (typeof g.groupId !== 'string' || !Array.isArray(g.teamIds)) continue;
+        const teamIds = g.teamIds.filter((id): id is string => typeof id === 'string');
+        const ref = standingRef(deps, cid, dvId, 'group', g.groupId);
+        const prevSnap = await readDoc(deps, tx, ref);
+        if (!prevSnap.exists) continue;
+        pending.push({ ref, groupId: g.groupId, teamIds, prev: prevSnap.data() as Partial<StandingDoc> });
+      }
+    }
+
+    const divisionPatch: Record<string, unknown> = {
+      playersOnField: stored.playersOnField,
+      rules: stored.rules,
+      updatedAt: FieldValue.serverTimestamp()
+    };
+    if (transparent) divisionPatch.rulesChangedAt = FieldValue.serverTimestamp();
+    tx.update(dvRef, divisionPatch);
+
+    const divisionName = typeof raw.name === 'string' ? raw.name : '';
+    const names = namesOf(matches);
+    let recomputed = false;
+    for (const item of pending) {
+      const groupMatches = matches.filter(m => m.stageId === 'group' && m.groupId === item.groupId);
+      applyStanding(tx, item.ref, {
+        cid, dvId, stageId: 'group', groupId: item.groupId,
+        teamIds: item.teamIds,
+        matches: groupMatches as MatchLike[],
+        division: nextDivision,
+        divisionName,
+        computedBy: 'cpHost:setDivisionRules',
+        prev: { version: item.prev.version, manualOverride: item.prev.manualOverride, rows: item.prev.rows },
+        names
+      });
+      recomputed = true;
+    }
+
+    if (transparent && reason != null) {
+      const md = taipeiMonthDay(deps.now().getTime()) ?? '';
+      const titles = sectionTitles(changed);
+      appendSystemNotice(tx, {
+        ref: deps.db.doc(`competitions/${cid}`),
+        notices: comp.notices,
+        at: Timestamp.fromMillis(deps.now().getTime()),
+        by: actorHash(cid, caller.uid)
+      }, {
+        kind: 'system',
+        text: `比賽規則於 ${md} 修改：${titles.join('、')}，原因：${reason}`
+      });
+    }
+
+    writeAudit(deps, tx, cid, caller, 'setDivisionRules', { dvId, changed, reason, recomputed });
+    return { dvId, recomputed, warnings: checked.warnings };
+  });
+}
