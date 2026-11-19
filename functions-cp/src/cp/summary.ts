@@ -9,13 +9,17 @@ export interface SummaryEntry {
   no: number | null;
   k: number | null;
   v: string | null;
-  h: { id: string; n: string };
-  a: { id: string; n: string };
+  /** 場次 venueIdx。非整數（含缺欄）為 null。新寫入一律帶此鍵。 */
+  vi: number | null;
+  h: { id: string; n: string; l: string | null };
+  a: { id: string; n: string; l: string | null };
   s: [number, number];
   st: string;
   wo: string | null;
   /** 取消原因（只有 st 為 cancelled 時有值；G1 Opus 終審 P2：讓前端不必為了原因另讀場次） */
   cr?: string | null;
+  /** 確認後改分的毫秒。沒有可 toMillis 的整數時間就省略（舊條目即此意）。 */
+  cx?: number;
   /** PK 比分 [home, away]。penaltyScore 為 null 或不是整數對時省略（§3.317-6）。 */
   p?: [number, number];
 }
@@ -51,12 +55,41 @@ function clipName(value: unknown): string {
   return Array.from(text).slice(0, NAME_MAX).join('');
 }
 
-function sideOf(raw: unknown): { id: string; n: string } {
+/** 非空字串照抄，否則 null。這裡不重跑白名單（觸發器環境可能沒有 bucket）。 */
+function logoOf(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function sideOf(raw: unknown): { id: string; n: string; l: string | null } {
   const o = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
   return {
     id: typeof o.teamId === 'string' ? o.teamId : '',
-    n: clipName(o.name)
+    n: clipName(o.name),
+    l: logoOf(o.logo)
   };
+}
+
+/** 場次 venueIdx。只有整數留下，其餘（含缺欄、字串、小數）為 null。 */
+function venueIndexOf(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isInteger(raw) ? raw : null;
+}
+
+/**
+ * 確認後改分時間。必須是帶 toMillis() 的物件，且回傳有限整數。
+ * 純數字、字串、壞值都省略，避免把數字誤當時間。
+ */
+export function correctedAtMs(raw: unknown): number | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const fn = (raw as { toMillis?: unknown }).toMillis;
+  if (typeof fn !== 'function') return null;
+  let ms: unknown;
+  try {
+    ms = (fn as () => unknown).call(raw);
+  } catch {
+    return null;
+  }
+  if (typeof ms !== 'number' || !Number.isInteger(ms)) return null;
+  return ms;
 }
 
 /** 非整數（含缺欄）當 0。名字最多 30 字（code point）。 */
@@ -78,18 +111,21 @@ export function summaryEntryOf(match: Record<string, unknown>, kickoffMs: number
   const round = typeof match.round === 'number' && Number.isFinite(match.round) ? match.round : 0;
   const no = typeof match.matchNo === 'number' && Number.isFinite(match.matchNo) ? match.matchNo : null;
   const penalty = penaltyPair(match.penaltyScore);
+  const cx = correctedAtMs(match.scoreCorrectedAt);
   return {
     dv: typeof match.divisionId === 'string' ? match.divisionId : '',
     r: round,
     no,
     k: typeof kickoffMs === 'number' && Number.isFinite(kickoffMs) ? kickoffMs : null,
     v: typeof match.venueName === 'string' ? match.venueName : null,
+    vi: venueIndexOf(match.venueIdx),
     h: sideOf(match.home),
     a: sideOf(match.away),
     s: [scoreNum(score.home), scoreNum(score.away)],
     st: typeof match.status === 'string' ? match.status : '',
     wo: typeof match.walkoverSide === 'string' ? match.walkoverSide : null,
     ...(match.status === 'cancelled' && typeof match.cancelReason === 'string' ? { cr: match.cancelReason.slice(0, 100) } : {}),
+    ...(cx != null ? { cx } : {}),
     ...(penalty ? { p: penalty } : {})
   };
 }

@@ -70,8 +70,10 @@ function assertSchedule(result: PlanResult, spec: { matchMinutes: number; buffer
     expect(m.venueIdx).not.toBeNull();
     expect(m.venueName).not.toBeNull();
     expect(m.home.teamId).not.toBe(m.away.teamId);
-    expect(Object.keys(m.home).sort()).toEqual(['name', 'teamId']);
-    expect(Object.keys(m.away).sort()).toEqual(['name', 'teamId']);
+    expect(Object.keys(m.home).sort()).toEqual(['logo', 'name', 'teamId']);
+    expect(Object.keys(m.away).sort()).toEqual(['logo', 'name', 'teamId']);
+    expect(m.home.logo).toBeNull();
+    expect(m.away.logo).toBeNull();
     const window = spec.days.find(d => {
       const start = taipeiMs(d.date, d.start, '+08:00');
       const end = taipeiMs(d.date, d.end, '+08:00');
@@ -354,6 +356,36 @@ function allKeys(value: unknown, out: string[] = []): string[] {
   return out;
 }
 
+describe('隊徽快照', () => {
+  it('主客隊 logo 依 enId 對照，不用引擎 logoUrl；缺值與空字串為 null', () => {
+    const logo = 'https://firebasestorage.googleapis.com/v0/b/demo-cp.firebasestorage.app/o/a.png';
+    const engineLogo = 'https://cdn.example/engine.png';
+    const list = [
+      { enId: 'en1', name: '甲', logo, logoUrl: engineLogo },
+      { enId: 'en2', name: '乙', logoUrl: 'https://cdn.example/engine-b.png' }
+    ];
+    const result = planRoundRobin(base({ teams: list, seed: 7 }));
+    expect(result.matchCount).toBe(1);
+    const m = result.matches[0];
+    const logoOf = (id: string) => (id === 'en1' ? logo : null);
+    expect(m.home.logo).toBe(logoOf(m.home.teamId));
+    expect(m.away.logo).toBe(logoOf(m.away.teamId));
+    expect(JSON.stringify(m)).not.toContain('cdn.example');
+    expect(m.home).not.toHaveProperty('logoUrl');
+    expect(m.away).not.toHaveProperty('logoUrl');
+
+    const blank = planRoundRobin(base({
+      teams: [
+        { enId: 'en1', name: '甲', logo: '' },
+        { enId: 'en2', name: '乙', logo: null }
+      ],
+      seed: 1
+    }));
+    expect(blank.matches[0].home.logo).toBeNull();
+    expect(blank.matches[0].away.logo).toBeNull();
+  });
+});
+
 describe('publicMatchDoc', () => {
   it('鍵集合與 §1.2 相同，不含 uid 類欄位', () => {
     const planned = plan({ seed: 5 }).matches[0];
@@ -372,8 +404,8 @@ describe('publicMatchDoc', () => {
       kickoffMs: planned.kickoffMs,
       venueIdx: planned.venueIdx,
       venueName: planned.venueName,
-      home: { teamId: planned.home.teamId, name: planned.home.name },
-      away: { teamId: planned.away.teamId, name: planned.away.name },
+      home: { teamId: planned.home.teamId, name: planned.home.name, logo: null },
+      away: { teamId: planned.away.teamId, name: planned.away.name, logo: null },
       teamIds: [planned.home.teamId, planned.away.teamId],
       score: { home: 0, away: 0 },
       penaltyScore: null,
@@ -390,7 +422,8 @@ describe('publicMatchDoc', () => {
     });
     expect(Object.keys(doc.lock as object)).toEqual(['locked']);
     expect(Object.keys(doc.clockBase as object)).toEqual(['startedAt', 'pausedSec', 'running', 'period']);
-    expect(Object.keys(doc.home as object)).toEqual(['teamId', 'name']);
+    expect(Object.keys(doc.home as object)).toEqual(['teamId', 'name', 'logo']);
+    expect(Object.keys(doc.away as object)).toEqual(['teamId', 'name', 'logo']);
     expect(Object.keys(doc.score as object)).toEqual(['home', 'away']);
     const banned = ['uid', 'createdBy', 'updatedBy', 'scoreMismatch', 'kickoffAt', 'updatedAt'];
     const keys = allKeys(doc);
@@ -404,8 +437,8 @@ describe('publicMatchDoc', () => {
       kickoffMs: null,
       venueIdx: null,
       venueName: null,
-      home: { teamId: 'en1', name: '甲' },
-      away: { teamId: 'en2', name: '乙' }
+      home: { teamId: 'en1', name: '甲', logo: null },
+      away: { teamId: 'en2', name: '乙', logo: 'https://example/keep.png' }
     };
     const doc = publicMatchDoc(m, { mtId: 'mt_xxxxxxxxxxxxxxxxxxxx', dvId: 'dv1' });
     expect(doc.kickoffMs).toBeNull();
@@ -413,6 +446,10 @@ describe('publicMatchDoc', () => {
     expect(doc.venueName).toBeNull();
     expect(doc.kickoffAt).toBeUndefined();
     expect(doc.updatedAt).toBeUndefined();
+    expect(doc.home).toEqual({ teamId: 'en1', name: '甲', logo: null });
+    expect(doc.away).toEqual({ teamId: 'en2', name: '乙', logo: 'https://example/keep.png' });
+    expect(Object.keys(doc)).toEqual(PUBLIC_KEYS);
+    expect(allKeys(doc)).not.toContain('uid');
   });
 });
 
@@ -575,14 +612,17 @@ describe('summary', () => {
       no: 4,
       k: 1_700_000_000_000,
       v: 'A場',
-      h: { id: 'en1', n: '名'.repeat(30) },
-      a: { id: 'en2', n: '👍'.repeat(30) },
+      vi: null,
+      h: { id: 'en1', n: '名'.repeat(30), l: null },
+      a: { id: 'en2', n: '👍'.repeat(30), l: null },
       s: [0, 3],
       st: 'confirmed',
       wo: null
     };
     expect(entry).toEqual(expected);
-    expect(Object.keys(entry)).toEqual(['dv', 'r', 'no', 'k', 'v', 'h', 'a', 's', 'st', 'wo']);
+    expect(Object.keys(entry)).toEqual(['dv', 'r', 'no', 'k', 'v', 'vi', 'h', 'a', 's', 'st', 'wo']);
+    expect(Object.keys(entry.h)).toEqual(['id', 'n', 'l']);
+    expect(Object.keys(entry.a)).toEqual(['id', 'n', 'l']);
     expect(Array.from(entry.a.n)).toHaveLength(30);
 
     const zeros = summaryEntryOf({
@@ -592,8 +632,9 @@ describe('summary', () => {
     }, null);
     expect(zeros.s).toEqual([0, -1]);
     expect(zeros.k).toBeNull();
-    expect(zeros.h).toEqual({ id: 'en1', n: '甲' });
-    expect(zeros.a).toEqual({ id: '', n: '' });
+    expect(zeros.h).toEqual({ id: 'en1', n: '甲', l: null });
+    expect(zeros.a).toEqual({ id: '', n: '', l: null });
+    expect(zeros.vi).toBeNull();
     expect(zeros.no).toBeNull();
     expect(zeros.v).toBeNull();
     expect(zeros.wo).toBeNull();
@@ -612,7 +653,9 @@ describe('summary', () => {
     expect('p' in summaryEntryOf({ ...base, penaltyScore: { home: 4.5, away: 3 } }, 10)).toBe(false);
     const pk = summaryEntryOf({ ...base, penaltyScore: { home: 4, away: 3 } }, 10);
     expect(pk.p).toEqual([4, 3]);
-    expect(Object.keys(pk)).toEqual(['dv', 'r', 'no', 'k', 'v', 'h', 'a', 's', 'st', 'wo', 'p']);
+    expect(Object.keys(pk)).toEqual(['dv', 'r', 'no', 'k', 'v', 'vi', 'h', 'a', 's', 'st', 'wo', 'p']);
+    expect(Object.keys(pk.h)).toEqual(['id', 'n', 'l']);
+    expect(Object.keys(pk.a)).toEqual(['id', 'n', 'l']);
     const zero = summaryEntryOf({ ...base, penaltyScore: { home: 0, away: 0 } }, 10);
     expect(zero.p).toEqual([0, 0]);
     const wide = summaryEntryOf({ ...base, penaltyScore: { home: 10, away: 10 } }, 10);
@@ -623,7 +666,70 @@ describe('summary', () => {
     const cancelled = summaryEntryOf({
       ...base, status: 'cancelled', cancelReason: '雨', penaltyScore: { home: 1, away: 0 }
     }, 10);
-    expect(Object.keys(cancelled)).toEqual(['dv', 'r', 'no', 'k', 'v', 'h', 'a', 's', 'st', 'wo', 'cr', 'p']);
+    expect(Object.keys(cancelled)).toEqual(['dv', 'r', 'no', 'k', 'v', 'vi', 'h', 'a', 's', 'st', 'wo', 'cr', 'p']);
+    expect(Object.keys(cancelled.h)).toEqual(['id', 'n', 'l']);
+    expect(Object.keys(cancelled.a)).toEqual(['id', 'n', 'l']);
+  });
+
+  it('summaryEntryOf：l 照抄非空字串，缺欄與非字串為 null；不重跑白名單', () => {
+    const url = 'https://cdn.example/not-on-whitelist.png';
+    const entry = summaryEntryOf({
+      divisionId: 'dv1', round: 1, matchNo: 1, venueName: 'A', venueIdx: 0,
+      home: { teamId: 'h', name: '主', logo: url },
+      away: { teamId: 'a', name: '客', logo: '' },
+      score: { home: 0, away: 0 }, status: 'scheduled'
+    }, 10);
+    expect(entry.h.l).toBe(url);
+    expect(entry.a.l).toBeNull();
+    const missing = summaryEntryOf({
+      home: { teamId: 'h', name: '主' },
+      away: { teamId: 'a', name: '客', logo: 12 },
+      score: { home: 0, away: 0 }
+    }, null);
+    expect(missing.h.l).toBeNull();
+    expect(missing.a.l).toBeNull();
+    expect(JSON.stringify(entry)).not.toContain('uid');
+  });
+
+  it('summaryEntryOf：沒有 scoreCorrectedAt 時不含 cx；toMillis 整數才帶；壞值與純數字省略', () => {
+    const base = {
+      divisionId: 'dv1', round: 1, matchNo: 1, venueName: 'A',
+      home: { teamId: 'h', name: '主', uid: 'caller-uid' },
+      away: { teamId: 'a', name: '客' },
+      score: { home: 1, away: 0 }, status: 'scheduled', uid: 'caller-uid'
+    };
+    const none = summaryEntryOf(base, 10);
+    expect('cx' in none).toBe(false);
+    expect(summaryEntryOf({ ...base, scoreCorrectedAt: 1000 }, 10).cx).toBeUndefined();
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: 1000 }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: '1000' }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: null }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: { toMillis: () => Number.NaN } }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: { toMillis: () => Number.POSITIVE_INFINITY } }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: { toMillis: () => 1000.5 } }, 10)).toBe(false);
+    expect('cx' in summaryEntryOf({ ...base, scoreCorrectedAt: { toMillis: () => { throw new Error('x'); } } }, 10)).toBe(false);
+    const stamped = summaryEntryOf({ ...base, scoreCorrectedAt: { toMillis: () => 1000 } }, 10);
+    expect(stamped.cx).toBe(1000);
+    expect(Object.keys(stamped)).toEqual(['dv', 'r', 'no', 'k', 'v', 'vi', 'h', 'a', 's', 'st', 'wo', 'cx']);
+    expect(JSON.stringify(stamped)).not.toContain('uid');
+    expect(JSON.stringify(stamped)).not.toContain('caller-uid');
+  });
+
+  it('summaryEntryOf：vi 為整數 venueIdx，非整數為 null，鍵始終在', () => {
+    const base = {
+      divisionId: 'dv1', round: 1, matchNo: 1,
+      home: { teamId: 'h', name: '主' }, away: { teamId: 'a', name: '客' },
+      score: { home: 0, away: 0 }, status: 'scheduled'
+    };
+    expect(summaryEntryOf({ ...base, venueIdx: 0 }, 10).vi).toBe(0);
+    expect(summaryEntryOf({ ...base, venueIdx: 3 }, 10).vi).toBe(3);
+    expect(summaryEntryOf({ ...base, venueIdx: -1 }, 10).vi).toBe(-1);
+    expect(summaryEntryOf({ ...base, venueIdx: 1.5 }, 10).vi).toBeNull();
+    expect(summaryEntryOf({ ...base, venueIdx: null }, 10).vi).toBeNull();
+    expect(summaryEntryOf({ ...base, venueIdx: '1' }, 10).vi).toBeNull();
+    const missing = summaryEntryOf(base, 10);
+    expect('vi' in missing).toBe(true);
+    expect(missing.vi).toBeNull();
   });
 
   it('sameEntry 等值與不等值；空值只有兩邊都空才 true', () => {
@@ -643,6 +749,9 @@ describe('summary', () => {
     expect(sameEntry(entry, { ...copy, st: 'confirmed' })).toBe(false);
     expect(sameEntry(entry, { ...copy, wo: 'home' })).toBe(false);
     expect(sameEntry(entry, { ...copy, k: null })).toBe(false);
+    expect(sameEntry(entry, { ...copy, h: { ...copy.h, l: 'https://cdn.example/a.png' } })).toBe(false);
+    expect(sameEntry(entry, { ...copy, a: { ...copy.a, l: 'https://cdn.example/b.png' } })).toBe(false);
+    expect(sameEntry(entry, { ...copy, vi: 0 })).toBe(false);
     expect(sameEntry(null, null)).toBe(true);
     expect(sameEntry(undefined, undefined)).toBe(true);
     expect(sameEntry(null, undefined)).toBe(true);

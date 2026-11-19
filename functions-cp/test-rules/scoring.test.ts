@@ -2,7 +2,7 @@
  * §6.3 直寫記分：通過案例＋拒絕案例（§6.3-9 清單逐條對應，測試名稱以【R-xx】標號）
  * 基準：cp_pub/mt_1 進行中 score 1:0、rev 3；e1 開賽、e2 主隊進球、e3 客隊黃牌；目前記分者 s1。
  */
-import { describe, it, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, beforeAll, beforeEach, afterEach, expect } from 'vitest';
 import {
   collection, deleteDoc, doc, getDocs, limit, query, writeBatch, serverTimestamp, setDoc, updateDoc,
   Timestamp as CTimestamp, type Firestore
@@ -929,5 +929,105 @@ it('【R-32】場次進行中但 lock.locked 為 true：進球被拒（真正測
   it('【R-38】score 超出範圍（100）被拒', async () => {
     await patchMatch('cp_pub', { score: { home: 99, away: 0 } });
     await assertFails(scoreBatch(as('s1'), { ev: goal('home'), patch: { score: { home: 100, away: 0 } } }));
+  });
+});
+
+/**
+ * K9：場次預先帶 home.logo 與 scoreCorrectedAt 時，一般進球、PK、只改 clockBase 仍成功。
+ * 同一筆若改到 home.logo 或 scoreCorrectedAt，三條路都失敗。不改規則檔。
+ */
+describe('K9 隊徽快照與確認後改分不擋記分', () => {
+  const LOGO = 'https://firebasestorage.googleapis.com/v0/b/demo-cp.firebasestorage.app/o/a.png';
+  const OTHER_LOGO = 'https://evil.example/logo.png';
+  const STAMP_MS = 1_700_000_000_000;
+
+  async function preload() {
+    await patchMatch('cp_pub', {
+      home: { entryId: 'en_h', name: '主隊', logo: LOGO },
+      scoreCorrectedAt: Timestamp.fromMillis(STAMP_MS)
+    });
+  }
+
+  async function armPk(rev: number) {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 },
+      penaltyScore: { home: 0, away: 0 },
+      clockBase: adminClock(),
+      rev
+    });
+  }
+
+  async function armClock(rev: number) {
+    await patchMatch('cp_pub', {
+      status: 'live',
+      score: { home: 1, away: 0 },
+      penaltyScore: null,
+      rev,
+      lock: { locked: false },
+      clockBase: { startedAt: Timestamp.now(), pausedSec: 0, running: true, period: 'h1' }
+    });
+  }
+
+  const clockPatch = () => ({
+    clockBase: { startedAt: CTimestamp.now(), pausedSec: 120, running: true, period: 'h1' }
+  });
+
+  it('預先帶 home.logo 與 scoreCorrectedAt：進球、PK、只改 clockBase 仍成功', async () => {
+    await preload();
+    await assertSucceeds(scoreBatch(as('s1'), { ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
+
+    await armPk(4);
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4,
+      ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 } }
+    }));
+
+    await armClock(5);
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'clock' }, patch: clockPatch() }));
+
+    const doc = (await adminDb().doc('competitions/cp_pub/matches/mt_1').get()).data()!;
+    expect(doc.home.logo).toBe(LOGO);
+    expect(doc.scoreCorrectedAt.toMillis()).toBe(STAMP_MS);
+  });
+
+  it('同一筆多帶 home.logo：進球、PK、只改 clockBase 都失敗', async () => {
+    await preload();
+    await assertFails(scoreBatch(as('s1'), {
+      ev: goal('home'),
+      patch: { score: { home: 2, away: 0 }, 'home.logo': OTHER_LOGO }
+    }));
+
+    await armPk(3);
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 }, 'home.logo': OTHER_LOGO }
+    }));
+
+    await armClock(3);
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'clock' },
+      patch: { ...clockPatch(), 'home.logo': OTHER_LOGO }
+    }));
+  });
+
+  it('同一筆多帶 scoreCorrectedAt：進球、PK、只改 clockBase 都失敗', async () => {
+    await preload();
+    await assertFails(scoreBatch(as('s1'), {
+      ev: goal('home'),
+      patch: { score: { home: 2, away: 0 }, scoreCorrectedAt: serverTimestamp() }
+    }));
+
+    await armPk(3);
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 }, scoreCorrectedAt: serverTimestamp() }
+    }));
+
+    await armClock(3);
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'clock' },
+      patch: { ...clockPatch(), scoreCorrectedAt: serverTimestamp() }
+    }));
   });
 });

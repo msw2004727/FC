@@ -45,7 +45,7 @@ import {
   type GateResult
 } from './context.js';
 import { findBannedWord, requireLine } from './text.js';
-import { LIMITS, onlyKeys, requireEnum, statusReasonOf } from './validate.js';
+import { LIMITS, onlyKeys, requireEnum, statusReasonOf, teamLogoOf } from './validate.js';
 import {
   canCancelMatch,
   canResetMatch,
@@ -56,7 +56,7 @@ import {
   statusAfterReset,
   type PlanDay
 } from './schedule-plan.js';
-import { summaryEntryOf, summaryShardIdOf } from './summary.js';
+import { correctedAtMs, summaryEntryOf, summaryShardIdOf } from './summary.js';
 import { loadChampions, recomputeDivisionStandings, standingRef, zeroStandingDoc } from './match-trigger.js';
 import {
   NOTICE_ID_RE,
@@ -248,7 +248,7 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     const dv = await readDoc(deps, tx, dvRef);
     if (!dv.exists) throw new CpError('not-found', 'DIVISION_NOT_FOUND');
     const entries = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entries`)
-      .where('dvId', '==', dvId).where('status', '==', 'approved').select('name').limit(SCHEDULE_LIMITS.teamsMax + 1));
+      .where('dvId', '==', dvId).where('status', '==', 'approved').select('name', 'teamLogo').limit(SCHEDULE_LIMITS.teamsMax + 1));
     const n = entries.size;
     if (n < SCHEDULE_LIMITS.teamsMin || n > SCHEDULE_LIMITS.teamsMax) {
       throw pre('TEAMS_RANGE', { count: n, min: SCHEDULE_LIMITS.teamsMin, max: SCHEDULE_LIMITS.teamsMax });
@@ -259,8 +259,13 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     if (old.some(m => !EDITABLE_SCHEDULE.includes(m.status))) throw pre('RESULTS_EXIST');
 
     // 隊伍依 enId 排序再交給引擎抽籤，讓同 seed 的預覽與正式產生一致（查詢順序不影響結果）
+    // 隊徽在產生當下再跑 teamLogoOf（含白名單）。不合格寫 null。同一查詢多投影一欄，不加讀取。
     const teams = entries.docs
-      .map(d => ({ enId: d.id, name: typeof d.get('name') === 'string' ? (d.get('name') as string) : '隊伍' }))
+      .map(d => ({
+        enId: d.id,
+        name: typeof d.get('name') === 'string' ? (d.get('name') as string) : '隊伍',
+        logo: teamLogoOf(d.get('teamLogo'))
+      }))
       .sort((a, b) => (a.enId < b.enId ? -1 : 1));
     let plan;
     try {
@@ -823,6 +828,8 @@ export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResul
     const points = resolveRules(await divisionRecord(deps, tx, cid, m.snap)).points;
     const status = confirm ? 'confirmed' : 'finished';
     const now = FieldValue.serverTimestamp();
+    // 已有可 toMillis 的戳記才刷新。第一次登錄不寫。狀態仍只接受 scheduled／finished。
+    const refreshCorrected = correctedAtMs(m.snap.get('scoreCorrectedAt')) != null;
     tx.update(m.ref, {
       score, status, lock: { locked: true },
       ...(m.snap.get('finishedAt') ? {} : { finishedAt: now }),
@@ -832,6 +839,7 @@ export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResul
       // 顧問 §3.335 P2：PK 只在正規比分平手時才有意義。主辦改成非平手就清掉 PK 比分（摘要的 p 由觸發器跟著拿掉）；
       // 平手則保留裁判記的 PK 比分。重置與棄權另有清除。
       ...(score.home !== score.away ? { penaltyScore: null } : {}),
+      ...(refreshCorrected ? { scoreCorrectedAt: now } : {}),
       rev: m.rev + 1, updatedAt: now
     });
     // 主辦登錄後一律清掉目前記分者：否則記分者可在 finishedAt 後 3 分鐘內 undoFinish 撤回主辦的結果，
@@ -938,11 +946,16 @@ export async function resetMatch(deps: CpDeps, caller: Caller, gate: GateResult,
     const rev = m.rev + 1;
     // 取消場回到未賽：有開賽時間為 scheduled，否則 postponed，並清掉取消欄位。
     const status = statusAfterReset(m.kickoffMs);
+    const now = FieldValue.serverTimestamp();
+    // 確認或棄權被重置才蓋 scoreCorrectedAt。尚未確認的場次不新增，也不刪已有戳記。
+    const stampCorrected = m.status === 'confirmed' || m.status === 'walkover';
     tx.update(m.ref, {
       status, score: { home: 0, away: 0 }, penaltyScore: null, lock: { locked: false },
       finishedAt: null, confirmedAt: null, result: null, walkoverSide: null, resultSource: null,
       cancelReason: FieldValue.delete(), cancelledAt: FieldValue.delete(),
-      clockBase: CLEAR_CLOCK, rev, resetRev: rev, updatedAt: FieldValue.serverTimestamp()
+      clockBase: CLEAR_CLOCK, rev, resetRev: rev,
+      ...(stampCorrected ? { scoreCorrectedAt: now } : {}),
+      updatedAt: now
     });
     // 重置後要重新接手（§6.3-2）
     tx.delete(m.ref.collection('control').doc('scorer'));
