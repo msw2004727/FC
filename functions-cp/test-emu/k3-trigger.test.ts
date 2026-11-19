@@ -306,13 +306,77 @@ describe('K3 確認、重置、再確認與冠軍名', () => {
     expect(hostEnded.endedBy).toBe('host');
     expect(hostEnded.champions).toBeUndefined();
 
+    // 已有結果的組別不能重排（RESULTS_EXIST，已驗收，不改守門）。
+    // 真實情境：兩個組別同時存在，只排並確認第一組；第二組尚未排賽程。
+    // 末場確認要求每個組別都已有 schedule，所以不會寫 endedAt／champions。
+    // 接著為第二組 generateSchedule 不會碰到 RESULTS_EXIST，也沒有可刪的冠軍欄。
     const again = await setupComp(['甲', '乙']);
+    const dvB = 'dv_' + 'C'.repeat(20);
+    await db.doc(`competitions/${again.cid}/divisions/${dvB}`).set({
+      name: '少年組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 10, order: 1
+    });
+    for (const [i, name] of ['寅', '卯'].entries()) {
+      await db.doc(`competitions/${again.cid}/entries/en_${String(i + 2).repeat(20)}`).set({
+        dvId: dvB, teamId: `club_y${i}`, name, status: 'approved', rosterCount: 1, rosterConfirmed: true
+      });
+    }
     await generate(again);
     await record(again, '甲', '乙', 1, 0);
-    expect((await db.doc(`competitions/${again.cid}`).get()).get('champions')).toEqual([{ dv: again.dvId, n: '甲' }]);
-    await generate(again);
+    const done = await matchesOf(again);
+    expect(done).toHaveLength(1);
+    expect(done[0]!.status).toBe('confirmed');
+    const afterFirst = (await db.doc(`competitions/${again.cid}`).get()).data()!;
+    expect(afterFirst.endedAt ?? null).toBeNull();
+    expect(afterFirst.champions).toBeUndefined();
+
+    const pending: Comp = {
+      ...again,
+      dvId: dvB,
+      enIdOf: { 寅: 'en_' + '2'.repeat(20), 卯: 'en_' + '3'.repeat(20) },
+      nameOf: { ['en_' + '2'.repeat(20)]: '寅', ['en_' + '3'.repeat(20)]: '卯' }
+    };
+    await generate(pending);
     const rescheduled = (await db.doc(`competitions/${again.cid}`).get()).data()!;
-    expect(rescheduled.endedAt).toBeNull();
+    expect(rescheduled.endedAt ?? null).toBeNull();
     expect(rescheduled.champions).toBeUndefined();
+    expect((await db.doc(`competitions/${again.cid}/divisions/${dvB}`).get()).get('schedule')).toBeTruthy();
+    expect((await matchesOf(pending))).toHaveLength(1);
+    expect((await matchesOf(again))[0]!.status).toBe('confirmed');
+  });
+
+  it('確認後的 stats 序列化不含 rosterPrivate 的值與 uid', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const db = adminDb();
+    const m = (await matchesOf(c))[0]!;
+    const uid = 'uid_plain_9f3a7c';
+    const priv = {
+      uid,
+      realName: '林真實甲',
+      birthday: '1988-07-19',
+      phone: '0912000111',
+      teamId: 'club_secret_zz',
+      addedByUid: 'uid_rep_added_zz'
+    };
+    await db.doc(`competitions/${c.cid}/roster/${PLA}`).set({ displayName: '王大明', number: 9 });
+    await db.doc(`competitions/${c.cid}/rosterPrivate/${PLA}`).set(priv);
+    await db.doc(`competitions/${c.cid}/matches/${m.id}/timeline/1`).set({
+      seq: 1, type: 'goal', goalKind: 'normal', plId: PLA
+    });
+    await record(c, '甲', '乙', 1, 0);
+
+    const stored = (await db.doc(`competitions/${c.cid}/rosterPrivate/${PLA}`).get()).data()!;
+    expect(stored).toMatchObject(priv);
+    const data = (await db.doc(statsRef(c.cid, c.dvId)).get()).data()!;
+    expect(Object.keys(data).sort()).toEqual(['m', 'updatedAt']);
+    expect(Object.keys(data.m[m.id][PLA]).sort()).toEqual(['g', 'n', 'r', 'y']);
+    expect(data.m[m.id][PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    const packed = JSON.stringify(data);
+    expect(packed.includes('王大明')).toBe(true);
+    for (const value of Object.values(stored)) {
+      expect(typeof value).toBe('string');
+      expect(packed.includes(String(value))).toBe(false);
+    }
+    expect(packed.includes(uid)).toBe(false);
   });
 });

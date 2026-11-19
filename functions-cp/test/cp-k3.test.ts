@@ -160,6 +160,50 @@ describe('射手榜純函式', () => {
     const unchanged = planStatsWrite({ m: prevM }, `mt_${String(0).padStart(20, '0')}`, players, path);
     expect(unchanged.op).toBe('noop');
   });
+
+  it('文件鍵只有 m、updatedAt，球員列只有 n、g、y、r；序列化不含夾具 uid、真名、生日、電話', () => {
+    const fixture = readFileSync(new URL('../test-rules/_fixtures.ts', import.meta.url), 'utf8');
+    const privLines = fixture.split('\n').filter(line => line.includes('rosterPrivate/'));
+    expect(privLines.length).toBeGreaterThan(0);
+    const fromFixture = [...new Set(privLines.flatMap(line => [...line.matchAll(/'([^']*)'/g)].map(m => m[1])))]
+      .filter(s => s.length > 0);
+    expect(fromFixture).toEqual(expect.arrayContaining(['m1', 'rep', '真名', '代填']));
+    // 共用夾具的 rosterPrivate 沒有生日、電話欄；下面把這兩個值塞進列裡，確認不會被寫出去。
+    expect(privLines.join('\n')).not.toMatch(/birthday|phone/);
+    const birthday = '1988-07-19';
+    const phone = '0912000111';
+
+    const dirty: Record<string, unknown> = {
+      g: 1, y: 0, r: 0, n: '真名',
+      uid: 'm1', realName: '真名', addedByUid: 'rep', teamId: 'club_a',
+      birthday, phone
+    };
+    for (const s of fromFixture) dirty[s] = s;
+    const players = attachNames(
+      { [PLA]: dirty as StatLine, [PLB]: { g: 0, y: 1, r: 0, realName: '代填', birthday, phone } as StatLine },
+      new Map<string, string | null>([[PLA, '公開甲'], [PLB, '   ']]),
+      true
+    );
+    expect(Object.keys(players[PLA]!).sort()).toEqual(['g', 'n', 'r', 'y']);
+    expect(players[PLA]).toEqual({ n: '公開甲', g: 1, y: 0, r: 0 });
+    expect(Object.keys(players[PLB]!).sort()).toEqual(['g', 'r', 'y']);
+
+    // 與 syncMatchStats 的 tx.set 相同：頂層只有 m、updatedAt。
+    const doc = { m: { [MT]: players }, updatedAt: 0 };
+    expect(Object.keys(doc).sort()).toEqual(['m', 'updatedAt']);
+    const packed = JSON.stringify(doc);
+    for (const s of [...fromFixture, birthday, phone, 'm1', 'rep']) {
+      expect(packed.includes(s)).toBe(false);
+    }
+    for (const key of ['uid', 'realName', 'birthday', 'phone', 'addedByUid', 'teamId']) {
+      expect(packed.includes(`"${key}"`)).toBe(false);
+    }
+    expect(packed.includes('公開甲')).toBe(true);
+
+    const src = readFileSync(new URL('../src/cp/stats.ts', import.meta.url), 'utf8');
+    expect(src).toContain('tx.set(ref, { m: { [mtId]: plan.players }, updatedAt: FieldValue.serverTimestamp() })');
+    expect(src).toContain('tx.update(ref, { [`m.${mtId}`]: plan.players, updatedAt: FieldValue.serverTimestamp() })');
+  });
 });
 
 describe('冠軍名純函式', () => {

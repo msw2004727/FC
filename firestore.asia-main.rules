@@ -524,6 +524,13 @@ service cloud.firestore {
         allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
         allow write: if false;
       }
+      // 射手榜（K3，顧問 §3.338 補二：甲）：伺服器寫、公開只讀單份。內容只有公開顯示名與統計數字。
+      // 不開 list（文件可達 200KB，避免一次抓整個集合）；獨立區塊，不碰記分路徑的運算式預算。
+      match /stats/{dvId} {
+        allow get: if canReadComp(cid);
+        allow list: if false;
+        allow write: if false;
+      }
 
       // 私密：主辦、共同主辦、管理員、該隊代表（鏡像）；rosterPrivate 另加本人
       match /entryPrivate/{enId} {
