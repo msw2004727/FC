@@ -99,8 +99,8 @@ export const SCHEDULE_LIMITS = Object.freeze({
 const UTC_OFFSET = '+08:00';
 /** 取消、手動結束、恢復的原因上限（Unicode code point）。比 statusReason 的 200 更短。 */
 const ACTION_REASON_MAX = 100;
-/** 一場比分對帳最多讀的事件數（一場正常約 20～60 筆） */
-const TIMELINE_MAX = 500;
+/** 確認對帳時 timeline、voids 各最多讀 100 筆（與 Rules EVENT_MAX、list 上限相同）。查詢多帶 1 筆，用來分辨剛好滿額與超限。 */
+const TIMELINE_MAX = 100;
 const EDITABLE_SCHEDULE = ['scheduled', 'postponed'];
 
 function int(v: unknown, field: string, min: number, max: number, dflt?: number): number {

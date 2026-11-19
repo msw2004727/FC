@@ -93,6 +93,9 @@ service cloud.firestore {
     function voidPath(cid, mt, targetSeq) {
       return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/voids/$(string(targetSeq));
     }
+    function cardLinkPath(cid, mt, ySeq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/cardLinks/$(string(ySeq));
+    }
     function scorerCtlPath(cid, mt) {
       return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/control/scorer;
     }
@@ -110,7 +113,7 @@ service cloud.firestore {
     function isAssigned(cid, mt) {
       return signedIn() && assignedData(get(staffPath(cid)).data, mt);
     }
-    // 記分者：賽事可記分＋本場指派＋目前記分者（control/scorer.uid，私密文件）
+    // 記分者：賽事可記分＋本場指派＋目前記分者
     function scorerOk(cid, mt) {
       return signedIn()
         && compScorableData(get(compPath(cid)).data)
@@ -138,36 +141,46 @@ service cloud.firestore {
         || (side == 'away' && b.score.away == a.score.away + d && b.score.home == a.score.home));
     }
 
+    // ⑤ 作廢進球要扣分；作廢牌只動 rev。目標文件只 get 一次，避免拒絕路徑多讀。
+    function voidFx(a, b, ch, t) {
+      return (t.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt']) && scoreDelta(a, b, t.side, -1))
+        || (t.type == 'card' && ch.hasOnly(['rev', 'updatedAt']));
+    }
     // 場次 update 依事件類型的效果（a = 寫入前、b = 寫入後、ch = 變動鍵、ev = 同批事件）
     function effectOk(cid, mt, a, b, ch, ev) {
-      // ev.createdAt == request.time：證明事件是本請求同批新建（Opus 終審 P1-A：
-      // 否則事先存在的 e{rev+1}，例如伺服器重置後殘留，可被只改場次而套用效果）
+      // ev.createdAt == request.time：證明事件是本請求同批新建（Opus 終審 P1-A）
+      // ② 這裡只確認有 sid。與接手文件相等放在 eventCreateOk：
+      // 場次 update 再 get 一次接手文件會讓拒絕路徑超過 1000 運算式。
+      // clockOk 只呼叫一次。分開放進開賽／終場／撤回會讓拒絕路徑各走一次 validClockBase。
       return ev.createdAt == request.time
-        && (ev.type == 'undoFinish' || a.lock.locked == false) && (
+        && ev.sid is string
+        && (ev.type == 'undoFinish' || a.lock.locked == false)
+        && clockOk(ch, b) && (
         (ev.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt'])
           && a.status == 'live' && scoreDelta(a, b, ev.side, 1))
-        || (ev.type == 'void' && ch.hasOnly(['score', 'rev', 'updatedAt'])
-          && a.status in ['live', 'halftime']
-          && scoreDelta(a, b, get(eventPath(cid, mt, ev.targetSeq)).data.side, -1))
+        || (ev.type == 'void' && a.status in ['live', 'halftime']
+          && voidFx(a, b, ch, get(eventPath(cid, mt, ev.targetSeq)).data))
         || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'])
+        // ④ 只改 clockBase，且必須真的改到；live／半場。形狀由上面的 clockOk 驗。
+        || (ev.type == 'clock'
+          && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
+          && ch.hasAny(['clockBase'])
           && a.status in ['live', 'halftime'])
         || (ev.type in ['kickoff', 'halftime', 'resume']
           && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
           && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
             || (ev.type == 'halftime' && a.status == 'live' && b.status == 'halftime')
-            || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live'))
-          && clockOk(ch, b))
+            || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live')))
         || (ev.type == 'fulltime'
           && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
           && a.status in ['live', 'halftime'] && b.status == 'finished'
-          && b.lock == {'locked': true} && b.finishedAt == request.time
-          && clockOk(ch, b))
+          && b.lock == {'locked': true} && b.finishedAt == request.time)
         || (ev.type == 'undoFinish'
           && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
           && a.status == 'finished' && a.lock.locked == true
           && request.time < a.finishedAt + duration.value(180, 's')
-          && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null
-          && clockOk(ch, b))
+          && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
       );
     }
     // 記分 update 主判斷：便宜的檢查先做，再讀 staff／control／賽事
@@ -177,6 +190,8 @@ service cloud.firestore {
       let ch = b.diff(a).affectedKeys();
       return a.status != 'confirmed'
         && b.rev is int && b.rev == a.rev + 1
+        // ⑦ 每次重置後最多 100 筆（EVENT_MAX）。缺 resetRev 視同 0。超過連終場都拒。
+        && b.rev - a.get('resetRev', 0) <= 100
         && b.updatedAt == request.time
         && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
         && existsAfter(eventPath(cid, mt, b.rev))
@@ -187,24 +202,38 @@ service cloud.firestore {
     // 事件內容（§6.3 第 3、4、6 點）
     // 只收 pl_ 前綴 id（Opus 終審 P2-1：防止在公開 timeline 寫入任意文字／個資）
     function plIdOk(v) { return v is string && v.matches('^pl_[A-Za-z0-9_-]{1,37}$'); }
+    // ② 裝置工作階段。長度 16～32，只允許英數、底線、連字號。
+    // 有界量詞 {16,32} 會把運算式預算吃光，所以長度用 size()，字元類用無界比對。
+    function sidOk(v) {
+      return v is string && v.size() >= 16 && v.size() <= 32 && v.matches('^[A-Za-z0-9_-]+$');
+    }
+    // ③ 動作 id。長度 8～24，只允許英數、底線、連字號。唯一性由用戶端對帳，規則不查。
+    // 有界量詞 {8,24} 與 sid 一樣會吃光預算，所以長度用 size()。
+    function opOk(v) {
+      return v is string && v.size() >= 8 && v.size() <= 24 && v.matches('^[A-Za-z0-9_-]+$');
+    }
     function evShapeOk(ev) {
-      return (ev.type == 'goal'
-          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'goalKind', 'matchSecond', 'createdAt'])
+      return sidOk(ev.sid) && opOk(ev.op) && (
+        (ev.type == 'goal'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'goalKind', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.side in ['home', 'away']
           && ev.goalKind in ['normal', 'penalty', 'own']
           && (!('plId' in ev) || plIdOk(ev.plId)))
         || (ev.type == 'card'
-          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'cardType', 'matchSecond', 'createdAt'])
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'cardType', 'refSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.side in ['home', 'away'] && plIdOk(ev.plId)
-          && ev.cardType in ['yellow', 'second_yellow', 'red'])
+          && ev.cardType in ['yellow', 'second_yellow', 'red']
+          // ⑥ 第二黃必帶 refSeq；其他牌不得帶。
+          && ((ev.cardType == 'second_yellow') == ('refSeq' in ev)))
         || (ev.type == 'sub'
-          && ev.keys().hasOnly(['seq', 'type', 'side', 'inPlId', 'outPlId', 'matchSecond', 'createdAt'])
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'inPlId', 'outPlId', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.side in ['home', 'away'] && plIdOk(ev.inPlId) && plIdOk(ev.outPlId))
-        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish']
-          && ev.keys().hasOnly(['seq', 'type', 'matchSecond', 'createdAt']))
+        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish', 'clock']
+          && ev.keys().hasOnly(['seq', 'type', 'matchSecond', 'createdAt', 'sid', 'op']))
         || (ev.type == 'void'
-          && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt'])
-          && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq);
+          && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq)
+      );
     }
     // 事件 create：
     // - 不另判斷記分者：本條要求同批把場次 rev 從 seq-1 改成 seq（get／getAfter），
@@ -213,19 +242,46 @@ service cloud.firestore {
     // - 必填鍵（side、goalKind、targetSeq…）缺少時，存取產生錯誤值 → 拒絕。
     function eventCreateOk(cid, mt, eventId) {
       let ev = request.resource.data;
+      let before = get(matchPath(cid, mt)).data;
       return ev.seq is int
         && eventId == 'e' + string(ev.seq)
         && eventId.matches('^e[1-9][0-9]{0,5}$')
         && ev.createdAt == request.time
         && ev.matchSecond is int && ev.matchSecond >= 0 && ev.matchSecond <= 10800
-        && get(matchPath(cid, mt)).data.rev == ev.seq - 1
+        && before.rev == ev.seq - 1
         && getAfter(matchPath(cid, mt)).data.rev == ev.seq
         && evShapeOk(ev)
-        && (ev.type != 'void' || voidTargetOk(cid, mt, ev));
+        // ② 與接手文件的 sid 相等（R-42）。格式已由 evShapeOk／sidOk 擋下，這裡不再重驗。
+        && ev.sid == get(scorerCtlPath(cid, mt)).data.sid
+        && (ev.type != 'void' || voidTargetOk(cid, mt, ev, before))
+        && (!(ev.type == 'card' && ev.cardType == 'second_yellow') || secondYellowOk(cid, mt, ev, before));
+    }
+    // ⑥ 舊連結指向的第二黃已作廢。第一張黃牌沒有連結時不讀 voids。
+    function linkedYellowVoided(cid, mt, seq) {
+      return exists(voidPath(cid, mt, seq));
+    }
+    function yellowFree(cid, mt, ySeq) {
+      return !exists(cardLinkPath(cid, mt, ySeq))
+        || linkedYellowVoided(cid, mt, get(cardLinkPath(cid, mt, ySeq)).data.seq);
+    }
+    // ⑥ 第二黃：refSeq 是同隊同人、未作廢、重置線之後的黃牌，且目前沒有有效連結；同批 cardLinks 指向本筆。
+    function secondYellowOk(cid, mt, ev, before) {
+      let y = get(eventPath(cid, mt, ev.refSeq)).data;
+      return ev.refSeq is int && ev.refSeq < ev.seq && ev.refSeq > before.get('resetRev', 0)
+        && y.type == 'card' && y.cardType == 'yellow'
+        && y.side == ev.side && y.plId == ev.plId
+        && !exists(voidPath(cid, mt, ev.refSeq))
+        && yellowFree(cid, mt, ev.refSeq)
+        && getAfter(cardLinkPath(cid, mt, ev.refSeq)).data.seq == ev.seq;
     }
     // 作廢事件：目標必須是進球、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
-    function voidTargetOk(cid, mt, ev) {
-      return get(eventPath(cid, mt, ev.targetSeq)).data.type == 'goal'
+    // ① targetSeq 必須大於場次 resetRev（重置前的事件不能再作廢）。缺欄位視同 0（建立賽程時伺服器寫 0）。
+    // 場次 get 與 eventCreateOk 同路徑，同一操作內快取，不另計存取。
+    function voidTargetOk(cid, mt, ev, before) {
+      let t = get(eventPath(cid, mt, ev.targetSeq)).data;
+      return ev.targetSeq > before.get('resetRev', 0)
+        && (t.type == 'goal'
+          || (t.type == 'card' && (t.cardType != 'yellow' || yellowFree(cid, mt, ev.targetSeq))))
         && !exists(voidPath(cid, mt, ev.targetSeq))
         && existsAfter(voidPath(cid, mt, ev.targetSeq));
     }
@@ -241,13 +297,28 @@ service cloud.firestore {
         && getAfter(eventPath(cid, mt, v.seq)).data.type == 'void'
         && getAfter(eventPath(cid, mt, v.seq)).data.targetSeq == int(targetSeq);
     }
+    // ⑥ cardLinks：同批第二黃指向這張黃牌。記分者由場次 update 保證。
+    function cardLinkWriteOk(cid, mt, ySeq) {
+      let v = request.resource.data;
+      let ev = getAfter(eventPath(cid, mt, v.seq)).data;
+      return ySeq.matches('^[1-9][0-9]{0,5}$')
+        && v.keys().hasOnly(['seq', 'createdAt'])
+        && v.seq is int
+        && v.createdAt == request.time
+        && get(matchPath(cid, mt)).data.rev == v.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == v.seq
+        && ev.cardType == 'second_yellow'
+        && ev.refSeq == int(ySeq);
+    }
     // 接手（control/scorer）：本場指派者寫自己的 uid；自撤回窗口內不得接手
     function takeoverOk(cid, mt) {
       let t = request.resource.data;
       let m = get(matchPath(cid, mt)).data;
-      return t.keys().hasOnly(['uid', 'takenAt'])
+      return t.keys().hasOnly(['uid', 'takenAt', 'sid'])
+        && t.keys().hasAll(['uid', 'takenAt', 'sid'])
         && t.uid == uid()
         && t.takenAt == request.time
+        && sidOk(t.sid)
         && m.status != 'confirmed'
         && !(m.status == 'finished' && request.time < m.finishedAt + duration.value(180, 's'))
         && compScorableData(get(compPath(cid)).data)
@@ -368,6 +439,15 @@ service cloud.firestore {
           allow update, delete: if false;
         }
 
+        // ⑥ 第一黃被第二黃引用的公開標記。只許 get；list 一律拒（R-54）。不能刪。
+        match /cardLinks/{ySeq} {
+          allow get: if canReadComp(cid);
+          allow list: if false;
+          allow create: if cardLinkWriteOk(cid, mt, ySeq) && !exists(cardLinkPath(cid, mt, ySeq));
+          allow update: if cardLinkWriteOk(cid, mt, ySeq) && linkedYellowVoided(cid, mt, resource.data.seq);
+          allow delete: if false;
+        }
+
         // 作廢標記：公開、不含 uid、只能 create；必須與 void 事件同批
         match /voids/{targetSeq} {
           allow get: if canReadComp(cid);
@@ -378,9 +458,15 @@ service cloud.firestore {
 
         // 私密：目前記分者（接手，§6.3 第 2 點）
         match /control/{ctlId} {
-          // 被指派者讀取也要過內部期閘門（Opus 終審 P2-2，§12.2-c）
-          allow get: if ctlId == 'scorer' && (canManageComp(cid)
-            || (isAssigned(cid, mt) && internalGate(get(compPath(cid)).data)));
+          // 被指派者讀取也要過內部期閘門（Opus 終審 P2-2，§12.2-c）。
+          // 記分批次會 get 這份文件。先走已指派路徑，避免每次都先算 canManageComp。
+          // 布林結果與「先 canManageComp」相同；staff 不存在時 exists 為假，才落到 canManageComp（管理員）。
+          allow get: if ctlId == 'scorer' && (
+            (signedIn()
+              && exists(staffPath(cid))
+              && assignedData(get(staffPath(cid)).data, mt)
+              && internalGate(get(compPath(cid)).data))
+            || canManageComp(cid));
           allow list: if false;
           allow create, update: if ctlId == 'scorer' && takeoverOk(cid, mt);
           allow delete: if false;

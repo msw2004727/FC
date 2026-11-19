@@ -10,7 +10,7 @@
 import { afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { adminDb, assertFails, assertSucceeds, clearDb, clientDb, closeClients, loadRules } from './_harness.js';
-import { patchMatch, seedBase, setCurrentScorer } from './_fixtures.js';
+import { patchMatch, seedBase, setCurrentScorer, SID_S1, OP_OK } from './_fixtures.js';
 
 const as = (uid: string, role?: string) => clientDb({ uid, ...(role ? { role } : {}) });
 const base = (cid = 'cp_pub', mt = 'mt_1') => `competitions/${cid}/matches/${mt}`;
@@ -20,7 +20,7 @@ function goalBatch(uid: string, fromRev: number, cid = 'cp_pub', role?: string, 
   const b = writeBatch(db);
   b.update(doc(db, base(cid)), { rev: fromRev + 1, score, updatedAt: serverTimestamp() });
   b.set(doc(db, `${base(cid)}/timeline/e${fromRev + 1}`), {
-    seq: fromRev + 1, type: 'goal', side: 'home', plId: 'pl_1', goalKind: 'normal', matchSecond: 900, createdAt: serverTimestamp()
+    seq: fromRev + 1, type: 'goal', side: 'home', plId: 'pl_1', goalKind: 'normal', matchSecond: 900, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK
   });
   return b.commit();
 }
@@ -65,7 +65,7 @@ describe('場次：伺服器欄位與狀態不能被直寫', () => {
       const db = as('s1');
       const b = writeBatch(db);
       b.update(doc(db, base()), { rev: 4, updatedAt: serverTimestamp(), ...patch });
-      b.set(doc(db, `${base()}/timeline/e4`), { seq: 4, type: 'card', side: 'away', plId: 'pl_2', cardType: 'yellow', matchSecond: 900, createdAt: serverTimestamp() });
+      b.set(doc(db, `${base()}/timeline/e4`), { seq: 4, type: 'card', side: 'away', plId: 'pl_2', cardType: 'yellow', matchSecond: 900, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK });
       await assertFails(b.commit());
     });
   }
@@ -88,7 +88,7 @@ describe('場次：伺服器欄位與狀態不能被直寫', () => {
     const db = as('s1');
     const b = writeBatch(db);
     b.update(doc(db, base()), { rev: 4, status: 'live', lock: { locked: false }, finishedAt: null, updatedAt: serverTimestamp() });
-    b.set(doc(db, `${base()}/timeline/e4`), { seq: 4, type: 'undoFinish', matchSecond: 900, createdAt: serverTimestamp() });
+    b.set(doc(db, `${base()}/timeline/e4`), { seq: 4, type: 'undoFinish', matchSecond: 900, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK });
     await assertFails(b.commit());
   });
 

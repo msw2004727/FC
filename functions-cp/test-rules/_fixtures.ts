@@ -18,6 +18,12 @@
 import { adminDb, ago, Timestamp } from './_harness.js';
 
 export const CLOCK0 = { startedAt: null, pausedSec: 0, running: false, period: 'pre' };
+/** ② 裝置工作階段。符合 ^[A-Za-z0-9_-]{16,32}$。 */
+export const SID_S1 = 'scorer-sid-s1-device01';
+export const SID_S2 = 'scorer-sid-s2-device01';
+export const SID_OTHER = 'scorer-sid-other-dev1';
+/** ③ 動作 id。符合長度 8～24、^[A-Za-z0-9_-]+$。 */
+export const OP_OK = 'op-act-0001';
 
 export function compDoc(over: Record<string, unknown> = {}) {
   return {
@@ -91,12 +97,12 @@ export async function seedBase(): Promise<void> {
     b.set(db.doc(`competitions/${cid}/staff/tester`), { roles: ['scorer'], matchIds: ['mt_1'], expiresAt: null });
     b.set(db.doc(`competitions/${cid}/staff/stranger`), { roles: ['scorer'], matchIds: ['mt_1'], expiresAt: null });
     b.set(db.doc(`competitions/${cid}/matches/mt_1`), liveMatch());
-    b.set(db.doc(`competitions/${cid}/matches/mt_1/control/scorer`), { uid: 's1', takenAt: ago(1800) });
+    b.set(db.doc(`competitions/${cid}/matches/mt_1/control/scorer`), { uid: 's1', takenAt: ago(1800), sid: SID_S1 });
     b.set(db.doc(`competitions/${cid}/matches/mt_1/timeline/e1`), { seq: 1, type: 'kickoff', matchSecond: 0, createdAt: ago(1800) });
     b.set(db.doc(`competitions/${cid}/matches/mt_1/timeline/e2`), { seq: 2, type: 'goal', side: 'home', plId: 'pl_1', goalKind: 'normal', matchSecond: 300, createdAt: ago(1500) });
     b.set(db.doc(`competitions/${cid}/matches/mt_1/timeline/e3`), { seq: 3, type: 'card', side: 'away', plId: 'pl_9', cardType: 'yellow', matchSecond: 600, createdAt: ago(1200) });
     b.set(db.doc(`competitions/${cid}/matches/mt_2`), liveMatch({ score: { home: 0, away: 0 }, rev: 1 }));
-    b.set(db.doc(`competitions/${cid}/matches/mt_2/control/scorer`), { uid: 'sother', takenAt: ago(1800) });
+    b.set(db.doc(`competitions/${cid}/matches/mt_2/control/scorer`), { uid: 'sother', takenAt: ago(1800), sid: SID_OTHER });
     b.set(db.doc(`competitions/${cid}/matches/mt_2/timeline/e1`), { seq: 1, type: 'kickoff', matchSecond: 0, createdAt: ago(1800) });
   }
   b.set(db.doc('cpMine/host/items/cp_draft'), { cid: 'cp_draft', roles: ['host'], host: true });
@@ -106,8 +112,8 @@ export async function seedBase(): Promise<void> {
 }
 
 /** 讓指定身分成為 mt_1 的目前記分者（測試要隔離「其他條件」時用）。 */
-export async function setCurrentScorer(cid: string, uid: string, mt = 'mt_1') {
-  await adminDb().doc(`competitions/${cid}/matches/${mt}/control/scorer`).set({ uid, takenAt: ago(10) });
+export async function setCurrentScorer(cid: string, uid: string, mt = 'mt_1', sid = SID_S1) {
+  await adminDb().doc(`competitions/${cid}/matches/${mt}/control/scorer`).set({ uid, takenAt: ago(10), sid });
 }
 export async function patchMatch(cid: string, patch: Record<string, unknown>, mt = 'mt_1') {
   await adminDb().doc(`competitions/${cid}/matches/${mt}`).set(patch, { merge: true });

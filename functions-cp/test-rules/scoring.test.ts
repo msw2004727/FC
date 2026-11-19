@@ -4,16 +4,18 @@
  */
 import { describe, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import {
-  doc, writeBatch, serverTimestamp, setDoc, updateDoc, Timestamp as CTimestamp, type Firestore
+  collection, deleteDoc, doc, getDocs, limit, query, writeBatch, serverTimestamp, setDoc, updateDoc,
+  Timestamp as CTimestamp, type Firestore
 } from 'firebase/firestore';
 import { loadRules, clearDb, clientDb, closeClients, assertFails, assertSucceeds, adminDb, ago, later } from './_harness.js';
-import { seedBase, setCurrentScorer, patchMatch } from './_fixtures.js';
+import { seedBase, setCurrentScorer, patchMatch, SID_S1, SID_S2, OP_OK } from './_fixtures.js';
 
 type Ev = Record<string, unknown>;
 interface ScoreOpts {
   cid?: string; mt?: string; fromRev?: number; ev: Ev; patch?: Record<string, unknown>;
   newRev?: number; seq?: number; evId?: string; withVoid?: boolean; voidId?: string; voidDoc?: Record<string, unknown>;
-  skipEvent?: boolean; skipMatch?: boolean;
+  skipEvent?: boolean; skipMatch?: boolean; noSid?: boolean; noOp?: boolean;
+  cardLink?: { id: string; update?: boolean; doc?: Record<string, unknown> };
 }
 function scoreBatch(db: Firestore, o: ScoreOpts) {
   const cid = o.cid ?? 'cp_pub', mt = o.mt ?? 'mt_1', from = o.fromRev ?? 3;
@@ -23,15 +25,30 @@ function scoreBatch(db: Firestore, o: ScoreOpts) {
   const b = writeBatch(db);
   if (!o.skipMatch) b.update(doc(db, base), { rev: newRev, updatedAt: serverTimestamp(), ...(o.patch ?? {}) });
   if (!o.skipEvent) {
-    b.set(doc(db, `${base}/timeline/${o.evId ?? `e${seq}`}`),
-      { seq, matchSecond: 900, createdAt: serverTimestamp(), ...o.ev });
+    const body: Ev = { seq, matchSecond: 900, createdAt: serverTimestamp(), ...o.ev };
+    if (o.noSid) delete body.sid;
+    else if (body.sid === undefined) body.sid = SID_S1;
+    if (o.noOp) delete body.op;
+    else if (body.op === undefined) body.op = OP_OK;
+    b.set(doc(db, `${base}/timeline/${o.evId ?? `e${seq}`}`), body);
   }
   if (o.withVoid) {
     const target = String(o.voidId ?? (o.ev.targetSeq as number));
     b.set(doc(db, `${base}/voids/${target}`), o.voidDoc ?? { seq, createdAt: serverTimestamp() });
   }
+  if (o.cardLink) {
+    const ref = doc(db, `${base}/cardLinks/${o.cardLink.id}`);
+    const body = o.cardLink.doc ?? { seq, createdAt: serverTimestamp() };
+    if (o.cardLink.update) b.update(ref, body);
+    else b.set(ref, body);
+  }
   return b.commit();
 }
+const secondYellow = (extra: Partial<ScoreOpts> = {}): ScoreOpts => ({
+  ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 },
+  cardLink: { id: '3' },
+  ...extra
+});
 const goal = (side: 'home' | 'away', extra: Ev = {}): Ev => ({ type: 'goal', side, plId: 'pl_1', goalKind: 'normal', ...extra });
 const as = (uid: string, role?: string) => clientDb({ uid, ...(role ? { role } : {}) });
 
@@ -39,9 +56,15 @@ beforeAll(async () => { await loadRules(); });
 beforeEach(async () => { await clearDb(); await seedBase(); });
 afterEach(async () => { await closeClients(); });
 
-describe('通過案例', () => {
+describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
   it('主隊進球：比分 +1、rev +1、事件 e4', async () => {
     await assertSucceeds(scoreBatch(as('s1'), { ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【P-1】op 長度邊界 8 與 24 的進球通過', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), { ev: goal('home', { op: 'op123456' }), patch: { score: { home: 2, away: 0 } } }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4, ev: goal('home', { op: 'op-boundary-24chars-okay' }), patch: { score: { home: 3, away: 0 } }
+    }));
   });
   it('客隊進球（不帶 plId、烏龍）', async () => {
     await assertSucceeds(scoreBatch(as('s1'), {
@@ -52,14 +75,42 @@ describe('通過案例', () => {
     await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red' } }));
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'sub', side: 'home', inPlId: 'pl_3', outPlId: 'pl_4' } }));
   });
+  it('【P-6】時鐘修正：live／半場只改 clockBase', async () => {
+    const liveClock = { startedAt: CTimestamp.now(), pausedSec: 120, running: true, period: 'h1' };
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: liveClock } }));
+    await patchMatch('cp_pub', { status: 'halftime', rev: 4 });
+    const htClock = { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'ht' };
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'clock' }, patch: { clockBase: htClock } }));
+  });
   it('半場→續賽（clockBase 可改）', async () => {
     const cb = { startedAt: CTimestamp.now(), pausedSec: 0, running: false, period: 'ht' };
     await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'halftime' }, patch: { status: 'halftime', clockBase: cb } }));
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'resume' }, patch: { status: 'live', clockBase: { ...cb, running: true, period: 'h2' } } }));
   });
-  it('半場時仍可給牌', async () => {
+  it('半場時仍可給牌（一般黃牌；第二黃改由【P-3】）', async () => {
     await patchMatch('cp_pub', { status: 'halftime' });
-    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow' } }));
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' } }));
+  });
+  it('【P-3】第二黃：refSeq 指向同人未作廢黃牌，同批建 cardLinks', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+  });
+  it('【P-4】作廢第二黃後才能作廢第一黃', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+  });
+  it('【P-5】第二黃作廢後，同一黃牌可被新的第二黃重新引用', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow({ fromRev: 5, cardLink: { id: '3', update: true } })));
+  });
+  it('【P-8】重置後第 100 筆通過；再重置後又可記 100 筆', async () => {
+    // 不逐筆寫 100 次。把 rev 抬到窗口最後一筆的前一號，下一筆就是第 100 筆（rev - resetRev == 100）。
+    const yellow = { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' };
+    await patchMatch('cp_pub', { rev: 99 });
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 99, ev: yellow }));
+    await patchMatch('cp_pub', { rev: 199, resetRev: 100 });
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 199, ev: yellow }));
   });
   it('開賽：scheduled → live', async () => {
     await patchMatch('cp_pub', { status: 'scheduled', score: { home: 0, away: 0 }, rev: 0 });
@@ -77,6 +128,13 @@ describe('通過案例', () => {
       ev: { type: 'fulltime' }, patch: { status: 'finished', lock: { locked: true }, finishedAt: serverTimestamp() }
     }));
   });
+  it('【P-2】作廢紅牌、作廢未被引用的黃牌：比分不變', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4, ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red' }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'void', targetSeq: 5 }, withVoid: true }));
+  });
   it('作廢 e2 進球：主隊 -1、同批建立 voids/2', async () => {
     await assertSucceeds(scoreBatch(as('s1'), {
       ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true
@@ -90,9 +148,16 @@ describe('通過案例', () => {
   });
   it('接手：本場指派者寫 control/scorer（takenAt＝伺服器時間），之後原記分者被拒、新記分者可寫', async () => {
     await assertSucceeds(setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'),
-      { uid: 's2', takenAt: serverTimestamp() }));
+      { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 }));
     await assertFails(scoreBatch(as('s1'), { ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
-    await assertSucceeds(scoreBatch(as('s2'), { ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
+    await assertSucceeds(scoreBatch(as('s2'), { ev: goal('home', { sid: SID_S2 }), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【P-7】同 uid 第二裝置接手寫新 sid 後，舊 sid 被拒、新 sid 可寫', async () => {
+    const next = 'scorer-sid-s1-device02';
+    await assertSucceeds(setDoc(doc(as('s1'), 'competitions/cp_pub/matches/mt_1/control/scorer'),
+      { uid: 's1', takenAt: serverTimestamp(), sid: next }));
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { sid: SID_S1 }), patch: { score: { home: 2, away: 0 } } }));
+    await assertSucceeds(scoreBatch(as('s1'), { ev: goal('home', { sid: next }), patch: { score: { home: 2, away: 0 } } }));
   });
   it('內部賽事：管理員（claims role）與測試者被指派即可記分', async () => {
     await setCurrentScorer('cp_int', 'admin');
@@ -210,7 +275,142 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red' }, patch: { score: { home: 2, away: 0 } } }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'bonus' }, patch: { score: { home: 2, away: 0 } } }));
   });
-  it('【R-16】作廢非進球（e3 是黃牌）', async () => {
+  it('【R-45】時鐘修正同時改比分或狀態、賽程未開始或已結束、沒改時鐘、時鐘形狀錯', async () => {
+    const ok = { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1' };
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok, score: { home: 2, away: 0 } } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok, status: 'halftime' } }));
+    await patchMatch('cp_pub', { status: 'scheduled' });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok } }));
+    await patchMatch('cp_pub', { status: 'finished', lock: { locked: true }, finishedAt: ago(30) });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok } }));
+    await patchMatch('cp_pub', { status: 'live', lock: { locked: false }, finishedAt: null });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: {} }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'clock' },
+      patch: { clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'nope' } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'clock' },
+      patch: { clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1', note: 1 } }
+    }));
+  });
+  it('【R-44】事件缺 op、op 太短、op 太長、op 含非法字元', async () => {
+    await assertFails(scoreBatch(as('s1'), { noOp: true, ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { op: 'short' }), patch: { score: { home: 2, away: 0 } } }));
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { op: 'op-too-long-value-xxxxxxx' }), patch: { score: { home: 2, away: 0 } } }));
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { op: 'bad op!!' }), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【R-41】事件缺 sid、sid 太短、sid 含非法字元', async () => {
+    await assertFails(scoreBatch(as('s1'), { noSid: true, ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
+    // 接手文件改成同一個壞 sid，讓「與接手文件相等」成立，只剩格式條件會擋。
+    await setCurrentScorer('cp_pub', 's1', 'mt_1', 'short');
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { sid: 'short' }), patch: { score: { home: 2, away: 0 } } }));
+    await setCurrentScorer('cp_pub', 's1', 'mt_1', 'bad sid!!!!!!!!!');
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { sid: 'bad sid!!!!!!!!!' }), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【R-42】事件 sid 與接手文件不符（同 uid、舊手機）', async () => {
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home', { sid: SID_S2 }), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【R-43】接手缺 sid、多帶欄位、sid 格式錯', async () => {
+    const p = 'competitions/cp_pub/matches/mt_1/control/scorer';
+    await assertFails(setDoc(doc(as('s2'), p), { uid: 's2', takenAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('s2'), p), { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2, extra: 1 }));
+    await assertFails(setDoc(doc(as('s2'), p), { uid: 's2', takenAt: serverTimestamp(), sid: 'short' }));
+    await assertFails(setDoc(doc(as('s2'), p), { uid: 's2', takenAt: serverTimestamp(), sid: 'has space in sid!!' }));
+  });
+  it('【R-40】作廢 targetSeq <= resetRev 的進球、黃牌被拒', async () => {
+    // e2 是進球、e3 是黃牌。resetRev 抬到 2 或 3 後，這些序號不再大於重置線。
+    await patchMatch('cp_pub', { resetRev: 2 });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));
+    await patchMatch('cp_pub', { resetRev: 3 });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+  });
+  it('【R-16】作廢非進球也非牌（e1 是開賽）', async () => {
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 1 }, withVoid: true }));
+  });
+  it('【C】內部賽事＋測試者作廢進球', async () => {
+    await setCurrentScorer('cp_int', 'tester');
+    await assertSucceeds(scoreBatch(as('tester'), {
+      cid: 'cp_int', ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true
+    }));
+  });
+  it('【P-3】【P-5】內部賽事＋測試者：第二黃與重新引用', async () => {
+    await setCurrentScorer('cp_int', 'tester');
+    await assertSucceeds(scoreBatch(as('tester'), secondYellow({ cid: 'cp_int' })));
+    await assertSucceeds(scoreBatch(as('tester'), { cid: 'cp_int', fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('tester'), secondYellow({ cid: 'cp_int', fromRev: 5, cardLink: { id: '3', update: true } })));
+  });
+  it('【P-4】內部賽事＋測試者：作廢被釋放的第一黃', async () => {
+    await setCurrentScorer('cp_int', 'tester');
+    await assertSucceeds(scoreBatch(as('tester'), secondYellow({ cid: 'cp_int' })));
+    await assertSucceeds(scoreBatch(as('tester'), { cid: 'cp_int', fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('tester'), { cid: 'cp_int', fromRev: 5, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+  });
+  it('【R-47】作廢仍被有效第二黃引用的黃牌', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertFails(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+  });
+  it('【R-48】第二黃缺 refSeq；一般黃牌、紅牌帶 refSeq', async () => {
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow' }, cardLink: { id: '3' }
+    }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow', refSeq: 3 } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red', refSeq: 3 } }));
+  });
+  it('【R-49】第二黃 refSeq 指向別隊、別人、紅牌、進球、已作廢黃牌、未來序號、重置線上', async () => {
+    const bad = (ev: Ev, o: Partial<ScoreOpts> = {}) => assertFails(scoreBatch(as('s1'), {
+      ev, cardLink: { id: String(ev.refSeq) }, ...o
+    }));
+    await bad({ type: 'card', side: 'home', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 });
+    await bad({ type: 'card', side: 'away', plId: 'pl_1', cardType: 'second_yellow', refSeq: 3 });
+    await bad({ type: 'card', side: 'home', plId: 'pl_1', cardType: 'second_yellow', refSeq: 2 });
+    await bad({ type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 9 });
+    await patchMatch('cp_pub', { resetRev: 3 });
+    await bad({ type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 });
+    await patchMatch('cp_pub', { resetRev: 0 });
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red' } }));
+    await bad({ type: 'card', side: 'home', plId: 'pl_1', cardType: 'second_yellow', refSeq: 4 }, { fromRev: 4 });
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
+    await bad({ type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 }, { fromRev: 5 });
+  });
+  it('【R-50】同一黃牌已有有效第二黃，不能再建立第二張', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertFails(scoreBatch(as('s1'), secondYellow({ fromRev: 4, cardLink: { id: '3', update: true } })));
+  });
+  it('【R-51】第二黃沒同批建 cardLinks；cardLinks 單獨建立、序號錯、多欄位、刪除', async () => {
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 }
+    }));
+    const link = doc(as('s1'), 'competitions/cp_pub/matches/mt_1/cardLinks/3');
+    await assertFails(setDoc(link, { seq: 4, createdAt: serverTimestamp() }));
+    await assertFails(scoreBatch(as('s1'), secondYellow({ cardLink: { id: '3', doc: { seq: 9, createdAt: serverTimestamp() } } })));
+    await assertFails(scoreBatch(as('s1'), secondYellow({
+      cardLink: { id: '3', doc: { seq: 4, createdAt: serverTimestamp(), note: 1 } }
+    })));
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertFails(deleteDoc(doc(as('s1'), 'competitions/cp_pub/matches/mt_1/cardLinks/3')));
+  });
+  it('【R-52】cardLinks update：舊連結的第二黃尚未作廢', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertFails(scoreBatch(as('s1'), secondYellow({ fromRev: 4, cardLink: { id: '3', update: true } })));
+  });
+  it('【R-54】cardLinks 不能 list', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+    await assertFails(getDocs(query(collection(as('s1'), 'competitions/cp_pub/matches/mt_1/cardLinks'), limit(10))));
+  });
+  it('【R-53】第 101 筆被拒，含終場；重置後第 101 筆仍被拒', async () => {
+    const yellow = { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' };
+    await patchMatch('cp_pub', { rev: 100 });
+    await assertFails(scoreBatch(as('s1'), { fromRev: 100, ev: yellow }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 100, ev: { type: 'fulltime' },
+      patch: { status: 'finished', lock: { locked: true }, finishedAt: serverTimestamp() }
+    }));
+    await patchMatch('cp_pub', { rev: 200, resetRev: 100 });
+    await assertFails(scoreBatch(as('s1'), { fromRev: 200, ev: yellow }));
+  });
+  it('【R-46】作廢牌卻改比分', async () => {
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 3 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));
   });
   it('【R-16b】作廢一筆作廢事件', async () => {
@@ -252,7 +452,8 @@ describe('拒絕案例（§6.3-9）', () => {
   });
   it('【R-21b】撤回窗口內不能接手（避免搶撤回）', async () => {
     await patchMatch('cp_pub', { status: 'finished', lock: { locked: true }, finishedAt: ago(30) });
-    await assertFails(setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'),
+      { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 }));
   });
   it('【R-22】同一目標第二次作廢（voids 已存在）', async () => {
     await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));
@@ -282,16 +483,18 @@ describe('拒絕案例（§6.3-9）', () => {
   });
   it('【R-26】接手者非本場指派（sother、過期 sx、空 matchIds se、一般會員、主辦本人）', async () => {
     for (const u of ['sother', 'sx', 'se', 'host']) {
-      await assertFails(setDoc(doc(as(u), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: u, takenAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(as(u), 'competitions/cp_pub/matches/mt_1/control/scorer'),
+        { uid: u, takenAt: serverTimestamp(), sid: SID_S2 }));
     }
-    await assertFails(setDoc(doc(clientDb(null), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 'x', takenAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(clientDb(null), 'competitions/cp_pub/matches/mt_1/control/scorer'),
+      { uid: 'x', takenAt: serverTimestamp(), sid: SID_S2 }));
   });
   it('【R-26b】接手寫別人的 uid、takenAt 非伺服器時間、多帶欄位', async () => {
     const db = as('s2');
     const p = 'competitions/cp_pub/matches/mt_1/control/scorer';
-    await assertFails(setDoc(doc(db, p), { uid: 's1x', takenAt: serverTimestamp() }));
-    await assertFails(setDoc(doc(db, p), { uid: 's2', takenAt: CTimestamp.now() }));
-    await assertFails(setDoc(doc(db, p), { uid: 's2', takenAt: serverTimestamp(), note: 1 }));
+    await assertFails(setDoc(doc(db, p), { uid: 's1x', takenAt: serverTimestamp(), sid: SID_S2 }));
+    await assertFails(setDoc(doc(db, p), { uid: 's2', takenAt: CTimestamp.now(), sid: SID_S2 }));
+    await assertFails(setDoc(doc(db, p), { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2, note: 1 }));
   });
   it('【R-27】用戶端改 result、standings、summary', async () => {
     const db = as('s1');
@@ -301,7 +504,8 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertFails(setDoc(doc(as('admin', 'admin'), 'competitions/cp_pub/standings/x'), { rows: [] }));
   });
   it('【R-28】內部賽事非管理員且非測試者：記分與接手都拒', async () => {
-    await assertFails(setDoc(doc(as('stranger'), 'competitions/cp_int/matches/mt_1/control/scorer'), { uid: 'stranger', takenAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('stranger'), 'competitions/cp_int/matches/mt_1/control/scorer'),
+      { uid: 'stranger', takenAt: serverTimestamp(), sid: SID_S1 }));
     await setCurrentScorer('cp_int', 'stranger');
     await assertFails(scoreBatch(as('stranger'), { cid: 'cp_int', ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' } }));
   });
@@ -344,7 +548,7 @@ it('【R-32】場次進行中但 lock.locked 為 true：進球被拒（真正測
     for (const extra of ['5', '02']) {
       const db = as('s1'); const M = 'competitions/cp_pub/matches/mt_1'; const b = writeBatch(db);
       b.update(doc(db, M), { rev: 4, updatedAt: serverTimestamp(), score: { home: 0, away: 0 } });
-      b.set(doc(db, `${M}/timeline/e4`), { seq: 4, type: 'void', targetSeq: 2, matchSecond: 1, createdAt: serverTimestamp() });
+      b.set(doc(db, `${M}/timeline/e4`), { seq: 4, type: 'void', targetSeq: 2, matchSecond: 1, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK });
       b.set(doc(db, `${M}/voids/2`), { seq: 4, createdAt: serverTimestamp() });
       b.set(doc(db, `${M}/voids/${extra}`), { seq: 4, createdAt: serverTimestamp() });
       await assertFails(b.commit());
@@ -352,7 +556,8 @@ it('【R-32】場次進行中但 lock.locked 為 true：進球被拒（真正測
   });
   it('【R-36】已確認場次不能接手（G4）', async () => {
     await patchMatch('cp_pub', { status: 'confirmed', lock: { locked: true }, finishedAt: ago(9999) });
-    await assertFails(setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'),
+      { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 }));
   });
   it('【R-37】plId 不是 pl_ 格式（任意文字／個資）被拒（P2-1）', async () => {
     await assertFails(scoreBatch(as('s1'), { ev: goal('home', { plId: '王小明0912' }), patch: { score: { home: 2, away: 0 } } }));

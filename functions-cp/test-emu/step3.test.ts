@@ -6,6 +6,7 @@ import { adminDb } from '../test-rules/_harness.js';
 import { handleCpEntry } from '../src/cp/entry.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { handleMatchWritten } from '../src/cp/match-trigger.js';
+import { ReadMeter } from '../src/cp/context.js';
 import { ADMIN, DAY, STRANGER, TESTER, TESTER2, call, fails, makeDeps, ok, resetAll } from './_cp.js';
 import {
   LATER, act, generate, later, matchesOf, orderNames, pairing, record, scheduleInput, setupComp, standingOf, type Comp
@@ -161,6 +162,46 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     await act(c, ADMIN, { action: 'recordResult', mtId: m.id, expectedRev: 5, score: { home: 3, away: 3 }, confirm: false });
     await act(c, ADMIN, { action: 'confirmMatchResult', mtId: m.id, expectedRev: 6 });
     expect((await ref.get()).get('score')).toEqual({ home: 3, away: 3 });
+  });
+
+  it('確認對帳：timeline、voids 各 100 筆可確認；第 101 筆 TIMELINE_TOO_LONG', async () => {
+    const ms = await matchesOf(c);
+    const now = new Date();
+    const fill = async (m: (typeof ms)[number], kind: 'timeline' | 'voids', n: number) => {
+      const col = adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).collection(kind);
+      const batch = adminDb().batch();
+      for (let i = 1; i <= n; i++) {
+        if (kind === 'timeline') batch.set(col.doc(`e${i}`), { seq: i, type: 'clock', matchSecond: i, createdAt: now });
+        else batch.set(col.doc(String(i)), { seq: i, createdAt: now });
+      }
+      await batch.commit();
+      await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).update({
+        status: 'finished', score: { home: 0, away: 0 }, rev: n, resetRev: 0,
+        lock: { locked: true }, finishedAt: now
+      });
+    };
+    await fill(ms[0], 'timeline', 100);
+    const meter = new ReadMeter();
+    const deps = later();
+    deps.meter = meter;
+    await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[0].id, expectedRev: 100 }, deps));
+    // 閘門 1＋賽事 1＋場次 1＋timeline 100＋空 voids 查詢 1。上限內，不是 500。
+    expect(meter.reads).toBe(1 + 1 + 1 + 100 + 1);
+
+    await fill(ms[1], 'timeline', 101);
+    const overTl = new ReadMeter();
+    const depsTl = later();
+    depsTl.meter = overTl;
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[1].id, expectedRev: 101 }, depsTl), 'TIMELINE_TOO_LONG');
+    // 查詢多讀 1 筆才判斷超限：timeline 101＋空 voids 1。
+    expect(overTl.reads).toBe(1 + 1 + 1 + 101 + 1);
+
+    await fill(ms[2], 'voids', 101);
+    const overVd = new ReadMeter();
+    const depsVd = later();
+    depsVd.meter = overVd;
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[2].id, expectedRev: 101 }, depsVd), 'TIMELINE_TOO_LONG');
+    expect(overVd.reads).toBe(1 + 1 + 1 + 1 + 101);
   });
 
   it('棄權：判 0:2、不做比分對帳、原因必填且不進公開場次', async () => {

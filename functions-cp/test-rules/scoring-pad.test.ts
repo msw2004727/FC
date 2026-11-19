@@ -15,7 +15,7 @@ import path from 'node:path';
 import { describe, it, afterAll, afterEach, expect } from 'vitest';
 import { doc, writeBatch, serverTimestamp, setDoc, Timestamp as CTimestamp, type Firestore } from 'firebase/firestore';
 import { loadRules, clearDb, clientDb, closeClients, ago, RULES_FILE } from './_harness.js';
-import { seedBase, patchMatch } from './_fixtures.js';
+import { seedBase, patchMatch, SID_S1, SID_S2, OP_OK } from './_fixtures.js';
 
 export const PAD_FLOOR = 25;
 // 基準（8cb7aeaaa，2026-11-19 實測）：批次類 60 全過、70 起進球／作廢／半場／終場／自撤回預算耗盡（黃牌 75 才耗盡）；
@@ -57,16 +57,25 @@ export function paddedScoringRules(n: number, src = fs.readFileSync(RULES_FILE, 
 }
 
 type Ev = Record<string, unknown>;
-function scoreBatch(db: Firestore, ev: Ev, patch: Record<string, unknown> = {}, opts: { fromRev?: number; withVoid?: number } = {}) {
+function scoreBatch(db: Firestore, ev: Ev, patch: Record<string, unknown> = {}, opts: { fromRev?: number; withVoid?: number; cardLink?: string; cardLinkUpdate?: boolean } = {}) {
   const from = opts.fromRev ?? 3;
   const seq = from + 1;
   const base = 'competitions/cp_pub/matches/mt_1';
   const b = writeBatch(db);
   b.update(doc(db, base), { rev: seq, updatedAt: serverTimestamp(), ...patch });
-  b.set(doc(db, `${base}/timeline/e${seq}`), { seq, matchSecond: 900, createdAt: serverTimestamp(), ...ev });
+  b.set(doc(db, `${base}/timeline/e${seq}`), { seq, matchSecond: 900, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK, ...ev });
   if (opts.withVoid != null) b.set(doc(db, `${base}/voids/${opts.withVoid}`), { seq, createdAt: serverTimestamp() });
+  if (opts.cardLink) {
+    const ref = doc(db, `${base}/cardLinks/${opts.cardLink}`);
+    const body = { seq, createdAt: serverTimestamp() };
+    if (opts.cardLinkUpdate) b.update(ref, body);
+    else b.set(ref, body);
+  }
   return b.commit();
 }
+const sy = (fromRev = 3, update = false) => scoreBatch(as('s1'),
+  { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 },
+  {}, { fromRev, cardLink: '3', cardLinkUpdate: update });
 const as = (uid: string) => clientDb({ uid });
 
 // 基準（_fixtures seedBase）：cp_pub/mt_1 進行中 1:0、rev 3；e2 主隊進球、e3 客隊黃牌；目前記分者 s1；s2 也被指派。
@@ -74,6 +83,22 @@ const PROBES: [string, () => Promise<unknown>][] = [
   ['進球', () => scoreBatch(as('s1'), { type: 'goal', side: 'home', plId: 'pl_1', goalKind: 'normal' }, { score: { home: 2, away: 0 } })],
   ['黃牌', () => scoreBatch(as('s1'), { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' })],
   ['作廢進球（三筆同批）', () => scoreBatch(as('s1'), { type: 'void', targetSeq: 2 }, { score: { home: 0, away: 0 } }, { withVoid: 2 })],
+  ['作廢未被引用黃牌', () => scoreBatch(as('s1'), { type: 'void', targetSeq: 3 }, {}, { withVoid: 3 })],
+  ['作廢紅牌', async () => {
+    await scoreBatch(as('s1'), { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red' });
+    return scoreBatch(as('s1'), { type: 'void', targetSeq: 4 }, {}, { fromRev: 4, withVoid: 4 });
+  }],
+  ['第二黃（建連結）', () => sy()],
+  ['第二黃作廢後再作廢第一黃', async () => {
+    await sy();
+    await scoreBatch(as('s1'), { type: 'void', targetSeq: 4 }, {}, { fromRev: 4, withVoid: 4 });
+    return scoreBatch(as('s1'), { type: 'void', targetSeq: 3 }, {}, { fromRev: 5, withVoid: 3 });
+  }],
+  ['第二黃作廢後重新引用', async () => {
+    await sy();
+    await scoreBatch(as('s1'), { type: 'void', targetSeq: 4 }, {}, { fromRev: 4, withVoid: 4 });
+    return sy(5, true);
+  }],
   ['半場（改時鐘）', () => scoreBatch(as('s1'), { type: 'halftime' }, {
     status: 'halftime', clockBase: { startedAt: CTimestamp.now(), pausedSec: 0, running: false, period: 'ht' }
   })],
@@ -82,7 +107,10 @@ const PROBES: [string, () => Promise<unknown>][] = [
     await patchMatch('cp_pub', { status: 'finished', lock: { locked: true }, finishedAt: ago(30) });
     return scoreBatch(as('s1'), { type: 'undoFinish' }, { status: 'live', lock: { locked: false }, finishedAt: null });
   }],
-  ['接手', () => setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp() })]
+  ['時鐘修正', () => scoreBatch(as('s1'), { type: 'clock' }, {
+    clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1' }
+  })],
+  ['帶 sid 接手', () => setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 })]
 ];
 
 describe('pad 量測：記分路徑（第 4 步 K1 基準）', () => {

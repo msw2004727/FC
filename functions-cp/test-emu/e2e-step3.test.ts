@@ -20,6 +20,8 @@ const SERVER_BUDGET: Record<string, number> = {
   generateSchedule: 1 + 1 + 1 + 16 + 1 + 2,
   // 閘門 1＋賽事 1＋場次 1
   recordResult: 3,
+  // 閘門 1＋賽事 1＋場次 1＋timeline ≤100＋voids ≤100（§8.2；查詢上限各 100）
+  confirmMatchResult: 1 + 1 + 1 + 100 + 100,
   // 場次 1＋摘要片 1（＋舊片 1）＋場次重讀 1＋賽事 1＋組別 1＋積分 1＋該組場次 ≤ 6＋賽事 1＋組別清單 1＋聚合 2（實測 15）
   trigger: 1 + 2 + 1 + 1 + 1 + 1 + 6 + 1 + 1 + 2
 };
@@ -98,7 +100,9 @@ describe('§12.4 第 3 步最小驗收劇本', () => {
       await handleMatchWritten(makeDeps(LATER, tm), c.cid, m.id, before, null);
       server.push({ action: 'trigger', reads: tm.reads });
       if (!confirm) {
-        await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: m.id, expectedRev: 1 }, makeDeps(LATER)));
+        const cm = new ReadMeter();
+        await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: m.id, expectedRev: 1 }, makeDeps(LATER, cm)));
+        server.push({ action: 'confirmMatchResult', reads: cm.reads });
         await handleMatchWritten(makeDeps(LATER), c.cid, m.id, { ...before, status: 'finished' }, null);
       }
     }
