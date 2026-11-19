@@ -204,6 +204,31 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     expect(overVd.reads).toBe(1 + 1 + 1 + 1 + 201);
   });
 
+  it('確認對帳：重置線以下的作廢標記不計入上限（K1 P3-2）', async () => {
+    const ms = await matchesOf(c);
+    const m = ms[3];
+    const now = new Date();
+    const ref = adminDb().doc(`competitions/${c.cid}/matches/${m.id}`);
+    // 重置前累積 150 筆作廢標記（seq 1～150），重置線 150；重置後 60 筆事件、其中 60 筆作廢標記（seq 151～210）。
+    // 舊查詢（不過濾）會讀到 210 筆標記而 TIMELINE_TOO_LONG；新查詢只讀重置線以上的 60 筆。
+    const b1 = adminDb().batch();
+    for (let i = 1; i <= 150; i++) b1.set(ref.collection('voids').doc(String(i)), { seq: i, createdAt: now });
+    await b1.commit();
+    const b2 = adminDb().batch();
+    for (let i = 151; i <= 210; i++) {
+      b2.set(ref.collection('timeline').doc(`e${i}`), { seq: i, type: 'clock', matchSecond: i - 150, createdAt: now });
+      b2.set(ref.collection('voids').doc(String(i)), { seq: i, createdAt: now });
+    }
+    await b2.commit();
+    await ref.update({ status: 'finished', score: { home: 0, away: 0 }, rev: 210, resetRev: 150, lock: { locked: true }, finishedAt: now });
+    const meter = new ReadMeter();
+    const deps = later();
+    deps.meter = meter;
+    await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: m.id, expectedRev: 210 }, deps));
+    // 閘門 1＋賽事 1＋場次 1＋timeline 60＋voids 60（重置線以上）。
+    expect(meter.reads).toBe(1 + 1 + 1 + 60 + 60);
+  });
+
   it('棄權：判 0:2、不做比分對帳、原因必填且不進公開場次', async () => {
     const ms = await matchesOf(c);
     const { m } = pairing(c, ms, '甲', '乙', 0, 0);

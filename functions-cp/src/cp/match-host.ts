@@ -764,7 +764,8 @@ export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: Gat
     // §6.3-7 比分對帳：事件明細是真相。主辦親自登錄（resultSource=host）時以主辦裁定為準。
     // 讀全部事件才能對帳；超過上限時失敗關閉，不用截斷的明細確認（Grok 審查 P2-2）
     const tl = await readQuery(deps, tx, m.ref.collection('timeline').where('seq', '>', m.resetRev).limit(TIMELINE_MAX + 1));
-    const vd = await readQuery(deps, tx, m.ref.collection('voids').limit(TIMELINE_MAX + 1));
+    // 作廢標記的 seq 是 void 事件的序號；重置線以下的標記不再參與對帳（K1 Opus P3-2，顧問 §3.322：K1b 前修）
+    const vd = await readQuery(deps, tx, m.ref.collection('voids').where('seq', '>', m.resetRev).limit(TIMELINE_MAX + 1));
     if (tl.size > TIMELINE_MAX || vd.size > TIMELINE_MAX) throw pre('TIMELINE_TOO_LONG');
     const voided = new Set<number>(vd.docs.map(d => Number(d.id)).filter(n => Number.isInteger(n)));
     const derived = derivedScoreOf(tl.docs.map(d => d.data()), voided, m.resetRev);
