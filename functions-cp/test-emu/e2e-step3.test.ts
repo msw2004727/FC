@@ -18,10 +18,10 @@ import { LATER, matchesOf, pairing, scheduleInput, setupComp, type Comp } from '
 const SERVER_BUDGET: Record<string, number> = {
   // 閘門 1＋賽事 1＋組別 1＋報隊查詢 ≤ 16＋舊場次查詢 1＋摘要片 ≤ 2（＋管理員不讀 staff）
   generateSchedule: 1 + 1 + 1 + 16 + 1 + 2,
-  // 閘門 1＋賽事 1＋場次 1
-  recordResult: 3,
-  // 閘門 1＋賽事 1＋場次 1＋timeline ≤200＋voids ≤200（§3.307）
-  confirmMatchResult: 1 + 1 + 1 + 200 + 200,
+  // 閘門 1＋賽事 1＋組別 1＋場次 1（登錄比分改讀組別規則，K8）
+  recordResult: 4,
+  // 閘門 1＋賽事 1＋場次 1＋timeline ≤200＋voids ≤200（§3.307）＋組別 1（K8 積分規則）
+  confirmMatchResult: 1 + 1 + 1 + 200 + 200 + 1,
   // 場次 1＋摘要片 1（＋舊片 1）＋場次重讀 1＋賽事 1＋組別 1＋積分 1＋該組場次 ≤ 6＋賽事 1＋組別清單 1＋聚合 2（實測 15）
   trigger: 1 + 2 + 1 + 1 + 1 + 1 + 6 + 1 + 1 + 2
 };

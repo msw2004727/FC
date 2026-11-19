@@ -156,3 +156,43 @@ export function isAllowedLiveLink(url: string): boolean {
   const host = u.hostname.toLowerCase();
   return LIVE_LINK_HOSTS.some(h => host === h || host.endsWith('.' + h));
 }
+
+/** 長度以 Unicode 碼位計，與公告上限、requireLine 相同。 */
+export function codePointLength(text: string): number {
+  return [...text].length;
+}
+
+interface GraphemeSplitter {
+  segment(text: string): Iterable<{ segment: string }>;
+}
+
+let graphemeSplitter: GraphemeSplitter | null = null;
+
+function graphemesOf(text: string): Iterable<{ segment: string }> {
+  if (!graphemeSplitter) {
+    const Ctor = (Intl as unknown as {
+      Segmenter?: new (locales?: string, options?: { granularity: 'grapheme' }) => GraphemeSplitter;
+    }).Segmenter;
+    if (!Ctor) throw new Error('此環境沒有 Intl.Segmenter');
+    graphemeSplitter = new Ctor(undefined, { granularity: 'grapheme' });
+  }
+  return graphemeSplitter.segment(text);
+}
+
+/**
+ * 依碼位上限截斷。不切開一個字素：組合附加符號、變體選擇器、膚色、國旗、ZWJ 組合 emoji
+ * 整段留下或整段拿掉。結果的碼位數不會超過 max；放不下的字素會讓結果更短。
+ */
+export function clipCodePoints(text: string, max: number): string {
+  if (max <= 0) return '';
+  if (codePointLength(text) <= max) return text;
+  let used = 0;
+  let out = '';
+  for (const { segment } of graphemesOf(text)) {
+    const n = codePointLength(segment);
+    if (used + n > max) break;
+    out += segment;
+    used += n;
+  }
+  return out;
+}

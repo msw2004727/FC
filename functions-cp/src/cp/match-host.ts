@@ -16,8 +16,8 @@
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import {
-  DEFAULT_WALKOVER, buildStanding, clearedManualOverride, computeRows, explainTie as explainTieCalc,
-  matchResult, matchesPendingTie, tieDecisionView,
+  buildStanding, clearedManualOverride, computeRows, engineInputsOf, explainTie as explainTieCalc,
+  matchResult, matchesPendingTie, resolveRules, tieDecisionView,
   type ManualOverride, type MatchLike, type MatchResult, type StandingDoc, type StandingRow
 } from '../engine/index.js';
 import { CpError, bad, deny, pre } from './errors.js';
@@ -51,7 +51,6 @@ import {
   derivedScoreOf,
   planRoundRobin,
   publicMatchDoc,
-  rankingRuleOf,
   standingMatchesOf,
   statusAfterReset,
   type PlanDay
@@ -114,8 +113,8 @@ function taipeiYmd(ms: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** 主辦判斷＋內部期閘門＋下架；回賽事文件。 */
-async function hostComp(deps: CpDeps, tx: Transaction, caller: Caller, gate: GateResult, cid: string): Promise<CompDoc> {
+/** 主辦判斷＋內部期閘門＋下架；回賽事文件。改規則與此共用，不另寫一份。 */
+export async function hostComp(deps: CpDeps, tx: Transaction, caller: Caller, gate: GateResult, cid: string): Promise<CompDoc> {
   const comp = await loadComp(deps, tx, cid);
   assertCompVisible(comp, gate);
   await assertHostOrCo(deps, tx, cid, comp, caller);
@@ -129,7 +128,7 @@ async function hostComp(deps: CpDeps, tx: Transaction, caller: Caller, gate: Gat
  * 寬限只給末場確認（endedBy:'confirm'）的 3 天。手動結束（host）與自動結束（auto）沒有寬限。
  * 管理員仍可改場次。重複手動結束不走這裡，由 endCompetition 另判。
  */
-function assertNotEnded(deps: CpDeps, comp: CompDoc, caller: Caller): void {
+export function assertNotEnded(deps: CpDeps, comp: CompDoc, caller: Caller): void {
   if (!comp.endedAt || isAdmin(caller)) return;
   const graceOk = comp.endedBy === 'confirm'
     && deps.now().getTime() < comp.endedAt.toMillis() + SCHEDULE_LIMITS.endedGraceMs;
@@ -313,7 +312,11 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
     const groups = plan.groups.map(g => ({ groupId: g.groupId, teamIds: [...g.teamIds] }));
     const names = Object.fromEntries(teams.map(t => [t.enId, t.name]));
     const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
-    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(cid, dvId, groups[0].teamIds, names, ranking, prevStandingVersion, divisionName));
+    // 組別這筆交易已經讀過。零積分榜用這份文件解析，不再用 rankingRuleOf。不另讀。
+    const divisionRaw = (dv.data() ?? {}) as Record<string, unknown>;
+    tx.set(standingRef(deps, cid, dvId, 'group', 'A'), zeroStandingDoc(
+      cid, dvId, groups[0].teamIds, names, divisionRaw, ranking, prevStandingVersion, divisionName
+    ));
     // 末場確認造成的結束（例如另一組別先打完）在新排賽程時解除（Opus 終審 P1-1 (b)）
     if (comp.endedAt && comp.endedBy === 'confirm') {
       tx.update(deps.db.doc(`competitions/${cid}`), {
@@ -714,9 +717,12 @@ export async function swapMatches(deps: CpDeps, caller: Caller, gate: GateResult
   });
 }
 
-function resultOf(score: { home: number; away: number }): MatchResult {
-  const r = matchResult(score, null, { winPoints: 3, drawPoints: 1 });
+/** 負方點數只在這裡改。引擎 matchResult 仍把負方寫成 0，單元測試維持原樣。 */
+function resultOf(score: { home: number; away: number }, points: { win: number; draw: number; loss: number }): MatchResult {
+  const r = matchResult(score, null, { winPoints: points.win, drawPoints: points.draw });
   if (!r) throw bad('FIELD_RANGE', { field: 'score' });
+  if (r.winner === 'home') r.awayPoints = points.loss;
+  else if (r.winner === 'away') r.homePoints = points.loss;
   return r;
 }
 
@@ -789,6 +795,14 @@ function storedPenalty(raw: unknown): { home: number; away: number } | null {
   return { home: o.home, away: o.away };
 }
 
+/** 場次所屬組別。沒有組別時用缺值預設，與舊賽事 3／1／0、棄權 2:0 相同。 */
+async function divisionRecord(deps: CpDeps, tx: Transaction, cid: string, snap: DocumentSnapshot): Promise<Record<string, unknown>> {
+  const divisionId = snap.get('divisionId');
+  if (typeof divisionId !== 'string' || divisionId.length === 0) return {};
+  const dv = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/divisions/${divisionId}`));
+  return dv.exists ? (dv.data() ?? {}) as Record<string, unknown> : {};
+}
+
 export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'score', 'confirm']);
   const { cid, mtId, expectedRev } = matchIds(input);
@@ -803,13 +817,14 @@ export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResul
     if (!['scheduled', 'finished'].includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
     if (m.kickoffMs == null) throw pre('MATCH_NOT_SCHEDULED');
     if (deps.now().getTime() < m.kickoffMs) throw pre('MATCH_NOT_STARTED');
+    const points = resolveRules(await divisionRecord(deps, tx, cid, m.snap)).points;
     const status = confirm ? 'confirmed' : 'finished';
     const now = FieldValue.serverTimestamp();
     tx.update(m.ref, {
       score, status, lock: { locked: true },
       ...(m.snap.get('finishedAt') ? {} : { finishedAt: now }),
       confirmedAt: confirm ? now : null,
-      result: resultOf(score), resultSource: 'host', walkoverSide: null,
+      result: resultOf(score, points), resultSource: 'host', walkoverSide: null,
       clockBase: { ...CLEAR_CLOCK, period: 'ft' },
       // 顧問 §3.335 P2：PK 只在正規比分平手時才有意義。主辦改成非平手就清掉 PK 比分（摘要的 p 由觸發器跟著拿掉）；
       // 平手則保留裁判記的 PK 比分。重置與棄權另有清除。
@@ -863,9 +878,10 @@ export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: Gat
         throw pre('PENALTY_MISMATCH', { home: derivedPk.home, away: derivedPk.away });
       }
     }
+    const points = resolveRules(await divisionRecord(deps, tx, cid, m.snap)).points;
     const now = FieldValue.serverTimestamp();
     tx.update(m.ref, {
-      status: 'confirmed', confirmedAt: now, lock: { locked: true }, result: resultOf(score),
+      status: 'confirmed', confirmedAt: now, lock: { locked: true }, result: resultOf(score, points),
       rev: m.rev + 1, updatedAt: now
     });
     writeAudit(deps, tx, cid, caller, 'confirmMatchResult', { mtId, score, derivedGoals: derived.goals });
@@ -884,7 +900,7 @@ export async function setWalkover(deps: CpDeps, caller: Caller, gate: GateResult
     assertResultEditable(comp);
     const m = await loadMatch(deps, tx, cid, mtId, expectedRev);
     if (!['scheduled', 'postponed', 'finished'].includes(m.status)) throw pre('MATCH_STATE', { status: m.status });
-    const wo = DEFAULT_WALKOVER;
+    const wo = resolveRules(await divisionRecord(deps, tx, cid, m.snap)).walkover;
     const winSide = forfeitSide === 'home' ? 'away' : 'home';
     const score = { home: winSide === 'home' ? wo.scoreFor : wo.scoreAgainst, away: winSide === 'away' ? wo.scoreFor : wo.scoreAgainst };
     const now = FieldValue.serverTimestamp();
@@ -1077,7 +1093,8 @@ interface TieGroup {
   prev: Partial<StandingDoc> | null;
   teamIds: string[];
   matches: MatchLike[];
-  preset: 'h2hFirst' | 'goalDiffFirst';
+  /** 已讀組別解析出的計分輸入。不再讀一次。 */
+  inputs: ReturnType<typeof engineInputsOf>;
   names: Record<string, string>;
   /** 組別文件已讀過的名稱。重寫積分榜時帶上，避免整份 set 把 divisionName 清掉。 */
   divisionName: string;
@@ -1122,7 +1139,7 @@ async function loadTieGroup(
   const divisionName = typeof dv.get('name') === 'string' ? dv.get('name') as string : '';
   return {
     ref, version, prev, teamIds, matches: counted, names, divisionName,
-    preset: schedule.ranking === 'goalDiffFirst' ? 'goalDiffFirst' : 'h2hFirst'
+    inputs: engineInputsOf(resolveRules((dv.data() ?? {}) as Record<string, unknown>))
   };
 }
 
@@ -1135,11 +1152,12 @@ function writeGroupStanding(
   override: ManualOverride,
   computedBy: string
 ): StandingDoc {
+  const teamMeta = Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }]));
   const doc = buildStanding({
     competitionId: cid, divisionId: dvId, stageId: 'group', groupId,
     teamIds: bundle.teamIds, matches: bundle.matches,
-    rule: rankingRuleOf(bundle.preset),
-    opts: { teamMeta: Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }])) },
+    rule: bundle.inputs.rule,
+    opts: { ...bundle.inputs.opts, teamMeta },
     prev: { version: bundle.version, manualOverride: override, rows: bundle.prev?.rows }
   });
   const now = FieldValue.serverTimestamp();
@@ -1169,11 +1187,12 @@ export async function resolveTie(deps: CpDeps, caller: Caller, gate: GateResult,
     assertNotEnded(deps, comp, caller);
     const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, expectedVersion);
     // 用目前場次重算後的自然名次判斷，不沿用可能已過期的列。先不套用舊裁定。
+    const teamMeta = Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }]));
     const natural = buildStanding({
       competitionId: cid, divisionId: dvId, stageId: 'group', groupId,
       teamIds: bundle.teamIds, matches: bundle.matches,
-      rule: rankingRuleOf(bundle.preset),
-      opts: { teamMeta: Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }])) },
+      rule: bundle.inputs.rule,
+      opts: { ...bundle.inputs.opts, teamMeta },
       prev: { version: bundle.version, manualOverride: { enabled: false, by: null, at: null, reason: null } }
     });
     if (!matchesPendingTie(natural.rows, order)) throw pre('TIE_NOT_PENDING');
@@ -1227,14 +1246,15 @@ export async function explainTie(deps: CpDeps, caller: Caller, gate: GateResult,
     await hostComp(deps, tx, caller, gate, cid);
     const bundle = await loadTieGroup(deps, tx, cid, dvId, groupId, null);
     if (teamIds.some(id => !bundle.teamIds.includes(id))) throw pre('TEAM_NOT_IN_STANDING');
-    const rule = rankingRuleOf(bundle.preset);
+    const { rule, opts } = bundle.inputs;
     const meta = Object.fromEntries(Object.entries(bundle.names).map(([id, name]) => [id, { teamId: id, name }]));
+    const tallyOpts = { ...opts, teamMeta: meta };
     // 列上的積分用全組場次。explainTie 自己再跑同一套 orderTied，這裡不先排名。
-    const rows = computeRows(bundle.teamIds, bundle.matches, rule, { teamMeta: meta });
+    const rows = computeRows(bundle.teamIds, bundle.matches, rule, tallyOpts);
     // Flash 初審 P2：只比較積分相同的隊伍，避免對任意子集重比而得出和全組名次不一致的說明
     const pts = new Set(rows.filter(r => teamIds.includes(r.teamId)).map(r => r.points));
     if (pts.size !== 1) throw pre('TIE_NOT_SAME_POINTS');
-    const explained = explainTieCalc(rows, bundle.matches, rule, teamIds);
+    const explained = explainTieCalc(rows, bundle.matches, rule, teamIds, tallyOpts);
     const stored = new Map((bundle.prev?.rows ?? []).map(r => [r.teamId, r]));
     const marks = teamIds.map(teamId => {
       const row = stored.get(teamId);

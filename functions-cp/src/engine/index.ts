@@ -12,6 +12,7 @@ export * from './clock.js';
 export * from './phase.js';
 export * from './match-clock.js';
 export * from './tally.js';
+export * from './rules.js';
 export * from './ranking.js';
 export * from './util.js';
 

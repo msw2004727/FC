@@ -308,8 +308,8 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const deps = later();
     deps.meter = meter;
     await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[0].id, expectedRev: 200 }, deps));
-    // 閘門 1＋賽事 1＋場次 1＋timeline 200＋空 voids 查詢 1。
-    expect(meter.reads).toBe(1 + 1 + 1 + 200 + 1);
+    // 閘門 1＋賽事 1＋場次 1＋timeline 200＋空 voids 查詢 1＋組別 1（K8 積分規則，整合時補）。
+    expect(meter.reads).toBe(1 + 1 + 1 + 200 + 1 + 1);
 
     await fill(ms[1], 'timeline', 201);
     const overTl = new ReadMeter();
@@ -348,8 +348,8 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const deps = later();
     deps.meter = meter;
     await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: m.id, expectedRev: 210 }, deps));
-    // 閘門 1＋賽事 1＋場次 1＋timeline 60＋voids 60（重置線以上）。
-    expect(meter.reads).toBe(1 + 1 + 1 + 60 + 60);
+    // 閘門 1＋賽事 1＋場次 1＋timeline 60＋voids 60（重置線以上）＋組別 1（K8 積分規則，整合時補）。
+    expect(meter.reads).toBe(1 + 1 + 1 + 60 + 60 + 1);
   });
 
   it('棄權：判 0:2、不做比分對帳、原因必填且不進公開場次', async () => {
