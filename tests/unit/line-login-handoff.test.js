@@ -375,7 +375,7 @@ describe("lineLoginHandoff", () => {
     expect(writes[0].method).toBe("create");
   });
 
-  test("relay 選錯時建立作廢文件，claim 回 not-found 並刪除", async () => {
+  test("relay 選錯時建立作廢文件，claim 回 not-found 且作廢文件保留", async () => {
     const harness = createHarness();
     const data = relayData({ handoffId: ID_A, pick: "00" });
 
@@ -392,7 +392,7 @@ describe("lineLoginHandoff", () => {
       code: "not-found",
       message: "HANDOFF_NOT_FOUND",
     });
-    expect(harness.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(harness.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true });
   });
 
   test("不覆寫三案：已存在時不改文件，且建立只透過 create", async () => {
@@ -453,7 +453,7 @@ describe("lineLoginHandoff", () => {
       code: "not-found",
       message: "HANDOFF_NOT_FOUND",
     });
-    expect(expired.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(expired.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true, code: "" });
 
     const voided = createHarness();
     voided.seed(HANDOFF_COLLECTION, ID_A, {
@@ -465,10 +465,10 @@ describe("lineLoginHandoff", () => {
       code: "not-found",
       message: "HANDOFF_NOT_FOUND",
     });
-    expect(voided.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(voided.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true });
   });
 
-  test("claim 成功一次後 60 秒內可重取，超過後刪除", async () => {
+  test("claim 成功一次後 60 秒內可重取，超過後改為清掉授權碼的作廢墓碑", async () => {
     const harness = createHarness();
     await harness.call(relayData({ handoffId: ID_A }));
 
@@ -491,10 +491,10 @@ describe("lineLoginHandoff", () => {
       code: "not-found",
       message: "HANDOFF_NOT_FOUND",
     });
-    expect(harness.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(harness.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true, code: "" });
   });
 
-  test("claim 在 relay 過期後回 not-found 並刪除", async () => {
+  test("claim 在 relay 過期後回 not-found 並改為作廢墓碑", async () => {
     const harness = createHarness();
     await harness.call(relayData({ handoffId: ID_A }));
     harness.setNow(NOW + HANDOFF_TTL_MS + 1);
@@ -503,7 +503,7 @@ describe("lineLoginHandoff", () => {
       code: "not-found",
       message: "HANDOFF_NOT_FOUND",
     });
-    expect(harness.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(harness.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true, code: "" });
   });
 
   test("relay 每分鐘 10 次、claim 每分鐘 30 次，超額不讀寫且視窗過後恢復", async () => {
@@ -883,7 +883,7 @@ describe("lineLoginHandoff 補測（Grok 初審 P3）", () => {
     await expect(harness.call(claimData(SECRET_A))).resolves.toMatchObject({ code: CODE });
     harness.setNow(NOW + 60001);
     await expect(harness.call(claimData(SECRET_A))).rejects.toMatchObject({ code: "not-found" });
-    expect(harness.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+    expect(harness.get(HANDOFF_COLLECTION, ID_A)).toMatchObject({ voided: true, code: "" });
 
     harness.seed(HANDOFF_COLLECTION, ID_B, {
       code: CODE,
@@ -893,7 +893,7 @@ describe("lineLoginHandoff 補測（Grok 初審 P3）", () => {
       expiresAt: ts(NOW + 60001),
     });
     await expect(harness.call(claimData(SECRET_B))).rejects.toMatchObject({ code: "not-found" });
-    expect(harness.has(HANDOFF_COLLECTION, ID_B)).toBe(false);
+    expect(harness.get(HANDOFF_COLLECTION, ID_B)).toMatchObject({ voided: true, code: "" });
   });
 
   test("createRateLimiter 超過上限時留下最晚插入的 key", () => {
@@ -904,5 +904,43 @@ describe("lineLoginHandoff 補測（Grok 初審 P3）", () => {
     expect(limiter.hit("key-3")).toBe(false);
     expect(limiter.hit("key-2")).toBe(false);
     expect(limiter.size()).toBe(3);
+  });
+});
+
+// Opus 終審 P2-1／P3-1 補測。
+describe("lineLoginHandoff 作廢不可被 claim 清掉（Opus 終審）", () => {
+  test("選錯 → claim → 再選對仍被拒，claim 仍 not-found", async () => {
+    const harness = createHarness();
+    await expect(harness.call(relayData({ handoffId: ID_A, pick: "00" }))).resolves.toEqual({ ok: false, reason: "mismatch" });
+    await expect(harness.call(claimData(SECRET_A))).rejects.toMatchObject({ code: "not-found" });
+    await expect(harness.call(relayData({ handoffId: ID_A }))).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "HANDOFF_UNAVAILABLE",
+    });
+    await expect(harness.call(claimData(SECRET_A))).rejects.toMatchObject({ code: "not-found" });
+  });
+
+  test("過期或超過重取窗後，同一 handoffId 不能再 relay", async () => {
+    const harness = createHarness();
+    await expect(harness.call(relayData({ handoffId: ID_A }))).resolves.toEqual({ ok: true });
+    await harness.call(claimData(SECRET_A));
+    harness.setNow(NOW + 61000);
+    await expect(harness.call(claimData(SECRET_A))).rejects.toMatchObject({ code: "not-found" });
+    await expect(harness.call(relayData({ handoffId: ID_A }))).rejects.toMatchObject({ code: "failed-precondition" });
+
+    harness.setNow(NOW);
+    await expect(harness.call(relayData({ handoffId: ID_B }))).resolves.toEqual({ ok: true });
+    harness.setNow(NOW + 5 * 60 * 1000 + 1);
+    await expect(harness.call(claimData(SECRET_B))).rejects.toMatchObject({ code: "not-found" });
+    await expect(harness.call(relayData({ handoffId: ID_B }))).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+
+  test("接近到期時第一次取回，60 秒內重取仍拿得到（重取窗優先於到期）", async () => {
+    const harness = createHarness();
+    await expect(harness.call(relayData({ handoffId: ID_A }))).resolves.toEqual({ ok: true });
+    harness.setNow(NOW + 5 * 60 * 1000 - 1000);
+    await expect(harness.call(claimData(SECRET_A))).resolves.toMatchObject({ code: CODE });
+    harness.setNow(NOW + 5 * 60 * 1000 + 30000);
+    await expect(harness.call(claimData(SECRET_A))).resolves.toMatchObject({ code: CODE });
   });
 });

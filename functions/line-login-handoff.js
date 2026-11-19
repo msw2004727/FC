@@ -23,6 +23,8 @@ const HEX_64_PATTERN = /^[0-9a-f]{64}$/;
 const CODE_PATTERN = /^[A-Za-z0-9._~-]{1,256}$/;
 const CLIENT_ID_PATTERN = /^\d{1,20}$/;
 const PICK_PATTERN = /^\d{2}$/;
+// 過期或超過重取窗：不刪文件，改成清掉授權碼的作廢墓碑（保留 expiresAt 給 TTL），同一 handoffId 不能再 relay（Opus 終審 P2-1）。
+const TOMBSTONE_FIELDS = Object.freeze({ voided: true, code: "", liffClientId: "", liffRedirectUri: "" });
 const RELAY_KEYS = Object.freeze(["op", "handoffId", "code", "liffClientId", "liffRedirectUri", "pick"]);
 const CLAIM_KEYS = Object.freeze(["op", "handoffSecret"]);
 
@@ -321,9 +323,8 @@ function createLineLoginHandoffHandler({
           }
 
           const handoff = snapshot.data() || {};
-          const expiresMs = toMillis(handoff.expiresAt);
-          if (handoff.voided === true || !Number.isFinite(expiresMs) || expiresMs <= nowMs) {
-            transaction.delete(ref);
+          // 作廢文件不刪，留到 expiresAt 交給 TTL 清（Opus 終審 P2-1）：刪了之後同一 handoffId 又能重新 relay，「選錯即作廢」就失效。
+          if (handoff.voided === true) {
             return { kind: "not_found" };
           }
 
@@ -333,18 +334,24 @@ function createLineLoginHandoffHandler({
             liffRedirectUri: handoff.liffRedirectUri,
           };
 
-          if (typeof handoff.claimedAt === "undefined") {
-            transaction.update(ref, { claimedAt: new Date(nowMs) });
-            return { kind: "ok", payload, repeat: false };
+          // 已取過：60 秒重取窗優先於到期判斷（Opus 終審 P3-1），避免接近 5 分鐘時第一次取回斷線、重取時已過期。
+          if (typeof handoff.claimedAt !== "undefined") {
+            const claimedMs = toMillis(handoff.claimedAt);
+            if (Number.isFinite(claimedMs) && nowMs - claimedMs <= CLAIM_REPEAT_WINDOW_MS) {
+              return { kind: "ok", payload, repeat: true };
+            }
+            transaction.update(ref, TOMBSTONE_FIELDS);
+            return { kind: "not_found" };
           }
 
-          const claimedMs = toMillis(handoff.claimedAt);
-          if (nowMs - claimedMs <= CLAIM_REPEAT_WINDOW_MS) {
-            return { kind: "ok", payload, repeat: true };
+          const expiresMs = toMillis(handoff.expiresAt);
+          if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) {
+            transaction.update(ref, TOMBSTONE_FIELDS);
+            return { kind: "not_found" };
           }
 
-          transaction.delete(ref);
-          return { kind: "not_found" };
+          transaction.update(ref, { claimedAt: new Date(nowMs) });
+          return { kind: "ok", payload, repeat: false };
         });
       } catch (error) {
         outcome = "error";
