@@ -156,7 +156,8 @@ service cloud.firestore {
     function pkStartFx(a, b, ch) {
       return ch.hasOnly(['penaltyScore', 'clockBase', 'rev', 'updatedAt'])
         && a.status == 'live'
-        && a.penaltyScore == null
+        // 缺欄位視同 null（Flash 複審 P3：cp 建場次都明寫 null，防舊文件缺鍵時誤擋）
+        && a.get('penaltyScore', null) == null
         && b.penaltyScore == {'home': 0, 'away': 0}
         && b.clockBase.period == 'pk'
         && a.score.home == a.score.away;
@@ -207,22 +208,23 @@ service cloud.firestore {
         && ev.sid is string
         && scorerOk(cid, mt)
         && clockOk(ch, b)
+        // 已進 PK（有 penaltyScore）時，所有改 clockBase 的寫入 period 都必須仍是 pk
+        // （Opus 逐行審 + Flash 複審 P2：原本只鎖 clock／timeout，半場、續賽、終場、撤回終場可改走）。
+        && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk')
         && (
-          // 時鐘修正。已進 PK（有 penaltyScore）時 period 必須仍是 pk。
+          // 時鐘修正。
           (ev.type == 'clock'
             && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
-            && a.status in ['live', 'halftime']
-            && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk'))
-          // 停錶：只准 running true→false。startedAt、pausedSec、period 必須與寫入前相同。
-          // 要改那三欄走 clock。已進 PK 時 period 相等即仍是 pk；再寫一次鎖，避免只拿掉相等仍放行。
+            && a.status in ['live', 'halftime'])
+          // 停錶：只准 running true→false、period 不變、pausedSec 不得倒退。
+          // 契約時鐘語意：停錶時 pausedSec 寫成目前已進行秒數、startedAt 寫成暫停開始時間（用戶端時間，只供顯示 §3.250），
+          // 所以這兩欄必定會變（取代原「startedAt、pausedSec 必須相同」：那會擋掉正確的停錶、只讓時鐘倒退的寫法通過）。
           || (ev.type == 'timeout'
             && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
             && a.status in ['live', 'halftime']
-            && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk')
             && a.clockBase.running == true
             && b.clockBase.running == false
-            && b.clockBase.startedAt == a.clockBase.startedAt
-            && b.clockBase.pausedSec == a.clockBase.pausedSec
+            && b.clockBase.pausedSec >= a.clockBase.pausedSec
             && b.clockBase.period == a.clockBase.period)
           // 半場、續賽、開賽會帶 status＋clockBase。終場、自撤回若帶 clockBase 也走這裡。
           // 不帶 clockBase 的仍由 effectOk 放行。
