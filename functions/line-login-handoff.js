@@ -365,7 +365,12 @@ function createLineLoginHandoffHandler({
       logStorageError(op, "handler", error);
       throw new HttpsError("unavailable", "TRY_LATER");
     } finally {
-      logInfo(op, outcome, hops);
+      // log 失敗不得蓋掉原本的回傳值或錯誤（Grok 初審 P3）。
+      try {
+        logInfo(op, outcome, hops);
+      } catch (_) {
+        /* ignore */
+      }
     }
   };
 }

@@ -330,6 +330,11 @@ describe("lineLoginHandoff", () => {
       { ...base, liffRedirectUri: "https://evil.com/" },
       { ...base, pick: "9" },
       { ...base, pick: "aa" },
+      { ...base, handoffId: ID_A.toUpperCase() },
+      { ...base, handoffId: ID_A.slice(0, 63) },
+      { ...base, handoffId: `${ID_A.slice(0, 63)}g` },
+      { ...base, liffClientId: "1".repeat(21) },
+      { op: "claim", handoffSecret: SECRET_A.toUpperCase() },
       { ...base, extra: "x" },
       missingCode,
       { op: "relay" },
@@ -848,5 +853,56 @@ describe("lineLoginHandoff 本機來源守門（沿用 index.js 既有判斷）"
       await expect(outcome).rejects.toMatchObject({ code: "not-found" });
       expect(operations).toEqual(["transaction"]);
     }
+  });
+});
+
+// Grok 初審 P3 補測。
+describe("lineLoginHandoff 補測（Grok 初審 P3）", () => {
+  test("logger 拋錯不會蓋掉原本的錯誤或回傳值", async () => {
+    const logger = { info: jest.fn(() => { throw new Error("logger failed"); }), error: jest.fn() };
+    const harness = createHarness({ logger });
+    await expect(harness.call({ op: "nope" })).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "INVALID_REQUEST",
+    });
+    await expect(harness.call(relayData({ handoffId: ID_A }))).resolves.toEqual({ ok: true });
+  });
+
+  test("Timestamp 形式（只有 toMillis）的 expiresAt／claimedAt：60 秒邊界與到期", async () => {
+    const harness = createHarness();
+    const ts = (ms) => ({ toMillis: () => ms });
+    harness.seed(HANDOFF_COLLECTION, ID_A, {
+      code: CODE,
+      liffClientId: CLIENT_ID,
+      liffRedirectUri: REDIRECT_URI,
+      createdAt: ts(NOW),
+      expiresAt: ts(NOW + 5 * 60 * 1000),
+      claimedAt: ts(NOW),
+    });
+    harness.setNow(NOW + 60000);
+    await expect(harness.call(claimData(SECRET_A))).resolves.toMatchObject({ code: CODE });
+    harness.setNow(NOW + 60001);
+    await expect(harness.call(claimData(SECRET_A))).rejects.toMatchObject({ code: "not-found" });
+    expect(harness.has(HANDOFF_COLLECTION, ID_A)).toBe(false);
+
+    harness.seed(HANDOFF_COLLECTION, ID_B, {
+      code: CODE,
+      liffClientId: CLIENT_ID,
+      liffRedirectUri: REDIRECT_URI,
+      createdAt: ts(NOW),
+      expiresAt: ts(NOW + 60001),
+    });
+    await expect(harness.call(claimData(SECRET_B))).rejects.toMatchObject({ code: "not-found" });
+    expect(harness.has(HANDOFF_COLLECTION, ID_B)).toBe(false);
+  });
+
+  test("createRateLimiter 超過上限時留下最晚插入的 key", () => {
+    const limiter = createRateLimiter({ limit: 1, windowMs: 60000, maxKeys: 3, now: () => NOW });
+    for (let i = 0; i < 5; i += 1) limiter.hit(`key-${i}`);
+    // 被清掉的舊 key 會重新取得額度；留下的新 key 已用完額度。
+    expect(limiter.hit("key-4")).toBe(false);
+    expect(limiter.hit("key-3")).toBe(false);
+    expect(limiter.hit("key-2")).toBe(false);
+    expect(limiter.size()).toBe(3);
   });
 });
