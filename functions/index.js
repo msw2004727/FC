@@ -2151,9 +2151,10 @@ const LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS = Object.freeze(["http_400", "htt
 // allow_verify_error＝LINE 端異常（其他非 200、逾時、網路、解析失敗）且開啟放行。
 function decideLineChannelCheck(result, failOpen = LINE_CHANNEL_VERIFY_FAIL_OPEN) {
   const clientId = String(result?.clientId || "");
-  const error = String(result?.error || "");
+  // verify 回 200 卻沒有 client_id：視為 LINE 回應格式異常，不當成 channel 不符（顧問 §3.316 必修：避免 LINE 改格式就全站鎖死）。
+  const error = String(result?.error || "") || (clientId ? "" : "no_client_id");
   if (!error) {
-    if (clientId && LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(clientId)) return { decision: "allow", reject: false };
+    if (LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(clientId)) return { decision: "allow", reject: false };
     return { decision: "reject_mismatch", reject: true };
   }
   if (error === "skipped" || LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS.includes(error)) {
@@ -3300,7 +3301,11 @@ exports.createCustomToken = onCall(
 
     // 授權強化第二步（顧問 §3.310）：verify 與 profile 並行，判定以 verify 為準。
     // 判定出來之前不簽 token、不建立或更新使用者、不寫成功稽核（以下三件事都在這段之後）。
-    const channelCheckResult = channelCheck ? await channelCheck : { clientId: "", error: "skipped" };
+    const rawChannelCheckResult = channelCheck ? await channelCheck : { clientId: "", error: "skipped" };
+    // 沒有 client_id 也沒有錯誤時補上 no_client_id，log 與拒絕快取判斷都看得到（顧問 §3.316；不在無效清單內，不記入拒絕快取）。
+    const channelCheckResult = (!rawChannelCheckResult.error && !rawChannelCheckResult.clientId)
+      ? { ...rawChannelCheckResult, error: "no_client_id" }
+      : rawChannelCheckResult;
     const channelDecision = decideLineChannelCheck(channelCheckResult);
     logger.info("[createCustomToken] channel check", {
       channelId: channelCheckResult.clientId || "",

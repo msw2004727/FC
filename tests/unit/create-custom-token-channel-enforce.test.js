@@ -128,7 +128,10 @@ describe("授權強化：createCustomToken channel enforce", () => {
     expect(decide({ clientId: "2009525300" })).toEqual({ decision: "allow", reject: false });
     expect(decide({ clientId: "2009084941" })).toEqual({ decision: "allow", reject: false });
     expect(decide({ clientId: "1234567890" })).toEqual({ decision: "reject_mismatch", reject: true });
-    expect(decide({ clientId: "" })).toEqual({ decision: "reject_mismatch", reject: true });
+    // 顧問 §3.316：200 但沒有 client_id 屬 LINE 端異常，依開關處理，不算 channel 不符。
+    expect(decide({ clientId: "" }, true)).toEqual({ decision: "allow_verify_error", reject: false });
+    expect(decide({ clientId: "" }, false)).toEqual({ decision: "reject_verify_error", reject: true });
+    expect(decide({}, true)).toEqual({ decision: "allow_verify_error", reject: false });
 
     // Opus 終審 P2：除 400／401／403 外的非 200 都算 LINE 端異常，依開關放行。
     ["timeout", "network", "parse", "http_429", "http_500", "http_503", "http_302", "http_404", "http_405", "http_410", "http_undefined"].forEach((error) => {
@@ -372,5 +375,34 @@ describe("createCustomToken LINE 端異常的處理（Opus 終審）", () => {
     const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, writeDedupedAuditEntry });
     await expect(handler(makeRequest("token-audit"))).rejects.toMatchObject({ code: "unauthenticated", message: "LINE 驗證失敗" });
     expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
+  });
+});
+
+// 顧問 §3.316 必修補測。
+describe("createCustomToken verify 回 200 但沒有 client_id（顧問 §3.316）", () => {
+  test("預設放行並記錄 no_client_id，不記入拒絕快取", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel });
+    await expect(handler(makeRequest("token-no-client"))).resolves.toMatchObject({ customToken: "custom-token" });
+    expect(sandbox.rememberRejectedLineAccessToken).not.toHaveBeenCalled();
+    expect(sandbox.writeDedupedAuditEntry).not.toHaveBeenCalled();
+    expect(findChannelCheckLog(sandbox)).toMatchObject({ decision: "allow_verify_error", error: "no_client_id" });
+  });
+
+  test("關閉放行時拒絕，但仍不記入拒絕快取", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, failOpen: false });
+    await expect(handler(makeRequest("token-no-client-closed"))).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(sandbox.rememberRejectedLineAccessToken).not.toHaveBeenCalled();
+    expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
+    expect(findChannelCheckLog(sandbox)).toMatchObject({ decision: "reject_verify_error", error: "no_client_id" });
+  });
+
+  test("有 client_id 但不在白名單才是 reject_mismatch，且記入拒絕快取", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "1234567890" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel });
+    await expect(handler(makeRequest("token-other-channel"))).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(sandbox.rememberRejectedLineAccessToken).toHaveBeenCalledWith("fp");
+    expect(findChannelCheckLog(sandbox)).toMatchObject({ decision: "reject_mismatch", channelId: "1234567890" });
   });
 });
