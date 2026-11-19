@@ -97,6 +97,15 @@ describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
     const htClock = { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'ht' };
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'clock' }, patch: { clockBase: htClock } }));
   });
+  it('【P-9】球隊暫停：停錶、不停錶、live、半場', async () => {
+    const stopped = { startedAt: CTimestamp.now(), pausedSec: 1800, running: false, period: 'h1' as const };
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' }, patch: { clockBase: stopped } }));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'timeout', side: 'away' } }));
+    await patchMatch('cp_pub', { status: 'halftime' });
+    const htStopped = { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'ht' as const };
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'timeout', side: 'away' }, patch: { clockBase: htStopped } }));
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 6, ev: { type: 'timeout', side: 'home' } }));
+  });
   it('半場→續賽（clockBase 可改）', async () => {
     const cb = { startedAt: CTimestamp.now(), pausedSec: 0, running: false, period: 'ht' };
     await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'halftime' }, patch: { status: 'halftime', clockBase: cb } }));
@@ -315,6 +324,23 @@ describe('拒絕案例（§6.3-9）', () => {
     // 終場但鎖已解開：鎖條件不再擋，仍須被 live／半場狀態擋下。
     await patchMatch('cp_pub', { status: 'finished', lock: { locked: false }, finishedAt: ago(30) });
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok } }));
+  });
+  it('【R-55】球隊暫停缺 side、side 非法、多鍵', async () => {
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout' } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'both' } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home', note: 1 } }));
+  });
+  it('【R-56】球隊暫停同時改比分或狀態、賽程未開始、終場上鎖', async () => {
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' }, patch: { score: { home: 2, away: 0 } } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' }, patch: { status: 'halftime' } }));
+    await patchMatch('cp_pub', { status: 'scheduled' });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' } }));
+    await patchMatch('cp_pub', { status: 'finished', lock: { locked: true }, finishedAt: ago(30) });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'away' } }));
+  });
+  it('【R-57】作廢球隊暫停', async () => {
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' } }));
+    await assertFails(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
   });
   it('【R-44】事件缺 op、op 太短、op 太長、op 含非法字元', async () => {
     await assertFails(scoreBatch(as('s1'), { noOp: true, ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));

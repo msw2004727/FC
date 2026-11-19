@@ -110,6 +110,10 @@ const PROBES: [string, () => Promise<unknown>][] = [
   ['時鐘修正', () => scoreBatch(as('s1'), { type: 'clock' }, {
     clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1' }
   })],
+  ['球隊暫停（停錶）', () => scoreBatch(as('s1'), { type: 'timeout', side: 'home' }, {
+    clockBase: { startedAt: CTimestamp.now(), pausedSec: 1800, running: false, period: 'h1' }
+  })],
+  ['球隊暫停（不停錶）', () => scoreBatch(as('s1'), { type: 'timeout', side: 'away' })],
   ['帶 sid 接手', () => setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 })]
 ];
 

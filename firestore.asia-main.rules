@@ -162,11 +162,13 @@ service cloud.firestore {
           && voidFx(a, b, ch, get(eventPath(cid, mt, ev.targetSeq)).data))
         || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
           && a.status in ['live', 'halftime'])
-        // ④ 只改 clockBase，且必須真的改到；live／半場。形狀由上面的 clockOk 驗。
-        || (ev.type == 'clock'
+        // ④ clock 只改 clockBase，且必須真的改到。
+        // 球隊暫停 timeout 併入同一分支：可改 clockBase（停錶）或不改（不停錶）。
+        // 狀態限 live／半場。形狀由上面的 clockOk 驗。不新增文件存取。
+        || (ev.type in ['clock', 'timeout']
           && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
-          && ch.hasAny(['clockBase'])
-          && a.status in ['live', 'halftime'])
+          && a.status in ['live', 'halftime']
+          && (ev.type == 'timeout' || ch.hasAny(['clockBase'])))
         || (ev.type in ['kickoff', 'halftime', 'resume']
           && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
           && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
@@ -233,6 +235,10 @@ service cloud.firestore {
         || (ev.type == 'void'
           && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq)
+        // 球隊暫停：side 只能是 home／away。缺 side 時讀欄位會出錯而拒絕。
+        || (ev.type == 'timeout'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away'])
       );
     }
     // 事件 create：
@@ -274,7 +280,8 @@ service cloud.firestore {
         && yellowFree(cid, mt, ev.refSeq)
         && getAfter(cardLinkPath(cid, mt, ev.refSeq)).data.seq == ev.seq;
     }
-    // 作廢事件：目標必須是進球、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
+    // 作廢事件：目標必須是進球或牌、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
+    // 球隊暫停 timeout 不開作廢（目標仍只限進球或牌）。
     // ① targetSeq 必須大於場次 resetRev（重置前的事件不能再作廢）。缺欄位視同 0（建立賽程時伺服器寫 0）。
     // 場次 get 與 eventCreateOk 同路徑，同一操作內快取，不另計存取。
     function voidTargetOk(cid, mt, ev, before) {
