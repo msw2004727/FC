@@ -191,22 +191,63 @@ export async function isClubMember(deps: CpDeps, tx: Reader, teamId: string, uid
 /** 賽事內 staff 角色（伺服器寫）。 */
 async function staffRoles(deps: CpDeps, tx: Reader, cid: string, uid: string): Promise<string[]> {
   const staff = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/staff/${uid}`));
-  const roles = staff.exists ? staff.get('roles') : null;
-  return Array.isArray(roles) ? roles : [];
+  return stringList(staff, 'roles');
+}
+
+function stringList(snap: DocumentSnapshot, field: string): string[] {
+  if (!snap.exists) return [];
+  const raw = snap.get(field);
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+}
+
+/**
+ * 主辦判斷的結果。reads 是這次為了判斷而讀的文件數（管理員 0、俱樂部代表 1、其餘 ≤2），
+ * 與 isHostOrCo 原本的讀取次數相同。callerStaff 是呼叫者自己的 staff 快照（有讀才有），
+ * 讓後續指派自己時不必再讀同一份。
+ */
+export interface HostAccess {
+  /** 主辦（不含共同主辦）。俱樂部只認目前代表；個人主辦＝staff host；管理員算主辦。 */
+  primary: boolean;
+  callerStaff: DocumentSnapshot | null;
+  reads: number;
 }
 
 /**
  * 主辦或共同主辦（顧問 §3.251 (a)(c)，與 Rules isHostOrCo 一致）：管理員；俱樂部主辦只認「目前」代表；
  * 個人主辦與共同主辦看 staff.roles（host／coHost）。主文件不放建立者 uid。
- * 內部賽事另由 assertCompVisible 把關。
+ * 不是主辦或共同主辦時丟 NOT_HOST。內部賽事另由 assertCompVisible 把關。
+ * 讀取次數與改前的 isHostOrCo 相同，不另加文件。
+ */
+export async function hostAccess(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<HostAccess> {
+  if (isAdmin(caller)) return { primary: true, callerStaff: null, reads: 0 };
+  let reads = 0;
+  if (comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
+    // 路徑不合法時 isClubRep 不讀文件
+    if (TEAM_ID_RE.test(comp.hostTeamId)) reads += 1;
+    if ((await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok) {
+      return { primary: true, callerStaff: null, reads };
+    }
+  }
+  reads += 1;
+  const callerStaff = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/staff/${caller.uid}`));
+  const roles = stringList(callerStaff, 'roles');
+  if (!roles.includes('host') && !roles.includes('coHost')) throw deny('NOT_HOST');
+  // 俱樂部賽事的主辦只認目前代表；staff 上的 host 不是主辦（與 isPrimaryHost 一致）
+  const primary = comp.hostType === 'personal' && roles.includes('host');
+  return { primary, callerStaff, reads };
+}
+
+/**
+ * 主辦或共同主辦。讀取次數與 hostAccess 相同。
  */
 export async function isHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<boolean> {
-  if (isAdmin(caller)) return true;
-  if (comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
-    if ((await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok) return true;
+  try {
+    await hostAccess(deps, tx, cid, comp, caller);
+    return true;
+  } catch (e) {
+    if (e instanceof CpError && e.reason === 'NOT_HOST') return false;
+    throw e;
   }
-  const roles = await staffRoles(deps, tx, cid, caller.uid);
-  return roles.includes('host') || roles.includes('coHost');
 }
 
 /** 主辦（不含共同主辦）：刪除等只限主辦的動作。俱樂部主辦＝目前代表；個人主辦＝staff host。 */
@@ -219,7 +260,7 @@ export async function isPrimaryHost(deps: CpDeps, tx: Reader, cid: string, comp:
 }
 
 export async function assertHostOrCo(deps: CpDeps, tx: Reader, cid: string, comp: CompDoc, caller: Caller): Promise<void> {
-  if (!(await isHostOrCo(deps, tx, cid, comp, caller))) throw deny('NOT_HOST');
+  await hostAccess(deps, tx, cid, comp, caller);
 }
 
 // ── 稽核（私密；只存雜湊後的操作者，不存 uid 原文）─────────────────────

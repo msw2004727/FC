@@ -2,7 +2,7 @@
  * cpHost 第 2 步動作：create、update、publish、setStatus、delete（§6.1）。
  * 第 3 步動作（排賽程、改期、登錄比分、確認、棄權、重置、積分重算、同分裁定與查詢）在 match-host.ts，於 HOST_ACTIONS 合併。
  * 組別規則 setDivisionRules 在 rules-host.ts，直接掛在 HOST_ACTIONS（不放進 MATCH_HOST_ACTIONS，避免循環引用）。
- * assignStaff、createInvite、revokeInvite 屬第 4 步，這裡回 UNKNOWN_ACTION（未實作的動作一律拒絕，不靜默成功）。
+ * 第 4 步最小指派 assignStaff、removeStaff 在 staff-host.ts。createInvite、revokeInvite 仍未實作，回 UNKNOWN_ACTION。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { CpError, bad, deny, pre } from './errors.js';
@@ -55,6 +55,7 @@ import { cleanLine, findBannedWord } from './text.js';
 import { prepareMine } from './mine.js';
 import { MATCH_HOST_ACTIONS } from './match-host.js';
 import { setDivisionRules } from './rules-host.js';
+import { STAFF_ACTIONS } from './staff-host.js';
 import { standingRef } from './match-trigger.js';
 
 /** §5.5 建賽限制 */
@@ -533,7 +534,8 @@ export const HOST_ACTIONS = {
   setStatus: setCompetitionStatus,
   delete: deleteCompetition,
   ...MATCH_HOST_ACTIONS,
-  setDivisionRules
+  setDivisionRules,
+  ...STAFF_ACTIONS
 } as const;
 
 export async function handleCpHost(deps: CpDeps, caller: Caller, data: unknown) {
