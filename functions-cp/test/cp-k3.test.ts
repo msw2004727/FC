@@ -14,6 +14,8 @@ import {
   attachNames,
   buildMatchStat,
   estimateStatsDoc,
+  firestoreDocBytes,
+  nextStatsDoc,
   planStatsWrite,
   statsRef,
   type MatchStat,
@@ -146,22 +148,28 @@ describe('射手榜純函式', () => {
     expect(trig.includes('syncMatchStats')).toBe(true);
   });
 
-  it('小文件可寫；內容相同不寫；16×15 飽和估算超過 200KB 就拒絕', () => {
+  it('小文件可寫；內容相同不寫；16×15 飽和估算超過 200KB 就停更', () => {
     const path = statsRef(CID, DVID);
-    const typical = estimateStatsDoc(path, 240, 30, 3);
+    // worst30：每場 30 人都有紀錄（最壞情況）。240 場是卡片 16×15 的乘積（每場會被算兩次）；120 是每場只存一次。
+    const worst30 = estimateStatsDoc(path, 240, 30, 3);
     const worst = estimateStatsDoc(path, 240, 30, 30);
     const unique = estimateStatsDoc(path, 120, 30, 3);
-    // 數字寫進 REPORT-K3。240 場是卡片 16×15 的乘積（每場會被算兩次）；120 是每場只存一次。
+    // 單組循環 120 場、每場 8 人有進球或得牌、名字 6 個中文字。數字寫進 REPORT-K3-fix3。
+    const group120 = estimateStatsDoc(path, 120, 8, 6);
     console.log('[k3-estimate]', JSON.stringify({
       max: STATS_DOC_MAX_BYTES,
-      typical240x30x3: typical.bytes,
+      worst30_240x30x3: worst30.bytes,
       worst240x30x30: worst.bytes,
-      unique120x30x3: unique.bytes
+      unique120x30x3: unique.bytes,
+      group120x8x6: group120.bytes
     }));
-    expect(typical.bytes).toBe(719207);
+    expect(worst30.bytes).toBe(719207);
     expect(worst.bytes).toBe(1302407);
     expect(unique.bytes).toBe(359687);
-    expect(typical.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+    expect(worst30.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+    expect(group120).toMatchObject({ matches: 120, perMatch: 8, nameChars: 6, records: 960 });
+    expect(group120.bytes).toBe(109607);
+    expect(group120.bytes).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
 
     const tiny = planStatsWrite(null, MT, { [PLA]: { g: 1, y: 0, r: 0 } }, path);
     expect(tiny.op).toBe('set');
@@ -174,13 +182,78 @@ describe('射手榜純函式', () => {
     const prevM: Record<string, MatchStat> = {};
     for (let i = 0; i < 240; i++) prevM[`mt_${String(i).padStart(20, '0')}`] = players;
     const over = planStatsWrite({ m: prevM, note: 'keep' }, MT, { [PLA]: { g: 1, y: 0, r: 0 } }, path);
-    expect(over.op).toBe('reject');
-    if (over.op === 'reject') expect(over.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+    expect(over.op).toBe('stall');
+    if (over.op === 'stall') {
+      expect(over.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+      expect(over.stalledMt).toBe(MT);
+    }
     const unchanged = planStatsWrite({ m: prevM }, `mt_${String(0).padStart(20, '0')}`, players, path);
     expect(unchanged.op).toBe('noop');
   });
 
-  it('文件鍵只有 m、updatedAt，球員列只有 n、g、y、r；序列化不含夾具 uid、真名、生日、電話', () => {
+  it('超過 200KB 不改 m，寫 stalledAt／stalledMt；縮小後再寫就清掉', () => {
+    const path = statsRef(CID, DVID);
+    const line: StatLine = { n: '名', g: 1, y: 1, r: 1 };
+    const row = (count: number): MatchStat => {
+      const players: MatchStat = {};
+      for (let p = 0; p < count; p++) players[`pl_${String(p).padStart(20, '0')}`] = line;
+      return players;
+    };
+    // 72 場×30 人再加 19 人，再加 note：估算仍 ≤ 200KB；加上這一場就超過。
+    const prevM: Record<string, MatchStat> = {};
+    for (let i = 0; i < 72; i++) prevM[`mt_${String(i).padStart(20, '0')}`] = row(30);
+    prevM[`mt_${String(72).padStart(20, '0')}`] = row(19);
+    const prev = { m: prevM, note: 'keep' };
+    expect(firestoreDocBytes(path, { ...prev, updatedAt: { __ts: 1 } })).toBe(204733);
+    expect(firestoreDocBytes(path, { ...prev, updatedAt: { __ts: 1 } })).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+    const overflow: MatchStat = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
+    const over = planStatsWrite(prev, MT, overflow, path);
+    expect(over.op).toBe('stall');
+    if (over.op !== 'stall') return;
+    expect(over.stalledMt).toBe(MT);
+    expect(over.bytes).toBe(204887);
+    expect(over.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+    const stalled = nextStatsDoc(prev, MT, overflow, 'stall');
+    expect(stalled.m).toEqual(prevM);
+    expect((stalled.m as Record<string, unknown>)[MT]).toBeUndefined();
+    expect(stalled.stalledAt).toEqual({ __ts: 1 });
+    expect(stalled.stalledMt).toBe(MT);
+    expect(stalled.note).toBe('keep');
+    expect(Object.keys(stalled).sort()).toEqual(['m', 'note', 'stalledAt', 'stalledMt', 'updatedAt']);
+
+    const smallPrev = {
+      m: { [MT]: { [PLA]: { n: '王大明', g: 9, y: 0, r: 0 } } },
+      stalledAt: { __ts: 1 },
+      stalledMt: MT,
+      note: 'keep'
+    };
+    const shrunk: MatchStat = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
+    const again = planStatsWrite(smallPrev, MT, shrunk, path);
+    expect(again.op).toBe('set');
+    const cleared = nextStatsDoc(smallPrev, MT, shrunk, 'set');
+    expect(cleared.stalledAt).toBeUndefined();
+    expect(cleared.stalledMt).toBeUndefined();
+    expect(cleared.m).toEqual({ [MT]: shrunk });
+    expect(Object.keys(cleared).sort()).toEqual(['m', 'note', 'updatedAt']);
+
+    const same = planStatsWrite(smallPrev, MT, smallPrev.m[MT] as MatchStat, path);
+    expect(same.op).toBe('set');
+    expect(nextStatsDoc(smallPrev, MT, smallPrev.m[MT] as MatchStat, 'set').stalledAt).toBeUndefined();
+
+    const src = readFileSync(new URL('../src/cp/stats.ts', import.meta.url), 'utf8');
+    const stallAt = src.indexOf("if (plan.op === 'stall')");
+    const stallEnd = src.indexOf("if (plan.op === 'noop')");
+    expect(stallAt).toBeGreaterThan(0);
+    expect(stallEnd).toBeGreaterThan(stallAt);
+    const stallSrc = src.slice(stallAt, stallEnd);
+    expect(stallSrc.includes('m.')).toBe(false);
+    expect(stallSrc.includes('m:')).toBe(false);
+    expect(stallSrc.includes('stalledAt: FieldValue.serverTimestamp()')).toBe(true);
+    expect(stallSrc.includes('stalledMt: mtId')).toBe(true);
+    expect(firestoreDocBytes(path, cleared)).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+  });
+
+  it('文件鍵白名單為 m、updatedAt、stalledAt、stalledMt；球員列只有 n、g、y、r；序列化不含夾具 uid、真名、生日、電話', () => {
     const fixture = readFileSync(new URL('../test-rules/_fixtures.ts', import.meta.url), 'utf8');
     const privLines = fixture.split('\n').filter(line => line.includes('rosterPrivate/'));
     expect(privLines.length).toBeGreaterThan(0);
@@ -207,9 +280,13 @@ describe('射手榜純函式', () => {
     expect(players[PLA]).toEqual({ n: '公開甲', g: 1, y: 0, r: 0 });
     expect(Object.keys(players[PLB]!).sort()).toEqual(['g', 'r', 'y']);
 
-    // 與 syncMatchStats 的 tx.set 相同：頂層只有 m、updatedAt。
+    // 頂層白名單。停更時才多 stalledAt／stalledMt；寫入成功的文件沒有這兩欄。其他鍵不得出現。
+    const allowedTop = ['m', 'stalledAt', 'stalledMt', 'updatedAt'];
     const doc = { m: { [MT]: players }, updatedAt: 0 };
     expect(Object.keys(doc).sort()).toEqual(['m', 'updatedAt']);
+    for (const key of Object.keys(doc)) expect(allowedTop).toContain(key);
+    const stalledDoc = { ...doc, stalledAt: 0, stalledMt: MT };
+    expect(Object.keys(stalledDoc).sort()).toEqual(allowedTop);
     const packed = JSON.stringify(doc);
     for (const s of [...fromFixture, birthday, phone, 'm1', 'rep']) {
       expect(packed.includes(s)).toBe(false);
@@ -218,10 +295,22 @@ describe('射手榜純函式', () => {
       expect(packed.includes(`"${key}"`)).toBe(false);
     }
     expect(packed.includes('公開甲')).toBe(true);
+    const stalledPacked = JSON.stringify(stalledDoc);
+    for (const s of [...fromFixture, birthday, phone, 'm1', 'rep']) {
+      expect(stalledPacked.includes(s)).toBe(false);
+    }
 
     const src = readFileSync(new URL('../src/cp/stats.ts', import.meta.url), 'utf8');
     expect(src).toContain('tx.set(ref, { m: { [mtId]: plan.players }, updatedAt: FieldValue.serverTimestamp() })');
-    expect(src).toContain('tx.update(ref, { [`m.${mtId}`]: plan.players, updatedAt: FieldValue.serverTimestamp() })');
+    expect(src).toContain('[`m.${mtId}`]: plan.players');
+    expect(src.split('stalledAt: FieldValue.delete()').length - 1).toBe(2);
+    expect(src.split('stalledMt: FieldValue.delete()').length - 1).toBe(2);
+    expect(src).toContain('stalledAt: FieldValue.serverTimestamp()');
+    expect(src).toContain('stalledMt: mtId');
+    const syncSrc = src.slice(src.indexOf('export async function syncMatchStats'));
+    for (const key of ['realName', 'birthday', 'phone', 'addedByUid', 'rosterPrivate']) {
+      expect(syncSrc.includes(key)).toBe(false);
+    }
   });
 });
 
@@ -322,6 +411,25 @@ describe('接手稽核計畫', () => {
     expect(b.audit.mtId).toBe(mt2);
     expect(JSON.stringify(a.audit).includes(uid)).toBe(false);
     expect(JSON.stringify(b.audit).includes(uid)).toBe(false);
+  });
+
+  it('mtId 不合 mt_[A-Za-z0-9]{20} 就拒絕，不組稽核', () => {
+    const after = { uid, sid, takenAt: at(ms) };
+    const bad = [
+      '',
+      'mt_short',
+      'mt_' + 'm'.repeat(19),
+      'mt_' + 'm'.repeat(21),
+      'MT_' + 'm'.repeat(20),
+      'xx_' + 'm'.repeat(20),
+      'mt_' + 'm'.repeat(19) + '_',
+      'mt_' + 'a'.repeat(18) + '/b'
+    ];
+    for (const mtId of bad) {
+      expect(scorerAuditPlan(CID, mtId, null, after)).toEqual({ kind: 'bad', reason: 'mtId' });
+      expect(scorerAuditPlan(CID, mtId, { uid, sid, takenAt: at(ms) }, null)).toEqual({ kind: 'bad', reason: 'mtId' });
+    }
+    expect(scorerAuditPlan(CID, MT, null, after).kind).toBe('write');
   });
 
   it('uid 或 takenAt 不合法就拒絕，不組文件', () => {

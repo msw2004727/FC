@@ -1,12 +1,13 @@
 /**
  * 接手稽核。control/scorer 建立或換人時寫私密 audits/tk_{takenAtMs}_{mtId}_{actorHash}。
- * mtId 是場次路徑上的 id，建立場次時已過 mt_[A-Za-z0-9]{20}。同一毫秒接手兩場因此各寫一筆。
+ * mtId 先驗必須是 mt_[A-Za-z0-9]{20}。不合就走 bad，不寫稽核。同一毫秒接手兩場因此各寫一筆。
  * 文件 id 與內容都不含 uid 原文。同 id 已存在就不寫。刪除、同一人只換 sid 不寫。
  */
 import { logger } from 'firebase-functions/v2';
 import { actorHash, readDoc, type CpDeps } from './context.js';
 
 const UID_MAX = 128;
+const MT_RE = /^mt_[A-Za-z0-9]{20}$/;
 
 export interface ScorerAuditWrite {
   id: string;
@@ -19,7 +20,7 @@ export interface ScorerAuditWrite {
 
 export type ScorerAuditPlan =
   | { kind: 'skip' }
-  | { kind: 'bad'; reason: 'uid' | 'takenAt' }
+  | { kind: 'bad'; reason: 'uid' | 'takenAt' | 'mtId' }
   | { kind: 'write'; audit: ScorerAuditWrite };
 
 function sidOf(value: unknown): string {
@@ -43,6 +44,7 @@ export function scorerAuditPlan(
   before: { uid?: unknown; sid?: unknown; takenAt?: unknown } | null,
   after: { uid?: unknown; sid?: unknown; takenAt?: unknown } | null
 ): ScorerAuditPlan {
+  if (!MT_RE.test(mtId)) return { kind: 'bad', reason: 'mtId' };
   if (!after) return { kind: 'skip' };
   const uid = typeof after.uid === 'string' ? after.uid : '';
   const prevUid = before && typeof before.uid === 'string' ? before.uid : '';

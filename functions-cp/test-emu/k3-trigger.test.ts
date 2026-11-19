@@ -10,13 +10,15 @@ import { handleCpHost } from '../src/cp/host.js';
 import { handleMatchWritten } from '../src/cp/match-trigger.js';
 import { handleScorerWritten } from '../src/cp/scorer-trigger.js';
 import { summaryEntryOf, summaryShardIdOf } from '../src/cp/summary.js';
-import { statsRef, syncMatchStats } from '../src/cp/stats.js';
+import { STATS_DOC_MAX_BYTES, firestoreDocBytes, statsRef, syncMatchStats } from '../src/cp/stats.js';
 import { ADMIN, DAY, TESTER, call, makeDeps, ok, resetAll } from './_cp.js';
 import { act, generate, later, matchesOf, record, setupComp, type Comp } from './_step3.js';
 
 const CID = 'cp_' + 'c'.repeat(20);
 const DVID = 'dv_' + 'd'.repeat(20);
 const MT = 'mt_' + 'm'.repeat(20);
+/** 射手榜文件頂層白名單。stalledAt／stalledMt 只有超限停更時出現。 */
+const STATS_TOP_KEYS = ['m', 'stalledAt', 'stalledMt', 'updatedAt'];
 const PLA = 'pl_' + 'a'.repeat(20);
 const PLB = 'pl_' + 'b'.repeat(20);
 
@@ -218,6 +220,59 @@ describe('K3 每事件讀量與統計讀數', () => {
     expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('reject');
     expect((await db.doc(statsRef(CID, DVID)).get()).get('m')[MT]).toEqual(kept);
   });
+
+  it('超過 200KB 不改 m，寫 stalledAt／stalledMt；縮小後再寫就清掉', async () => {
+    const db = adminDb();
+    const path = statsRef(CID, DVID);
+    const line = { n: '名', g: 1, y: 1, r: 1 };
+    const m: Record<string, Record<string, typeof line>> = {};
+    const row = (count: number) => {
+      const players: Record<string, typeof line> = {};
+      for (let p = 0; p < count; p++) players[`pl_${String(p).padStart(20, '0')}`] = line;
+      return players;
+    };
+    // 72 場×30 人再加 19 人：估算 204723，加上這一場的王大明就成 204877。
+    for (let i = 0; i < 72; i++) m[`mt_${String(i).padStart(20, '0')}`] = row(30);
+    m[`mt_${String(72).padStart(20, '0')}`] = row(19);
+    const ts = { __ts: 1 as const };
+    const added = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
+    expect(firestoreDocBytes(path, { m, updatedAt: ts })).toBe(204723);
+    expect(firestoreDocBytes(path, { m, updatedAt: ts })).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+    expect(firestoreDocBytes(path, { m: { ...m, [MT]: added }, updatedAt: ts })).toBe(204877);
+    expect(firestoreDocBytes(path, { m: { ...m, [MT]: added }, updatedAt: ts })).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+
+    await db.doc(`competitions/${CID}/matches/${MT}`).set(liveMatch({ status: 'confirmed' }));
+    await db.doc(`competitions/${CID}/matches/${MT}/timeline/1`).set({
+      seq: 1, type: 'goal', goalKind: 'normal', plId: PLA
+    });
+    await db.doc(`competitions/${CID}/roster/${PLA}`).set({ displayName: '王大明' });
+    await db.doc(path).set({ m, updatedAt: Timestamp.fromMillis(1_700_000_000_000) });
+    const before = (await db.doc(path).get()).get('m');
+
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('stall');
+    const stalled = (await db.doc(path).get()).data()!;
+    expect(stalled.m).toEqual(before);
+    expect(stalled.stalledMt).toBe(MT);
+    expect(typeof stalled.stalledAt.toMillis).toBe('function');
+    expect(stalled.stalledAt.toMillis()).toBeGreaterThan(0);
+    expect(Object.keys(stalled).sort()).toEqual(STATS_TOP_KEYS);
+    for (const key of Object.keys(stalled)) expect(STATS_TOP_KEYS).toContain(key);
+    expect(JSON.stringify({ stalledMt: stalled.stalledMt }).includes('uid')).toBe(false);
+
+    await db.doc(path).set({
+      m: {},
+      stalledAt: Timestamp.fromMillis(1_700_000_000_000),
+      stalledMt: MT,
+      updatedAt: Timestamp.fromMillis(1_700_000_000_000)
+    });
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('set');
+    const cleared = (await db.doc(path).get()).data()!;
+    expect(cleared.stalledAt).toBeUndefined();
+    expect(cleared.stalledMt).toBeUndefined();
+    expect(Object.keys(cleared).sort()).toEqual(['m', 'updatedAt']);
+    for (const key of Object.keys(cleared)) expect(STATS_TOP_KEYS).toContain(key);
+    expect(cleared.m[MT][PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+  });
 });
 
 describe('K3 確認、重置、再確認與冠軍名', () => {
@@ -388,6 +443,9 @@ describe('K3 確認、重置、再確認與冠軍名', () => {
     expect(stored).toMatchObject(priv);
     const data = (await db.doc(statsRef(c.cid, c.dvId)).get()).data()!;
     expect(Object.keys(data).sort()).toEqual(['m', 'updatedAt']);
+    for (const key of Object.keys(data)) expect(STATS_TOP_KEYS).toContain(key);
+    expect(data.stalledAt).toBeUndefined();
+    expect(data.stalledMt).toBeUndefined();
     expect(Object.keys(data.m[m.id][PLA]).sort()).toEqual(['g', 'n', 'r', 'y']);
     expect(data.m[m.id][PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
     const packed = JSON.stringify(data);
