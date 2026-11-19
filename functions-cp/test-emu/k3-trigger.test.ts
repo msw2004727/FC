@@ -2,7 +2,7 @@
  * K3 模擬器：接手稽核、射手榜確認／重置、冠軍名、每事件讀量。
  * 觸發器由測試直接呼叫處理函式。本檔只寫、不在派工時執行。
  */
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { adminDb } from '../test-rules/_harness.js';
 import { ReadMeter, actorHash } from '../src/cp/context.js';
@@ -17,13 +17,36 @@ import { act, generate, later, matchesOf, record, setupComp, type Comp } from '.
 const CID = 'cp_' + 'c'.repeat(20);
 const DVID = 'dv_' + 'd'.repeat(20);
 const MT = 'mt_' + 'm'.repeat(20);
-/** 射手榜文件頂層白名單。stalledAt／stalledMt 只有超限停更時出現。 */
+/** 射手榜文件頂層白名單。stalledAt／stalledMt 只在超限停更時出現，留到被擋的那一場自己寫入成功或離開 confirmed。 */
 const STATS_TOP_KEYS = ['m', 'stalledAt', 'stalledMt', 'updatedAt'];
 const PLA = 'pl_' + 'a'.repeat(20);
 const PLB = 'pl_' + 'b'.repeat(20);
 
 function kickoff(): Timestamp {
   return Timestamp.fromMillis(Date.parse('2026-06-01T08:00:00+08:00'));
+}
+
+/** 72 場×30 人再加 19 人。加上一筆有名字的進球就超過 200KB。 */
+function fatStatsM(): Record<string, Record<string, { n: string; g: number; y: number; r: number }>> {
+  const line = { n: '名', g: 1, y: 1, r: 1 };
+  const row = (count: number) => {
+    const players: Record<string, typeof line> = {};
+    for (let p = 0; p < count; p++) players[`pl_${String(p).padStart(20, '0')}`] = line;
+    return players;
+  };
+  const m: Record<string, Record<string, typeof line>> = {};
+  for (let i = 0; i < 72; i++) m[`mt_${String(i).padStart(20, '0')}`] = row(30);
+  m[`mt_${String(72).padStart(20, '0')}`] = row(19);
+  return m;
+}
+
+async function seedConfirmedGoal(mtId: string, plId: string, name: string): Promise<void> {
+  const db = adminDb();
+  await db.doc(`competitions/${CID}/matches/${mtId}`).set(liveMatch({ status: 'confirmed' }));
+  await db.doc(`competitions/${CID}/matches/${mtId}/timeline/1`).set({
+    seq: 1, type: 'goal', goalKind: 'normal', plId
+  });
+  await db.doc(`competitions/${CID}/roster/${plId}`).set({ displayName: name });
 }
 
 function liveMatch(over: Record<string, unknown> = {}) {
@@ -272,6 +295,94 @@ describe('K3 每事件讀量與統計讀數', () => {
     expect(Object.keys(cleared).sort()).toEqual(['m', 'updatedAt']);
     for (const key of Object.keys(cleared)) expect(STATS_TOP_KEYS).toContain(key);
     expect(cleared.m[MT][PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+  });
+
+  it('X 停更後 Y 寫入成功，stalledMt 仍是 X，X 仍不在榜上', async () => {
+    const db = adminDb();
+    const path = statsRef(CID, DVID);
+    const Y = 'mt_' + 'y'.repeat(20);
+    await db.doc(path).set({ m: fatStatsM(), updatedAt: Timestamp.fromMillis(1_700_000_000_000) });
+    await seedConfirmedGoal(MT, PLA, '王大明');
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('stall');
+    const stalled = (await db.doc(path).get()).data()!;
+    const stalledAtMs = stalled.stalledAt.toMillis();
+    expect(stalled.stalledMt).toBe(MT);
+    expect(stalled.m[MT]).toBeUndefined();
+
+    // 停更後文件貼著上限。拿掉一場既有資料才放得下 Y，標記留著。
+    const victim = `mt_${String(0).padStart(20, '0')}`;
+    await db.doc(path).update({ [`m.${victim}`]: FieldValue.delete() });
+
+    await seedConfirmedGoal(Y, PLB, '李小華');
+    expect(await syncMatchStats(makeDeps(), CID, Y, null)).toBe('set');
+    const after = (await db.doc(path).get()).data()!;
+    expect(after.stalledMt).toBe(MT);
+    expect(after.stalledAt.toMillis()).toBe(stalledAtMs);
+    expect(after.m[Y][PLB]).toEqual({ n: '李小華', g: 1, y: 0, r: 0 });
+    expect(after.m[MT]).toBeUndefined();
+    expect(after.m[victim]).toBeUndefined();
+    for (const key of Object.keys(after)) expect(STATS_TOP_KEYS).toContain(key);
+  });
+
+  it('X 停更後 Z 也被擋，stalledMt 仍是 X、stalledAt 不變', async () => {
+    const db = adminDb();
+    const path = statsRef(CID, DVID);
+    const Z = 'mt_' + 'z'.repeat(20);
+    await db.doc(path).set({ m: fatStatsM(), updatedAt: Timestamp.fromMillis(1_700_000_000_000) });
+    await seedConfirmedGoal(MT, PLA, '王大明');
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('stall');
+    const stalled = (await db.doc(path).get()).data()!;
+    const stalledAtMs = stalled.stalledAt.toMillis();
+    const updatedAtMs = stalled.updatedAt.toMillis();
+    expect(stalled.stalledMt).toBe(MT);
+
+    await seedConfirmedGoal(Z, PLB, '李小華');
+    expect(await syncMatchStats(makeDeps(), CID, Z, null)).toBe('stall');
+    const after = (await db.doc(path).get()).data()!;
+    expect(after.stalledMt).toBe(MT);
+    expect(after.stalledAt.toMillis()).toBe(stalledAtMs);
+    expect(after.updatedAt.toMillis()).toBe(updatedAtMs);
+    expect(after.m).toEqual(stalled.m);
+    expect(after.m[Z]).toBeUndefined();
+    expect(after.m[MT]).toBeUndefined();
+  });
+
+  it('X 停更後 X 離開 confirmed（本來就不在 m），標記清掉', async () => {
+    const db = adminDb();
+    const path = statsRef(CID, DVID);
+    await db.doc(path).set({ m: fatStatsM(), updatedAt: Timestamp.fromMillis(1_700_000_000_000) });
+    await seedConfirmedGoal(MT, PLA, '王大明');
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('stall');
+    const stalled = (await db.doc(path).get()).data()!;
+    expect(stalled.stalledMt).toBe(MT);
+    expect(stalled.m[MT]).toBeUndefined();
+
+    await db.doc(`competitions/${CID}/matches/${MT}`).update({ status: 'live' });
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('delete');
+    const after = (await db.doc(path).get()).data()!;
+    expect(after.stalledAt).toBeUndefined();
+    expect(after.stalledMt).toBeUndefined();
+    expect(after.m).toEqual(stalled.m);
+    expect(Object.keys(after).sort()).toEqual(['m', 'updatedAt']);
+  });
+
+  it('別場離開 confirmed 只刪該場，不清除 X 的停更標記', async () => {
+    const db = adminDb();
+    const path = statsRef(CID, DVID);
+    const Y = 'mt_' + 'y'.repeat(20);
+    const mark = Timestamp.fromMillis(1_700_000_000_000);
+    await db.doc(path).set({
+      m: { [Y]: { [PLB]: { g: 1, y: 0, r: 0 } } },
+      stalledAt: mark,
+      stalledMt: MT,
+      updatedAt: mark
+    });
+    await db.doc(`competitions/${CID}/matches/${Y}`).set(liveMatch({ status: 'live' }));
+    expect(await syncMatchStats(makeDeps(), CID, Y, null)).toBe('delete');
+    const after = (await db.doc(path).get()).data()!;
+    expect(after.m?.[Y]).toBeUndefined();
+    expect(after.stalledMt).toBe(MT);
+    expect(after.stalledAt.toMillis()).toBe(mark.toMillis());
   });
 });
 

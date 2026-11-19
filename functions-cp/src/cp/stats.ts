@@ -1,7 +1,8 @@
 /**
  * 射手榜。場次進入或離開 confirmed 時，以交易更新 stats/{dvId}.m[mtId]。
  * 只讀公開 roster 的 displayName，不讀私密名單。路徑只出現在 statsRef。
- * 超過 200KB 不改 m，改寫公開的 stalledAt／stalledMt。之後寫入成功就刪掉。
+ * 超過 200KB 不改 m，改寫公開的 stalledAt／stalledMt。
+ * 只在被擋的那一場寫入成功或離開 confirmed 時清除；已有標記時別場再被擋，保留最早的 stalledMt。
  */
 import { logger } from 'firebase-functions/v2';
 import type { DocumentData } from 'firebase-admin/firestore';
@@ -259,9 +260,14 @@ function samePlayers(prev: unknown, next: MatchStat): boolean {
 }
 
 export type StatsWritePlan =
-  | { op: 'set'; players: MatchStat; bytes: number }
+  | { op: 'set'; players: MatchStat; bytes: number; clearStall: boolean }
   | { op: 'noop'; bytes: number }
-  | { op: 'stall'; bytes: number; stalledMt: string };
+  | { op: 'stall'; bytes: number; stalledMt: string; fresh: boolean };
+
+/** 離開 confirmed 時要不要刪 m[mtId]、要不要清停更標記。 */
+export type StatsLeavePlan =
+  | { op: 'noop' }
+  | { op: 'delete'; dropMatch: boolean; clearStall: boolean };
 
 function prevMOf(prev: Record<string, unknown> | null): Record<string, unknown> {
   const m = prev?.m;
@@ -272,9 +278,16 @@ function hasStall(prev: Record<string, unknown> | null): boolean {
   return !!prev && ('stalledAt' in prev || 'stalledMt' in prev);
 }
 
+function stalledMtOf(prev: Record<string, unknown> | null): string | null {
+  const value = prev?.stalledMt;
+  return typeof value === 'string' ? value : null;
+}
+
 /**
- * 寫入成功後的文件（時間用 TS_MARK）。不含 stalledAt／stalledMt。
- * 停更時 m 沿用 prev，只加上 stalledAt／stalledMt。呼叫端不得把這一場放進 m。
+ * 寫入成功後的文件（時間用 TS_MARK）。
+ * 只有這一場就是現存 stalledMt 時才拿掉 stalledAt／stalledMt；別場寫入成功則留著。
+ * 停更且已有標記：原文件不動（不覆蓋最早的 stalledAt／stalledMt，也不把這一場放進 m）。
+ * 第一次停更：m 沿用 prev，加上 stalledAt／stalledMt。呼叫端不得把這一場放進 m。
  */
 export function nextStatsDoc(
   prev: Record<string, unknown> | null,
@@ -283,6 +296,7 @@ export function nextStatsDoc(
   mode: 'set' | 'stall'
 ): Record<string, unknown> {
   if (mode === 'stall') {
+    if (hasStall(prev)) return { ...(prev as Record<string, unknown>) };
     const next: Record<string, unknown> = {};
     if (prev) {
       for (const [key, value] of Object.entries(prev)) {
@@ -295,10 +309,12 @@ export function nextStatsDoc(
     next.updatedAt = TS_MARK;
     return next;
   }
+  const clearStall = stalledMtOf(prev) === mtId;
   const next: Record<string, unknown> = {};
   if (prev) {
     for (const [key, value] of Object.entries(prev)) {
-      if (key === 'm' || key === 'updatedAt' || key === 'stalledAt' || key === 'stalledMt') continue;
+      if (key === 'm' || key === 'updatedAt') continue;
+      if (clearStall && (key === 'stalledAt' || key === 'stalledMt')) continue;
       next[key] = value;
     }
   }
@@ -308,10 +324,11 @@ export function nextStatsDoc(
 }
 
 /**
- * 換成這一場之後若超過 200KB，不改 m，改記停更（stalledMt 為這一場）。
- * 內容與上一版相同、且沒有停更標記，則不寫。
- * 有停更標記且這次大小在上限內（含內容相同）則寫入並清掉標記。
- * 大小以清掉 stalledAt／stalledMt 之後的文件估算。
+ * 換成這一場之後若超過 200KB，不改 m。
+ * 還沒有停更標記才新記這一場（fresh）。已有標記則不覆蓋最早的 stalledAt／stalledMt。
+ * 內容與上一版相同則不寫；例外是這一場就是 stalledMt、且清掉標記後仍在上限內，那次要寫入並清標記。
+ * 寫入成功時，只有 mtId 等於現存 stalledMt 才清標記。別場寫入成功保留標記。
+ * 大小以這次實際會留下的文件估算：清標記時不含這兩欄，否則含著。
  */
 export function planStatsWrite(
   prev: Record<string, unknown> | null,
@@ -320,14 +337,36 @@ export function planStatsWrite(
   path: string
 ): StatsWritePlan {
   const prevM = prevMOf(prev);
+  const clearStall = stalledMtOf(prev) === mtId;
   if (samePlayers(prevM[mtId], players)) {
     const bytes = firestoreDocBytes(path, nextStatsDoc(prev, mtId, players, 'set'));
-    if (hasStall(prev) && bytes <= STATS_DOC_MAX_BYTES) return { op: 'set', players, bytes };
+    if (clearStall && bytes <= STATS_DOC_MAX_BYTES) return { op: 'set', players, bytes, clearStall: true };
     return { op: 'noop', bytes };
   }
   const bytes = firestoreDocBytes(path, nextStatsDoc(prev, mtId, players, 'set'));
-  if (bytes > STATS_DOC_MAX_BYTES) return { op: 'stall', bytes, stalledMt: mtId };
-  return { op: 'set', players, bytes };
+  if (bytes > STATS_DOC_MAX_BYTES) {
+    if (hasStall(prev)) return { op: 'stall', bytes, stalledMt: stalledMtOf(prev) ?? mtId, fresh: false };
+    return { op: 'stall', bytes, stalledMt: mtId, fresh: true };
+  }
+  return { op: 'set', players, bytes, clearStall };
+}
+
+/**
+ * 離開 confirmed。在 m 裡就刪掉這一場。
+ * 只有 mtId 等於現存 stalledMt 才清停更標記；本來就不在 m 也清。
+ * 別場離開不碰標記。沒有這一場、也不是被擋的那一場，則不寫。
+ */
+export function planStatsLeave(
+  prev: Record<string, unknown> | null,
+  mtId: string
+): StatsLeavePlan {
+  if (!prev) return { op: 'noop' };
+  const m = prev.m;
+  const dropMatch = !!m && typeof m === 'object' && !Array.isArray(m)
+    && Object.prototype.hasOwnProperty.call(m, mtId);
+  const clearStall = stalledMtOf(prev) === mtId;
+  if (!dropMatch && !clearStall) return { op: 'noop' };
+  return { op: 'delete', dropMatch, clearStall };
 }
 
 function resetRevOf(data: DocumentData | null): number {
@@ -344,8 +383,9 @@ function divisionIdOf(data: DocumentData | null | undefined): string | null {
  * 以目前場次為準，不信觸發當下的狀態：仍是 confirmed 就重算 m[mtId]，否則刪掉。
  * 事件筆數超限只記錯誤、不寫、不拋（重試不會變少）。
  * 文件超過 200KB：不改 m，寫 stalledAt（伺服器時間）與 stalledMt（這一場 id），並記錯誤。
- * 這兩個欄位公開、沒有個資。之後任何一次寫入成功（大小在上限內）就刪掉。
- * 離開 confirmed 的刪除也是一次成功寫入，一併刪掉停更標記。
+ * 這兩個欄位公開、沒有個資。已有標記時別場再被擋，不覆蓋最早的 stalledAt／stalledMt。
+ * 只有這次的 mtId 等於 stalledMt，且這一場寫入成功，或這一場離開 confirmed
+ * （從 m 刪除，或本來就不在 m），才刪掉停更標記。
  */
 export async function syncMatchStats(
   deps: CpDeps,
@@ -370,14 +410,16 @@ export async function syncMatchStats(
     const ref = deps.db.doc(path);
     if (cur?.status !== 'confirmed') {
       const stats = await readDoc(deps, tx, ref);
-      if (!stats.exists) return 'noop';
-      const m = stats.get('m');
-      if (!m || typeof m !== 'object' || !Object.prototype.hasOwnProperty.call(m, mtId)) return 'noop';
+      const prev = stats.exists ? (stats.data() as Record<string, unknown> | undefined) ?? null : null;
+      const leave = planStatsLeave(prev, mtId);
+      if (leave.op === 'noop') return 'noop';
       tx.update(ref, {
-        [`m.${mtId}`]: FieldValue.delete(),
+        ...(leave.dropMatch ? { [`m.${mtId}`]: FieldValue.delete() } : {}),
         updatedAt: FieldValue.serverTimestamp(),
-        stalledAt: FieldValue.delete(),
-        stalledMt: FieldValue.delete()
+        ...(leave.clearStall ? {
+          stalledAt: FieldValue.delete(),
+          stalledMt: FieldValue.delete()
+        } : {})
       });
       return 'delete';
     }
@@ -415,7 +457,9 @@ export async function syncMatchStats(
     const plan = planStatsWrite(prev, mtId, players, path);
     if (plan.op === 'stall') {
       // 不改 m。stalledAt／stalledMt 公開，只有伺服器時間與場次 id。
+      // 已有標記時不覆蓋最早的那一筆。
       logger.error('cp stats doc cap', { cid, dvId, mtId, bytes: plan.bytes });
+      if (!plan.fresh) return 'stall';
       const mark = {
         stalledAt: FieldValue.serverTimestamp(),
         stalledMt: mtId,
@@ -430,8 +474,10 @@ export async function syncMatchStats(
       tx.update(ref, {
         [`m.${mtId}`]: plan.players,
         updatedAt: FieldValue.serverTimestamp(),
-        stalledAt: FieldValue.delete(),
-        stalledMt: FieldValue.delete()
+        ...(plan.clearStall ? {
+          stalledAt: FieldValue.delete(),
+          stalledMt: FieldValue.delete()
+        } : {})
       });
     } else {
       tx.set(ref, { m: { [mtId]: plan.players }, updatedAt: FieldValue.serverTimestamp() });

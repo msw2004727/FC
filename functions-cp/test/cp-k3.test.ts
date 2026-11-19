@@ -16,6 +16,7 @@ import {
   estimateStatsDoc,
   firestoreDocBytes,
   nextStatsDoc,
+  planStatsLeave,
   planStatsWrite,
   statsRef,
   type MatchStat,
@@ -210,6 +211,7 @@ describe('射手榜純函式', () => {
     const over = planStatsWrite(prev, MT, overflow, path);
     expect(over.op).toBe('stall');
     if (over.op !== 'stall') return;
+    expect(over.fresh).toBe(true);
     expect(over.stalledMt).toBe(MT);
     expect(over.bytes).toBe(204887);
     expect(over.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
@@ -230,6 +232,7 @@ describe('射手榜純函式', () => {
     const shrunk: MatchStat = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
     const again = planStatsWrite(smallPrev, MT, shrunk, path);
     expect(again.op).toBe('set');
+    if (again.op === 'set') expect(again.clearStall).toBe(true);
     const cleared = nextStatsDoc(smallPrev, MT, shrunk, 'set');
     expect(cleared.stalledAt).toBeUndefined();
     expect(cleared.stalledMt).toBeUndefined();
@@ -238,6 +241,7 @@ describe('射手榜純函式', () => {
 
     const same = planStatsWrite(smallPrev, MT, smallPrev.m[MT] as MatchStat, path);
     expect(same.op).toBe('set');
+    if (same.op === 'set') expect(same.clearStall).toBe(true);
     expect(nextStatsDoc(smallPrev, MT, smallPrev.m[MT] as MatchStat, 'set').stalledAt).toBeUndefined();
 
     const src = readFileSync(new URL('../src/cp/stats.ts', import.meta.url), 'utf8');
@@ -251,6 +255,97 @@ describe('射手榜純函式', () => {
     expect(stallSrc.includes('stalledAt: FieldValue.serverTimestamp()')).toBe(true);
     expect(stallSrc.includes('stalledMt: mtId')).toBe(true);
     expect(firestoreDocBytes(path, cleared)).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+  });
+
+  it('停更標記只由被擋的那一場清除；別場成功或再被擋都不覆蓋', () => {
+    const path = statsRef(CID, DVID);
+    const X = MT;
+    const Y = 'mt_' + 'y'.repeat(20);
+    const Z = 'mt_' + 'z'.repeat(20);
+    const other = 'mt_' + 'o'.repeat(20);
+    const mark = { seconds: 1_700_000_000 };
+    const otherLine: MatchStat = { [PLA]: { g: 1, y: 0, r: 0 } };
+    // X 被擋時數字沒進 m。標記指著 X。
+    const stalled = {
+      m: { [other]: otherLine },
+      stalledAt: mark,
+      stalledMt: X,
+      note: 'keep'
+    };
+
+    const yPlayers: MatchStat = { [PLB]: { n: '李小華', g: 2, y: 0, r: 0 } };
+    const yPlan = planStatsWrite(stalled, Y, yPlayers, path);
+    expect(yPlan.op).toBe('set');
+    if (yPlan.op !== 'set') return;
+    expect(yPlan.clearStall).toBe(false);
+    expect(yPlan.bytes).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+    const yDoc = nextStatsDoc(stalled, Y, yPlayers, 'set');
+    expect(yDoc.stalledAt).toBe(mark);
+    expect(yDoc.stalledMt).toBe(X);
+    expect(yDoc.m).toEqual({ [other]: otherLine, [Y]: yPlayers });
+    expect((yDoc.m as Record<string, MatchStat>)[X]).toBeUndefined();
+
+    const ySame = planStatsWrite({ ...stalled, m: { ...stalled.m, [Y]: yPlayers } }, Y, yPlayers, path);
+    expect(ySame.op).toBe('noop');
+
+    const xPlayers: MatchStat = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
+    const xPlan = planStatsWrite(stalled, X, xPlayers, path);
+    expect(xPlan.op).toBe('set');
+    if (xPlan.op !== 'set') return;
+    expect(xPlan.clearStall).toBe(true);
+    expect(xPlan.bytes).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
+    const xDoc = nextStatsDoc(stalled, X, xPlayers, 'set');
+    expect(xDoc.stalledAt).toBeUndefined();
+    expect(xDoc.stalledMt).toBeUndefined();
+    expect(xDoc.m).toEqual({ [other]: otherLine, [X]: xPlayers });
+
+    const line: StatLine = { n: '名', g: 1, y: 1, r: 1 };
+    const row = (count: number): MatchStat => {
+      const players: MatchStat = {};
+      for (let p = 0; p < count; p++) players[`pl_${String(p).padStart(20, '0')}`] = line;
+      return players;
+    };
+    const prevM: Record<string, MatchStat> = {};
+    for (let i = 0; i < 72; i++) prevM[`mt_${String(i).padStart(20, '0')}`] = row(30);
+    prevM[`mt_${String(72).padStart(20, '0')}`] = row(19);
+    const blocked = { m: prevM, stalledAt: mark, stalledMt: X, note: 'keep' };
+    const zPlayers: MatchStat = { [PLA]: { n: '王大明', g: 1, y: 0, r: 0 } };
+    const zPlan = planStatsWrite(blocked, Z, zPlayers, path);
+    expect(zPlan.op).toBe('stall');
+    if (zPlan.op !== 'stall') return;
+    expect(zPlan.fresh).toBe(false);
+    expect(zPlan.stalledMt).toBe(X);
+    expect(zPlan.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
+    const zDoc = nextStatsDoc(blocked, Z, zPlayers, 'stall');
+    expect(zDoc.stalledAt).toBe(mark);
+    expect(zDoc.stalledMt).toBe(X);
+    expect(zDoc.updatedAt).toBeUndefined();
+    expect(zDoc.m).toEqual(prevM);
+    expect((zDoc.m as Record<string, MatchStat>)[Z]).toBeUndefined();
+
+    const againX = planStatsWrite(blocked, X, zPlayers, path);
+    expect(againX.op).toBe('stall');
+    if (againX.op === 'stall') {
+      expect(againX.fresh).toBe(false);
+      expect(againX.stalledMt).toBe(X);
+    }
+    expect(nextStatsDoc(blocked, X, zPlayers, 'stall').stalledAt).toBe(mark);
+
+    expect(planStatsLeave(stalled, X)).toEqual({ op: 'delete', dropMatch: false, clearStall: true });
+    expect(planStatsLeave({ ...stalled, m: { ...stalled.m, [X]: xPlayers } }, X)).toEqual({
+      op: 'delete', dropMatch: true, clearStall: true
+    });
+    expect(planStatsLeave({ ...stalled, m: { [Y]: yPlayers } }, Y)).toEqual({
+      op: 'delete', dropMatch: true, clearStall: false
+    });
+    expect(planStatsLeave(stalled, Z)).toEqual({ op: 'noop' });
+    expect(planStatsLeave(null, X)).toEqual({ op: 'noop' });
+
+    const src = readFileSync(new URL('../src/cp/stats.ts', import.meta.url), 'utf8');
+    expect(src).toContain('const leave = planStatsLeave(prev, mtId)');
+    expect(src).toContain("if (!plan.fresh) return 'stall'");
+    expect(src).toContain('...(plan.clearStall ? {');
+    expect(src).toContain('...(leave.clearStall ? {');
   });
 
   it('文件鍵白名單為 m、updatedAt、stalledAt、stalledMt；球員列只有 n、g、y、r；序列化不含夾具 uid、真名、生日、電話', () => {
@@ -280,7 +375,7 @@ describe('射手榜純函式', () => {
     expect(players[PLA]).toEqual({ n: '公開甲', g: 1, y: 0, r: 0 });
     expect(Object.keys(players[PLB]!).sort()).toEqual(['g', 'r', 'y']);
 
-    // 頂層白名單。停更時才多 stalledAt／stalledMt；寫入成功的文件沒有這兩欄。其他鍵不得出現。
+    // 頂層白名單。停更欄可與 m 同時在（別場寫入成功時保留）。其他鍵不得出現。
     const allowedTop = ['m', 'stalledAt', 'stalledMt', 'updatedAt'];
     const doc = { m: { [MT]: players }, updatedAt: 0 };
     expect(Object.keys(doc).sort()).toEqual(['m', 'updatedAt']);
