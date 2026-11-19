@@ -13,7 +13,7 @@ import {
   type RankingRule
 } from '../engine/index.js';
 
-export interface PlanTeam { enId: string; name: string }
+export interface PlanTeam { enId: string; name: string; logo?: string | null }
 export interface PlanDay { date: string; start: string; end: string }
 export interface PlanVenue { venueIdx: number; name: string }
 export interface PlanInput {
@@ -36,8 +36,8 @@ export interface PlannedMatch {
   kickoffMs: number | null;
   venueIdx: number | null;
   venueName: string | null;
-  home: { teamId: string; name: string };
-  away: { teamId: string; name: string };
+  home: { teamId: string; name: string; logo: string | null };
+  away: { teamId: string; name: string; logo: string | null };
 }
 export interface PlanResult {
   matches: PlannedMatch[];
@@ -128,10 +128,20 @@ function assertOffset(utcOffset: string | undefined): string {
   return offset;
 }
 
-function sideOf(ref: { teamId?: string | null; name?: string | null } | null | undefined): { teamId: string; name: string } {
+/** 非空字串才留下。缺值、空字串、非字串都當 null。 */
+function storedLogo(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function sideOf(
+  ref: { teamId?: string | null; name?: string | null } | null | undefined,
+  logoByEnId: ReadonlyMap<string, string | null>
+): { teamId: string; name: string; logo: string | null } {
+  const teamId = ref?.teamId ?? '';
   return {
-    teamId: ref?.teamId ?? '',
-    name: ref?.name ?? ''
+    teamId,
+    name: ref?.name ?? '',
+    logo: logoByEnId.get(teamId) ?? null
   };
 }
 
@@ -152,6 +162,8 @@ export function planRoundRobin(input: PlanInput): PlanResult {
   const utcOffset = assertOffset(input.utcOffset);
 
   const ordered = drawOrder(teams, input.seed);
+  // 隊徽依 enId 對照報名快照。引擎 orderedTeams 只帶 teamId／name，不帶 logo、也不讀 logoUrl。
+  const logoByEnId = new Map(teams.map(t => [t.enId, storedLogo(t.logo)]));
   const generation = planGeneration({
     division: { divisionId: input.dvId, code: 'D' },
     orderedTeams: ordered.map(t => ({ teamId: t.enId, name: t.name })),
@@ -221,8 +233,8 @@ export function planRoundRobin(input: PlanInput): PlanResult {
       kickoffMs: hit ? hit.match.kickoffMs : null,
       venueIdx,
       venueName: hit ? hit.match.venueName : null,
-      home: sideOf(m.home),
-      away: sideOf(m.away)
+      home: sideOf(m.home, logoByEnId),
+      away: sideOf(m.away, logoByEnId)
     };
   });
   matches.sort((a, b) => a.matchNo - b.matchNo);
@@ -260,8 +272,8 @@ export function publicMatchDoc(m: PlannedMatch, ids: { mtId: string; dvId: strin
     kickoffMs: m.kickoffMs,
     venueIdx: m.venueIdx,
     venueName: m.venueName,
-    home: { teamId: m.home.teamId, name: m.home.name },
-    away: { teamId: m.away.teamId, name: m.away.name },
+    home: { teamId: m.home.teamId, name: m.home.name, logo: storedLogo(m.home.logo) },
+    away: { teamId: m.away.teamId, name: m.away.name, logo: storedLogo(m.away.logo) },
     teamIds: [m.home.teamId, m.away.teamId],
     score: { home: 0, away: 0 },
     penaltyScore: null,
