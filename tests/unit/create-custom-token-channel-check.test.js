@@ -165,7 +165,7 @@ describe("maskLineUserIdForLog", () => {
 });
 
 describe("createCustomToken 呼叫順序契約（Opus 終審 F1）", () => {
-  test("近期拒絕檢查 → 發 verify → await profile → await verify → 簽發 custom token", () => {
+  test("近期拒絕檢查 → 發 verify → await profile → await verify → 判定 → 建使用者 → 簽發 custom token", () => {
     const source = fs.readFileSync(path.join(__dirname, "../../functions/index.js"), "utf8");
     const start = source.indexOf("exports.createCustomToken = onCall(");
     const end = source.indexOf("exports.issueQaTestToken = ");
@@ -175,6 +175,10 @@ describe("createCustomToken 呼叫順序契約（Opus 終審 F1）", () => {
       "verifyLineAccessTokenChannel(accessToken)",
       "await getLineUserIdByAccessToken(accessToken)",
       "await channelCheck",
+      "decideLineChannelCheck(channelCheckResult)",
+      "if (channelDecision.reject)",
+      "await ensureAuthUser(lineUserId)",
+      "await setRoleClaimMerged(lineUserId, role)",
       "authAdmin.createCustomToken(lineUserId)",
     ].map((needle) => block.indexOf(needle));
     expect(order.every((i) => i >= 0)).toBe(true);

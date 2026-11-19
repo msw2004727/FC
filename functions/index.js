@@ -2139,6 +2139,42 @@ async function shouldAutoUnbindLineRecipient(client, recipientUid, pushErr) {
 // 本站 LINE channel（Mini App／LIFF 與舊 LIFF）；第一步只用來記錄是否相符，觀察至少 3 天再決定第二步。
 const LINE_LOGIN_ALLOWED_CHANNEL_IDS = Object.freeze(["2009525300", "2009084941"]);
 
+// 授權強化第二步（顧問 §3.310）：LINE verify 暫時性錯誤時是否放行。true＝放行並記錄（預設）；改 false＝一律拒絕，需重部署 createCustomToken。
+const LINE_CHANNEL_VERIFY_FAIL_OPEN = true;
+const LINE_CHANNEL_VERIFY_TRANSIENT_ERRORS = Object.freeze(["timeout", "network", "parse", "http_429"]);
+
+// 依 verify 結果決定是否放行。回傳 { decision, reject }：
+// allow＝白名單內；reject_mismatch＝有 client_id 但不在白名單；reject_verify_error＝LINE 明確說 token 無效（http_4xx，429 除外）或暫時性錯誤且關閉放行；
+// allow_verify_error＝暫時性錯誤（timeout／network／parse／http_429／http_5xx）且開啟放行。
+function decideLineChannelCheck(result, failOpen = LINE_CHANNEL_VERIFY_FAIL_OPEN) {
+  const clientId = String(result?.clientId || "");
+  const error = String(result?.error || "");
+  if (!error) {
+    if (clientId && LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(clientId)) return { decision: "allow", reject: false };
+    return { decision: "reject_mismatch", reject: true };
+  }
+  const transient = LINE_CHANNEL_VERIFY_TRANSIENT_ERRORS.includes(error) || /^http_5\d\d$/.test(error);
+  if (transient && failOpen) return { decision: "allow_verify_error", reject: false };
+  return { decision: "reject_verify_error", reject: true };
+}
+
+// 取 Cloud Trace id（X-Cloud-Trace-Context 的「/」前段，或 traceparent 第 2 段）；取不到回空字串。只用於 log 對應請求。
+function getRequestTraceId(request) {
+  const cloud = getCallableRequestHeader(request, "x-cloud-trace-context");
+  const fromCloud = cloud.split("/")[0].trim();
+  if (/^[0-9a-fA-F]{1,64}$/.test(fromCloud)) return fromCloud.toLowerCase();
+  const parent = getCallableRequestHeader(request, "traceparent").split("-");
+  if (parent.length >= 4 && /^[0-9a-f]{32}$/.test(parent[1])) return parent[1];
+  return "";
+}
+
+function buildLogTraceField(request) {
+  const traceId = getRequestTraceId(request);
+  const projectId = String(process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "");
+  if (!traceId || !projectId) return {};
+  return { "logging.googleapis.com/trace": `projects/${projectId}/traces/${traceId}` };
+}
+
 // 取代了原本只靠 /v2/profile 判斷 token 有效性的做法；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
 function verifyLineAccessTokenChannel(accessToken) {
   return new Promise((resolve) => {
@@ -3257,12 +3293,35 @@ exports.createCustomToken = onCall(
       throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
+    // 授權強化第二步（顧問 §3.310）：verify 與 profile 並行，判定以 verify 為準。
+    // 判定出來之前不簽 token、不建立或更新使用者、不寫成功稽核（以下三件事都在這段之後）。
     const channelCheckResult = channelCheck ? await channelCheck : { clientId: "", error: "skipped" };
-    console.log("[createCustomToken] channel check", {
+    const channelDecision = decideLineChannelCheck(channelCheckResult);
+    logger.info("[createCustomToken] channel check", {
       channelId: channelCheckResult.clientId || "",
       matched: LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(channelCheckResult.clientId),
       error: channelCheckResult.error || undefined,
+      decision: channelDecision.decision,
+      ...buildLogTraceField(request),
     });
+    if (channelDecision.reject) {
+      const reasonCode = channelDecision.decision === "reject_mismatch" ? "line_channel_mismatch" : "line_channel_verify_rejected";
+      try {
+        rememberRejectedLineAccessToken(accessTokenFingerprint || getLineAccessTokenFingerprint(accessToken));
+        await writeDedupedAuditEntry({
+          action: "login_failure",
+          actorRole: "user",
+          targetType: "system",
+          targetLabel: "LINE login",
+          result: "failure",
+          source: "cloud_function",
+          meta: { reasonCode },
+        }, `login_failure_${reasonCode}`);
+      } catch (auditErr) {
+        console.warn("[createCustomToken] failed to write login_failure audit log:", auditErr);
+      }
+      throw new HttpsError("unauthenticated", "LINE 驗證失敗");
+    }
 
     await ensureAuthUser(lineUserId);
     const role = await getUserRoleFromFirestore(lineUserId);
