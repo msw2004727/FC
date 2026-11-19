@@ -164,7 +164,7 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     expect((await ref.get()).get('score')).toEqual({ home: 3, away: 3 });
   });
 
-  it('確認對帳：timeline、voids 各 100 筆可確認；第 101 筆 TIMELINE_TOO_LONG', async () => {
+  it('確認對帳：timeline、voids 各 200 筆可確認；第 201 筆 TIMELINE_TOO_LONG', async () => {
     const ms = await matchesOf(c);
     const now = new Date();
     const fill = async (m: (typeof ms)[number], kind: 'timeline' | 'voids', n: number) => {
@@ -180,28 +180,28 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
         lock: { locked: true }, finishedAt: now
       });
     };
-    await fill(ms[0], 'timeline', 100);
+    await fill(ms[0], 'timeline', 200);
     const meter = new ReadMeter();
     const deps = later();
     deps.meter = meter;
-    await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[0].id, expectedRev: 100 }, deps));
-    // 閘門 1＋賽事 1＋場次 1＋timeline 100＋空 voids 查詢 1。上限內，不是 500。
-    expect(meter.reads).toBe(1 + 1 + 1 + 100 + 1);
+    await ok(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[0].id, expectedRev: 200 }, deps));
+    // 閘門 1＋賽事 1＋場次 1＋timeline 200＋空 voids 查詢 1。
+    expect(meter.reads).toBe(1 + 1 + 1 + 200 + 1);
 
-    await fill(ms[1], 'timeline', 101);
+    await fill(ms[1], 'timeline', 201);
     const overTl = new ReadMeter();
     const depsTl = later();
     depsTl.meter = overTl;
-    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[1].id, expectedRev: 101 }, depsTl), 'TIMELINE_TOO_LONG');
-    // 查詢多讀 1 筆才判斷超限：timeline 101＋空 voids 1。
-    expect(overTl.reads).toBe(1 + 1 + 1 + 101 + 1);
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[1].id, expectedRev: 201 }, depsTl), 'TIMELINE_TOO_LONG');
+    // 查詢多讀 1 筆才判斷超限：timeline 201＋空 voids 1。
+    expect(overTl.reads).toBe(1 + 1 + 1 + 201 + 1);
 
-    await fill(ms[2], 'voids', 101);
+    await fill(ms[2], 'voids', 201);
     const overVd = new ReadMeter();
     const depsVd = later();
     depsVd.meter = overVd;
-    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[2].id, expectedRev: 101 }, depsVd), 'TIMELINE_TOO_LONG');
-    expect(overVd.reads).toBe(1 + 1 + 1 + 1 + 101);
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: ms[2].id, expectedRev: 201 }, depsVd), 'TIMELINE_TOO_LONG');
+    expect(overVd.reads).toBe(1 + 1 + 1 + 1 + 201);
   });
 
   it('棄權：判 0:2、不做比分對帳、原因必填且不進公開場次', async () => {
@@ -229,6 +229,8 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     expect(r).toMatchObject({ status: 'scheduled', rev: 2 });
     const doc = (await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).get()).data()!;
     expect(doc).toMatchObject({ score: { home: 0, away: 0 }, rev: 2, resetRev: 2, lock: { locked: false }, result: null, finishedAt: null });
+    // resetMatch 一定把 resetRev 寫成新 rev。規則「缺值當 0」只適用於伺服器建立賽程時寫 0 的資料。
+    expect(doc.resetRev).toBe(doc.rev);
     expect(doc.clockBase).toEqual({ startedAt: null, pausedSec: 0, running: false, period: 'pre' });
     expect((await adminDb().doc(`competitions/${c.cid}/matches/${m.id}/control/scorer`).get()).exists).toBe(false);
     expect((await standingOf(c))!.rows.every(x => x.played === 0)).toBe(true);

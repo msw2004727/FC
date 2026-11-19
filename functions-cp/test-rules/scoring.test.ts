@@ -51,6 +51,21 @@ const secondYellow = (extra: Partial<ScoreOpts> = {}): ScoreOpts => ({
 });
 const goal = (side: 'home' | 'away', extra: Ev = {}): Ev => ({ type: 'goal', side, plId: 'pl_1', goalKind: 'normal', ...extra });
 const as = (uid: string, role?: string) => clientDb({ uid, ...(role ? { role } : {}) });
+/** 合法第二黃同批再寫一筆 cardLinks。id 不合第二黃的 refSeq 時，用來隔離 cardLinks 子條件。 */
+function extraLink(id: string) {
+  const db = as('s1');
+  const base = 'competitions/cp_pub/matches/mt_1';
+  const seq = 4;
+  const b = writeBatch(db);
+  b.update(doc(db, base), { rev: seq, updatedAt: serverTimestamp() });
+  b.set(doc(db, `${base}/timeline/e${seq}`), {
+    seq, type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3,
+    matchSecond: 900, createdAt: serverTimestamp(), sid: SID_S1, op: OP_OK
+  });
+  b.set(doc(db, `${base}/cardLinks/3`), { seq, createdAt: serverTimestamp() });
+  b.set(doc(db, `${base}/cardLinks/${id}`), { seq, createdAt: serverTimestamp() });
+  return b.commit();
+}
 
 beforeAll(async () => { await loadRules(); });
 beforeEach(async () => { await clearDb(); await seedBase(); });
@@ -91,6 +106,10 @@ describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
     await patchMatch('cp_pub', { status: 'halftime' });
     await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' } }));
   });
+  it('【P-3b】半場時記合法第二黃（帶 refSeq、同批 cardLinks）', async () => {
+    await patchMatch('cp_pub', { status: 'halftime' });
+    await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
+  });
   it('【P-3】第二黃：refSeq 指向同人未作廢黃牌，同批建 cardLinks', async () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
   });
@@ -104,13 +123,13 @@ describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
     await assertSucceeds(scoreBatch(as('s1'), secondYellow({ fromRev: 5, cardLink: { id: '3', update: true } })));
   });
-  it('【P-8】重置後第 100 筆通過；再重置後又可記 100 筆', async () => {
-    // 不逐筆寫 100 次。把 rev 抬到窗口最後一筆的前一號，下一筆就是第 100 筆（rev - resetRev == 100）。
+  it('【P-8】重置後第 200 筆通過；再重置後又可記 200 筆', async () => {
+    // 不逐筆寫 200 次。把 rev 抬到窗口最後一筆的前一號，下一筆就是第 200 筆（rev - resetRev == 200）。
     const yellow = { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' };
-    await patchMatch('cp_pub', { rev: 99 });
-    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 99, ev: yellow }));
-    await patchMatch('cp_pub', { rev: 199, resetRev: 100 });
+    await patchMatch('cp_pub', { rev: 199 });
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 199, ev: yellow }));
+    await patchMatch('cp_pub', { rev: 399, resetRev: 200 });
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 399, ev: yellow }));
   });
   it('開賽：scheduled → live', async () => {
     await patchMatch('cp_pub', { status: 'scheduled', score: { home: 0, away: 0 }, rev: 0 });
@@ -293,6 +312,9 @@ describe('拒絕案例（§6.3-9）', () => {
       ev: { type: 'clock' },
       patch: { clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1', note: 1 } }
     }));
+    // 終場但鎖已解開：鎖條件不再擋，仍須被 live／半場狀態擋下。
+    await patchMatch('cp_pub', { status: 'finished', lock: { locked: false }, finishedAt: ago(30) });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'clock' }, patch: { clockBase: ok } }));
   });
   it('【R-44】事件缺 op、op 太短、op 太長、op 含非法字元', async () => {
     await assertFails(scoreBatch(as('s1'), { noOp: true, ev: goal('home'), patch: { score: { home: 2, away: 0 } } }));
@@ -326,8 +348,13 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 2 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
   });
-  it('【R-16】作廢非進球也非牌（e1 是開賽）', async () => {
+  it('【R-16】作廢非進球也非牌（開賽、換人、時鐘修正）', async () => {
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 1 }, withVoid: true }));
+    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'sub', side: 'home', inPlId: 'pl_3', outPlId: 'pl_4' } }));
+    await assertFails(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 4 }, withVoid: true }));
+    const clock = { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1' };
+    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'clock' }, patch: { clockBase: clock } }));
+    await assertFails(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'void', targetSeq: 5 }, withVoid: true }));
   });
   it('【C】內部賽事＋測試者作廢進球', async () => {
     await setCurrentScorer('cp_int', 'tester');
@@ -351,12 +378,18 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
     await assertFails(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
   });
-  it('【R-48】第二黃缺 refSeq；一般黃牌、紅牌帶 refSeq', async () => {
+  it('【R-48】第二黃缺 refSeq；一般黃牌、紅牌帶 refSeq（含 null）', async () => {
     await assertFails(scoreBatch(as('s1'), {
       ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow' }, cardLink: { id: '3' }
     }));
+    // 第二黃帶 refSeq: null：鍵存在，雙向條件通過，由 secondYellowOk 的「refSeq 是整數」擋下。
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: null }, cardLink: { id: '3' }
+    }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow', refSeq: 3 } }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'red', refSeq: 3 } }));
+    // 一般黃牌帶 refSeq: null。鍵存在，所以不是「讀不到欄位」；雙向條件才會擋。
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow', refSeq: null } }));
   });
   it('【R-49】第二黃 refSeq 指向別隊、別人、紅牌、進球、已作廢黃牌、未來序號、重置線上', async () => {
     const bad = (ev: Ev, o: Partial<ScoreOpts> = {}) => assertFails(scoreBatch(as('s1'), {
@@ -373,6 +406,22 @@ describe('拒絕案例（§6.3-9）', () => {
     await bad({ type: 'card', side: 'home', plId: 'pl_1', cardType: 'second_yellow', refSeq: 4 }, { fromRev: 4 });
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'void', targetSeq: 3 }, withVoid: true }));
     await bad({ type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 3 }, { fromRev: 5 });
+  });
+  it('【R-49b】未來序號的黃牌已存在、進球另帶 cardType 仍不能當 refSeq', async () => {
+    // e10 已存在，get 不會出錯。只剩 refSeq < seq 會擋。
+    await adminDb().doc('competitions/cp_pub/matches/mt_1/timeline/e10').set({
+      seq: 10, type: 'card', side: 'away', plId: 'pl_9', cardType: 'yellow', matchSecond: 10, createdAt: ago(10)
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'card', side: 'away', plId: 'pl_9', cardType: 'second_yellow', refSeq: 10 },
+      cardLink: { id: '10' }
+    }));
+    // e2 是進球，補上 cardType yellow 後，讀 cardType 不再出錯。只剩 type == card 會擋。
+    await adminDb().doc('competitions/cp_pub/matches/mt_1/timeline/e2').set({ cardType: 'yellow' }, { merge: true });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'card', side: 'home', plId: 'pl_1', cardType: 'second_yellow', refSeq: 2 },
+      cardLink: { id: '2' }
+    }));
   });
   it('【R-50】同一黃牌已有有效第二黃，不能再建立第二張', async () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
@@ -391,6 +440,15 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
     await assertFails(deleteDoc(doc(as('s1'), 'competitions/cp_pub/matches/mt_1/cardLinks/3')));
   });
+  it('【R-51b】cardLinks 的 createdAt 不是伺服器時間；多寫不合 id 的連結', async () => {
+    await assertFails(scoreBatch(as('s1'), secondYellow({
+      cardLink: { id: '3', doc: { seq: 4, createdAt: CTimestamp.fromMillis(Date.now()) } }
+    })));
+    // id「03」不合 ^[1-9]…。同批仍寫合法的 cardLinks/3，第二黃本身的條件都過。
+    await assertFails(extraLink('03'));
+    // id「9」的 int 是 9，第二黃 refSeq 是 3。只剩 refSeq == int(ySeq) 會擋。
+    await assertFails(extraLink('9'));
+  });
   it('【R-52】cardLinks update：舊連結的第二黃尚未作廢', async () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
     await assertFails(scoreBatch(as('s1'), secondYellow({ fromRev: 4, cardLink: { id: '3', update: true } })));
@@ -399,16 +457,16 @@ describe('拒絕案例（§6.3-9）', () => {
     await assertSucceeds(scoreBatch(as('s1'), secondYellow()));
     await assertFails(getDocs(query(collection(as('s1'), 'competitions/cp_pub/matches/mt_1/cardLinks'), limit(10))));
   });
-  it('【R-53】第 101 筆被拒，含終場；重置後第 101 筆仍被拒', async () => {
+  it('【R-53】第 201 筆被拒，含終場；重置後第 201 筆仍被拒', async () => {
     const yellow = { type: 'card', side: 'home', plId: 'pl_1', cardType: 'yellow' };
-    await patchMatch('cp_pub', { rev: 100 });
-    await assertFails(scoreBatch(as('s1'), { fromRev: 100, ev: yellow }));
+    await patchMatch('cp_pub', { rev: 200 });
+    await assertFails(scoreBatch(as('s1'), { fromRev: 200, ev: yellow }));
     await assertFails(scoreBatch(as('s1'), {
-      fromRev: 100, ev: { type: 'fulltime' },
+      fromRev: 200, ev: { type: 'fulltime' },
       patch: { status: 'finished', lock: { locked: true }, finishedAt: serverTimestamp() }
     }));
-    await patchMatch('cp_pub', { rev: 200, resetRev: 100 });
-    await assertFails(scoreBatch(as('s1'), { fromRev: 200, ev: yellow }));
+    await patchMatch('cp_pub', { rev: 400, resetRev: 200 });
+    await assertFails(scoreBatch(as('s1'), { fromRev: 400, ev: yellow }));
   });
   it('【R-46】作廢牌卻改比分', async () => {
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'void', targetSeq: 3 }, patch: { score: { home: 0, away: 0 } }, withVoid: true }));

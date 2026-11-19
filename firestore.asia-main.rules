@@ -190,8 +190,8 @@ service cloud.firestore {
       let ch = b.diff(a).affectedKeys();
       return a.status != 'confirmed'
         && b.rev is int && b.rev == a.rev + 1
-        // ⑦ 每次重置後最多 100 筆（EVENT_MAX）。缺 resetRev 視同 0。超過連終場都拒。
-        && b.rev - a.get('resetRev', 0) <= 100
+        // ⑦ 每次重置後最多 200 筆（EVENT_MAX，§3.307）。缺 resetRev 視同 0。超過連終場都拒。
+        && b.rev - a.get('resetRev', 0) <= 200
         && b.updatedAt == request.time
         && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
         && existsAfter(eventPath(cid, mt, b.rev))
