@@ -756,3 +756,97 @@ describe("lineLoginHandoff", () => {
     expect(indexSource).toContain("exports.lineLoginHandoff = createLineLoginHandoffCallable(");
   });
 });
+
+// 本機來源守門：index.js 接線用的是既有 isLocalDevelopmentCreateCustomTokenRequest（只呼叫、不改）。
+// 這裡把它原封不動從 index.js 抽出，接進交接 handler，驗 origin／referer 兩個標頭不一致時的行為。
+describe("lineLoginHandoff 本機來源守門（沿用 index.js 既有判斷）", () => {
+  const vm = require("vm");
+
+  function extractFunctionSource(source, name) {
+    const marker = `function ${name}(`;
+    const start = source.indexOf(marker);
+    if (start < 0) throw new Error(`找不到函式 ${name}`);
+    const braceStart = source.indexOf("{", start);
+    let depth = 0;
+    for (let i = braceStart; i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return source.slice(start, i + 1);
+      }
+    }
+    throw new Error(`函式 ${name} 大括號不完整`);
+  }
+
+  function loadIsLocalRequest() {
+    const source = fs.readFileSync(path.join(__dirname, "../../functions/index.js"), "utf8");
+    const names = [
+      "getCallableRequestHeader",
+      "getUrlHostname",
+      "isLocalDevelopmentHostname",
+      "getCreateCustomTokenRequestContext",
+      "isLocalDevelopmentCreateCustomTokenRequest",
+    ];
+    const sandbox = { URL, String, Array };
+    vm.createContext(sandbox);
+    vm.runInContext(
+      `${names.map((name) => extractFunctionSource(source, name)).join("\n")}\nthis.fn = isLocalDevelopmentCreateCustomTokenRequest;`,
+      sandbox,
+    );
+    return sandbox.fn;
+  }
+
+  class LocalHttpsError extends Error {
+    constructor(code, message) {
+      super(message);
+      this.code = code;
+    }
+  }
+
+  function buildRequest(headers) {
+    return {
+      data: { op: "claim", handoffSecret: "c".repeat(64) },
+      rawRequest: { headers: { "x-forwarded-for": "203.0.113.9", ...headers }, socket: {} },
+    };
+  }
+
+  const isLocalRequest = loadIsLocalRequest();
+  const cases = [
+    ["origin 本機、referer 正式", { origin: "http://127.0.0.1:5173", referer: "https://toosterx.com/" }, true],
+    ["origin 正式、referer 本機", { origin: "https://toosterx.com", referer: "http://localhost:5173/" }, true],
+    ["只有 referer 本機（無 origin）", { referer: "http://127.0.0.1:5197/" }, true],
+    ["只有 origin 本機（無 referer）", { origin: "http://[::1]:5173" }, true],
+    ["兩者皆正式", { origin: "https://toosterx.com", referer: "https://toosterx.com/events" }, false],
+    ["兩者皆缺", {}, false],
+  ];
+
+  test.each(cases)("%s", async (_label, headers, blocked) => {
+    expect(isLocalRequest(buildRequest(headers))).toBe(blocked);
+
+    const operations = [];
+    const db = {
+      collection: () => ({ doc: () => ({}) }),
+      runTransaction: async () => {
+        operations.push("transaction");
+        return { kind: "not_found" };
+      },
+    };
+    const handler = createLineLoginHandoffHandler({
+      db,
+      HttpsError: LocalHttpsError,
+      isLocalRequest,
+      logger: { info: () => {}, error: () => {} },
+    });
+    const outcome = handler(buildRequest(headers));
+    if (blocked) {
+      await expect(outcome).rejects.toMatchObject({
+        code: "failed-precondition",
+        message: "LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED",
+      });
+      expect(operations).toHaveLength(0);
+    } else {
+      await expect(outcome).rejects.toMatchObject({ code: "not-found" });
+      expect(operations).toEqual(["transaction"]);
+    }
+  });
+});
