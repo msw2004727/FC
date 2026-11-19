@@ -9,7 +9,7 @@ import { adminDb } from '../test-rules/_harness.js';
 import { ReadMeter } from '../src/cp/context.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { RULE_TEMPLATES, type ResolvedRules } from '../src/engine/rules.js';
-import { ADMIN, DAY, TESTER, TESTER2, call, fails, makeDeps, ok, resetAll } from './_cp.js';
+import { ADMIN, DAY, TESTER, TESTER2, call, fails, makeDeps, ok, resetAll, setBannedWords } from './_cp.js';
 import {
   LATER, act, generate, later, matchesOf, orderNames, pairing, record, setupComp, standingOf
 } from './_step3.js';
@@ -187,8 +187,10 @@ describe('組別比賽規則', () => {
     expect(sys[0].text).toContain('勝和負積分');
     expect(sys[0].text).toContain('原因：勝分改兩分');
     expect((await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get()).get('rulesChangedAt')).toBeTruthy();
-    expect(meter.reads).toBe(5);
-    expect(meter.reads).toBeLessThanOrEqual(6 + 240 + 1);
+    // 閘門 1＋賽事 1＋組別 1＋確認或棄權聚合 1＋積分 1＋該組場次 1。
+    // 聚合是這次退修多出來的 1 讀；原先整組場次一筆查詢時是 5。
+    expect(meter.reads).toBe(6);
+    expect(meter.reads).toBeLessThanOrEqual(6 + 1 + 240 + 1);
   });
 
   it('只改補充說明不重算', async () => {
@@ -228,5 +230,154 @@ describe('組別比賽規則', () => {
     const cancelled = await setupComp(['甲', '乙']);
     await adminDb().doc(`competitions/${cancelled.cid}`).update({ status: 'cancelled' });
     await fails(call(handleCpHost, ADMIN, rulesCall(cancelled, legacyPayload())), 'COMPETITION_CLOSED');
+  });
+
+  it('先排賽程、尚未登錄比分就改勝分，隊名不變', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const before = (await standingOf(c))!;
+    expect(before.rows.length).toBeGreaterThan(0);
+    expect(before.rows.every(r => typeof r.name === 'string' && r.name.length > 0)).toBe(true);
+    const names = Object.fromEntries(before.rows.map(r => [r.teamId, r.name]));
+    const res = await ok<{ recomputed: boolean }>(call(
+      handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.points.win = 2; }))
+    ));
+    expect(res.recomputed).toBe(true);
+    const after = (await standingOf(c))!;
+    expect(after.version).toBe(before.version + 1);
+    expect(after.rows.map(r => r.teamId)).toEqual(before.rows.map(r => r.teamId));
+    for (const row of after.rows) expect(row.name).toBe(names[row.teamId]);
+  });
+
+  it('積分榜不在 schedule.groups 裡就拒絕，而且不寫', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const before = (await standingOf(c))!;
+    const dvRef = adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`);
+    const schedule = (await dvRef.get()).get('schedule');
+    await dvRef.update({ schedule: { ...schedule, groups: [{ groupId: 'B', teamIds: ['x', 'y'] }] } });
+    await fails(
+      call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.points.win = 2; }))),
+      'STANDINGS_MISMATCH',
+      'failed-precondition'
+    );
+    const dv = await dvRef.get();
+    expect(dv.get('rules')).toBeUndefined();
+    expect(dv.get('rulesChangedAt')).toBeUndefined();
+    expect((await standingOf(c))!.version).toBe(before.version);
+    const audits = (await adminDb().collection(`competitions/${c.cid}/audits`).get()).docs
+      .filter(d => d.get('action') === 'setDivisionRules');
+    expect(audits).toHaveLength(0);
+  });
+
+  it('已有賽程時，時間結構同值可寫', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    await ok(call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.time.note = '同值仍可寫'; }))));
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules.time')).toMatchObject({
+      periods: 1, halfMinutes: 20, halftime: { enabled: false, minutes: 0 }, note: '同值仍可寫'
+    });
+  });
+
+  it('已有棄權時，棄權五欄同值可寫', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const ms = await matchesOf(c);
+    const { m } = pairing(c, ms, '甲', '乙', 0, 0);
+    const forfeitSide = m.home.teamId === c.enIdOf['乙'] ? 'home' : 'away';
+    await act(c, ADMIN, { action: 'setWalkover', mtId: m.id, expectedRev: m.rev, forfeitSide, reason: '未到場' });
+    const before = (await standingOf(c))!;
+    await ok(call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.walkover.note = '同值仍可寫'; }))));
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules.walkover')).toMatchObject({
+      scoreFor: 2, scoreAgainst: 0, awardPoints: 3, penaltyPoints: 0, countInGoalStats: true, note: '同值仍可寫'
+    });
+    expect((await standingOf(c))!.version).toBe(before.version);
+  });
+
+  it('負分 -1 與和局：場次點數等於積分榜', async () => {
+    const loss = await setupComp(['甲', '乙']);
+    await generate(loss);
+    await ok(call(handleCpHost, ADMIN, rulesCall(loss, legacyPayload(r => { r.points.loss = -1; }))));
+    await record(loss, '甲', '乙', 1, 0);
+    const played = (await matchesOf(loss)).find(m => m.status === 'confirmed')!;
+    const result = played.result as { winner: 'home' | 'away'; homePoints: number; awayPoints: number };
+    const winnerId = result.winner === 'home' ? played.home.teamId : played.away.teamId;
+    const loserId = result.winner === 'home' ? played.away.teamId : played.home.teamId;
+    const winnerPts = result.winner === 'home' ? result.homePoints : result.awayPoints;
+    const loserPts = result.winner === 'home' ? result.awayPoints : result.homePoints;
+    expect(winnerPts).toBe(3);
+    expect(loserPts).toBe(-1);
+    const lossRows = Object.fromEntries((await standingOf(loss))!.rows.map(r => [r.teamId, r]));
+    expect(lossRows[winnerId].points).toBe(winnerPts);
+    expect(lossRows[loserId].points).toBe(loserPts);
+
+    const draw = await setupComp(['丙', '丁']);
+    await generate(draw);
+    await ok(call(handleCpHost, ADMIN, rulesCall(draw, legacyPayload(r => { r.points.draw = 2; }))));
+    await record(draw, '丙', '丁', 1, 1);
+    const drawn = (await matchesOf(draw)).find(m => m.status === 'confirmed')!;
+    const drawResult = drawn.result as { homePoints: number; awayPoints: number };
+    expect(drawResult.homePoints).toBe(2);
+    expect(drawResult.awayPoints).toBe(2);
+    const drawRows = (await standingOf(draw))!.rows;
+    expect(drawRows.every(r => r.points === 2)).toBe(true);
+  });
+
+  it('confirmMatchResult 與 setWalkover 成功路徑多讀組別', async () => {
+    const confirmed = await setupComp(['甲', '乙']);
+    await generate(confirmed);
+    const ms = await matchesOf(confirmed);
+    const { m, score } = pairing(confirmed, ms, '甲', '乙', 2, 0);
+    await ok(call(handleCpHost, ADMIN, {
+      action: 'recordResult', cid: confirmed.cid, mtId: m.id, expectedRev: m.rev, score, confirm: false
+    }, later()));
+    const confirmMeter = new ReadMeter();
+    await ok(call(handleCpHost, ADMIN, {
+      action: 'confirmMatchResult', cid: confirmed.cid, mtId: m.id, expectedRev: m.rev + 1
+    }, makeDeps(LATER, confirmMeter)));
+    // 閘門 1＋賽事 1＋場次 1＋timeline 1＋voids 1＋組別 1。組別是這張卡多的那 1 讀。
+    expect(confirmMeter.reads).toBe(6);
+
+    const forfeited = await setupComp(['甲', '乙']);
+    await generate(forfeited);
+    const ms2 = await matchesOf(forfeited);
+    const { m: m2 } = pairing(forfeited, ms2, '甲', '乙', 0, 0);
+    const forfeitSide = m2.home.teamId === forfeited.enIdOf['乙'] ? 'home' : 'away';
+    const walkMeter = new ReadMeter();
+    await ok(call(handleCpHost, ADMIN, {
+      action: 'setWalkover', cid: forfeited.cid, mtId: m2.id, expectedRev: m2.rev, forfeitSide, reason: '未到場'
+    }, makeDeps(LATER, walkMeter)));
+    // 閘門 1＋賽事 1＋場次 1＋組別 1。
+    expect(walkMeter.reads).toBe(4);
+  });
+
+  it('補充說明與原因的禁用詞、原因超過 100 字、未知巢狀鍵', async () => {
+    await setBannedWords(['官方']);
+    const c = await setupComp(['甲', '乙']);
+    const note = await call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(r => { r.squad.note = '這是官方說明'; })));
+    expect(note.ok).toBe(false);
+    if (!note.ok) {
+      expect(note.error.reason).toBe('BANNED_WORD');
+      expect(note.error.params).toMatchObject({ field: 'squad.note' });
+    }
+    const why = await call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(), { reason: '因為官方調整' }));
+    expect(why.ok).toBe(false);
+    if (!why.ok) {
+      expect(why.error.reason).toBe('BANNED_WORD');
+      expect(why.error.params).toMatchObject({ field: 'reason' });
+    }
+    await fails(call(handleCpHost, ADMIN, rulesCall(c, legacyPayload(), { reason: '甲'.repeat(101) })), 'FIELD_LENGTH');
+    const rules = legacyPayload();
+    (rules.time as unknown as Record<string, unknown>).extra = true;
+    const unknown = await call(handleCpHost, ADMIN, rulesCall(c, rules));
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) {
+      expect(unknown.error.reason).toBe('UNKNOWN_FIELD');
+      expect(unknown.error.params).toMatchObject({ field: 'time.extra' });
+    }
+    const dv = await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get();
+    expect(dv.get('rules')).toBeUndefined();
   });
 });

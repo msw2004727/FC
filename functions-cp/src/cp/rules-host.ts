@@ -1,8 +1,9 @@
 /**
  * cpHost.setDivisionRules：寫入組別比賽規則。
  * 掛在 HOST_ACTIONS，不放進 MATCH_HOST_ACTIONS（本檔要引用 match-host，避免循環）。
- * 計分有沒有變看 sameScoringInputs，不看鍵名清單：關閉的仁慈只改 cap 不算；只改 preset、criteria 沒變也不算。
+ * 計分有沒有變看 sameScoringInputs，不看鍵名清單：關閉的仁慈只改 cap 不算（cap 不參與計算）；只改 preset、criteria 沒變也不算。
  * 已有 confirmed 或 walkover 且計分有變才要求原因、公告、rulesChangedAt。finished 不算已確認。
+ * 確認或棄權是否存在用聚合 count，不靠場次清單。重算改為每組各查一次，上限 240，多讀 1 筆用來發現截斷。
  * 取消（status==='cancelled'）在結束寬限之前擋下，連管理員都是 COMPETITION_CLOSED。
  */
 import type { Transaction } from 'firebase-admin/firestore';
@@ -12,7 +13,7 @@ import {
 } from '../engine/index.js';
 import { bad, notFound, pre } from './errors.js';
 import {
-  CID_RE, DVID_RE, FieldValue, Timestamp, actorHash, readDoc, readQuery, requireId, writeAudit,
+  CID_RE, DVID_RE, FieldValue, Timestamp, actorHash, readCount, readDoc, readQuery, requireId, writeAudit,
   type Caller, type CompDoc, type CpDeps, type GateResult
 } from './context.js';
 import { assertNotEnded, hostComp } from './match-host.js';
@@ -22,7 +23,10 @@ import { cleanLine, findBannedWord } from './text.js';
 import { onlyKeys } from './validate.js';
 
 const REASON_MAX = 100;
-const MATCH_READ_MAX = 400;
+/** 一組重算最多讀的場次。limit 多 1 筆：讀到就整筆不寫。 */
+const GROUP_MATCH_MAX = 240;
+/** 與 match-host 的 groupId、host.standingGroupIds 同一套。第 3 步的積分榜 id 用這組字。 */
+const GROUP_ID_RE = /^[A-Za-z0-9]{1,8}$/;
 
 const TIME_LOCKS = ['time.periods', 'time.halfMinutes', 'time.halftime.enabled', 'time.halftime.minutes'] as const;
 const WALKOVER_LOCKS = [
@@ -155,13 +159,67 @@ function assertNotesClean(rules: object, banned: readonly string[]): void {
   visit('', rules);
 }
 
+interface SchedGroup {
+  groupId: string;
+  /** null：清單上有這個組，但沒有 teamIds 陣列，不能重算。 */
+  teamIds: string[] | null;
+}
+
+/** schedule.groups 裡形狀合格的 groupId。不合格的 id 不算已知文件。 */
+function scheduleGroups(schedule: unknown): SchedGroup[] {
+  if (!schedule || typeof schedule !== 'object') return [];
+  const raw = (schedule as { groups?: unknown }).groups;
+  if (!Array.isArray(raw)) return [];
+  const out: SchedGroup[] = [];
+  const seen = new Set<string>();
+  for (const g of raw) {
+    if (!g || typeof g !== 'object') continue;
+    const groupId = (g as { groupId?: unknown }).groupId;
+    if (typeof groupId !== 'string' || !GROUP_ID_RE.test(groupId) || seen.has(groupId)) continue;
+    seen.add(groupId);
+    const teamIdsRaw = (g as { teamIds?: unknown }).teamIds;
+    const teamIds = Array.isArray(teamIdsRaw)
+      ? teamIdsRaw.filter((id): id is string => typeof id === 'string')
+      : null;
+    out.push({ groupId, teamIds });
+  }
+  return out;
+}
+
+/**
+ * 已知的積分榜 groupId。只讀這些文件 id，不列 standings 集合。
+ * 清單上的組，再加上第 3 步固定會寫的 A（已在清單內不重複）。
+ */
+function knownStandingGroupIds(groups: readonly SchedGroup[]): string[] {
+  const ids = groups.map(g => g.groupId);
+  if (!ids.includes('A')) ids.push('A');
+  return ids;
+}
+
 function namesOf(matches: readonly MatchRow[]): Record<string, string> {
   const names: Record<string, string> = {};
   for (const m of matches) {
     for (const side of ['home', 'away'] as const) {
       const t = m[side];
-      if (t && typeof t.teamId === 'string' && typeof t.name === 'string') names[t.teamId] = t.name;
+      if (t && typeof t.teamId === 'string' && typeof t.name === 'string' && t.name) names[t.teamId] = t.name;
     }
+  }
+  return names;
+}
+
+/**
+ * buildStanding 只吃 teamMeta，不沿用前一版列上的隊名。
+ * 先用這組已讀場次，缺的再補前一版積分榜列。不另讀 entries。
+ */
+function namesFor(matches: readonly MatchRow[], prevRows: unknown): Record<string, string> {
+  const names = namesOf(matches);
+  if (!Array.isArray(prevRows)) return names;
+  for (const row of prevRows) {
+    if (!row || typeof row !== 'object') continue;
+    const teamId = (row as { teamId?: unknown }).teamId;
+    const name = (row as { name?: unknown }).name;
+    if (typeof teamId !== 'string' || names[teamId]) continue;
+    if (typeof name === 'string' && name) names[teamId] = name;
   }
   return names;
 }
@@ -206,38 +264,59 @@ export async function setDivisionRules(deps: CpDeps, caller: Caller, gate: GateR
 
     const scoringChanged = !sameScoringInputs(old, next);
     const walkoverChanged = WALKOVER_LOCKS.some(field => changed.includes(field));
-    let matches: MatchRow[] = [];
-    // 沒有賽程就不可能有場次。棄權鎖定用這一次查詢，不逐場讀。
-    if (hasSchedule && (scoringChanged || walkoverChanged)) {
-      const snap = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
-        .where('divisionId', '==', dvId).limit(MATCH_READ_MAX));
-      matches = snap.docs.map(d => ({ matchId: d.id, ...d.data() }) as MatchRow);
-      if (walkoverChanged && matches.some(m => m.status === 'walkover')) {
+    const matchesCol = deps.db.collection(`competitions/${cid}/matches`);
+    // 沒有賽程就不可能有場次。棄權鎖定用聚合，不逐場讀。
+    if (hasSchedule && walkoverChanged) {
+      const walkovers = await readCount(deps, tx, matchesCol
+        .where('divisionId', '==', dvId).where('status', '==', 'walkover').count());
+      if (walkovers > 0) {
         const hit = firstLocked(changed, new Set<string>(WALKOVER_LOCKS));
         if (hit) throw pre('RULES_LOCKED', { field: hit });
       }
     }
-    const transparent = scoringChanged && matches.some(m => m.status === 'confirmed' || m.status === 'walkover');
+    // 透明條件不靠可能被截斷的場次清單。finished 不算。
+    let transparent = false;
+    if (hasSchedule && scoringChanged) {
+      const settled = await readCount(deps, tx, matchesCol
+        .where('divisionId', '==', dvId).where('status', 'in', ['confirmed', 'walkover']).count());
+      transparent = settled > 0;
+    }
     if (transparent && reason == null) throw bad('REASON_REQUIRED', { field: 'reason' });
 
-    const groups = hasSchedule && Array.isArray((schedule as { groups?: unknown }).groups)
-      ? (schedule as { groups: Array<{ groupId?: unknown; teamIds?: unknown }> }).groups
-      : [];
+    const groups = scheduleGroups(hasSchedule ? schedule : null);
+    const byId = new Map(groups.map(g => [g.groupId, g]));
     const pending: Array<{
       ref: ReturnType<CpDeps['db']['doc']>;
       groupId: string;
       teamIds: string[];
       prev: Partial<StandingDoc>;
     }> = [];
+    // 重算前比對清單與已知積分榜。對不上就不寫。不列整個 standings 集合。
     if (scoringChanged) {
-      for (const g of groups) {
-        if (typeof g.groupId !== 'string' || !Array.isArray(g.teamIds)) continue;
-        const teamIds = g.teamIds.filter((id): id is string => typeof id === 'string');
-        const ref = standingRef(deps, cid, dvId, 'group', g.groupId);
+      for (const groupId of knownStandingGroupIds(groups)) {
+        const ref = standingRef(deps, cid, dvId, 'group', groupId);
         const prevSnap = await readDoc(deps, tx, ref);
         if (!prevSnap.exists) continue;
-        pending.push({ ref, groupId: g.groupId, teamIds, prev: prevSnap.data() as Partial<StandingDoc> });
+        const entry = byId.get(groupId);
+        if (!entry || entry.teamIds == null) throw pre('STANDINGS_MISMATCH', { groupId });
+        pending.push({
+          ref, groupId, teamIds: entry.teamIds, prev: prevSnap.data() as Partial<StandingDoc>
+        });
       }
+    }
+
+    const groupMatches = new Map<string, MatchRow[]>();
+    for (const item of pending) {
+      // 與 recomputeStanding 同一種等值查詢：divisionId、stageId、groupId。
+      const snap = await readQuery(deps, tx, matchesCol
+        .where('divisionId', '==', dvId)
+        .where('stageId', '==', 'group')
+        .where('groupId', '==', item.groupId)
+        .limit(GROUP_MATCH_MAX + 1));
+      if (snap.size > GROUP_MATCH_MAX) {
+        throw pre('TOO_MANY_MATCHES', { count: snap.size, max: GROUP_MATCH_MAX, groupId: item.groupId });
+      }
+      groupMatches.set(item.groupId, snap.docs.map(d => ({ matchId: d.id, ...d.data() }) as MatchRow));
     }
 
     const divisionPatch: Record<string, unknown> = {
@@ -249,19 +328,18 @@ export async function setDivisionRules(deps: CpDeps, caller: Caller, gate: GateR
     tx.update(dvRef, divisionPatch);
 
     const divisionName = typeof raw.name === 'string' ? raw.name : '';
-    const names = namesOf(matches);
     let recomputed = false;
     for (const item of pending) {
-      const groupMatches = matches.filter(m => m.stageId === 'group' && m.groupId === item.groupId);
+      const matches = groupMatches.get(item.groupId) ?? [];
       applyStanding(tx, item.ref, {
         cid, dvId, stageId: 'group', groupId: item.groupId,
         teamIds: item.teamIds,
-        matches: groupMatches as MatchLike[],
+        matches: matches as MatchLike[],
         division: nextDivision,
         divisionName,
         computedBy: 'cpHost:setDivisionRules',
         prev: { version: item.prev.version, manualOverride: item.prev.manualOverride, rows: item.prev.rows },
-        names
+        names: namesFor(matches, item.prev.rows)
       });
       recomputed = true;
     }

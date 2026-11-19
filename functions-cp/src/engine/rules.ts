@@ -248,10 +248,10 @@ function overlay(base: ResolvedRules, rules: Record<string, unknown>): void {
   const tb = isRecord(rules.tieBreak) ? rules.tieBreak : null;
   if (tb) {
     // 清單要非空、白名單、不重複、第一項是 points，才覆蓋排序；否則仍看 schedule.ranking。
+    // preset 只看清單是否與某捷徑展開完全相同，不採用文件上的 preset。
     if (criteriaValid(tb.criteria)) {
       base.tieBreak.criteria = [...tb.criteria];
-      const preset = oneOf(tb.preset, PRESETS);
-      base.tieBreak.preset = preset ?? inferPreset(tb.criteria);
+      base.tieBreak.preset = inferPreset(tb.criteria);
     }
     if (tb.h2hScope === 'miniLeagueThenRestart') base.tieBreak.h2hScope = 'miniLeagueThenRestart';
     base.tieBreak.note = readNote(tb.note);
@@ -425,7 +425,10 @@ export function engineInputsOf(resolved: ResolvedRules): { rule: RankingRule; op
   return { rule, opts: { fairPlay, walkover, mercyRule } };
 }
 
-/** 兩份解析結果交給引擎的計分輸入是否相同。相同就不重算。 */
+/**
+ * 兩份解析結果交給引擎的計分輸入是否相同。相同就不重算。
+ * 仁慈關著時 mercyRule 是 `{ enabled: false }`，不帶 cap。只改 cap 仍相同：關閉時 cap 不參與計算。
+ */
 export function sameScoringInputs(a: ResolvedRules, b: ResolvedRules): boolean {
   const left = engineInputsOf(a);
   const right = engineInputsOf(b);
@@ -493,6 +496,20 @@ function needEnum<T extends string | number>(errors: RulesIssue[], value: unknow
 
 function needNullInt(errors: RulesIssue[], value: unknown, field: string, min: number, max: number): number | null {
   if (value == null) return null;
+  return needInt(errors, value, field, min, max);
+}
+
+/** 關閉時省略或 null 用預設；有送值仍驗範圍。開啟時與 needInt 相同，缺了是 FIELD_REQUIRED。 */
+function closedInt(
+  errors: RulesIssue[],
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+  enabled: boolean,
+  fallback: number
+): number | null {
+  if (!enabled && value == null) return fallback;
   return needInt(errors, value, field, min, max);
 }
 
@@ -602,8 +619,10 @@ function inspect(input: unknown): Inspected {
   let tbNote: string | null = null;
   if (tb) {
     pushUnknown(errors, tb, ['preset', 'criteria', 'h2hScope', 'note'], 'tieBreak');
-    preset = needEnum(errors, tb.preset, 'tieBreak.preset', PRESETS);
+    // 輸入的 preset 仍須是合法列舉，但寫入值只由 criteria 推導。
+    const givenPreset = needEnum(errors, tb.preset, 'tieBreak.preset', PRESETS);
     criteria = inspectCriteria(errors, tb.criteria);
+    preset = criteria ? inferPreset(criteria) : givenPreset;
     if (tb.h2hScope !== 'miniLeagueThenRestart') {
       errors.push({ field: 'tieBreak.h2hScope', reason: tb.h2hScope == null ? 'FIELD_REQUIRED' : 'FIELD_ENUM' });
     }
@@ -657,9 +676,11 @@ function inspect(input: unknown): Inspected {
     pushUnknown(errors, sus, ['enabled', 'yellowThreshold', 'yellowBanMatches', 'directRedBanMatches', 'note'], 'suspension');
     if (typeof sus.enabled !== 'boolean') errors.push({ field: 'suspension.enabled', reason: sus.enabled == null ? 'FIELD_REQUIRED' : 'FIELD_TYPE' });
     else susEnabled = sus.enabled;
-    yellowThreshold = needInt(errors, sus.yellowThreshold, 'suspension.yellowThreshold', 1, 10);
-    yellowBanMatches = needInt(errors, sus.yellowBanMatches, 'suspension.yellowBanMatches', 1, 5);
-    directRedBanMatches = needInt(errors, sus.directRedBanMatches, 'suspension.directRedBanMatches', 1, 5);
+    // 關閉時三欄可省略或 null，存成 2／1／1。開啟時仍必填。有送的數字照範圍驗。
+    const susOn = susEnabled === true;
+    yellowThreshold = closedInt(errors, sus.yellowThreshold, 'suspension.yellowThreshold', 1, 10, susOn, 2);
+    yellowBanMatches = closedInt(errors, sus.yellowBanMatches, 'suspension.yellowBanMatches', 1, 5, susOn, 1);
+    directRedBanMatches = closedInt(errors, sus.directRedBanMatches, 'suspension.directRedBanMatches', 1, 5, susOn, 1);
     susNote = takeNote(errors, sus.note, 'suspension.note');
   }
 
@@ -686,7 +707,8 @@ function inspect(input: unknown): Inspected {
     pushUnknown(errors, mercy, ['enabled', 'cap', 'note'], 'mercy');
     if (typeof mercy.enabled !== 'boolean') errors.push({ field: 'mercy.enabled', reason: mercy.enabled == null ? 'FIELD_REQUIRED' : 'FIELD_TYPE' });
     else mercyEnabled = mercy.enabled;
-    cap = needInt(errors, mercy.cap, 'mercy.cap', 1, 30);
+    // 關閉時 cap 可省略或 null，存成 7。開啟時仍必填。有送的數字照範圍驗，不改成預設。
+    cap = closedInt(errors, mercy.cap, 'mercy.cap', 1, 30, mercyEnabled === true, 7);
     mercyNote = takeNote(errors, mercy.note, 'mercy.note');
   }
 

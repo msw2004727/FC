@@ -4,7 +4,7 @@
  */
 import { buildStanding, DEFAULT_WALKOVER, RANKING_RULES } from '../src/engine/index.js';
 import {
-  RULE_TEMPLATES, engineInputsOf, resolveRules, sameScoringInputs, validateRulesInput,
+  RULE_TEMPLATES, engineInputsOf, resolveRules, rulesDocumentOf, sameScoringInputs, validateRulesInput,
   type ResolvedRules
 } from '../src/engine/rules.js';
 import { rankingRuleOf } from '../src/cp/schedule-plan.js';
@@ -345,5 +345,99 @@ describe('validateRulesInput', () => {
     const both = withRules({ points: { win: 0, draw: 1, loss: 2, note: null } });
     expect(validateRulesInput(both).warnings).toEqual(['POINTS_ORDER']);
     expect(validateRulesInput(both).errors).toEqual([]);
+  });
+
+  test('preset 由 criteria 推導，不採用輸入', () => {
+    const h2hCriteria = [...RULE_TEMPLATES.five.tieBreak.criteria];
+    const gdCriteria = resolveRules({ schedule: { ranking: 'goalDiffFirst' } }).tieBreak.criteria;
+    const shortcuts: Array<[string, readonly string[]]> = [
+      ['h2hFirst', h2hCriteria],
+      ['goalDiffFirst', gdCriteria],
+      ['feda2026', RANKING_RULES.RR_FEDA_2026.criteria],
+      ['youth', RANKING_RULES.RR_FEDA_YOUTH.criteria],
+      ['fifa2026', RANKING_RULES.RR_FIFA_2026.criteria]
+    ];
+    for (const [name, criteria] of shortcuts) {
+      const input = withRules({
+        tieBreak: { preset: 'custom', criteria: [...criteria], h2hScope: 'miniLeagueThenRestart', note: null }
+      });
+      const stored = rulesDocumentOf(input);
+      expect(stored?.rules.tieBreak.preset, name).toBe(name);
+      const read = resolveRules({ rules: stored?.rules });
+      expect(read.tieBreak.preset, name).toBe(name);
+    }
+
+    const customList = ['points', 'goalDiff', 'manual'] as const;
+    const custom = rulesDocumentOf(withRules({
+      tieBreak: { preset: 'feda2026', criteria: [...customList], h2hScope: 'miniLeagueThenRestart', note: null }
+    }));
+    expect(custom?.rules.tieBreak.preset).toBe('custom');
+    expect(resolveRules({
+      rules: { tieBreak: { preset: 'feda2026', criteria: [...h2hCriteria] } }
+    }).tieBreak.preset).toBe('h2hFirst');
+
+    const badPreset = withRules({
+      tieBreak: { preset: 'not-a-preset' as 'custom', criteria: [...h2hCriteria], h2hScope: 'miniLeagueThenRestart', note: null }
+    });
+    expect(validateRulesInput(badPreset).errors).toContainEqual({ field: 'tieBreak.preset', reason: 'FIELD_ENUM' });
+  });
+
+  test('停賽與仁慈關閉時可省略門檻與 cap，開啟時必填', () => {
+    const omit = withRules({});
+    const sus = omit.suspension as unknown as Record<string, unknown>;
+    delete sus.yellowThreshold;
+    delete sus.yellowBanMatches;
+    delete sus.directRedBanMatches;
+    const mercy = omit.mercy as unknown as Record<string, unknown>;
+    delete mercy.cap;
+    expect(validateRulesInput(omit).errors).toEqual([]);
+    const omitted = rulesDocumentOf(omit);
+    expect(omitted?.rules.suspension).toMatchObject({
+      enabled: false, yellowThreshold: 2, yellowBanMatches: 1, directRedBanMatches: 1
+    });
+    expect(omitted?.rules.mercy).toMatchObject({ enabled: false, cap: 7 });
+
+    const nulled = withRules({});
+    nulled.suspension.yellowThreshold = null as unknown as number;
+    nulled.suspension.yellowBanMatches = null as unknown as number;
+    nulled.suspension.directRedBanMatches = null as unknown as number;
+    nulled.mercy.cap = null as unknown as number;
+    const storedNull = rulesDocumentOf(nulled);
+    expect(storedNull?.rules.suspension.yellowThreshold).toBe(2);
+    expect(storedNull?.rules.suspension.yellowBanMatches).toBe(1);
+    expect(storedNull?.rules.suspension.directRedBanMatches).toBe(1);
+    expect(storedNull?.rules.mercy.cap).toBe(7);
+
+    const explicit = withRules({});
+    explicit.mercy.cap = 9;
+    explicit.suspension.yellowThreshold = 4;
+    const kept = rulesDocumentOf(explicit);
+    expect(kept?.rules.mercy).toMatchObject({ enabled: false, cap: 9 });
+    expect(kept?.rules.suspension.yellowThreshold).toBe(4);
+
+    const susOn = withRules({});
+    susOn.suspension.enabled = true;
+    delete (susOn.suspension as unknown as Record<string, unknown>).yellowThreshold;
+    expect(validateRulesInput(susOn).errors).toContainEqual({ field: 'suspension.yellowThreshold', reason: 'FIELD_REQUIRED' });
+
+    const mercyOn = withRules({});
+    mercyOn.mercy.enabled = true;
+    mercyOn.mercy.cap = null as unknown as number;
+    expect(validateRulesInput(mercyOn).errors).toContainEqual({ field: 'mercy.cap', reason: 'FIELD_REQUIRED' });
+
+    const badCap = withRules({});
+    badCap.mercy.cap = 99;
+    expect(validateRulesInput(badCap).errors).toContainEqual({ field: 'mercy.cap', reason: 'FIELD_RANGE' });
+  });
+
+  test('仁慈關閉時只改 cap，計分輸入相同', () => {
+    const off7 = resolveRules({ rules: { mercy: { enabled: false, cap: 7 } } });
+    const off9 = resolveRules({ rules: { mercy: { enabled: false, cap: 9 } } });
+    expect(sameScoringInputs(off7, off9)).toBe(true);
+    expect(off7.mercy.cap).toBe(7);
+    expect(off9.mercy.cap).toBe(9);
+    const on7 = resolveRules({ rules: { mercy: { enabled: true, cap: 7 } } });
+    const on9 = resolveRules({ rules: { mercy: { enabled: true, cap: 9 } } });
+    expect(sameScoringInputs(on7, on9)).toBe(false);
   });
 });
