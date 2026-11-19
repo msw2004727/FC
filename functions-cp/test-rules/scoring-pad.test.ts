@@ -44,10 +44,14 @@ function padGroups(prefix: string, n: number, broken = false): { defs: string[];
 export function paddedScoringRules(n: number, src = fs.readFileSync(RULES_FILE, 'utf8'), broken = false): string {
   let out = src;
   const allDefs: string[] = [];
-  // 故意不成立時也要插進 pkUpdateOk：PK 開始／PK 進改 penaltyScore，matchUpdateOk 的 hasOnly 會先失敗，
-  // 真正放行的是 pkUpdateOk。量測等級仍只墊 matchUpdateOk／takeoverOk，避免 PK 路徑被墊兩次。
+  // 故意不成立時也要插進真正放行的函式：PK 改 penaltyScore 走 pkUpdateOk；
+  // 只改 clockBase 的時鐘與停錶走 clockChangeUpdateOk。量測等級仍只墊 matchUpdateOk／takeoverOk，
+  // 避免同一條路徑被墊兩次（matchUpdateOk 的 pad 在請求裡仍會先算）。
   const targets: [string, string][] = [['matchUpdateOk', 'cpPadM'], ['takeoverOk', 'cpPadT']];
-  if (broken) targets.push(['pkUpdateOk', 'cpPadP']);
+  if (broken) {
+    targets.push(['pkUpdateOk', 'cpPadP']);
+    targets.push(['clockChangeUpdateOk', 'cpPadC']);
+  }
   for (const [fn, prefix] of targets) {
     const re = new RegExp(`(function ${fn}\\(cid, mt\\) \\{[\\s\\S]*?return )`);
     if (!re.test(out)) throw new Error(`找不到 ${fn} 插入點`);
@@ -114,9 +118,15 @@ const PROBES: [string, () => Promise<unknown>][] = [
   ['時鐘修正', () => scoreBatch(as('s1'), { type: 'clock' }, {
     clockBase: { startedAt: CTimestamp.now(), pausedSec: 30, running: true, period: 'h1' }
   })],
-  ['球隊暫停（停錶）', () => scoreBatch(as('s1'), { type: 'timeout', side: 'home' }, {
-    clockBase: { startedAt: CTimestamp.now(), pausedSec: 1800, running: false, period: 'h1' }
-  })],
+  ['球隊暫停（停錶）', async () => {
+    const started = Timestamp.fromMillis(1_700_000_000_000);
+    await patchMatch('cp_pub', {
+      clockBase: { startedAt: started, pausedSec: 0, running: true, period: 'h1' }
+    });
+    return scoreBatch(as('s1'), { type: 'timeout', side: 'home' }, {
+      clockBase: { startedAt: CTimestamp.fromMillis(1_700_000_000_000), pausedSec: 0, running: false, period: 'h1' }
+    });
+  }],
   ['球隊暫停（不停錶）', () => scoreBatch(as('s1'), { type: 'timeout', side: 'away' })],
   ['PK 開始', async () => {
     await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });

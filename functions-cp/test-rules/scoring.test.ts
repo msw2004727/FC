@@ -106,12 +106,25 @@ describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'clock' }, patch: { clockBase: htClock } }));
   });
   it('【P-9】球隊暫停：停錶、不停錶、live、半場', async () => {
-    const stopped = { startedAt: CTimestamp.now(), pausedSec: 1800, running: false, period: 'h1' as const };
-    await assertSucceeds(scoreBatch(as('s1'), { ev: { type: 'timeout', side: 'home' }, patch: { clockBase: stopped } }));
+    // 停錶只准 running true→false，startedAt／pausedSec／period 必須與寫入前相同。
+    const started = Timestamp.fromMillis(1_700_000_000_000);
+    const clientStarted = CTimestamp.fromMillis(1_700_000_000_000);
+    await patchMatch('cp_pub', {
+      clockBase: { startedAt: started, pausedSec: 0, running: true, period: 'h1' }
+    });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      ev: { type: 'timeout', side: 'home' },
+      patch: { clockBase: { startedAt: clientStarted, pausedSec: 0, running: false, period: 'h1' } }
+    }));
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 4, ev: { type: 'timeout', side: 'away' } }));
-    await patchMatch('cp_pub', { status: 'halftime' });
-    const htStopped = { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'ht' as const };
-    await assertSucceeds(scoreBatch(as('s1'), { fromRev: 5, ev: { type: 'timeout', side: 'away' }, patch: { clockBase: htStopped } }));
+    await patchMatch('cp_pub', {
+      status: 'halftime',
+      clockBase: { startedAt: started, pausedSec: 2700, running: true, period: 'ht' }
+    });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 5, ev: { type: 'timeout', side: 'away' },
+      patch: { clockBase: { startedAt: clientStarted, pausedSec: 2700, running: false, period: 'ht' } }
+    }));
     await assertSucceeds(scoreBatch(as('s1'), { fromRev: 6, ev: { type: 'timeout', side: 'home' } }));
   });
   it('半場→續賽（clockBase 可改）', async () => {
@@ -758,6 +771,89 @@ it('【R-32】場次進行中但 lock.locked 為 true：進球被拒（真正測
     });
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: 1 } }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: 'yes' } }));
+  });
+  it('【R-64】pkStart 後不能用 clock／timeout 把 period 改離 pk；period 已是 h1 仍不能送正規進球；undoFinish 後同樣拒', async () => {
+    const started = Timestamp.fromMillis(1_700_000_000_000);
+    const clientStarted = CTimestamp.fromMillis(1_700_000_000_000);
+    const pkBase = { startedAt: clientStarted, pausedSec: 2700, running: false as const, period: 'pk' as const };
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      ev: { type: 'pkStart' },
+      patch: { penaltyScore: { home: 0, away: 0 }, clockBase: pkBase }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 4, ev: { type: 'clock' },
+      patch: { clockBase: { ...pkBase, period: 'h1' } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4, ev: { type: 'clock' },
+      patch: { clockBase: { ...pkBase, running: true } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 5, ev: { type: 'timeout', side: 'home' },
+      patch: { clockBase: { ...pkBase, period: 'h1' } }
+    }));
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: started, pausedSec: 2700, running: false, period: 'h1' }
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 5, ev: goal('home'), patch: { score: { home: 2, away: 1 } }
+    }));
+    await patchMatch('cp_pub', {
+      status: 'finished', lock: { locked: true }, finishedAt: ago(30), rev: 5,
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: started, pausedSec: 2700, running: true, period: 'pk' }
+    });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 5, ev: { type: 'undoFinish' },
+      patch: { status: 'live', lock: { locked: false }, finishedAt: null }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'clock' },
+      patch: { clockBase: { startedAt: clientStarted, pausedSec: 2700, running: true, period: 'h1' } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'timeout', side: 'away' },
+      patch: { clockBase: { startedAt: clientStarted, pausedSec: 2700, running: false, period: 'h1' } }
+    }));
+    await patchMatch('cp_pub', {
+      clockBase: { startedAt: started, pausedSec: 2700, running: false, period: 'h1' }
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 6, ev: goal('home'), patch: { score: { home: 2, away: 1 } }
+    }));
+  });
+  it('【R-65】timeout 改 startedAt、pausedSec 或 period 被拒', async () => {
+    const started = Timestamp.fromMillis(1_700_000_000_000);
+    const clientStarted = CTimestamp.fromMillis(1_700_000_000_000);
+    await patchMatch('cp_pub', {
+      penaltyScore: null,
+      clockBase: { startedAt: started, pausedSec: 0, running: true, period: 'h1' }
+    });
+    const stop = { startedAt: clientStarted, pausedSec: 0, running: false as const, period: 'h1' as const };
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'timeout', side: 'home' },
+      patch: { clockBase: { ...stop, startedAt: CTimestamp.fromMillis(1_700_000_060_000) } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'timeout', side: 'home' },
+      patch: { clockBase: { ...stop, pausedSec: 30 } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'timeout', side: 'home' },
+      patch: { clockBase: { ...stop, period: 'h2' } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      ev: { type: 'timeout', side: 'home' }, patch: { clockBase: stop }
+    }));
+  });
+  it('【R-66】period 已是 pk 但 penaltyScore 為 null：沒進的 pk 被拒', async () => {
+    await patchMatch('cp_pub', {
+      penaltyScore: null,
+      clockBase: { startedAt: Timestamp.fromMillis(1_700_000_000_000), pausedSec: 2700, running: false, period: 'pk' }
+    });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: false } }));
   });
   it('【R-63】作廢進了的 pk 扣錯邊、沒扣；作廢沒進卻改 penaltyScore', async () => {
     await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });

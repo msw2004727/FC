@@ -162,8 +162,9 @@ service cloud.firestore {
         && a.score.home == a.score.away;
     }
     // 進：該方 +1。沒進：penaltyScore 不變（變動鍵只有 rev／updatedAt）。
+    // 兩臂都要已 pkStart（penaltyScore 不是 null）。只看 period 時，clock 可先把 period 設成 pk。
     function pkFx(a, b, ch, ev) {
-      return a.status == 'live' && a.clockBase.period == 'pk' && (
+      return a.status == 'live' && a.clockBase.period == 'pk' && a.penaltyScore != null && (
         (ev.scored == true && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt']) && penaltyDelta(a, b, ev.side, 1))
         || (ev.scored == false && ch.hasOnly(['rev', 'updatedAt']))
       );
@@ -183,6 +184,64 @@ service cloud.firestore {
         && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt'])
         && penaltyDelta(a, b, t.side, -1);
     }
+    // 改了 clockBase 的寫入不走 effectOk。那條拒絕路徑已靠近 1000，
+    // 停錶的欄位比較或再讀一次事件都會讓一般進球拒絕耗盡預算。
+    // 進球沒改 clockBase：hasAny 為 false，後面的 hasOnly 不算，三元也不進本體。
+    // pkStart 帶 penaltyScore，hasOnly 為 false，同樣不進本體。
+    // matchUpdateOk 的變動鍵不含 clockBase，所以純時鐘在 existsAfter／effectOk 之前就失敗。
+    function clockChangeGate(cid, mt) {
+      let ch = request.resource.data.diff(resource.data).affectedKeys();
+      return ch.hasAny(['clockBase'])
+        && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt']);
+    }
+    function clockChangeUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      let ev = getAfter(eventPath(cid, mt, b.rev)).data;
+      return (ev.type == 'undoFinish' || a.lock.locked == false)
+        && b.rev is int && b.rev == a.rev + 1
+        && b.rev - a.get('resetRev', 0) <= 200
+        && b.updatedAt == request.time
+        && ev.createdAt == request.time
+        && ev.sid is string
+        && scorerOk(cid, mt)
+        && clockOk(ch, b)
+        && (
+          // 時鐘修正。已進 PK（有 penaltyScore）時 period 必須仍是 pk。
+          (ev.type == 'clock'
+            && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime']
+            && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk'))
+          // 停錶：只准 running true→false。startedAt、pausedSec、period 必須與寫入前相同。
+          // 要改那三欄走 clock。已進 PK 時 period 相等即仍是 pk；再寫一次鎖，避免只拿掉相等仍放行。
+          || (ev.type == 'timeout'
+            && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime']
+            && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk')
+            && a.clockBase.running == true
+            && b.clockBase.running == false
+            && b.clockBase.startedAt == a.clockBase.startedAt
+            && b.clockBase.pausedSec == a.clockBase.pausedSec
+            && b.clockBase.period == a.clockBase.period)
+          // 半場、續賽、開賽會帶 status＋clockBase。終場、自撤回若帶 clockBase 也走這裡。
+          // 不帶 clockBase 的仍由 effectOk 放行。
+          || (ev.type in ['kickoff', 'halftime', 'resume']
+            && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
+            && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
+              || (ev.type == 'halftime' && a.status == 'live' && b.status == 'halftime')
+              || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live')))
+          || (ev.type == 'fulltime'
+            && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime'] && b.status == 'finished'
+            && b.lock == {'locked': true} && b.finishedAt == request.time)
+          || (ev.type == 'undoFinish'
+            && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+            && a.status == 'finished' && a.lock.locked == true
+            && request.time < a.finishedAt + duration.value(180, 's')
+            && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
+        );
+    }
     // 場次 update 依事件類型的效果（a = 寫入前、b = 寫入後、ch = 變動鍵、ev = 同批事件）
     function effectOk(cid, mt, a, b, ch, ev) {
       // ev.createdAt == request.time：證明事件是本請求同批新建（Opus 終審 P1-A）
@@ -193,19 +252,19 @@ service cloud.firestore {
         && ev.sid is string
         && (ev.type == 'undoFinish' || a.lock.locked == false)
         && clockOk(ch, b) && (
+        // 未進 PK 看 penaltyScore，不看 period。clock 可先把 period 改回 h1，只看 period 會被繞過。
         (ev.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt'])
-          && a.status == 'live' && a.clockBase.period != 'pk' && scoreDelta(a, b, ev.side, 1))
+          && a.status == 'live' && a.get('penaltyScore', null) == null && scoreDelta(a, b, ev.side, 1))
         || (ev.type == 'void' && a.status in ['live', 'halftime']
           && voidFx(a, b, ch, get(eventPath(cid, mt, ev.targetSeq)).data))
         || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
           && a.status in ['live', 'halftime'])
-        // ④ clock 只改 clockBase，且必須真的改到。
-        // 球隊暫停 timeout 併入同一分支：可改 clockBase（停錶）或不改（不停錶）。
-        // 狀態限 live／半場。形狀由上面的 clockOk 驗。不新增文件存取。
-        || (ev.type in ['clock', 'timeout']
-          && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
-          && a.status in ['live', 'halftime']
-          && (ev.type == 'timeout' || ch.hasAny(['clockBase'])))
+        // 不停錶的 timeout：不動 clockBase。沒改時鐘則 period 不會離開 pk。
+        // 停錶與 clock、以及帶 clockBase 的半場／續賽，改走 clockChangeUpdateOk。
+        || (ev.type == 'timeout'
+          && !ch.hasAny(['clockBase'])
+          && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'])
         || (ev.type in ['kickoff', 'halftime', 'resume']
           && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
           && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
@@ -221,9 +280,11 @@ service cloud.firestore {
           && request.time < a.finishedAt + duration.value(180, 's')
           && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
         // 沒進的 PK 不動 penaltyScore，留在這條。進球與 pkStart 改走 pkUpdateOk。
+        // 必須已 pkStart。period 已是 pk 但 penaltyScore 仍是 null 時拒絕。
         || (ev.type == 'pk' && ev.scored == false
           && ch.hasOnly(['rev', 'updatedAt'])
-          && a.status == 'live' && a.clockBase.period == 'pk')
+          && a.status == 'live' && a.clockBase.period == 'pk'
+          && a.penaltyScore != null)
       );
     }
     // 記分 update 主判斷：便宜的檢查先做，再讀 staff／control／賽事
@@ -236,7 +297,7 @@ service cloud.firestore {
         // ⑦ 每次重置後最多 200 筆（EVENT_MAX，§3.307）。缺 resetRev 視同 0。超過連終場都拒。
         && b.rev - a.get('resetRev', 0) <= 200
         && b.updatedAt == request.time
-        && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+        && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'rev', 'updatedAt'])
         && existsAfter(eventPath(cid, mt, b.rev))
         && scorerOk(cid, mt)
         && effectOk(cid, mt, a, b, ch, getAfter(eventPath(cid, mt, b.rev)).data);
@@ -509,10 +570,12 @@ service cloud.firestore {
         allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
         allow create, delete: if false;
 
-        // 記分 update（§6.3 第 4 點）。PK 另條 allow，避免跟這條共用同一條運算式預算。
+        // 記分 update（§6.3 第 4 點）。PK、只改 clockBase 另條 allow，避免拒絕路徑把效果併進同一條。
         allow update: if matchUpdateOk(cid, mt);
         // 閘門在一般拒絕是錯誤值，&& 仍會算右式。三元只在閘門為 true 時才進入 pkUpdateOk。
         allow update: if pkGate(cid, mt) ? pkUpdateOk(cid, mt) : false;
+        // 改了 clockBase（且沒改 penaltyScore／score）才進入。進球的閘門是 false。
+        allow update: if clockChangeGate(cid, mt) ? clockChangeUpdateOk(cid, mt) : false;
 
         // 公開事件：只能 create，沒有任何 update／delete 路徑
         match /timeline/{eventId} {

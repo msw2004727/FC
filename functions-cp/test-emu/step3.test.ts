@@ -175,6 +175,7 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     };
     const m = ms[1];
     const ref = adminDb().doc(`competitions/${c.cid}/matches/${m.id}`);
+    await ref.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 10, createdAt: now });
     await ref.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: true, matchSecond: 20, createdAt: now });
     await ref.collection('timeline').doc('e3').set({ seq: 3, type: 'pk', side: 'away', scored: false, matchSecond: 30, createdAt: now });
     await ref.collection('timeline').doc('e4').set({ seq: 4, type: 'pk', side: 'away', scored: true, matchSecond: 40, createdAt: now });
@@ -186,6 +187,7 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
 
     const miss = ms[2];
     const missRef = adminDb().doc(`competitions/${c.cid}/matches/${miss.id}`);
+    await missRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 5, createdAt: now });
     await missRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: false, matchSecond: 10, createdAt: now });
     await finish(miss, { penaltyScore: null });
     await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: miss.id, expectedRev: 4 }, later()), 'PENALTY_MISMATCH');
@@ -195,13 +197,16 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const old = ms[3];
     const oldRef = adminDb().doc(`competitions/${c.cid}/matches/${old.id}`);
     await oldRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pk', side: 'home', scored: true, matchSecond: 10, createdAt: now });
-    await oldRef.collection('timeline').doc('e6').set({ seq: 6, type: 'pk', side: 'away', scored: true, matchSecond: 20, createdAt: now });
-    await finish(old, { rev: 6, resetRev: 5, penaltyScore: { home: 0, away: 1 } });
-    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: old.id, expectedRev: 6 });
+    await oldRef.collection('timeline').doc('e6').set({ seq: 6, type: 'pkStart', matchSecond: 15, createdAt: now });
+    await oldRef.collection('timeline').doc('e7').set({ seq: 7, type: 'pk', side: 'away', scored: true, matchSecond: 20, createdAt: now });
+    await finish(old, { rev: 7, resetRev: 5, penaltyScore: { home: 0, away: 1 } });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: old.id, expectedRev: 7 });
 
     const host = ms[4];
     const hostRef = adminDb().doc(`competitions/${c.cid}/matches/${host.id}`);
+    await hostRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 5, createdAt: now });
     await hostRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: true, matchSecond: 10, createdAt: now });
+    await hostRef.collection('timeline').doc('e3').set({ seq: 3, type: 'goal', side: 'home', matchSecond: 15, createdAt: now });
     await finish(host, { penaltyScore: { home: 0, away: 0 }, resultSource: 'host' });
     await act(c, ADMIN, { action: 'confirmMatchResult', mtId: host.id, expectedRev: 4 });
     expect((await hostRef.get()).get('status')).toBe('confirmed');
@@ -209,6 +214,53 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const none = ms[5];
     await finish(none, { penaltyScore: { home: 9, away: 9 } });
     await act(c, ADMIN, { action: 'confirmMatchResult', mtId: none.id, expectedRev: 4 });
+
+    // 沒有 pkStart 的 pk 不對帳（shots 為 0），即使 penaltyScore 對不上也確認。
+    const stray = ms[0];
+    const strayRef = adminDb().doc(`competitions/${c.cid}/matches/${stray.id}`);
+    await strayRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: true, matchSecond: 10, createdAt: now });
+    await finish(stray, { penaltyScore: null });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: stray.id, expectedRev: 4 });
+  });
+
+  it('pkStart 之後的一般 goal 一律 SCORE_MISMATCH；比分相同、已作廢也拒；主辦裁定略過', async () => {
+    const ms = await matchesOf(c);
+    const now = new Date();
+    const finish = async (m: (typeof ms)[number], patch: Record<string, unknown>) => {
+      await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).update({
+        status: 'finished', score: { home: 1, away: 0 }, rev: 4, resetRev: 0,
+        lock: { locked: true }, finishedAt: now, ...patch
+      });
+    };
+    const matched = ms[0];
+    const matchedRef = adminDb().doc(`competitions/${c.cid}/matches/${matched.id}`);
+    await matchedRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 10, createdAt: now });
+    await matchedRef.collection('timeline').doc('e2').set({ seq: 2, type: 'goal', side: 'home', matchSecond: 20, createdAt: now });
+    await finish(matched, {});
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: matched.id, expectedRev: 4 }, later()), 'SCORE_MISMATCH');
+
+    const voided = ms[1];
+    const voidedRef = adminDb().doc(`competitions/${c.cid}/matches/${voided.id}`);
+    await voidedRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 10, createdAt: now });
+    await voidedRef.collection('timeline').doc('e2').set({ seq: 2, type: 'goal', side: 'home', matchSecond: 20, createdAt: now });
+    await voidedRef.collection('voids').doc('2').set({ seq: 3, createdAt: now });
+    await finish(voided, { score: { home: 0, away: 0 } });
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: voided.id, expectedRev: 4 }, later()), 'SCORE_MISMATCH');
+
+    const before = ms[2];
+    const beforeRef = adminDb().doc(`competitions/${c.cid}/matches/${before.id}`);
+    await beforeRef.collection('timeline').doc('e1').set({ seq: 1, type: 'goal', side: 'home', matchSecond: 10, createdAt: now });
+    await beforeRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pkStart', matchSecond: 20, createdAt: now });
+    await finish(before, {});
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: before.id, expectedRev: 4 });
+
+    const host = ms[3];
+    const hostRef = adminDb().doc(`competitions/${c.cid}/matches/${host.id}`);
+    await hostRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pkStart', matchSecond: 10, createdAt: now });
+    await hostRef.collection('timeline').doc('e2').set({ seq: 2, type: 'goal', side: 'home', matchSecond: 20, createdAt: now });
+    await finish(host, { resultSource: 'host' });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: host.id, expectedRev: 4 });
+    expect((await hostRef.get()).get('status')).toBe('confirmed');
   });
 
   it('確認對帳：timeline、voids 各 200 筆可確認；第 201 筆 TIMELINE_TOO_LONG', async () => {

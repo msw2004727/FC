@@ -22,7 +22,7 @@ import {
   type PlanResult,
   type PlannedMatch
 } from '../src/cp/schedule-plan.js';
-import { derivedPenaltyOf } from '../src/cp/match-host.js';
+import { derivedPenaltyOf, goalAfterPkStart } from '../src/cp/match-host.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from '../src/cp/summary.js';
 
 const teams = (n: number) => Array.from({ length: n }, (_, i) => ({ enId: `en${i + 1}`, name: `隊${i + 1}` }));
@@ -502,6 +502,38 @@ describe('derivedPenaltyOf', () => {
     expect(derivedPenaltyOf([], new Set(), 0)).toEqual({ home: 0, away: 0, shots: 0 });
     expect(derivedPenaltyOf([{ seq: 2, type: 'pk', side: 'home', scored: true }], new Set(), 2))
       .toEqual({ home: 0, away: 0, shots: 0 });
+  });
+
+  it('只計最早 pkStart 之後的 pk；沒有 pkStart 則 shots 為 0', () => {
+    const events = [
+      { seq: 1, type: 'pk', side: 'home', scored: true },
+      { seq: 2, type: 'pkStart' },
+      { seq: 3, type: 'pk', side: 'away', scored: true },
+      { seq: 4, type: 'pkStart' },
+      { seq: 5, type: 'pk', side: 'home', scored: true }
+    ];
+    expect(derivedPenaltyOf(events, new Set(), 0)).toEqual({ home: 1, away: 1, shots: 2 });
+    expect(derivedPenaltyOf([{ seq: 1, type: 'pk', side: 'home', scored: true }], new Set(), 0))
+      .toEqual({ home: 0, away: 0, shots: 0 });
+    expect(derivedPenaltyOf([{ seq: 1, type: 'pkStart' }, { seq: 2, type: 'pk', side: 'home', scored: true }], new Set(), 1))
+      .toEqual({ home: 0, away: 0, shots: 0 });
+  });
+});
+
+describe('goalAfterPkStart', () => {
+  it('最早 pkStart 之後的 goal 一律算，含已作廢；之前的 goal 與沒有 pkStart 都不算', () => {
+    const events = [
+      { seq: 1, type: 'goal', side: 'home' },
+      { seq: 2, type: 'pkStart' },
+      { seq: 3, type: 'goal', side: 'away' },
+      { seq: 4, type: 'pkStart' }
+    ];
+    expect(goalAfterPkStart(events, 0)).toBe(true);
+    expect(goalAfterPkStart([{ seq: 1, type: 'goal', side: 'home' }, { seq: 2, type: 'pkStart' }], 0)).toBe(false);
+    expect(goalAfterPkStart([{ seq: 1, type: 'pkStart' }, { seq: 2, type: 'goal', side: 'home' }], 0)).toBe(true);
+    expect(goalAfterPkStart([{ seq: 2, type: 'goal', side: 'home' }], 0)).toBe(false);
+    expect(goalAfterPkStart([{ seq: 1, type: 'pkStart' }, { seq: 2, type: 'goal', side: 'home' }], 1)).toBe(false);
+    expect(goalAfterPkStart([{ seq: 1, type: 'pkStart' }, { seq: 2.5, type: 'goal' }], 0)).toBe(false);
   });
 });
 

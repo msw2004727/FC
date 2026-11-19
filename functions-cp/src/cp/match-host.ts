@@ -720,23 +720,41 @@ function resultOf(score: { home: number; away: number }): MatchResult {
   return r;
 }
 
+type TlEvent = { seq?: unknown; type?: unknown; side?: unknown; scored?: unknown };
+
+/** 重置線之後、seq 最小的 pkStart。沒有就回 null。作廢標記不拿掉 pkStart。 */
+function earliestPkStartSeq(events: TlEvent[], resetRev: number): number | null {
+  let start: number | null = null;
+  for (const ev of events) {
+    if (ev == null || typeof ev !== 'object') continue;
+    const seq = ev.seq;
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || !(seq > resetRev)) continue;
+    if (ev.type !== 'pkStart') continue;
+    if (start == null || seq < start) start = seq;
+  }
+  return start;
+}
+
 /**
- * 以 pk 事件重算 PK 比分。只算 seq 為整數且大於 resetRev、未作廢、scored === true 的 pk。
- * shots 含沒進與已作廢的 pk，用來判斷「有沒有 pk 事件」。pkStart 不算。
- * side 只認 home／away。
+ * 以 pk 事件重算 PK 比分。只算 pkStart 之後、seq 為整數、大於 resetRev、未作廢、scored === true 的 pk。
+ * 沒有 pkStart 時回 {0,0,0}，確認時不因殘留的 pk 事件而 PENALTY_MISMATCH。
+ * shots 含沒進與已作廢的 pk（仍須在 pkStart 之後），用來判斷「有沒有 pk 事件」。pkStart 本身不算。
+ * side 只認 home／away。pkStart 之前的 pk 連 shots 都不計。
  */
 export function derivedPenaltyOf(
-  events: Array<{ seq?: unknown; type?: unknown; side?: unknown; scored?: unknown }>,
+  events: TlEvent[],
   voidedSeqs: Set<number>,
   resetRev: number
 ): { home: number; away: number; shots: number } {
+  const start = earliestPkStartSeq(events, resetRev);
+  if (start == null) return { home: 0, away: 0, shots: 0 };
   let home = 0;
   let away = 0;
   let shots = 0;
   for (const ev of events) {
     if (ev == null || typeof ev !== 'object') continue;
     const seq = ev.seq;
-    if (typeof seq !== 'number' || !Number.isInteger(seq) || !(seq > resetRev)) continue;
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || !(seq > start)) continue;
     if (ev.type !== 'pk') continue;
     shots += 1;
     if (voidedSeqs.has(seq) || ev.scored !== true) continue;
@@ -744,6 +762,22 @@ export function derivedPenaltyOf(
     else if (ev.side === 'away') away += 1;
   }
   return { home, away, shots };
+}
+
+/**
+ * pkStart 之後是否有一般 goal。seq 必須是整數且大於最早的 pkStart（該 pkStart 本身已大於 resetRev）。
+ * 已作廢的 goal 也算。用來讓 confirmMatchResult 一律回 SCORE_MISMATCH，不是只在數字對不上時才拒。
+ */
+export function goalAfterPkStart(events: TlEvent[], resetRev: number): boolean {
+  const start = earliestPkStartSeq(events, resetRev);
+  if (start == null) return false;
+  for (const ev of events) {
+    if (ev == null || typeof ev !== 'object') continue;
+    const seq = ev.seq;
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || !(seq > start)) continue;
+    if (ev.type === 'goal') return true;
+  }
+  return false;
 }
 
 /** null 與 {0,0} 不同。形狀不對視同沒有 PK 比分，讓對帳與事件重算不符。 */
@@ -806,14 +840,21 @@ export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: Gat
     const events = tl.docs.map(d => d.data());
     const derived = derivedScoreOf(events, voided, m.resetRev);
     const score = { home: Number(m.snap.get('score.home')) || 0, away: Number(m.snap.get('score.away')) || 0 };
-    if (derived.goals > 0 && m.snap.get('resultSource') !== 'host'
+    // resultSource=host：比分、PK、以及下面的 pkStart 後 goal，都依主辦裁定略過。
+    const hostRuling = m.snap.get('resultSource') === 'host';
+    if (!hostRuling && derived.goals > 0
       && (derived.home !== score.home || derived.away !== score.away)) {
       throw pre('SCORE_MISMATCH', { home: derived.home, away: derived.away });
     }
-    // PK 對帳與正規比分同一批 timeline／voids。3②已在 Rules，這裡不另擋 pkStart 之後的 goal。
-    // 沒有 pk 事件就不比（pkStart 本身不是 pk）。resultSource=host 時以主辦裁定為準。
+    // 找到 pkStart 後，seq 更大的一般 goal 一律 SCORE_MISMATCH。
+    // 「一律」指這種 goal 出現就拒：含已作廢的 goal，也含場上比分與事件重算相同的情況。
+    // 不是只在數字對不上時才拒。主辦裁定（resultSource=host）與上面的比分對帳一樣略過。
+    if (!hostRuling && goalAfterPkStart(events, m.resetRev)) {
+      throw pre('SCORE_MISMATCH', { home: derived.home, away: derived.away });
+    }
+    // PK 對帳與正規比分同一批 timeline／voids。只計最早 pkStart 之後的 pk。沒有 pkStart 就不比。
     const derivedPk = derivedPenaltyOf(events, voided, m.resetRev);
-    if (derivedPk.shots > 0 && m.snap.get('resultSource') !== 'host') {
+    if (!hostRuling && derivedPk.shots > 0) {
       const stored = storedPenalty(m.snap.get('penaltyScore'));
       if (stored == null || stored.home !== derivedPk.home || stored.away !== derivedPk.away) {
         throw pre('PENALTY_MISMATCH', { home: derivedPk.home, away: derivedPk.away });
