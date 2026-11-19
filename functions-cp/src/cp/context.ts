@@ -28,6 +28,11 @@ export interface CpDeps {
   now: () => Date;
   /** 讀取計數（e2e 讀取預算斷言用；正式環境也照算，只放記憶體） */
   meter?: ReadMeter;
+  /**
+   * 摘要片交易回呼次數（含第一次）。正式環境不設定。
+   * 每個 handleMatchWritten 用自己的計數器時，重試次數＝次數減 1。
+   */
+  summaryTxAttempts?: { count: number };
 }
 
 export class ReadMeter {
@@ -128,6 +133,8 @@ export interface CompDoc {
   endedBy?: 'confirm' | 'host' | 'auto' | null;
   /** 手動結束原因。確認結束不寫。 */
   endReason?: string | null;
+  /** 末場確認結束時各組第 1 名。手動結束不寫。解除確認結束時刪除。 */
+  champions?: Array<{ dv: string; n: string }> | null;
   rostersLockedAt: Timestamp | null;
   /** 年齡基準日：第一筆名單出現時固定（§3.251 F2） */
   ageBasisAt?: Timestamp | null;

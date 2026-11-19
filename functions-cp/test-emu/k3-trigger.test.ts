@@ -1,0 +1,318 @@
+/**
+ * K3 模擬器：接手稽核、射手榜確認／重置、冠軍名、每事件讀量。
+ * 觸發器由測試直接呼叫處理函式。本檔只寫、不在派工時執行。
+ */
+import { Timestamp } from 'firebase-admin/firestore';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { adminDb } from '../test-rules/_harness.js';
+import { ReadMeter, actorHash } from '../src/cp/context.js';
+import { handleCpHost } from '../src/cp/host.js';
+import { handleMatchWritten } from '../src/cp/match-trigger.js';
+import { handleScorerWritten } from '../src/cp/scorer-trigger.js';
+import { summaryEntryOf, summaryShardIdOf } from '../src/cp/summary.js';
+import { statsRef, syncMatchStats } from '../src/cp/stats.js';
+import { ADMIN, call, makeDeps, ok, resetAll } from './_cp.js';
+import { act, generate, later, matchesOf, record, setupComp, type Comp } from './_step3.js';
+
+const CID = 'cp_' + 'c'.repeat(20);
+const DVID = 'dv_' + 'd'.repeat(20);
+const MT = 'mt_' + 'm'.repeat(20);
+const PLA = 'pl_' + 'a'.repeat(20);
+const PLB = 'pl_' + 'b'.repeat(20);
+
+function kickoff(): Timestamp {
+  return Timestamp.fromMillis(Date.parse('2026-06-01T08:00:00+08:00'));
+}
+
+function liveMatch(over: Record<string, unknown> = {}) {
+  const kick = kickoff();
+  return {
+    divisionId: DVID,
+    stageId: 'group',
+    groupId: 'A',
+    matchNo: 1,
+    round: 1,
+    venueName: 'A場',
+    home: { teamId: 'en_' + 'h'.repeat(20), name: '甲' },
+    away: { teamId: 'en_' + 'a'.repeat(20), name: '乙' },
+    score: { home: 0, away: 0 },
+    penaltyScore: null,
+    status: 'scheduled',
+    rev: 1,
+    resetRev: 0,
+    walkoverSide: null,
+    ...over,
+    kickoffAt: (over.kickoffAt as Timestamp | undefined) ?? kick
+  };
+}
+
+async function seedShard(match: Record<string, unknown>) {
+  const kick = kickoff().toMillis();
+  const shard = summaryShardIdOf(kick);
+  await adminDb().doc(`competitions/${CID}/matches/${MT}`).set(match);
+  await adminDb().doc(`competitions/${CID}/summary/${shard}`).set({
+    m: { [MT]: summaryEntryOf(match, kick) }
+  });
+  return shard;
+}
+
+describe('K3 接手稽核', () => {
+  const uid = 'ScorerPlaintextUID';
+  const sid = 'sid-secret-value';
+  const ms = 1_700_000_000_000;
+
+  beforeEach(() => resetAll());
+
+  it('建立寫雜湊 id；重送、同一人換 sid、刪除都不另寫；換人寫前一任雜湊', async () => {
+    const deps = makeDeps();
+    const takenAt = Timestamp.fromMillis(ms);
+    const wrote = await handleScorerWritten(deps, CID, MT, null, { uid, sid, takenAt });
+    expect(wrote).toBe(true);
+    const id = `tk_${ms}_${actorHash(CID, uid)}`;
+    const snap = await adminDb().doc(`competitions/${CID}/audits/${id}`).get();
+    expect(snap.exists).toBe(true);
+    expect(snap.id).toMatch(/^tk_\d+_[0-9a-f]{16}$/);
+    const data = snap.data()!;
+    expect(data).toMatchObject({
+      action: 'takeScorer', actor: actorHash(CID, uid), mtId: MT, sidChanged: false, prev: null
+    });
+    expect(data.takenAt.toMillis()).toBe(ms);
+    expect(data.uid).toBeUndefined();
+    expect(data.sid).toBeUndefined();
+    const packed = JSON.stringify({ id: snap.id, action: data.action, actor: data.actor, mtId: data.mtId, prev: data.prev });
+    expect(packed.includes(uid)).toBe(false);
+    expect(packed.includes(sid)).toBe(false);
+
+    expect(await handleScorerWritten(deps, CID, MT, { uid, sid, takenAt }, { uid, sid, takenAt })).toBe(false);
+    expect(await handleScorerWritten(deps, CID, MT, { uid, sid, takenAt }, { uid, sid: 'other-sid-value', takenAt: Timestamp.fromMillis(ms + 50) })).toBe(false);
+    expect((await adminDb().collection(`competitions/${CID}/audits`).get()).size).toBe(1);
+
+    const next = 'NextScorerPlainUID';
+    const ms2 = ms + 1000;
+    const changed = await handleScorerWritten(
+      deps, CID, MT,
+      { uid, sid, takenAt },
+      { uid: next, sid: 'new-sid-value', takenAt: Timestamp.fromMillis(ms2) }
+    );
+    expect(changed).toBe(true);
+    const nextId = `tk_${ms2}_${actorHash(CID, next)}`;
+    const nextDoc = (await adminDb().doc(`competitions/${CID}/audits/${nextId}`).get()).data()!;
+    expect(nextDoc.prev).toBe(actorHash(CID, uid));
+    expect(nextDoc.sidChanged).toBe(true);
+    expect(JSON.stringify({ id: nextId, actor: nextDoc.actor, prev: nextDoc.prev }).includes(next)).toBe(false);
+    expect(JSON.stringify(nextDoc).includes('new-sid-value')).toBe(false);
+
+    const beforeDelete = (await adminDb().collection(`competitions/${CID}/audits`).get()).size;
+    expect(await handleScorerWritten(deps, CID, MT, { uid: next, sid: 'new-sid-value', takenAt: Timestamp.fromMillis(ms2) }, null)).toBe(false);
+    expect((await adminDb().collection(`competitions/${CID}/audits`).get()).size).toBe(beforeDelete);
+
+    expect(await handleScorerWritten(deps, CID, MT, null, { uid: '', takenAt })).toBe(false);
+  });
+});
+
+describe('K3 每事件讀量與統計讀數', () => {
+  beforeEach(() => resetAll());
+
+  it('牌與換人 2 讀 0 寫；進球 2 讀 1 寫，且不寫射手榜', async () => {
+    const base = liveMatch();
+    const shard = await seedShard(base);
+    const ref = adminDb().doc(`competitions/${CID}/matches/${MT}`);
+
+    await ref.update({ rev: 2 });
+    const afterCard = (await ref.get()).data()!;
+    const cardMeter = new ReadMeter();
+    const card = await handleMatchWritten(makeDeps(0, cardMeter), CID, MT, base, afterCard);
+    expect(cardMeter.reads).toBe(2);
+    expect(card).toEqual({ summary: false, standing: false, ended: null });
+
+    await ref.update({ rev: 3 });
+    const afterSub = (await ref.get()).data()!;
+    const subMeter = new ReadMeter();
+    const sub = await handleMatchWritten(makeDeps(0, subMeter), CID, MT, afterCard, afterSub);
+    expect(subMeter.reads).toBe(2);
+    expect(sub).toEqual({ summary: false, standing: false, ended: null });
+
+    await ref.update({ rev: 4, score: { home: 1, away: 0 } });
+    const afterGoal = (await ref.get()).data()!;
+    const goalMeter = new ReadMeter();
+    const goal = await handleMatchWritten(makeDeps(0, goalMeter), CID, MT, afterSub, afterGoal);
+    expect(goalMeter.reads).toBe(2);
+    expect(goal).toEqual({ summary: true, standing: false, ended: null });
+    expect((await adminDb().doc(`competitions/${CID}/summary/${shard}`).get()).get('m')[MT].s).toEqual([1, 0]);
+    expect((await adminDb().doc(statsRef(CID, DVID)).get()).exists).toBe(false);
+  });
+
+  it('確認且沒有事件：統計 4 讀，寫空的 m[mtId]', async () => {
+    await adminDb().doc(`competitions/${CID}/matches/${MT}`).set(liveMatch({ status: 'confirmed' }));
+    const meter = new ReadMeter();
+    const result = await syncMatchStats(makeDeps(0, meter), CID, MT, null);
+    expect(result).toBe('set');
+    expect(meter.reads).toBe(4);
+    expect((await adminDb().doc(statsRef(CID, DVID)).get()).get('m')[MT]).toEqual({});
+  });
+
+  it('有事件時讀數＝場次＋timeline＋voids＋名單＋統計文件；超過 22 人不讀名單', async () => {
+    const db = adminDb();
+    await db.doc(`competitions/${CID}/matches/${MT}`).set(liveMatch({ status: 'confirmed', rev: 2 }));
+    const tl = db.collection(`competitions/${CID}/matches/${MT}/timeline`);
+    await tl.doc('1').set({ seq: 1, type: 'goal', goalKind: 'normal', plId: PLA });
+    await tl.doc('2').set({ seq: 2, type: 'card', cardType: 'yellow', plId: PLB });
+    await db.doc(`competitions/${CID}/roster/${PLA}`).set({ displayName: '王大明' });
+    await db.doc(`competitions/${CID}/roster/${PLB}`).set({ displayName: '李小華' });
+    const meter = new ReadMeter();
+    expect(await syncMatchStats(makeDeps(0, meter), CID, MT, null)).toBe('set');
+    expect(meter.reads).toBe(1 + 2 + 1 + 2 + 1);
+    const row = (await db.doc(statsRef(CID, DVID)).get()).get('m')[MT];
+    expect(row[PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    expect(row[PLB]).toEqual({ n: '李小華', g: 0, y: 1, r: 0 });
+
+    const many = 'mt_' + 'n'.repeat(20);
+    await db.doc(`competitions/${CID}/matches/${many}`).set(liveMatch({ status: 'confirmed' }));
+    const batch = db.batch();
+    for (let i = 0; i < 23; i++) {
+      const plId = `pl_${String(i).padStart(20, '0')}`;
+      batch.set(db.doc(`competitions/${CID}/matches/${many}/timeline/${i + 1}`), {
+        seq: i + 1, type: 'goal', goalKind: 'normal', plId
+      });
+    }
+    await batch.commit();
+    await db.doc(`competitions/${CID}/roster/pl_${'0'.repeat(20)}`).set({ displayName: '不該出現' });
+    const over = new ReadMeter();
+    expect(await syncMatchStats(makeDeps(0, over), CID, many, null)).toBe('set');
+    expect(over.reads).toBe(1 + 23 + 1 + 1);
+    const lines = (await db.doc(statsRef(CID, DVID)).get()).get('m')[many] as Record<string, { n?: string }>;
+    expect(Object.keys(lines)).toHaveLength(23);
+    expect(Object.values(lines).every(line => line.n == null)).toBe(true);
+  });
+
+  it('超過 200 筆事件不更新，舊的 m[mtId] 留著', async () => {
+    const db = adminDb();
+    await db.doc(`competitions/${CID}/matches/${MT}`).set(liveMatch({ status: 'confirmed' }));
+    const kept = { [PLA]: { g: 9, y: 0, r: 0 } };
+    await db.doc(statsRef(CID, DVID)).set({ m: { [MT]: kept } });
+    const batch = db.batch();
+    const tl = `competitions/${CID}/matches/${MT}/timeline`;
+    for (let i = 1; i <= 201; i++) {
+      batch.set(db.doc(`${tl}/${i}`), { seq: i, type: 'goal', goalKind: 'normal', plId: PLA });
+    }
+    await batch.commit();
+    expect(await syncMatchStats(makeDeps(), CID, MT, null)).toBe('reject');
+    expect((await db.doc(statsRef(CID, DVID)).get()).get('m')[MT]).toEqual(kept);
+  });
+});
+
+describe('K3 確認、重置、再確認與冠軍名', () => {
+  beforeEach(() => resetAll());
+
+  it('確認寫入進球與牌；重置刪掉 m[mtId]；再確認只算重置線之後', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const db = adminDb();
+    const m = (await matchesOf(c))[0]!;
+    await db.doc(`competitions/${c.cid}/roster/${PLA}`).set({ displayName: '王大明' });
+    const tl = db.collection(`competitions/${c.cid}/matches/${m.id}/timeline`);
+    const batch = db.batch();
+    batch.set(tl.doc('1'), { seq: 1, type: 'goal', goalKind: 'normal', plId: PLA });
+    batch.set(tl.doc('2'), { seq: 2, type: 'goal', goalKind: 'normal', plId: PLA });
+    batch.set(db.doc(`competitions/${c.cid}/matches/${m.id}/voids/2`), { seq: 3 });
+    batch.set(tl.doc('4'), { seq: 4, type: 'goal', goalKind: 'penalty', plId: PLA });
+    batch.set(tl.doc('5'), { seq: 5, type: 'pk', plId: PLA, scored: true });
+    batch.set(tl.doc('6'), { seq: 6, type: 'goal', goalKind: 'own', plId: PLA });
+    batch.set(tl.doc('7'), { seq: 7, type: 'card', cardType: 'yellow', plId: PLB });
+    batch.set(tl.doc('8'), { seq: 8, type: 'card', cardType: 'second_yellow', plId: PLB, refSeq: 7 });
+    await batch.commit();
+    await db.doc(`competitions/${c.cid}/matches/${m.id}`).update({ rev: 8 });
+
+    await act(c, ADMIN, { action: 'recordResult', mtId: m.id, expectedRev: 8, score: { home: 2, away: 0 }, confirm: true });
+    const first = (await db.doc(statsRef(c.cid, c.dvId)).get()).get('m')[m.id];
+    expect(first[PLA]).toEqual({ n: '王大明', g: 2, y: 0, r: 0 });
+    expect(first[PLB]).toEqual({ g: 0, y: 1, r: 1 });
+    expect(first[PLB].n).toBeUndefined();
+    expect((await db.doc(`competitions/${c.cid}/rosterPrivate/${PLA}`).get()).exists).toBe(false);
+
+    await act(c, ADMIN, { action: 'resetMatch', mtId: m.id, expectedRev: 9, reason: '更正' });
+    expect((await db.doc(statsRef(c.cid, c.dvId)).get()).get('m')?.[m.id]).toBeUndefined();
+
+    await tl.doc('11').set({ seq: 11, type: 'goal', goalKind: 'normal', plId: PLA });
+    await act(c, ADMIN, { action: 'recordResult', mtId: m.id, expectedRev: 10, score: { home: 1, away: 0 }, confirm: true });
+    const again = (await db.doc(statsRef(c.cid, c.dvId)).get()).get('m')[m.id];
+    expect(again[PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    expect(again[PLB]).toBeUndefined();
+  });
+
+  it('棄權不寫射手榜，仍可依積分寫冠軍名', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    const m = (await matchesOf(c))[0]!;
+    await act(c, ADMIN, { action: 'setWalkover', mtId: m.id, expectedRev: 0, forfeitSide: 'home', reason: '未到場' });
+    expect((await adminDb().doc(statsRef(c.cid, c.dvId)).get()).exists).toBe(false);
+    expect((await adminDb().doc(`competitions/${c.cid}`).get()).get('champions')).toEqual([{ dv: c.dvId, n: m.away.name }]);
+  });
+
+  it('分出勝負寫冠軍；平手寫空陣列；重置刪欄；再確認寫回', async () => {
+    const drawn = await setupComp(['甲', '乙']);
+    await generate(drawn);
+    await record(drawn, '甲', '乙', 0, 0);
+    const drawDoc = (await adminDb().doc(`competitions/${drawn.cid}`).get()).data()!;
+    expect(drawDoc.endedBy).toBe('confirm');
+    expect(drawDoc.champions).toEqual([]);
+
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    await record(c, '甲', '乙', 1, 0);
+    const win = (await adminDb().doc(`competitions/${c.cid}`).get()).data()!;
+    expect(win.champions).toEqual([{ dv: c.dvId, n: '甲' }]);
+    expect(Object.keys(win.champions[0])).toEqual(['dv', 'n']);
+
+    const m = (await matchesOf(c))[0]!;
+    await act(c, ADMIN, { action: 'resetMatch', mtId: m.id, expectedRev: m.rev, reason: '更正' });
+    const cleared = (await adminDb().doc(`competitions/${c.cid}`).get()).data()!;
+    expect(cleared.endedAt).toBeNull();
+    expect(cleared.champions).toBeUndefined();
+
+    await act(c, ADMIN, { action: 'recordResult', mtId: m.id, expectedRev: m.rev + 1, score: { home: m.home.name === '甲' ? 1 : 0, away: m.away.name === '甲' ? 1 : 0 }, confirm: true });
+    expect((await adminDb().doc(`competitions/${c.cid}`).get()).get('champions')).toEqual([{ dv: c.dvId, n: '甲' }]);
+  });
+
+  it('兩組只寫已分開的第 1 名；手動結束不寫冠軍；重排清掉冠軍名', async () => {
+    const c = await setupComp(['甲', '乙']);
+    const db = adminDb();
+    const dv2 = 'dv_' + 'B'.repeat(20);
+    await db.doc(`competitions/${c.cid}/divisions/${dv2}`).set({
+      name: '青年組', playersOnField: 5, maxTeams: 4, rosterMin: 1, rosterMax: 10, order: 1
+    });
+    for (const [i, name] of ['子', '丑'].entries()) {
+      await db.doc(`competitions/${c.cid}/entries/en_${String(i).repeat(20)}`).set({
+        dvId: dv2, teamId: `club_x${i}`, name, status: 'approved', rosterCount: 1, rosterConfirmed: true
+      });
+    }
+    const c2: Comp = {
+      ...c,
+      dvId: dv2,
+      enIdOf: { 子: 'en_' + '0'.repeat(20), 丑: 'en_' + '1'.repeat(20) },
+      nameOf: { ['en_' + '0'.repeat(20)]: '子', ['en_' + '1'.repeat(20)]: '丑' }
+    };
+    await generate(c);
+    await generate(c2);
+    await record(c, '甲', '乙', 1, 0);
+    expect((await db.doc(`competitions/${c.cid}`).get()).get('endedAt') ?? null).toBeNull();
+    await record(c2, '子', '丑', 0, 0);
+    expect((await db.doc(`competitions/${c.cid}`).get()).get('champions')).toEqual([{ dv: c.dvId, n: '甲' }]);
+
+    const manual = await setupComp(['甲', '乙']);
+    await generate(manual);
+    await ok(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: manual.cid, reason: '提前收場' }, later()));
+    const hostEnded = (await db.doc(`competitions/${manual.cid}`).get()).data()!;
+    expect(hostEnded.endedBy).toBe('host');
+    expect(hostEnded.champions).toBeUndefined();
+
+    const again = await setupComp(['甲', '乙']);
+    await generate(again);
+    await record(again, '甲', '乙', 1, 0);
+    expect((await db.doc(`competitions/${again.cid}`).get()).get('champions')).toEqual([{ dv: again.dvId, n: '甲' }]);
+    await generate(again);
+    const rescheduled = (await db.doc(`competitions/${again.cid}`).get()).data()!;
+    expect(rescheduled.endedAt).toBeNull();
+    expect(rescheduled.champions).toBeUndefined();
+  });
+});

@@ -1,6 +1,7 @@
 /**
  * 賽事 codebase（functions-cp）進入點。第 2 步：cpHost、cpEntry、cpParticipant 三支分組 Callable；
  * 第 3 步：觸發器 cpOnMatchWritten（積分增量重算、摘要片、末場確認結束）。
+ * 第 4 步 K3：cpOnScorerWritten（接手稽核）。射手榜與冠軍名在 cpOnMatchWritten 的處理函式。
  * cpAdminOps 在主 codebase（§6.1）。尚未部署（G5 另送裁）；firebase.json 多 codebase 設定屬 G2。
  */
 import { initializeApp, getApps } from 'firebase-admin/app';
@@ -9,6 +10,7 @@ import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall, type CallableOptions, type CallableRequest } from 'firebase-functions/v2/https';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { handleMatchWritten } from './cp/match-trigger.js';
+import { handleScorerWritten } from './cp/scorer-trigger.js';
 import { runCallable, type Handler } from './cp/callable.js';
 import type { CpDeps } from './cp/context.js';
 import { handleCpEntry } from './cp/entry.js';
@@ -77,6 +79,33 @@ export const cpOnMatchWritten = onDocumentWritten({
     if (e instanceof TypeError || e instanceof RangeError) {
       // cid／mtId 是隨機 id、不是個資；上線後要對這條 log 設告警（TypeError 也可能是程式錯誤）
       logger.error('cpOnMatchWritten data error', { cid: event.params.cid, mtId: event.params.mtId, error: e.name, message: e.message.slice(0, 200) });
+      return;
+    }
+    throw e;
+  }
+});
+
+/**
+ * K3 接手稽核：只監聽記分者控制文件。建立或換人時寫私密稽核；刪除與同一人不寫。
+ * 失敗時拋出讓平台重試（同 id 已存在則不寫）。資料錯誤記 log 後吞掉。
+ */
+export const cpOnScorerWritten = onDocumentWritten({
+  document: 'competitions/{cid}/matches/{mtId}/control/scorer',
+  database: CP_DATABASE_ID,
+  region: 'asia-east1',
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  minInstances: 0,
+  maxInstances: 10,
+  retry: true
+}, async event => {
+  const before = event.data?.before?.exists ? event.data.before.data() ?? null : null;
+  const after = event.data?.after?.exists ? event.data.after.data() ?? null : null;
+  try {
+    await handleScorerWritten(getDeps(), event.params.cid, event.params.mtId, before, after);
+  } catch (e) {
+    if (e instanceof TypeError || e instanceof RangeError) {
+      logger.error('cpOnScorerWritten data error', { cid: event.params.cid, mtId: event.params.mtId, error: e.name, message: e.message.slice(0, 200) });
       return;
     }
     throw e;

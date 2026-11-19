@@ -6,12 +6,16 @@
  * - 摘要片：條目沒變就不寫；開賽日期改了從舊片移除。狀態改成 cancelled 時 st 一併變成 cancelled。
  * - 全部場次已解決（confirmed／walkover／cancelled）後寫 endedAt（endedBy:'confirm'）。
  *   已解決場次回到未解決（含取消恢復成未賽）就清掉這次確認結束。手動結束（host）與自動結束（auto）不在這裡清。
+ * - K3：進入或離開 confirmed 時更新射手榜。確認結束的同一筆寫入冠軍名，解除時刪除。
+ *   進行中的進球、牌、換人、改期只寫摘要（afterHint 有值且兩邊都未計分、未解決時不重讀）。
  */
 import { LIMITS } from './validate.js';
 import type { DocumentData, DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { buildStanding, engineInputsOf, resolveRules, standingIdOf, type MatchLike, type StandingDoc } from '../engine/index.js';
-import { FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
+import { championsFromStandings, type Champion, type ChampionStanding } from './champions.js';
+import { DVID_RE, FieldValue, readCount, readDoc, readQuery, type CpDeps } from './context.js';
 import { RESOLVED_STATUSES, countedForStanding, resolvedForEnd, standingMatchesOf } from './schedule-plan.js';
+import { syncMatchStats } from './stats.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from './summary.js';
 
 const UTC_OFFSET = '+08:00';
@@ -163,38 +167,82 @@ export async function recomputeDivisionStandings(deps: CpDeps, cid: string, dvId
 }
 
 async function syncSummary(deps: CpDeps, cid: string, mtId: string, before: DocumentData | null): Promise<boolean> {
-  return deps.db.runTransaction(async tx => {
-    const ref = deps.db.doc(`competitions/${cid}/matches/${mtId}`);
-    const cur = await readDoc(deps, tx, ref);
-    const after = cur.exists ? cur.data()! : null;
-    const newId = after ? summaryShardIdOf(kickoffMsOf(after), UTC_OFFSET) : null;
-    const oldId = before ? summaryShardIdOf(kickoffMsOf(before), UTC_OFFSET) : null;
-    let wrote = false;
-    const ops: Array<() => void> = [];
-    if (newId && after) {
-      const shardRef = deps.db.doc(`competitions/${cid}/summary/${newId}`);
-      const shard = await readDoc(deps, tx, shardRef);
-      const entry = summaryEntryOf(after, kickoffMsOf(after));
-      const curEntry = shard.exists ? (shard.get('m')?.[mtId] as SummaryEntry | undefined) : undefined;
-      if (!sameEntry(curEntry, entry)) {
-        // 片已存在時用 update 的欄位路徑整筆取代這一場（Opus 終審 P2）：set+merge 會逐層合併巢狀 map，
-        // 取消→重置後舊的 cr 會殘留，之後每次都判成不同而多寫。
-        if (shard.exists) ops.push(() => tx.update(shardRef, { [`m.${mtId}`]: entry, updatedAt: FieldValue.serverTimestamp() }));
-        else ops.push(() => tx.set(shardRef, { m: { [mtId]: entry }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
-      }
+  let attempts = 0;
+  try {
+    return await deps.db.runTransaction(async tx => {
+      attempts += 1;
+      return await syncSummaryTx(deps, tx, cid, mtId, before);
+    });
+  } finally {
+    if (deps.summaryTxAttempts) deps.summaryTxAttempts.count += attempts;
+  }
+}
+
+async function syncSummaryTx(
+  deps: CpDeps, tx: Transaction, cid: string, mtId: string, before: DocumentData | null
+): Promise<boolean> {
+  const ref = deps.db.doc(`competitions/${cid}/matches/${mtId}`);
+  const cur = await readDoc(deps, tx, ref);
+  const after = cur.exists ? cur.data()! : null;
+  const newId = after ? summaryShardIdOf(kickoffMsOf(after), UTC_OFFSET) : null;
+  const oldId = before ? summaryShardIdOf(kickoffMsOf(before), UTC_OFFSET) : null;
+  let wrote = false;
+  const ops: Array<() => void> = [];
+  if (newId && after) {
+    const shardRef = deps.db.doc(`competitions/${cid}/summary/${newId}`);
+    const shard = await readDoc(deps, tx, shardRef);
+    const entry = summaryEntryOf(after, kickoffMsOf(after));
+    const curEntry = shard.exists ? (shard.get('m')?.[mtId] as SummaryEntry | undefined) : undefined;
+    if (!sameEntry(curEntry, entry)) {
+      // 片已存在時用 update 的欄位路徑整筆取代這一場（Opus 終審 P2）：set+merge 會逐層合併巢狀 map，
+      // 取消→重置後舊的 cr 會殘留，之後每次都判成不同而多寫。
+      if (shard.exists) ops.push(() => tx.update(shardRef, { [`m.${mtId}`]: entry, updatedAt: FieldValue.serverTimestamp() }));
+      else ops.push(() => tx.set(shardRef, { m: { [mtId]: entry }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
     }
-    if (oldId && oldId !== newId) {
-      const oldRef = deps.db.doc(`competitions/${cid}/summary/${oldId}`);
-      const old = await readDoc(deps, tx, oldRef);
-      const m = old.exists ? (old.get('m') as Record<string, unknown> | undefined) : undefined;
-      if (m && Object.prototype.hasOwnProperty.call(m, mtId)) {
-        if (Object.keys(m).length === 1) ops.push(() => tx.delete(oldRef));
-        else ops.push(() => tx.update(oldRef, { [`m.${mtId}`]: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }));
-      }
+  }
+  if (oldId && oldId !== newId) {
+    const oldRef = deps.db.doc(`competitions/${cid}/summary/${oldId}`);
+    const old = await readDoc(deps, tx, oldRef);
+    const m = old.exists ? (old.get('m') as Record<string, unknown> | undefined) : undefined;
+    if (m && Object.prototype.hasOwnProperty.call(m, mtId)) {
+      if (Object.keys(m).length === 1) ops.push(() => tx.delete(oldRef));
+      else ops.push(() => tx.update(oldRef, { [`m.${mtId}`]: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }));
     }
-    for (const op of ops) { op(); wrote = true; }
-    return wrote;
-  });
+  }
+  for (const op of ops) { op(); wrote = true; }
+  return wrote;
+}
+
+const GROUP_ID_RE = /^[A-Za-z0-9]{1,8}$/;
+
+/** 只讀小組（stageId group）積分榜。組 id 不合形狀的略過。呼叫端已先確定要結束。 */
+async function loadChampions(
+  deps: CpDeps,
+  tx: Transaction,
+  cid: string,
+  divs: ReadonlyArray<{ id: string; get(field: string): unknown }>
+): Promise<Champion[]> {
+  const items: ChampionStanding[] = [];
+  const docs = [...divs].sort((a, b) => a.id.localeCompare(b.id));
+  for (const dv of docs) {
+    if (!DVID_RE.test(dv.id)) continue;
+    const schedule = dv.get('schedule');
+    const groups = schedule && typeof schedule === 'object'
+      ? (schedule as { groups?: unknown }).groups
+      : undefined;
+    const groupIds = [...new Set(
+      (Array.isArray(groups) ? groups : [])
+        .map(g => (g && typeof g === 'object' && typeof (g as { groupId?: unknown }).groupId === 'string'
+          ? (g as { groupId: string }).groupId : ''))
+        .filter(id => GROUP_ID_RE.test(id))
+    )].sort();
+    for (const groupId of groupIds) {
+      const snap = await readDoc(deps, tx, standingRef(deps, cid, dv.id, 'group', groupId));
+      const rows = snap.exists ? snap.get('rows') : [];
+      items.push({ divisionId: dv.id, groupId, rows: Array.isArray(rows) ? rows : [] });
+    }
+  }
+  return championsFromStandings(items);
 }
 
 async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isResolved: boolean): Promise<'set' | 'cleared' | null> {
@@ -215,8 +263,11 @@ async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isReso
       if (remaining > 0) return null;
       const total = await readCount(deps, tx, matches.count());
       if (total === 0) return null;
+      // 尚未確定會結束之前不讀積分榜（還有未解決場次的取消必須維持原讀數）。
+      // 只取小組第 1 名。淘汰賽冠軍不在這一步。
+      const champions = await loadChampions(deps, tx, cid, divs.docs);
       tx.update(compRef, {
-        endedAt: FieldValue.serverTimestamp(), endedBy: 'confirm',
+        endedAt: FieldValue.serverTimestamp(), endedBy: 'confirm', champions,
         stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
       });
       return 'set';
@@ -226,7 +277,7 @@ async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isReso
     // 新排的場次不會走到這裡（before 為 null、after 未解決）：由 generateSchedule 同交易解除。
     if (wasResolved && !isResolved && comp.get('endedAt') && comp.get('endedBy') === 'confirm') {
       tx.update(compRef, {
-        endedAt: null, endedBy: null,
+        endedAt: null, endedBy: null, champions: FieldValue.delete(),
         stateVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
       });
       return 'cleared';
@@ -243,6 +294,22 @@ export function watchedChanged(before: DocumentData | null, after: DocumentData 
   return WATCHED.some(k => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null));
 }
 
+function countsOrResolves(d: DocumentData | null): boolean {
+  return !!d && (countedForStanding(d) || resolvedForEnd(d));
+}
+
+/**
+ * 計分或結束相關才重讀場次、重算積分、判斷結束、更新射手榜。
+ * 進行中的進球、牌、換人、改期、只改點球比分為 false。
+ */
+export function matchNeedsServerFollowUp(before: DocumentData | null, after: DocumentData | null): boolean {
+  return countsOrResolves(before) || countsOrResolves(after);
+}
+
+function isConfirmed(d: DocumentData | null | undefined): boolean {
+  return !!d && d.status === 'confirmed';
+}
+
 export interface MatchWrittenResult { summary: boolean; standing: boolean; ended: 'set' | 'cleared' | null }
 
 /**
@@ -253,6 +320,10 @@ export async function handleMatchWritten(
 ): Promise<MatchWrittenResult> {
   if (afterHint !== undefined && !watchedChanged(before, afterHint)) return { summary: false, standing: false, ended: null };
   const summary = await syncSummary(deps, cid, mtId, before);
+  // afterHint 為 null 或未傳：維持重讀目前文件（測試用 null 表示不信事件內容）。
+  if (afterHint != null && !matchNeedsServerFollowUp(before, afterHint)) {
+    return { summary, standing: false, ended: null };
+  }
   const cur = await readDoc(deps, null, deps.db.doc(`competitions/${cid}/matches/${mtId}`));
   const after = cur.exists ? cur.data()! : null;
   const wasCounted = !!before && countedForStanding(before);
@@ -274,5 +345,9 @@ export async function handleMatchWritten(
     }
   }
   const ended = (wasResolved || isResolved) ? await syncEnded(deps, cid, wasResolved, isResolved) : null;
+  // 以重讀後的狀態為準，不信 hint：確認與重置亂序時，仍是 confirmed 才重建，否則刪掉該場。
+  if (isConfirmed(before) !== isConfirmed(after)) {
+    await syncMatchStats(deps, cid, mtId, before);
+  }
   return { summary, standing, ended };
 }

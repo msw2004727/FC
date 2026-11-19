@@ -22,8 +22,9 @@ const SERVER_BUDGET: Record<string, number> = {
   recordResult: 4,
   // 閘門 1＋賽事 1＋場次 1＋timeline ≤200＋voids ≤200（§3.307）＋組別 1（K8 積分規則）
   confirmMatchResult: 1 + 1 + 1 + 200 + 200 + 1,
-  // 場次 1＋摘要片 1（＋舊片 1）＋場次重讀 1＋賽事 1＋組別 1＋積分 1＋該組場次 ≤ 6＋賽事 1＋組別清單 1＋聚合 2（實測 15）
-  trigger: 1 + 2 + 1 + 1 + 1 + 1 + 6 + 1 + 1 + 2
+  // 確認且仍有未解決場次，原本實測 15。K3 確認統計再加：場次 1＋空 timeline 1＋空 voids 1＋射手榜 1
+  // （本劇本確認時沒有事件，不讀名單）＝ 19。冠軍名在還有未解決場次時不讀。
+  trigger: 19
 };
 const CLIENT_BUDGET = {
   detailWarmup: 39 + 3,  // 根 1＋組別 ≤ 4（+1）＋隊伍 ≤ 32（+1）；內部期 3 個請求各 +1

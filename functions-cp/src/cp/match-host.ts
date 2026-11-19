@@ -318,9 +318,11 @@ export async function generateSchedule(deps: CpDeps, caller: Caller, gate: GateR
       cid, dvId, groups[0].teamIds, names, divisionRaw, ranking, prevStandingVersion, divisionName
     ));
     // 末場確認造成的結束（例如另一組別先打完）在新排賽程時解除（Opus 終審 P1-1 (b)）
+    // K3：同一筆更新清掉冠軍名，避免留下過期隊名。不另讀。
     if (comp.endedAt && comp.endedBy === 'confirm') {
       tx.update(deps.db.doc(`competitions/${cid}`), {
-        endedAt: null, endedBy: null, stateVersion: FieldValue.increment(1), updatedAt: now
+        endedAt: null, endedBy: null, champions: FieldValue.delete(),
+        stateVersion: FieldValue.increment(1), updatedAt: now
       });
     }
     tx.update(dvRef, {

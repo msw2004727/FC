@@ -21,7 +21,7 @@ const READ_BUDGET = {
   endCompetition: 13,      // 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋組別 ≤8
   restoreCompetition: 3,   // 閘門 ≤2＋賽事 1
   triggerCancel: 13,       // 場次 1＋摘要 1＋場次重讀 1＋賽事 1＋組別 ≤8＋聚合 1
-  triggerCancelEnds: 14    // 上式＋總場次聚合 1
+  triggerCancelEnds: 14    // 上式＋總場次聚合 1。K3 末場取消另讀 1 張積分榜寫冠軍名，實測 8，仍在上限內
 };
 
 async function entryOf(cid: string, mtId: string): Promise<{ st?: string } | undefined> {
@@ -172,7 +172,8 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     const cancelled = await runAct(c2, ADMIN, { action: 'cancelMatch', mtId: m.id, expectedRev: 0, reason: '場地淹水' });
     expect(cancelled.trigger.ended).toBe('set');
     expect(cancelled.trigger.standing).toBe(false);
-    expect(cancelled.triggerMeter.reads).toBe(7);
+    // K3：確認結束同一筆寫入冠軍名，多讀該組積分榜 1（2 隊 1 組）
+    expect(cancelled.triggerMeter.reads).toBe(8);
     expect(cancelled.triggerMeter.reads).toBeLessThanOrEqual(READ_BUDGET.triggerCancelEnds);
     expect(cancelled.actionMeter.reads).toBe(3);
     const ended = (await adminDb().doc(`competitions/${c2.cid}`).get()).data()!;
