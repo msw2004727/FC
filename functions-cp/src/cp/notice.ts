@@ -6,6 +6,7 @@
  * 作者只存稽核用的雜湊（`by`），不寫 uid。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
+import { matchDayOf } from '../engine/index.js';
 import { CpError, bad } from './errors.js';
 import { FieldValue, Timestamp, newId } from './context.js';
 import { clipCodePoints, findBannedWord, optionalText } from './text.js';
@@ -96,11 +97,11 @@ function clipText(text: string, max: number): string {
   return clipCodePoints(text, max);
 }
 
-/** 台北月／日，不補零。例：1/9。無開賽時間回 null。 */
+/** 比賽日月／日，不補零。例：1/9。凌晨 00:00～04:59 顯示前一個比賽日。無開賽時間回 null。 */
 export function taipeiMonthDay(ms: number | null): string | null {
-  if (ms == null) return null;
-  const d = new Date(ms + 8 * 3600_000);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  if (ms == null || typeof ms !== 'number' || !Number.isFinite(ms)) return null;
+  const ymd = matchDayOf(ms);
+  return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
 }
 
 /** 取消場次的系統公告。例：「1/9 甲隊對乙隊已取消：原因」。超過 300 字就截斷，不讓取消失敗。 */

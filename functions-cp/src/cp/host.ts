@@ -57,6 +57,8 @@ import { MATCH_HOST_ACTIONS } from './match-host.js';
 import { setDivisionRules } from './rules-host.js';
 import { STAFF_ACTIONS } from './staff-host.js';
 import { standingRef } from './match-trigger.js';
+import { matchDayOf } from '../engine/index.js';
+import { taipeiYmd } from './schedule-flex.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -295,19 +297,20 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
       // Opus 終審 P1-1：首場後主辦不能改時程（否則可把已開賽賽事挪到未來再刪除、或重開報名）
       if (!admin && nowMs >= comp.firstMatchAt.toMillis()) throw pre('COMPETITION_STARTED', { field: 'schedule' });
       if (!admin && s.firstMatchAt <= nowMs) throw bad('SCHEDULE_PAST', { field: 'firstMatchAt' });
-      // 顧問 §3.291 P2：已有場次時，新賽期必須涵蓋最早與最晚開賽（各 orderBy kickoffAt limit 1，共 2 讀）；
-      // 時間窗與 rescheduleMatch 相同：首場所在台北日 00:00 起、末場所在台北日 24:00 前。待定（kickoffAt null）不算。
+      // 顧問 §3.291 P2：已有場次時，新賽期必須涵蓋最早與最晚開賽（各 orderBy kickoffAt limit 1，共 2 讀）。
+      // 場次用比賽日；官方賽期用台北日曆日當標籤（午夜標記不能用 matchDayOf）。待定（kickoffAt null）不算。
+      // 凌晨 00:00～04:59 算前一個比賽日，所以末場日的隔天凌晨仍算涵蓋。
       const ms = deps.db.collection(`competitions/${cid}/matches`).where('kickoffAt', '>=', Timestamp.fromMillis(0));
       const earliest = await readQuery(deps, tx, ms.orderBy('kickoffAt', 'asc').limit(1));
       const latest = await readQuery(deps, tx, ms.orderBy('kickoffAt', 'desc').limit(1));
       if (!earliest.empty && !latest.empty) {
-        const day = 24 * 3600_000;
-        const tz = 8 * 3600_000;
-        const lo = s.firstMatchAt - ((s.firstMatchAt + tz) % day);
-        const hi = s.lastMatchAt - ((s.lastMatchAt + tz) % day) + day;
+        const periodStart = taipeiYmd(s.firstMatchAt);
+        const periodEnd = taipeiYmd(s.lastMatchAt);
         const first = (earliest.docs[0]!.get('kickoffAt') as Timestamp).toMillis();
         const last = (latest.docs[0]!.get('kickoffAt') as Timestamp).toMillis();
-        if (first < lo || last >= hi) throw bad('SCHEDULE_OUT_OF_RANGE', { field: 'schedule' });
+        if (matchDayOf(first) < periodStart || matchDayOf(last) > periodEnd) {
+          throw bad('SCHEDULE_OUT_OF_RANGE', { field: 'schedule' });
+        }
       }
       // 首場日期可改（延期）：年齡判斷改用第一筆名單時固定的 ageBasisAt（顧問 §3.251 F2，取代 Opus P1-2 的「有名單就鎖首場」）
       patch.regOpenAt = ts(s.regOpenAt);

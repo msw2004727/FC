@@ -1,7 +1,10 @@
 /**
  * 賽程摘要片（契約 §1.4）。純函式。
- * shard 只用 utcOffset 換算日期，不看執行環境時區。
+ * shard 用比賽日：當地 00:00～04:59 歸前一天，05:00 起算當天。預設 +08:00 與 matchDayOf 相同。
+ * 不看執行環境時區。
  */
+
+import { matchDayOf } from '../engine/index.js';
 
 export interface SummaryEntry {
   dv: string;
@@ -41,11 +44,13 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** null → 'tbd'；否則該時區日期 `d` + YYYYMMDD。預設 '+08:00'。 */
+/** null → 'tbd'；否則比賽日 `d` + YYYYMMDD。預設 '+08:00'（凌晨歸前一個比賽日）。 */
 export function summaryShardIdOf(kickoffMs: number | null, utcOffset = '+08:00'): string {
   if (kickoffMs == null) return 'tbd';
   if (typeof kickoffMs !== 'number' || !Number.isFinite(kickoffMs)) return 'tbd';
-  const shifted = new Date(kickoffMs + offsetMs(utcOffset));
+  if (utcOffset === '+08:00') return `d${matchDayOf(kickoffMs).replace(/-/g, '')}`;
+  // 其他時區沿用同一個 05:00 切點，只是把偏移換成呼叫端給的 utcOffset。
+  const shifted = new Date(kickoffMs + offsetMs(utcOffset) - 5 * 3_600_000);
   const y = String(shifted.getUTCFullYear()).padStart(4, '0');
   return `d${y}${pad2(shifted.getUTCMonth() + 1)}${pad2(shifted.getUTCDate())}`;
 }
