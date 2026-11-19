@@ -811,6 +811,9 @@ export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResul
       confirmedAt: confirm ? now : null,
       result: resultOf(score), resultSource: 'host', walkoverSide: null,
       clockBase: { ...CLEAR_CLOCK, period: 'ft' },
+      // 顧問 §3.335 P2：PK 只在正規比分平手時才有意義。主辦改成非平手就清掉 PK 比分（摘要的 p 由觸發器跟著拿掉）；
+      // 平手則保留裁判記的 PK 比分。重置與棄權另有清除。
+      ...(score.home !== score.away ? { penaltyScore: null } : {}),
       rev: m.rev + 1, updatedAt: now
     });
     // 主辦登錄後一律清掉目前記分者：否則記分者可在 finishedAt 後 3 分鐘內 undoFinish 撤回主辦的結果，
