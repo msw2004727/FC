@@ -3,6 +3,7 @@
  * 掛在 HOST_ACTIONS，不放進 MATCH_HOST_ACTIONS（本檔要引用 match-host，避免循環）。
  * 計分有沒有變看 sameScoringInputs，不看鍵名清單：關閉的仁慈只改 cap 不算（cap 不參與計算）；只改 preset、criteria 沒變也不算。
  * 已有 confirmed 或 walkover 且計分有變才要求原因、公告、rulesChangedAt。finished 不算已確認。
+ * 公告只列影響計分且值有變的項目，格式是「顯示名 改前→改後」，不列區塊標題、不出現鍵名。
  * 確認或棄權是否存在用聚合 count，不靠場次清單。重算改為每組各查一次，上限 240，多讀 1 筆用來發現截斷。
  * 取消（status==='cancelled'）在結束寬限之前擋下，連管理員都是 COMPETITION_CLOSED。
  */
@@ -19,6 +20,7 @@ import {
 import { assertNotEnded, hostComp } from './match-host.js';
 import { applyStanding, standingRef } from './match-trigger.js';
 import { appendSystemNotice, taipeiMonthDay } from './notice.js';
+import { rulesChangeNoticeText, scoringChangesOf } from './rules-notice.js';
 import { cleanLine, findBannedWord } from './text.js';
 import { onlyKeys } from './validate.js';
 
@@ -32,23 +34,6 @@ const TIME_LOCKS = ['time.periods', 'time.halfMinutes', 'time.halftime.enabled',
 const WALKOVER_LOCKS = [
   'walkover.scoreFor', 'walkover.scoreAgainst', 'walkover.awardPoints', 'walkover.penaltyPoints', 'walkover.countInGoalStats'
 ] as const;
-
-/** 草案 §1 標題，順序就是公告串接順序。squad.note 屬上場人數。 */
-const SECTIONS: ReadonlyArray<{ title: string; hit: (path: string) => boolean }> = [
-  { title: '上場人數', hit: p => p === 'playersOnField' || p.startsWith('squad.') },
-  { title: '比賽時間', hit: p => p.startsWith('time.') },
-  { title: '換人', hit: p => p.startsWith('substitution.') },
-  { title: '勝和負積分', hit: p => p.startsWith('points.') },
-  { title: '同分排序', hit: p => p.startsWith('tieBreak.') },
-  { title: '平手處理', hit: p => p.startsWith('draw.') },
-  { title: '棄權比分', hit: p => p.startsWith('walkover.') },
-  { title: '遲到寬限', hit: p => p.startsWith('late.') },
-  { title: '紅黃牌累積停賽', hit: p => p.startsWith('suspension.') },
-  { title: '公平競賽（行為分）', hit: p => p.startsWith('fairPlay.') },
-  { title: '仁慈規則（單場球差上限）', hit: p => p.startsWith('mercy.') },
-  { title: '裝備', hit: p => p.startsWith('equipment.') },
-  { title: '申訴時限', hit: p => p.startsWith('appeal.') }
-];
 
 type MatchRow = {
   matchId: string;
@@ -130,11 +115,7 @@ function firstLocked(changed: readonly string[], active: ReadonlySet<string>): s
   return null;
 }
 
-function sectionTitles(changed: readonly string[]): string[] {
-  return SECTIONS.filter(s => changed.some(path => s.hit(path))).map(s => s.title);
-}
-
-/** 空白或未提供當沒填。有內容就驗 2～100 與禁用詞，就算這次還不必填原因。 */
+/** 空白或未提供當沒填。有內容就驗 2～100 與禁用詞，就算這次還不必填原因。空白一律不當原因。 */
 function optionalReason(v: unknown, banned: readonly string[]): string | null {
   if (v == null) return null;
   if (typeof v !== 'string') throw bad('FIELD_TYPE', { field: 'reason' });
@@ -346,7 +327,6 @@ export async function setDivisionRules(deps: CpDeps, caller: Caller, gate: GateR
 
     if (transparent && reason != null) {
       const md = taipeiMonthDay(deps.now().getTime()) ?? '';
-      const titles = sectionTitles(changed);
       appendSystemNotice(tx, {
         ref: deps.db.doc(`competitions/${cid}`),
         notices: comp.notices,
@@ -354,11 +334,13 @@ export async function setDivisionRules(deps: CpDeps, caller: Caller, gate: GateR
         by: actorHash(cid, caller.uid)
       }, {
         kind: 'system',
-        text: `比賽規則於 ${md} 修改：${titles.join('、')}，原因：${reason}`
+        text: rulesChangeNoticeText({ monthDay: md, before: old, after: next, reason })
       });
     }
 
-    writeAudit(deps, tx, cid, caller, 'setDivisionRules', { dvId, changed, reason, recomputed });
+    writeAudit(deps, tx, cid, caller, 'setDivisionRules', {
+      dvId, changed, changes: scoringChangesOf(old, next), reason, recomputed
+    });
     return { dvId, recomputed, warnings: checked.warnings };
   });
 }

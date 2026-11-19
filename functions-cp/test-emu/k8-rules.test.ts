@@ -180,17 +180,54 @@ describe('組別比賽規則', () => {
       .filter(d => d.get('action') === 'setDivisionRules');
     expect(audits).toHaveLength(1);
     expect(audits[0].get('details.changed')).toContain('points.win');
+    expect(audits[0].get('details.changes')).toEqual([{ key: 'points.win', from: 3, to: 2 }]);
     expect(audits[0].get('details.reason')).toBe('勝分改兩分');
     expect(audits[0].get('details.recomputed')).toBe(true);
     const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ kind: string; text: string }>;
     const sys = notices.filter(n => n.kind === 'system' && n.text.includes('比賽規則於'));
     expect(sys).toHaveLength(1);
-    expect(sys[0].text).toContain('勝和負積分');
-    expect(sys[0].text).toContain('原因：勝分改兩分');
+    expect(sys[0].text).toMatch(/^比賽規則於 \d{1,2}\/\d{1,2} 修改：勝一場 3→2 分；原因：勝分改兩分$/);
+    expect(sys[0].text).not.toContain('勝和負積分');
+    expect(sys[0].text).not.toContain('points.win');
     expect((await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get()).get('rulesChangedAt')).toBeTruthy();
     // 閘門 1＋賽事 1＋組別 1＋確認或棄權聚合 1＋積分 1＋該組場次 1。
     // 聚合是這次退修多出來的 1 讀；原先整組場次一筆查詢時是 5。
     expect(meter.reads).toBe(6);
+  });
+
+  it('已有確認比分時改勝分與棄權方積分：公告含兩項改前到改後；空白原因被拒', async () => {
+    const c = await setupComp(['甲', '乙']);
+    await generate(c);
+    await record(c, '甲', '乙', 1, 0);
+    const rules = legacyPayload(r => {
+      r.points.win = 2;
+      r.walkover.penaltyPoints = -1;
+    });
+    await fails(call(handleCpHost, ADMIN, rulesCall(c, rules)), 'REASON_REQUIRED');
+    await fails(call(handleCpHost, ADMIN, rulesCall(c, rules, { reason: '' })), 'REASON_REQUIRED');
+    await fails(call(handleCpHost, ADMIN, rulesCall(c, rules, { reason: '   ' })), 'REASON_REQUIRED');
+    await fails(call(handleCpHost, ADMIN, rulesCall(c, rules, { reason: ' \n\t ' })), 'REASON_REQUIRED');
+    const res = await ok<{ recomputed: boolean }>(call(
+      handleCpHost, ADMIN, rulesCall(c, rules, { reason: '勝分與棄權積分一起改' })
+    ));
+    expect(res.recomputed).toBe(true);
+    const notices = (await adminDb().doc(`competitions/${c.cid}`).get()).get('notices') as Array<{ kind: string; text: string }>;
+    const sys = notices.filter(n => n.kind === 'system' && n.text.includes('比賽規則於'));
+    expect(sys).toHaveLength(1);
+    expect(sys[0].text).toMatch(
+      /^比賽規則於 \d{1,2}\/\d{1,2} 修改：勝一場 3→2 分、棄權方得 0→−1 分；原因：勝分與棄權積分一起改$/
+    );
+    expect(sys[0].text).not.toContain('points.');
+    expect(sys[0].text).not.toContain('walkover.');
+    const audits = (await adminDb().collection(`competitions/${c.cid}/audits`).get()).docs
+      .filter(d => d.get('action') === 'setDivisionRules');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].get('details.changes')).toEqual([
+      { key: 'points.win', from: 3, to: 2 },
+      { key: 'walkover.penaltyPoints', from: 0, to: -1 }
+    ]);
+    expect(audits[0].get('details.reason')).toBe('勝分與棄權積分一起改');
+    expect((await adminDb().doc(`competitions/${c.cid}/divisions/${c.dvId}`).get()).get('rulesChangedAt')).toBeTruthy();
   });
 
   it('只改補充說明不重算', async () => {

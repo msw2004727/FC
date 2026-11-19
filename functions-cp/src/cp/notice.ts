@@ -8,7 +8,7 @@
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { CpError, bad } from './errors.js';
 import { FieldValue, Timestamp, newId } from './context.js';
-import { findBannedWord, optionalText } from './text.js';
+import { clipCodePoints, findBannedWord, optionalText } from './text.js';
 
 export const NOTICE_LIMITS = Object.freeze({
   /** 主辦手動公告上限。滿了回 NOTICE_LIMIT。 */
@@ -91,9 +91,9 @@ export function removeNotice(existing: readonly Notice[], id: string): { notices
   return { notices: existing.filter(n => n.id !== id), removed };
 }
 
+/** 系統公告與取消文案共用。超過上限時不切開組合 emoji。 */
 function clipText(text: string, max: number): string {
-  const chars = [...text];
-  return chars.length <= max ? text : chars.slice(0, max).join('');
+  return clipCodePoints(text, max);
 }
 
 /** 台北月／日，不補零。例：1/9。無開賽時間回 null。 */
