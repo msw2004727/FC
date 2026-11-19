@@ -169,7 +169,12 @@ function daysOf(v: unknown): PlanDay[] {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.start as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.start` });
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.end as string)) throw bad('FIELD_FORMAT', { field: `days.${i}.end` });
     const day = { date: o.date as string, start: o.start as string, end: o.end as string };
-    // end <= start 視為隔天結束。總長超過 24 小時、或起點已不早於隔天 05:00，回既有 FIELD_RANGE。
+    // 起點早於 05:00 一律拒。凌晨場請把前一天的 end 拉過午夜（end <= start）。
+    // 前端文案留給 U7；這裡只在 details 帶 reason，錯誤代碼仍是 FIELD_RANGE。
+    if (day.start < '05:00') {
+      throw bad('FIELD_RANGE', { field: 'days', reason: 'startBeforeCutoff' });
+    }
+    // end <= start 視為隔天結束。總長不合、或起點已不早於隔天 05:00，回既有 FIELD_RANGE。
     // 窗可以晚於隔天 05:00 收（比賽可踢過切點）；開賽上限在 planRoundRobin 擋。
     if (civilYmd(day.date) && scheduleDayWindow(day.date, day.start, day.end) == null) {
       throw bad('FIELD_RANGE', { field: 'days' });

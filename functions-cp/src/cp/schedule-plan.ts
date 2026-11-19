@@ -99,7 +99,8 @@ function assertDays(days: unknown): PlanDay[] {
     if (typeof day.date !== 'string' || !validYmd(day.date)) fail('days');
     if (typeof day.start !== 'string' || typeof day.end !== 'string') fail('days');
     if (!validHhmm(day.start) || !validHhmm(day.end)) fail('days');
-    // end <= start 是隔天結束，不在這裡拒絕。總長與 05:00 開賽上限由 scheduleDayWindow 判。
+    // end <= start 是隔天結束，不在這裡拒絕。
+    // start 早於 05:00、總長不合、開賽不早於隔天 05:00，都由 scheduleDayWindow 回 null。
     if (prev && day.date <= prev) fail('days');
     prev = day.date;
   }

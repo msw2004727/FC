@@ -4,7 +4,7 @@
 import { Timestamp, type DocumentReference, type Transaction } from 'firebase-admin/firestore';
 import { describe, expect, it } from 'vitest';
 import { SCHEDULE_LIMITS, MATCH_HOST_ACTIONS } from '../src/cp/match-host.js';
-import { appendSystemNotice, type Notice } from '../src/cp/notice.js';
+import { appendSystemNotice, cancelNoticeText, matchDayLabel, taipeiMonthDayTime, type Notice } from '../src/cp/notice.js';
 import {
   DAY_MATCH_MAX,
   EXTEND_DAYS,
@@ -206,13 +206,52 @@ describe('公告文案', () => {
       homeName: '甲隊', awayName: '乙隊',
       toMs: Date.parse('2026-01-10T23:00:00+08:00'),
       venueName: null
-    })).toBe('1/9 甲隊對乙隊改至 1/10 23:00');
+    })).toBe('1/10 01:30 甲隊對乙隊改至 1/10 23:00');
     expect(shiftDayNoticeText('2026-01-09', '2026-01-16')).toBe('1/9 全天賽程順延至 1/16');
     expect(shiftDayNoticeText('2026-02-31', '2026-01-16')).toBe('');
     expect(swapNoticeText(
       { kickoffMs: from, homeName: '甲隊', awayName: '乙隊' },
       { kickoffMs: Date.parse('2026-01-11T16:00:00+08:00'), homeName: '丙隊', awayName: '丁隊' }
     )).toBe('兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊');
+  });
+
+  it('凌晨 01:30 的改期、對調、取消用日曆日且帶時刻；白天場次文字不變', () => {
+    const early = Date.parse('2026-01-10T01:30:00+08:00');
+    const daytime = Date.parse('2026-01-10T14:00:00+08:00');
+    const laterDay = Date.parse('2026-01-24T14:00:00+08:00');
+    expect(matchDayLabel(early)).toBe('1/9');
+    expect(taipeiMonthDayTime(early)).toBe('1/10 01:30');
+
+    expect(rescheduleNoticeText({
+      kickoffMs: daytime, homeName: '甲隊', awayName: '乙隊', toMs: early, venueName: null
+    })).toBe('1/10 甲隊對乙隊改至 1/10 01:30');
+    expect(rescheduleNoticeText({
+      kickoffMs: early, homeName: '甲隊', awayName: '乙隊',
+      toMs: Date.parse('2026-01-11T02:00:00+08:00'), venueName: null
+    })).toBe('1/10 01:30 甲隊對乙隊改至 1/11 02:00');
+    expect(rescheduleNoticeText({
+      kickoffMs: daytime, homeName: '甲隊', awayName: '乙隊', toMs: laterDay, venueName: '2號場'
+    })).toBe('1/10 甲隊對乙隊改至 1/24 14:00 2號場');
+
+    expect(swapNoticeText(
+      { kickoffMs: early, homeName: '甲隊', awayName: '乙隊' },
+      { kickoffMs: Date.parse('2026-01-11T16:00:00+08:00'), homeName: '丙隊', awayName: '丁隊' }
+    )).toBe('兩場對調：1/10 01:30 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊');
+    expect(swapNoticeText(
+      { kickoffMs: daytime, homeName: '甲隊', awayName: '乙隊' },
+      { kickoffMs: Date.parse('2026-01-11T16:00:00+08:00'), homeName: '丙隊', awayName: '丁隊' }
+    )).toBe('兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊');
+
+    expect(cancelNoticeText({ kickoffMs: early, homeName: '甲隊', awayName: '乙隊', reason: '雨停' }))
+      .toBe('1/10 01:30 甲隊對乙隊已取消：雨停');
+    expect(cancelNoticeText({ kickoffMs: daytime, homeName: '甲隊', awayName: '乙隊', reason: '雨停' }))
+      .toBe('1/10 甲隊對乙隊已取消：雨停');
+    expect(cancelNoticeText({
+      kickoffMs: Date.parse('2026-01-10T04:59:00+08:00'), homeName: '甲隊', awayName: '乙隊', reason: '雨停'
+    })).toBe('1/10 04:59 甲隊對乙隊已取消：雨停');
+    expect(cancelNoticeText({
+      kickoffMs: Date.parse('2026-01-10T05:00:00+08:00'), homeName: '甲隊', awayName: '乙隊', reason: '雨停'
+    })).toBe('1/10 甲隊對乙隊已取消：雨停');
   });
 
   it('系統公告與末場延後併成同一筆賽事更新', () => {
@@ -247,6 +286,33 @@ describe('F2 初審修正（Flash）', () => {
     expect(rangesOverlap(50, 50, 0, 100)).toBe(false);
     expect(rangesOverlap(0, 100, 50, 50)).toBe(false);
     expect(rangesOverlap(0, 100, 50, 60)).toBe(true);
+  });
+});
+
+describe('賽程日起點早於 05:00', () => {
+  const cid = `cp_${'a'.repeat(20)}`;
+  const dvId = `dv_${'b'.repeat(20)}`;
+  const deps = {
+    db: { runTransaction() { throw new Error('不該進交易'); } }
+  };
+
+  function schedule(start: string) {
+    return MATCH_HOST_ACTIONS.generateSchedule(deps as never, {} as never, {} as never, {
+      action: 'generateSchedule', cid, dvId, legs: 1, matchMinutes: 20,
+      days: [{ date: '2026-12-05', start, end: '12:00' }]
+    });
+  }
+
+  it('04:59 在進交易前回 FIELD_RANGE，details 帶 startBeforeCutoff；05:00 進得了天', async () => {
+    await expect(schedule('04:59')).rejects.toMatchObject({
+      reason: 'FIELD_RANGE',
+      params: { field: 'days', reason: 'startBeforeCutoff' }
+    });
+    await expect(schedule('00:00')).rejects.toMatchObject({
+      reason: 'FIELD_RANGE',
+      params: { field: 'days', reason: 'startBeforeCutoff' }
+    });
+    await expect(schedule('05:00')).rejects.toThrow('不該進交易');
   });
 });
 

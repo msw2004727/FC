@@ -93,14 +93,21 @@ describe('scheduleDayWindow', () => {
     expect(full && full.endMs - full.startMs).toBe(86_400_000);
   });
 
-  it('非法日期或時刻回 null；05:00 前開賽不因此被拒', () => {
+  it('非法日期或時刻回 null；start 早於 05:00 一律拒，05:00 可以', () => {
     expect(scheduleDayWindow('2026-02-31', '09:00', '18:00')).toBeNull();
     expect(scheduleDayWindow('2026-02-29', '09:00', '18:00')).toBeNull();
     expect(scheduleDayWindow('2026-12-05', '9:00', '18:00')).toBeNull();
-    const early = scheduleDayWindow('2026-12-05', '00:00', '04:00');
-    expect(early?.startMs).toBe(at('2026-12-05T00:00:00+08:00'));
-    expect(early && matchDayOf(early.startMs)).toBe('2026-12-04');
-    expect(early?.kickoffBeforeMs).toBe(at('2026-12-06T05:00:00+08:00'));
+    expect(scheduleDayWindow('2026-12-05', '00:00', '04:00')).toBeNull();
+    expect(scheduleDayWindow('2026-12-05', '04:59', '12:00')).toBeNull();
+    expect(scheduleDayWindow('2026-12-05', '04:59', '12:00', '+00:00')).toBeNull();
+    const atFive = scheduleDayWindow('2026-12-05', '05:00', '12:00');
+    expect(atFive).toEqual({
+      startMs: at('2026-12-05T05:00:00+08:00'),
+      endMs: at('2026-12-05T12:00:00+08:00'),
+      kickoffBeforeMs: at('2026-12-06T05:00:00+08:00')
+    });
+    expect(scheduleDayWindow('2026-12-05', '05:00', '12:00', '-10:00')?.startMs)
+      .toBe(Date.parse('2026-12-05T05:00:00-10:00'));
   });
 });
 
@@ -177,6 +184,41 @@ describe('planRoundRobin 跨午夜', () => {
       ...over
     };
   }
+
+  it('start 04:59 被拒；05:00 可以排', () => {
+    expect(() => planRoundRobin(input({
+      days: [{ date: '2026-12-05', start: '04:59', end: '12:00' }]
+    }))).toThrow(RangeError);
+    const result = planRoundRobin(input({
+      teams: teams(2),
+      days: [{ date: '2026-12-05', start: '05:00', end: '06:00' }],
+      venues: [{ venueIdx: 0, name: 'A場' }]
+    }));
+    expect(result.unplacedCount).toBe(0);
+    expect(result.matches[0]?.kickoffMs).toBe(at('2026-12-05T05:00:00+08:00'));
+    expect(matchDayOf(result.matches[0]!.kickoffMs!)).toBe('2026-12-05');
+  });
+
+  it('前一天 22:00～02:00 可排凌晨場，開賽歸前一比賽日', () => {
+    const result = planRoundRobin(input({
+      teams: teams(4),
+      matchMinutes: 30,
+      days: [{ date: '2026-12-05', start: '22:00', end: '02:00' }],
+      venues: [{ venueIdx: 0, name: 'A場' }]
+    }));
+    expect(result.unplacedCount).toBe(0);
+    const kicks = result.matches.map(m => m.kickoffMs).filter((k): k is number => k != null).sort((a, b) => a - b);
+    expect(kicks).toEqual([
+      at('2026-12-05T22:00:00+08:00'),
+      at('2026-12-05T22:30:00+08:00'),
+      at('2026-12-05T23:00:00+08:00'),
+      at('2026-12-05T23:30:00+08:00'),
+      at('2026-12-06T00:00:00+08:00'),
+      at('2026-12-06T00:30:00+08:00')
+    ]);
+    expect(kicks.some(k => k >= at('2026-12-06T00:00:00+08:00'))).toBe(true);
+    for (const k of kicks) expect(matchDayOf(k)).toBe('2026-12-05');
+  });
 
   it('22:00～02:00、4 隊 2 場地，六場都在這個比賽日', () => {
     const result = planRoundRobin(input({}));

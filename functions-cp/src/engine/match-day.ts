@@ -10,6 +10,7 @@ const DAY_MS = 86_400_000;
 const CUTOFF_MS = 5 * 3_600_000;
 const TAIPEI_OFFSET_MS = 8 * 3_600_000;
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+const HHMM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -23,6 +24,13 @@ export function civilYmd(ymd: string): boolean {
   const day = Number(ymd.slice(8, 10));
   const utc = new Date(Date.UTC(year, month - 1, day));
   return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
+}
+
+/** 牆上 HH:mm 的分鐘。非法時刻回 null。 */
+function wallMinutes(hhmm: string): number | null {
+  const m = HHMM_RE.exec(hhmm);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
 }
 
 function nextYmd(ymd: string): string | null {
@@ -70,8 +78,10 @@ export interface ScheduleDayWindow {
 /**
  * 組別賽程日 `{ date, start, end }`。
  * `end <= start` 視為隔天結束。總長必須 > 0 且 ≤ 24 小時。
+ * `start` 早於 05:00 一律回 null。凌晨場請把前一天的 `end` 拉到隔天。
  * 隔天 05:00 之後仍可當結束時間（比賽可踢過 05:00），但開賽不得落在 05:00 或之後。
  * 沒有任何早於切點的開賽點、或日期無法換算時回 null（呼叫端回既有的欄位範圍錯誤）。
+ * 切點看 start 的牆上時刻，不看 utcOffset。比賽日分日仍固定 +08:00。
  */
 export function scheduleDayWindow(
   date: string,
@@ -80,6 +90,8 @@ export function scheduleDayWindow(
   utcOffset = '+08:00'
 ): ScheduleDayWindow | null {
   if (!civilYmd(date)) return null;
+  const startMin = wallMinutes(start);
+  if (startMin != null && startMin < CUTOFF_MS / 60_000) return null;
   const startMs = taipeiMs(date, start, utcOffset);
   const endSame = taipeiMs(date, end, utcOffset);
   if (startMs == null || endSame == null) return null;

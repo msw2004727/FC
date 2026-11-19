@@ -4,7 +4,7 @@
  * 重疊區間與引擎 placeMatches 相同：半開 [開始, 開始＋比賽分鐘＋緩衝)。
  */
 import { matchDayOf, matchDayWindow } from '../engine/index.js';
-import { taipeiMonthDay } from './notice.js';
+import { matchDayLabel, noticeMatchLabel, taipeiMonthDayTime } from './notice.js';
 
 const DAY_MS = 86_400_000;
 const TAIPEI_OFFSET_MS = 8 * 3_600_000;
@@ -225,14 +225,18 @@ export interface NoticeSide {
   venueName?: string | null;
 }
 
-/** 「1/10 甲隊對乙隊改至 1/24 14:00 2號場」。沒有新時間則「改至待定」。 */
+/**
+ * 「1/10 甲隊對乙隊改至 1/24 14:00 2號場」。沒有新時間則「改至待定」。
+ * 原場次：白天用比賽日標籤；凌晨場補時刻並用日曆日（noticeMatchLabel，與取消公告一致）。
+ * 改至的日期與時刻寫在一起，用日曆日。
+ */
 export function rescheduleNoticeText(input: NoticeSide & { toMs: number | null; venueName: string | null }): string {
   const who = `${input.homeName}對${input.awayName}`;
-  const from = taipeiMonthDay(input.kickoffMs);
+  const from = noticeMatchLabel(input.kickoffMs);
   const head = from ? `${from} ${who}` : who;
   if (input.toMs == null) return `${head}改至待定`;
   const venue = input.venueName && input.venueName.trim() ? ` ${input.venueName.trim()}` : '';
-  return `${head}改至 ${taipeiMonthDay(input.toMs)} ${taipeiHm(input.toMs)}${venue}`;
+  return `${head}改至 ${taipeiMonthDayTime(input.toMs)}${venue}`;
 }
 
 /** 「1/9 全天賽程順延至 1/16」。日期必須是合法台北日；不合法回空字串，呼叫端不會拿去發公告。 */
@@ -244,12 +248,12 @@ export function shiftDayNoticeText(fromYmd: string, toYmd: string): string {
 }
 
 function swapBrief(side: NoticeSide): string {
-  const date = taipeiMonthDay(side.kickoffMs);
-  if (date == null) return `${side.homeName}對${side.awayName}`;
-  return `${date} ${taipeiHm(side.kickoffMs!)} ${side.homeName}對${side.awayName}`;
+  const when = taipeiMonthDayTime(side.kickoffMs);
+  if (when == null) return `${side.homeName}對${side.awayName}`;
+  return `${when} ${side.homeName}對${side.awayName}`;
 }
 
-/** 「兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊」。時間用對調前的開賽，方便認出是哪兩場。 */
+/** 「兩場對調：1/10 14:00 甲隊對乙隊 與 1/11 16:00 丙隊對丁隊」。時間用對調前的開賽。日期與時刻一起寫，用日曆日。 */
 export function swapNoticeText(a: NoticeSide, b: NoticeSide): string {
   return `兩場對調：${swapBrief(a)} 與 ${swapBrief(b)}`;
 }
