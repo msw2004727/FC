@@ -40,8 +40,11 @@ function loadHandler(overrides = {}) {
   const constants = [
     extractConstLine(source, "LINE_LOGIN_ALLOWED_CHANNEL_IDS"),
     extractConstLine(source, "LINE_CHANNEL_VERIFY_FAIL_OPEN"),
-    extractConstLine(source, "LINE_CHANNEL_VERIFY_TRANSIENT_ERRORS"),
-  ].join("\n");
+    extractConstLine(source, "LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS"),
+  ].join("\n").replace(
+    "LINE_CHANNEL_VERIFY_FAIL_OPEN = true;",
+    overrides.failOpen === false ? "LINE_CHANNEL_VERIFY_FAIL_OPEN = false;" : "LINE_CHANNEL_VERIFY_FAIL_OPEN = true;",
+  );
   const decideSource = extractFunctionSource(source, "decideLineChannelCheck");
   const traceIdSource = extractFunctionSource(source, "getRequestTraceId");
   const traceFieldSource = extractFunctionSource(source, "buildLogTraceField");
@@ -127,7 +130,8 @@ describe("授權強化：createCustomToken channel enforce", () => {
     expect(decide({ clientId: "1234567890" })).toEqual({ decision: "reject_mismatch", reject: true });
     expect(decide({ clientId: "" })).toEqual({ decision: "reject_mismatch", reject: true });
 
-    ["timeout", "network", "parse", "http_429", "http_500", "http_503"].forEach((error) => {
+    // Opus 終審 P2：除 400／401／403 外的非 200 都算 LINE 端異常，依開關放行。
+    ["timeout", "network", "parse", "http_429", "http_500", "http_503", "http_302", "http_404", "http_405", "http_410", "http_undefined"].forEach((error) => {
       expect(decide({ clientId: "", error }, true)).toEqual({ decision: "allow_verify_error", reject: false });
       expect(decide({ clientId: "", error }, false)).toEqual({ decision: "reject_verify_error", reject: true });
     });
@@ -333,5 +337,40 @@ describe("授權強化：createCustomToken channel enforce", () => {
     expect(decisionIndex).toBeLessThan(setRoleIndex);
     expect(decisionIndex).toBeLessThan(createTokenIndex);
     expect(handlerSource).not.toContain('console.log("[createCustomToken] channel check"');
+  });
+});
+
+// Opus 終審 P2／P3 補測。
+describe("createCustomToken LINE 端異常的處理（Opus 終審）", () => {
+  test("verify 回 404（端點變動）時預設放行，不記入拒絕快取", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "", error: "http_404" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel });
+    await expect(handler(makeRequest("token-404"))).resolves.toMatchObject({ customToken: "custom-token" });
+    expect(sandbox.rememberRejectedLineAccessToken).not.toHaveBeenCalled();
+    expect(findChannelCheckLog(sandbox)).toMatchObject({ decision: "allow_verify_error", error: "http_404" });
+  });
+
+  test("關閉放行時 LINE 端異常被拒，但不記入拒絕快取（合法 token 可立即重試）", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "", error: "timeout" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, failOpen: false });
+    await expect(handler(makeRequest("token-timeout"))).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(sandbox.rememberRejectedLineAccessToken).not.toHaveBeenCalled();
+    expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
+    expect(findChannelCheckLog(sandbox)).toMatchObject({ decision: "reject_verify_error", error: "timeout" });
+  });
+
+  test("LINE 明確回 403 時拒絕並記入拒絕快取", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "", error: "http_403" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel });
+    await expect(handler(makeRequest("token-403"))).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(sandbox.rememberRejectedLineAccessToken).toHaveBeenCalledWith("fp");
+  });
+
+  test("拒絕時稽核寫入失敗仍回 unauthenticated", async () => {
+    const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "999" }));
+    const writeDedupedAuditEntry = jest.fn(async () => { throw new Error("audit down"); });
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, writeDedupedAuditEntry });
+    await expect(handler(makeRequest("token-audit"))).rejects.toMatchObject({ code: "unauthenticated", message: "LINE 驗證失敗" });
+    expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
   });
 });

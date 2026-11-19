@@ -2141,11 +2141,14 @@ const LINE_LOGIN_ALLOWED_CHANNEL_IDS = Object.freeze(["2009525300", "2009084941"
 
 // 授權強化第二步（顧問 §3.310）：LINE verify 暫時性錯誤時是否放行。true＝放行並記錄（預設）；改 false＝一律拒絕，需重部署 createCustomToken。
 const LINE_CHANNEL_VERIFY_FAIL_OPEN = true;
-const LINE_CHANNEL_VERIFY_TRANSIENT_ERRORS = Object.freeze(["timeout", "network", "parse", "http_429"]);
+// LINE 明確表示 token 無效的狀態（與 isInvalidLineAccessTokenStatus 的 400／401／403 對齊）：一律拒絕並記入拒絕快取。
+// 其餘非 200（含 3xx、404、405、410、429、5xx、逾時、網路、解析失敗）都視為 LINE 端異常，依 FAIL_OPEN 處理，避免端點變動時全站登入鎖死（Opus 終審 P2）。
+const LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS = Object.freeze(["http_400", "http_401", "http_403"]);
 
 // 依 verify 結果決定是否放行。回傳 { decision, reject }：
-// allow＝白名單內；reject_mismatch＝有 client_id 但不在白名單；reject_verify_error＝LINE 明確說 token 無效（http_4xx，429 除外）或暫時性錯誤且關閉放行；
-// allow_verify_error＝暫時性錯誤（timeout／network／parse／http_429／http_5xx）且開啟放行。
+// allow＝白名單內；reject_mismatch＝verify 成功但 client_id 不在白名單（或為空）；
+// reject_verify_error＝LINE 明確說 token 無效（400／401／403），或 LINE 端異常且關閉放行；
+// allow_verify_error＝LINE 端異常（其他非 200、逾時、網路、解析失敗）且開啟放行。
 function decideLineChannelCheck(result, failOpen = LINE_CHANNEL_VERIFY_FAIL_OPEN) {
   const clientId = String(result?.clientId || "");
   const error = String(result?.error || "");
@@ -2153,8 +2156,10 @@ function decideLineChannelCheck(result, failOpen = LINE_CHANNEL_VERIFY_FAIL_OPEN
     if (clientId && LINE_LOGIN_ALLOWED_CHANNEL_IDS.includes(clientId)) return { decision: "allow", reject: false };
     return { decision: "reject_mismatch", reject: true };
   }
-  const transient = LINE_CHANNEL_VERIFY_TRANSIENT_ERRORS.includes(error) || /^http_5\d\d$/.test(error);
-  if (transient && failOpen) return { decision: "allow_verify_error", reject: false };
+  if (error === "skipped" || LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS.includes(error)) {
+    return { decision: "reject_verify_error", reject: true };
+  }
+  if (failOpen) return { decision: "allow_verify_error", reject: false };
   return { decision: "reject_verify_error", reject: true };
 }
 
@@ -3307,7 +3312,11 @@ exports.createCustomToken = onCall(
     if (channelDecision.reject) {
       const reasonCode = channelDecision.decision === "reject_mismatch" ? "line_channel_mismatch" : "line_channel_verify_rejected";
       try {
-        rememberRejectedLineAccessToken(accessTokenFingerprint || getLineAccessTokenFingerprint(accessToken));
+        // 只在 token 確定不能用（channel 不符或 LINE 明確說無效）時記入拒絕快取；關閉放行時的 LINE 端異常不記，避免合法 token 重試被擋 60 秒（Opus 終審 P3）。
+        if (channelDecision.decision === "reject_mismatch"
+          || LINE_CHANNEL_VERIFY_INVALID_TOKEN_ERRORS.includes(String(channelCheckResult.error || ""))) {
+          rememberRejectedLineAccessToken(accessTokenFingerprint || getLineAccessTokenFingerprint(accessToken));
+        }
         await writeDedupedAuditEntry({
           action: "login_failure",
           actorRole: "user",
