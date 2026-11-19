@@ -7,8 +7,10 @@
  * → 未下架、未刪除中、未取消、未結束（結束沿用 match-host 的寬限：末場確認 3 天，管理員不受限）。
  * 公開場次不放 uid。稽核只記操作者雜湊與對象 uid 雜湊。
  *
- * cpMine 要含記分角色。讀取預算沒有單獨的 cpMine 一格，所以能塞進「主辦判斷 ≤2 ＋ 對象 staff 1」剩餘的那一次才讀；
- * 讀不進的路徑（俱樂部、非代表的共同主辦，指派另一個已存在的 staff）改走不讀的 arrayUnion／arrayRemove。
+ * cpMine 一律在交易內用 prepareMine(..., { scoreRoles }) 讀取後整份重算；記分角色空了且沒有其他索引角色就刪文件。
+ * 讀取預算：assignStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 ≤100；
+ * removeStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。
+ * 呼叫者就是對象、而且主辦判斷已經讀過那份 staff 時直接重用，省 1 讀。
  */
 import type { DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { bad, deny, notFound, pre } from './errors.js';
@@ -30,7 +32,7 @@ import {
   type GateResult,
   type HostAccess
 } from './context.js';
-import { applyMineScoreBlind, prepareMine, type ScoreRole } from './mine.js';
+import { prepareMine, type ScoreRole } from './mine.js';
 import { SCHEDULE_LIMITS } from './match-host.js';
 import { onlyKeys } from './validate.js';
 
@@ -42,8 +44,6 @@ const EXPIRES_MAX = 8_640_000_000_000;
 const SCORE_ORDER = ['scorer', 'referee'] as const;
 const ASSIGN_KEYS = ['action', 'cid', 'uid', 'roles', 'matchIds', 'expiresAt'];
 const REMOVE_KEYS = ['action', 'cid', 'uid', 'roles'];
-/** 契約：主辦判斷 ≤2，再加對象 staff 1。cpMine 只能占用這 3 次裡還沒用到的 1 次。 */
-const STAFF_READ_BUDGET = 3;
 
 export interface AssignedShape {
   roles: readonly string[];
@@ -181,15 +181,10 @@ async function openHost(
   return { comp, access };
 }
 
+/** 呼叫者就是對象、而且主辦判斷已經讀過這份 staff 時直接重用，省 1 讀。 */
 function targetStaff(deps: CpDeps, tx: Transaction, access: HostAccess, cid: string, uid: string, callerUid: string) {
   if (access.callerStaff && uid === callerUid) return Promise.resolve(access.callerStaff);
   return readDoc(deps, tx, deps.db.doc(`competitions/${cid}/staff/${uid}`));
-}
-
-/** 主辦判斷與對象 staff 讀完之後，還剩一格才讀 cpMine。 */
-function mineReadFits(access: HostAccess, reusedStaff: boolean): boolean {
-  const used = access.reads + (reusedStaff ? 0 : 1);
-  return used + 1 <= STAFF_READ_BUDGET;
 }
 
 async function readMatches(deps: CpDeps, tx: Transaction, cid: string, matchIds: readonly string[]) {
@@ -203,41 +198,6 @@ async function readMatches(deps: CpDeps, tx: Transaction, cid: string, matchIds:
   return snaps;
 }
 
-interface MineSync {
-  write: (() => void) | null;
-  /** 交易外補 arrayUnion 的角色；不讀。 */
-  pendingAdd: ScoreRole[];
-}
-
-async function syncMine(
-  deps: CpDeps,
-  tx: Transaction,
-  fits: boolean,
-  uid: string,
-  cid: string,
-  comp: CompDoc,
-  prevScore: readonly string[],
-  nextScore: readonly ScoreRole[]
-): Promise<MineSync> {
-  if (fits) {
-    const write = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: nextScore });
-    return { write, pendingAdd: [] };
-  }
-  return {
-    write: null,
-    pendingAdd: applyMineScoreBlind(tx, deps, uid, cid, comp, prevScore, nextScore)
-  };
-}
-
-async function finishMine(deps: CpDeps, uid: string, cid: string, pending: readonly ScoreRole[]): Promise<void> {
-  if (pending.length === 0) return;
-  const [first, ...rest] = pending;
-  await deps.db.doc(`cpMine/${uid}/items/${cid}`).set({
-    roles: FieldValue.arrayUnion(first, ...rest),
-    updatedAt: FieldValue.serverTimestamp()
-  }, { merge: true });
-}
-
 export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ASSIGN_KEYS);
   const cid = requireId(input.cid, CID_RE, 'cid');
@@ -247,20 +207,18 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
   const matchIds = matchIdsInput(input.matchIds);
   const givenExp = expiresGiven(input.expiresAt, nowMs);
 
-  let pending: ScoreRole[] = [];
-  const result = await deps.db.runTransaction(async tx => {
+  return deps.db.runTransaction(async tx => {
     const { comp, access } = await openHost(deps, tx, caller, gate, cid);
     const exp = resolveExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs);
     const staffSnap = await targetStaff(deps, tx, access, cid, uid, caller.uid);
-    const reused = staffSnap === access.callerStaff;
     if (uid !== caller.uid && !staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
     const snaps = await readMatches(deps, tx, cid, matchIds);
     if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
 
     const existing = stringList(staffSnap, 'roles');
-    const prevScore = canonScore(existing);
     const roles = staffRolesAfterAssign(existing, scoreRoles);
-    const mine = await syncMine(deps, tx, mineReadFits(access, reused), uid, cid, comp, prevScore, scoreRoles);
+    // 讀在所有寫入之前。整份重算，空了就刪。
+    const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles });
 
     const now = FieldValue.serverTimestamp();
     const ref = deps.db.doc(`competitions/${cid}/staff/${uid}`);
@@ -271,17 +229,14 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
       updatedAt: now,
       ...(staffSnap.exists ? {} : { createdAt: now })
     }, { merge: true });
-    mine.write?.();
+    writeMine();
     writeAudit(deps, tx, cid, caller, 'assignStaff', {
       target: actorHash(cid, uid),
       roles: scoreRoles,
       matchCount: matchIds.length
     });
-    pending = mine.pendingAdd;
     return { roles, matchCount: matchIds.length, expiresAt: exp };
   });
-  await finishMine(deps, uid, cid, pending);
-  return result;
 }
 
 export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
@@ -290,11 +245,9 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
   const uid = requireUid(input.uid);
   const requested = removeRolesInput(input.roles);
 
-  let pending: ScoreRole[] = [];
-  const result = await deps.db.runTransaction(async tx => {
+  return deps.db.runTransaction(async tx => {
     const { comp, access } = await openHost(deps, tx, caller, gate, cid);
     const staffSnap = await targetStaff(deps, tx, access, cid, uid, caller.uid);
-    const reused = staffSnap === access.callerStaff;
     if (!staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
     const current = stringList(staffSnap, 'roles');
     const decision = decideRemoval(current, requested, access.primary);
@@ -303,10 +256,7 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
       throw pre(decision.reason);
     }
     const prevMatches = stringList(staffSnap, 'matchIds');
-    const prevScore = canonScore(current);
-    const mine = await syncMine(
-      deps, tx, mineReadFits(access, reused), uid, cid, comp, prevScore, decision.scoreRoles
-    );
+    const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: decision.scoreRoles });
 
     const ref = deps.db.doc(`competitions/${cid}/staff/${uid}`);
     const now = FieldValue.serverTimestamp();
@@ -319,18 +269,15 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
         updatedAt: now
       }, { merge: true });
     }
-    mine.write?.();
+    writeMine();
     const matchCount = decision.clearMatches ? 0 : prevMatches.length;
     writeAudit(deps, tx, cid, caller, 'removeStaff', {
       target: actorHash(cid, uid),
       roles: requested,
       matchCount
     });
-    pending = mine.pendingAdd;
     return { roles: decision.roles, deleted: decision.roles.length === 0, matchCount };
   });
-  await finishMine(deps, uid, cid, pending);
-  return result;
 }
 
 function requireUid(value: unknown): string {

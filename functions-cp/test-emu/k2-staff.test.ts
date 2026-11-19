@@ -12,10 +12,10 @@ import { adminDb, assertFails, assertSucceeds, clientDb, closeClients } from '..
 import { DAY, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
 
 const MT = 'mt_' + 'a'.repeat(20);
-/** 契約上限：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋staff 1＋場次 n */
-const assignBudget = (n: number) => 2 + 1 + 2 + 1 + n;
-/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋staff 1 */
-const REMOVE_BUDGET = 2 + 1 + 2 + 1;
+/** 契約上限：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 n */
+const assignBudget = (n: number) => 2 + 1 + 2 + 1 + 1 + n;
+/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1 */
+const REMOVE_BUDGET = 2 + 1 + 2 + 1 + 1;
 
 function matchBody(mtId: string, dvId: string) {
   return {
@@ -181,7 +181,7 @@ describe('K2 assignStaff／removeStaff', () => {
     expect((await db.doc(`competitions/${cid}/staff/tester2`).get()).exists).toBe(false);
   });
 
-  it('ReadMeter：自己一場 ≤ 契約；共同主辦指派別人用滿主辦判斷＋staff；移除純記分員用滿', async () => {
+  it('ReadMeter：個人主辦指派自己、共同主辦指派別人、移除純記分員', async () => {
     const self = new ReadMeter();
     await ok(assign(cid, {}, TESTER, makeDeps(0, self)));
     expect(self.reads).toBe(6);
@@ -223,5 +223,44 @@ describe('K2 assignStaff／removeStaff', () => {
     expect(rm.reads).toBeLessThanOrEqual(REMOVE_BUDGET);
     expect((await adminDb().doc(`competitions/${clubCid}/staff/tester`).get()).exists).toBe(false);
     expect((await adminDb().doc(`cpMine/tester/items/${clubCid}`).get()).exists).toBe(false);
+  });
+
+  it('俱樂部共同主辦（非代表）指派另一個已有 staff 的人：scorer、改成只有 referee、移除後刪 cpMine', async () => {
+    const created = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({
+      name: '【測試】共同主辦指派', hostType: 'club', hostTeamId: 'club_a'
+    })));
+    const clubCid = created.cid;
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: clubCid }));
+    const mtId = 'mt_' + 'e'.repeat(20);
+    await adminDb().doc(`competitions/${clubCid}/matches/${mtId}`).set(matchBody(mtId, created.dvIds[0]));
+    // tester 是目前代表。tester2 只靠 coHost 進來。tester3 已有 staff，沒有 host／報隊／球員索引。
+    await adminDb().doc(`competitions/${clubCid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [], expiresAt: null });
+    await adminDb().doc(`competitions/${clubCid}/staff/tester3`).set({ roles: [], matchIds: [], expiresAt: null });
+
+    const asScorer = new ReadMeter();
+    await ok(call(handleCpHost, TESTER2, {
+      action: 'assignStaff', cid: clubCid, uid: 'tester3', roles: ['scorer'], matchIds: [mtId]
+    }, makeDeps(0, asScorer)));
+    expect(asScorer.reads).toBe(8);
+    expect(asScorer.reads).toBeLessThanOrEqual(assignBudget(1));
+    const scored = (await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).data()!;
+    expect(scored.roles).toEqual(['scorer']);
+    expect(scored.host).toBe(false);
+
+    const asRef = new ReadMeter();
+    await ok(call(handleCpHost, TESTER2, {
+      action: 'assignStaff', cid: clubCid, uid: 'tester3', roles: ['referee'], matchIds: [mtId]
+    }, makeDeps(0, asRef)));
+    expect(asRef.reads).toBe(8);
+    expect(asRef.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).get('roles')).toEqual(['referee']);
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester3`).get()).get('roles')).toEqual(['referee']);
+
+    const rm = new ReadMeter();
+    await ok(call(handleCpHost, TESTER2, { action: 'removeStaff', cid: clubCid, uid: 'tester3' }, makeDeps(0, rm)));
+    expect(rm.reads).toBe(7);
+    expect(rm.reads).toBeLessThanOrEqual(REMOVE_BUDGET);
+    expect((await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester3`).get()).exists).toBe(false);
   });
 });
