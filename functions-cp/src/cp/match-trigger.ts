@@ -176,9 +176,9 @@ async function syncEnded(deps: CpDeps, cid: string, wasResolved: boolean, isReso
   });
 }
 
-const WATCHED = ['status', 'score', 'rev', 'kickoffAt', 'venueName', 'home', 'away', 'walkoverSide', 'matchNo', 'round'] as const;
+const WATCHED = ['status', 'score', 'penaltyScore', 'rev', 'kickoffAt', 'venueName', 'home', 'away', 'walkoverSide', 'matchNo', 'round'] as const;
 
-/** §6.4：只在這些欄位變動時處理（時鐘、其他欄位變動直接返回）。 */
+/** §6.4：只在這些欄位變動時處理（時鐘、其他欄位變動直接返回）。penaltyScore 變了要重寫摘要的 p。 */
 export function watchedChanged(before: DocumentData | null, after: DocumentData | null): boolean {
   if (!before || !after) return before !== after;
   return WATCHED.some(k => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null));

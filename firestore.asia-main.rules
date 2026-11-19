@@ -126,8 +126,8 @@ service cloud.firestore {
         && s.home >= 0 && s.home <= 99 && s.away >= 0 && s.away <= 99;
     }
     function validClockBase(cb) {
+      // 缺鍵時後面的欄位存取會出錯而拒絕，不必再 hasAll（省拒絕路徑的運算式）。
       return cb.keys().hasOnly(['startedAt', 'pausedSec', 'running', 'period'])
-        && cb.keys().hasAll(['startedAt', 'pausedSec', 'running', 'period'])
         && (cb.startedAt == null || cb.startedAt is timestamp)
         && cb.pausedSec is int && cb.pausedSec >= 0 && cb.pausedSec <= 10800
         && cb.running is bool
@@ -140,11 +140,48 @@ service cloud.firestore {
         (side == 'home' && b.score.home == a.score.home + d && b.score.away == a.score.away)
         || (side == 'away' && b.score.away == a.score.away + d && b.score.home == a.score.home));
     }
+    // PK 比分（§3.317-4）：剛好 home／away 兩鍵、整數、0～30。多鍵、非整數、越界都拒。
+    function validPenalty(s) {
+      return s is map && s.keys().hasOnly(['home', 'away'])
+        && s.home is int && s.away is int
+        && s.home >= 0 && s.home <= 30 && s.away >= 0 && s.away <= 30;
+    }
+    // side 那邊的 PK 比分 +d、另一邊不變。d 為 1（進）或 -1（作廢進了的一腳）。
+    function penaltyDelta(a, b, side, d) {
+      return validPenalty(b.penaltyScore) && (
+        (side == 'home' && b.penaltyScore.home == a.penaltyScore.home + d && b.penaltyScore.away == a.penaltyScore.away)
+        || (side == 'away' && b.penaltyScore.away == a.penaltyScore.away + d && b.penaltyScore.home == a.penaltyScore.home));
+    }
+    // pkStart：正規比分必須相等（§3.317-3①）。penaltyScore 從 null 變成 0:0，period 變成 pk。
+    function pkStartFx(a, b, ch) {
+      return ch.hasOnly(['penaltyScore', 'clockBase', 'rev', 'updatedAt'])
+        && a.status == 'live'
+        && a.penaltyScore == null
+        && b.penaltyScore == {'home': 0, 'away': 0}
+        && b.clockBase.period == 'pk'
+        && a.score.home == a.score.away;
+    }
+    // 進：該方 +1。沒進：penaltyScore 不變（變動鍵只有 rev／updatedAt）。
+    function pkFx(a, b, ch, ev) {
+      return a.status == 'live' && a.clockBase.period == 'pk' && (
+        (ev.scored == true && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt']) && penaltyDelta(a, b, ev.side, 1))
+        || (ev.scored == false && ch.hasOnly(['rev', 'updatedAt']))
+      );
+    }
 
     // ⑤ 作廢進球要扣分；作廢牌只動 rev。目標文件只 get 一次，避免拒絕路徑多讀。
+    // 沒進的 pk 不作廢扣分。進了的 pk 要改 penaltyScore，matchUpdateOk 的 hasOnly 放不進，改走 pkVoidFx。
     function voidFx(a, b, ch, t) {
       return (t.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt']) && scoreDelta(a, b, t.side, -1))
-        || (t.type == 'card' && ch.hasOnly(['rev', 'updatedAt']));
+        || (t.type == 'card' && ch.hasOnly(['rev', 'updatedAt']))
+        || (t.type == 'pk' && t.scored != true && ch.hasOnly(['rev', 'updatedAt']));
+    }
+    // 作廢進了的 pk：該方 penaltyScore −1。只在 pkUpdateOk 的 void 臂呼叫，避免一般拒絕把 penaltyDelta 算進去。
+    function pkVoidFx(cid, mt, a, b, ch, ev) {
+      let t = get(eventPath(cid, mt, ev.targetSeq)).data;
+      return t.type == 'pk' && t.scored == true
+        && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt'])
+        && penaltyDelta(a, b, t.side, -1);
     }
     // 場次 update 依事件類型的效果（a = 寫入前、b = 寫入後、ch = 變動鍵、ev = 同批事件）
     function effectOk(cid, mt, a, b, ch, ev) {
@@ -157,7 +194,7 @@ service cloud.firestore {
         && (ev.type == 'undoFinish' || a.lock.locked == false)
         && clockOk(ch, b) && (
         (ev.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt'])
-          && a.status == 'live' && scoreDelta(a, b, ev.side, 1))
+          && a.status == 'live' && a.clockBase.period != 'pk' && scoreDelta(a, b, ev.side, 1))
         || (ev.type == 'void' && a.status in ['live', 'halftime']
           && voidFx(a, b, ch, get(eventPath(cid, mt, ev.targetSeq)).data))
         || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
@@ -183,6 +220,10 @@ service cloud.firestore {
           && a.status == 'finished' && a.lock.locked == true
           && request.time < a.finishedAt + duration.value(180, 's')
           && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
+        // 沒進的 PK 不動 penaltyScore，留在這條。進球與 pkStart 改走 pkUpdateOk。
+        || (ev.type == 'pk' && ev.scored == false
+          && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status == 'live' && a.clockBase.period == 'pk')
       );
     }
     // 記分 update 主判斷：便宜的檢查先做，再讀 staff／control／賽事
@@ -199,6 +240,32 @@ service cloud.firestore {
         && existsAfter(eventPath(cid, mt, b.rev))
         && scorerOk(cid, mt)
         && effectOk(cid, mt, a, b, ch, getAfter(eventPath(cid, mt, b.rev)).data);
+    }
+    // 只有動到 penaltyScore 才進 PK 規則。一般拒絕時這條常是錯誤值，所以 allow 用三元，不在錯誤時進入 pkUpdateOk。
+    function pkGate(cid, mt) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['penaltyScore']);
+    }
+    // PK 場次 update。跟 matchUpdateOk 拆開，避免拒絕路徑把 PK 效果併進同一條超過 1000 運算式。
+    // penaltyScore 不在 matchUpdateOk 的變動鍵裡，所以只有這條能改它。
+    function pkUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      let ev = getAfter(eventPath(cid, mt, b.rev)).data;
+      return a.status in ['live', 'halftime']
+        && a.lock.locked == false
+        && b.rev is int && b.rev == a.rev + 1
+        && b.rev - a.get('resetRev', 0) <= 200
+        && b.updatedAt == request.time
+        && ev.createdAt == request.time
+        && ev.sid is string
+        && scorerOk(cid, mt)
+        && clockOk(ch, b)
+        && (
+          (ev.type == 'pkStart' && pkStartFx(a, b, ch))
+          || (ev.type == 'pk' && pkFx(a, b, ch, ev))
+          || (ev.type == 'void' && pkVoidFx(cid, mt, a, b, ch, ev))
+        );
     }
 
     // 事件內容（§6.3 第 3、4、6 點）
@@ -230,8 +297,14 @@ service cloud.firestore {
         || (ev.type == 'sub'
           && ev.keys().hasOnly(['seq', 'type', 'side', 'inPlId', 'outPlId', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.side in ['home', 'away'] && plIdOk(ev.inPlId) && plIdOk(ev.outPlId))
-        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish', 'clock']
+        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish', 'clock', 'pkStart']
           && ev.keys().hasOnly(['seq', 'type', 'matchSecond', 'createdAt', 'sid', 'op']))
+        // PK 一腳：plId 選填（pl_ 前綴）、scored 必須是布林。
+        || (ev.type == 'pk'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'scored', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away']
+          && ev.scored is bool
+          && (!('plId' in ev) || plIdOk(ev.plId)))
         || (ev.type == 'void'
           && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
           && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq)
@@ -280,14 +353,15 @@ service cloud.firestore {
         && yellowFree(cid, mt, ev.refSeq)
         && getAfter(cardLinkPath(cid, mt, ev.refSeq)).data.seq == ev.seq;
     }
-    // 作廢事件：目標必須是進球或牌、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
-    // 球隊暫停 timeout 不開作廢（目標仍只限進球或牌）。
+    // 作廢事件：目標必須是進球、牌或 pk、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
+    // 球隊暫停 timeout 不開作廢。pk 放在 goal 後面，進球作廢不會多付一次型別比較。
     // ① targetSeq 必須大於場次 resetRev（重置前的事件不能再作廢）。缺欄位視同 0（建立賽程時伺服器寫 0）。
     // 場次 get 與 eventCreateOk 同路徑，同一操作內快取，不另計存取。
     function voidTargetOk(cid, mt, ev, before) {
       let t = get(eventPath(cid, mt, ev.targetSeq)).data;
       return ev.targetSeq > before.get('resetRev', 0)
         && (t.type == 'goal'
+          || t.type == 'pk'
           || (t.type == 'card' && (t.cardType != 'yellow' || yellowFree(cid, mt, ev.targetSeq))))
         && !exists(voidPath(cid, mt, ev.targetSeq))
         && existsAfter(voidPath(cid, mt, ev.targetSeq));
@@ -435,8 +509,10 @@ service cloud.firestore {
         allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
         allow create, delete: if false;
 
-        // 記分 update（§6.3 第 4 點）
+        // 記分 update（§6.3 第 4 點）。PK 另條 allow，避免跟這條共用同一條運算式預算。
         allow update: if matchUpdateOk(cid, mt);
+        // 閘門在一般拒絕是錯誤值，&& 仍會算右式。三元只在閘門為 true 時才進入 pkUpdateOk。
+        allow update: if pkGate(cid, mt) ? pkUpdateOk(cid, mt) : false;
 
         // 公開事件：只能 create，沒有任何 update／delete 路徑
         match /timeline/{eventId} {

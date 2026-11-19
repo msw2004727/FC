@@ -22,6 +22,7 @@ import {
   type PlanResult,
   type PlannedMatch
 } from '../src/cp/schedule-plan.js';
+import { derivedPenaltyOf } from '../src/cp/match-host.js';
 import { sameEntry, summaryEntryOf, summaryShardIdOf, type SummaryEntry } from '../src/cp/summary.js';
 
 const teams = (n: number) => Array.from({ length: n }, (_, i) => ({ enId: `en${i + 1}`, name: `隊${i + 1}` }));
@@ -483,6 +484,27 @@ describe('derivedScoreOf', () => {
   });
 });
 
+describe('derivedPenaltyOf', () => {
+  it('只算 seq > resetRev、未作廢、scored 為 true 的 pk；沒進與 pkStart 不進比分，shots 仍含沒進與作廢', () => {
+    const events = [
+      { seq: 1, type: 'pk', side: 'home', scored: true },
+      { seq: 2, type: 'pkStart' },
+      { seq: 3, type: 'pk', side: 'away', scored: false },
+      { seq: 4, type: 'pk', side: 'away', scored: true },
+      { seq: 5, type: 'pk', side: 'home', scored: true },
+      { seq: 6, type: 'goal', side: 'home' },
+      { seq: 7, type: 'pk', side: 'left', scored: true },
+      { seq: 8.5, type: 'pk', side: 'home', scored: true },
+      { seq: '9', type: 'pk', side: 'away', scored: true },
+      { type: 'pk', side: 'home', scored: true }
+    ];
+    expect(derivedPenaltyOf(events, new Set([5]), 1)).toEqual({ home: 0, away: 1, shots: 4 });
+    expect(derivedPenaltyOf([], new Set(), 0)).toEqual({ home: 0, away: 0, shots: 0 });
+    expect(derivedPenaltyOf([{ seq: 2, type: 'pk', side: 'home', scored: true }], new Set(), 2))
+      .toEqual({ home: 0, away: 0, shots: 0 });
+  });
+});
+
 describe('summary', () => {
   it('summaryShardIdOf 跨午夜與 null（不改 process.env.TZ）', () => {
     expect(summaryShardIdOf(null)).toBe('tbd');
@@ -543,6 +565,33 @@ describe('summary', () => {
     expect(zeros.no).toBeNull();
     expect(zeros.v).toBeNull();
     expect(zeros.wo).toBeNull();
+    expect('p' in zeros).toBe(false);
+  });
+
+  it('summaryEntryOf：penaltyScore 為整數對時帶 p，null 與非整數省略；JSON 增量', () => {
+    const base = {
+      divisionId: 'dv1', round: 1, matchNo: 1, venueName: 'A',
+      home: { teamId: 'h', name: '主' }, away: { teamId: 'a', name: '客' },
+      score: { home: 1, away: 1 }, status: 'finished', walkoverSide: null
+    };
+    const plain = summaryEntryOf({ ...base, penaltyScore: null }, 10);
+    expect('p' in plain).toBe(false);
+    expect('p' in summaryEntryOf(base, 10)).toBe(false);
+    expect('p' in summaryEntryOf({ ...base, penaltyScore: { home: 4.5, away: 3 } }, 10)).toBe(false);
+    const pk = summaryEntryOf({ ...base, penaltyScore: { home: 4, away: 3 } }, 10);
+    expect(pk.p).toEqual([4, 3]);
+    expect(Object.keys(pk)).toEqual(['dv', 'r', 'no', 'k', 'v', 'h', 'a', 's', 'st', 'wo', 'p']);
+    const zero = summaryEntryOf({ ...base, penaltyScore: { home: 0, away: 0 } }, 10);
+    expect(zero.p).toEqual([0, 0]);
+    const wide = summaryEntryOf({ ...base, penaltyScore: { home: 10, away: 10 } }, 10);
+    const bytes = (entry: SummaryEntry) => Buffer.byteLength(JSON.stringify(entry));
+    expect(bytes(pk) - bytes(plain)).toBe(Buffer.byteLength(',"p":[4,3]'));
+    expect(bytes(zero) - bytes(plain)).toBe(10);
+    expect(bytes(wide) - bytes(plain)).toBe(12);
+    const cancelled = summaryEntryOf({
+      ...base, status: 'cancelled', cancelReason: '雨', penaltyScore: { home: 1, away: 0 }
+    }, 10);
+    expect(Object.keys(cancelled)).toEqual(['dv', 'r', 'no', 'k', 'v', 'h', 'a', 's', 'st', 'wo', 'cr', 'p']);
   });
 
   it('sameEntry 等值與不等值；空值只有兩邊都空才 true', () => {

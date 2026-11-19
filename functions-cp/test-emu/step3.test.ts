@@ -164,6 +164,53 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     expect((await ref.get()).get('score')).toEqual({ home: 3, away: 3 });
   });
 
+  it('PK 對帳：有 pk 事件時與 penaltyScore 不符拒絕；沒進與作廢不計；null 不同於 0:0；主辦登錄略過', async () => {
+    const ms = await matchesOf(c);
+    const now = new Date();
+    const finish = async (m: (typeof ms)[number], patch: Record<string, unknown>) => {
+      await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).update({
+        status: 'finished', score: { home: 1, away: 1 }, rev: 4, resetRev: 0,
+        lock: { locked: true }, finishedAt: now, ...patch
+      });
+    };
+    const m = ms[1];
+    const ref = adminDb().doc(`competitions/${c.cid}/matches/${m.id}`);
+    await ref.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: true, matchSecond: 20, createdAt: now });
+    await ref.collection('timeline').doc('e3').set({ seq: 3, type: 'pk', side: 'away', scored: false, matchSecond: 30, createdAt: now });
+    await ref.collection('timeline').doc('e4').set({ seq: 4, type: 'pk', side: 'away', scored: true, matchSecond: 40, createdAt: now });
+    await finish(m, { penaltyScore: { home: 1, away: 0 } });
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: m.id, expectedRev: 4 }, later()), 'PENALTY_MISMATCH');
+    await ref.collection('voids').doc('4').set({ seq: 5, createdAt: now });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: m.id, expectedRev: 4 });
+    expect((await ref.get()).get('status')).toBe('confirmed');
+
+    const miss = ms[2];
+    const missRef = adminDb().doc(`competitions/${c.cid}/matches/${miss.id}`);
+    await missRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: false, matchSecond: 10, createdAt: now });
+    await finish(miss, { penaltyScore: null });
+    await fails(call(handleCpHost, ADMIN, { action: 'confirmMatchResult', cid: c.cid, mtId: miss.id, expectedRev: 4 }, later()), 'PENALTY_MISMATCH');
+    await missRef.update({ penaltyScore: { home: 0, away: 0 } });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: miss.id, expectedRev: 4 });
+
+    const old = ms[3];
+    const oldRef = adminDb().doc(`competitions/${c.cid}/matches/${old.id}`);
+    await oldRef.collection('timeline').doc('e1').set({ seq: 1, type: 'pk', side: 'home', scored: true, matchSecond: 10, createdAt: now });
+    await oldRef.collection('timeline').doc('e6').set({ seq: 6, type: 'pk', side: 'away', scored: true, matchSecond: 20, createdAt: now });
+    await finish(old, { rev: 6, resetRev: 5, penaltyScore: { home: 0, away: 1 } });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: old.id, expectedRev: 6 });
+
+    const host = ms[4];
+    const hostRef = adminDb().doc(`competitions/${c.cid}/matches/${host.id}`);
+    await hostRef.collection('timeline').doc('e2').set({ seq: 2, type: 'pk', side: 'home', scored: true, matchSecond: 10, createdAt: now });
+    await finish(host, { penaltyScore: { home: 0, away: 0 }, resultSource: 'host' });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: host.id, expectedRev: 4 });
+    expect((await hostRef.get()).get('status')).toBe('confirmed');
+
+    const none = ms[5];
+    await finish(none, { penaltyScore: { home: 9, away: 9 } });
+    await act(c, ADMIN, { action: 'confirmMatchResult', mtId: none.id, expectedRev: 4 });
+  });
+
   it('確認對帳：timeline、voids 各 200 筆可確認；第 201 筆 TIMELINE_TOO_LONG', async () => {
     const ms = await matchesOf(c);
     const now = new Date();
@@ -234,9 +281,11 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const { m } = pairing(c, ms, '甲', '乙', 0, 0);
     const forfeitSide = m.home.teamId === c.enIdOf['乙'] ? 'home' : 'away';
     await fails(call(handleCpHost, ADMIN, { action: 'setWalkover', cid: c.cid, mtId: m.id, expectedRev: 0, forfeitSide }, later()), 'FIELD_REQUIRED');
+    await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).update({ penaltyScore: { home: 4, away: 3 } });
     await act(c, ADMIN, { action: 'setWalkover', mtId: m.id, expectedRev: 0, forfeitSide, reason: '乙隊人數不足' });
     const doc = (await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).get()).data()!;
     expect(doc.status).toBe('walkover');
+    expect(doc.penaltyScore).toBeNull();
     expect(doc.walkoverSide).toBe(forfeitSide);
     expect(JSON.stringify(doc)).not.toContain('人數不足');
     const by = Object.fromEntries((await standingOf(c))!.rows.map(x => [c.nameOf[x.teamId], x]));
@@ -249,11 +298,12 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const ms = await matchesOf(c);
     const { m } = pairing(c, ms, '甲', '乙', 0, 0);
     await adminDb().doc(`competitions/${c.cid}/matches/${m.id}/control/scorer`).set({ uid: 'tester', takenAt: new Date() });
+    await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).update({ penaltyScore: { home: 4, away: 3 } });
     await fails(call(handleCpHost, ADMIN, { action: 'resetMatch', cid: c.cid, mtId: m.id, expectedRev: 1 }, later()), 'FIELD_REQUIRED');
     const r = await act(c, ADMIN, { action: 'resetMatch', mtId: m.id, expectedRev: 1, reason: '比分登錄錯誤' });
     expect(r).toMatchObject({ status: 'scheduled', rev: 2 });
     const doc = (await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).get()).data()!;
-    expect(doc).toMatchObject({ score: { home: 0, away: 0 }, rev: 2, resetRev: 2, lock: { locked: false }, result: null, finishedAt: null });
+    expect(doc).toMatchObject({ score: { home: 0, away: 0 }, penaltyScore: null, rev: 2, resetRev: 2, lock: { locked: false }, result: null, finishedAt: null });
     // resetMatch 一定把 resetRev 寫成新 rev。規則「缺值當 0」只適用於伺服器建立賽程時寫 0 的資料。
     expect(doc.resetRev).toBe(doc.rev);
     expect(doc.clockBase).toEqual({ startedAt: null, pausedSec: 0, running: false, period: 'pre' });
@@ -358,6 +408,27 @@ describe('觸發器：增量＝全量、冪等、亂序', () => {
     const before = (await adminDb().doc(`competitions/${c.cid}/matches/${m.id}`).get()).data()!;
     const r = await handleMatchWritten(later(), c.cid, m.id, before, { ...before, clockBase: { ...before.clockBase, pausedSec: 30 } });
     expect(r).toEqual({ summary: false, standing: false, ended: null });
+  });
+
+  it('只改 penaltyScore 會重寫摘要 p；清回 null 後 p 消失', async () => {
+    const c = await setupComp(TEAMS4);
+    await generate(c);
+    const m = (await matchesOf(c))[0];
+    const ref = adminDb().doc(`competitions/${c.cid}/matches/${m.id}`);
+    const before = (await ref.get()).data()!;
+    const entryOf = async () => {
+      const shards = await adminDb().collection(`competitions/${c.cid}/summary`).get();
+      return shards.docs.map(d => d.get('m')?.[m.id]).find(Boolean) as { p?: [number, number] };
+    };
+    expect((await entryOf()).p).toBeUndefined();
+    await ref.update({ penaltyScore: { home: 4, away: 3 } });
+    const wrote = await handleMatchWritten(later(), c.cid, m.id, before, { ...before, penaltyScore: { home: 4, away: 3 } });
+    expect(wrote.summary).toBe(true);
+    expect((await entryOf()).p).toEqual([4, 3]);
+    const withPk = (await ref.get()).data()!;
+    await ref.update({ penaltyScore: null });
+    await handleMatchWritten(later(), c.cid, m.id, withPk, { ...withPk, penaltyScore: null });
+    expect((await entryOf()).p).toBeUndefined();
   });
 });
 

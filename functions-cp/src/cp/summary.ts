@@ -16,6 +16,8 @@ export interface SummaryEntry {
   wo: string | null;
   /** 取消原因（只有 st 為 cancelled 時有值；G1 Opus 終審 P2：讓前端不必為了原因另讀場次） */
   cr?: string | null;
+  /** PK 比分 [home, away]。penaltyScore 為 null 或不是整數對時省略（§3.317-6）。 */
+  p?: [number, number];
 }
 
 const OFFSET_RE = /^([+-])(\d{2}):(\d{2})$/;
@@ -62,10 +64,20 @@ function scoreNum(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) ? value : 0;
 }
 
+/** 兩邊都是整數才收。null、缺欄、非整數整筆省略，避免把「沒踢 PK」寫成 0:0。 */
+function penaltyPair(raw: unknown): [number, number] | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.home !== 'number' || !Number.isInteger(o.home)) return null;
+  if (typeof o.away !== 'number' || !Number.isInteger(o.away)) return null;
+  return [o.home, o.away];
+}
+
 export function summaryEntryOf(match: Record<string, unknown>, kickoffMs: number | null): SummaryEntry {
   const score = match.score && typeof match.score === 'object' ? match.score as Record<string, unknown> : {};
   const round = typeof match.round === 'number' && Number.isFinite(match.round) ? match.round : 0;
   const no = typeof match.matchNo === 'number' && Number.isFinite(match.matchNo) ? match.matchNo : null;
+  const penalty = penaltyPair(match.penaltyScore);
   return {
     dv: typeof match.divisionId === 'string' ? match.divisionId : '',
     r: round,
@@ -77,7 +89,8 @@ export function summaryEntryOf(match: Record<string, unknown>, kickoffMs: number
     s: [scoreNum(score.home), scoreNum(score.away)],
     st: typeof match.status === 'string' ? match.status : '',
     wo: typeof match.walkoverSide === 'string' ? match.walkoverSide : null,
-    ...(match.status === 'cancelled' && typeof match.cancelReason === 'string' ? { cr: match.cancelReason.slice(0, 100) } : {})
+    ...(match.status === 'cancelled' && typeof match.cancelReason === 'string' ? { cr: match.cancelReason.slice(0, 100) } : {}),
+    ...(penalty ? { p: penalty } : {})
   };
 }
 

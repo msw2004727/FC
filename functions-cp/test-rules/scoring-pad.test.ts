@@ -15,7 +15,7 @@ import path from 'node:path';
 import { describe, it, afterAll, afterEach, expect } from 'vitest';
 import { doc, writeBatch, serverTimestamp, setDoc, Timestamp as CTimestamp, type Firestore } from 'firebase/firestore';
 import { loadRules, clearDb, clientDb, closeClients, ago, RULES_FILE } from './_harness.js';
-import { seedBase, patchMatch, SID_S1, SID_S2, OP_OK } from './_fixtures.js';
+import { seedBase, patchMatch, SID_S1, SID_S2, OP_OK, Timestamp } from './_fixtures.js';
 
 export const PAD_FLOOR = 25;
 // 基準（8cb7aeaaa，2026-11-19 實測）：批次類 60 全過、70 起進球／作廢／半場／終場／自撤回預算耗盡（黃牌 75 才耗盡）；
@@ -44,7 +44,11 @@ function padGroups(prefix: string, n: number, broken = false): { defs: string[];
 export function paddedScoringRules(n: number, src = fs.readFileSync(RULES_FILE, 'utf8'), broken = false): string {
   let out = src;
   const allDefs: string[] = [];
-  for (const [fn, prefix] of [['matchUpdateOk', 'cpPadM'], ['takeoverOk', 'cpPadT']] as const) {
+  // 故意不成立時也要插進 pkUpdateOk：PK 開始／PK 進改 penaltyScore，matchUpdateOk 的 hasOnly 會先失敗，
+  // 真正放行的是 pkUpdateOk。量測等級仍只墊 matchUpdateOk／takeoverOk，避免 PK 路徑被墊兩次。
+  const targets: [string, string][] = [['matchUpdateOk', 'cpPadM'], ['takeoverOk', 'cpPadT']];
+  if (broken) targets.push(['pkUpdateOk', 'cpPadP']);
+  for (const [fn, prefix] of targets) {
     const re = new RegExp(`(function ${fn}\\(cid, mt\\) \\{[\\s\\S]*?return )`);
     if (!re.test(out)) throw new Error(`找不到 ${fn} 插入點`);
     const { defs, call } = padGroups(prefix, n, broken);
@@ -114,6 +118,45 @@ const PROBES: [string, () => Promise<unknown>][] = [
     clockBase: { startedAt: CTimestamp.now(), pausedSec: 1800, running: false, period: 'h1' }
   })],
   ['球隊暫停（不停錶）', () => scoreBatch(as('s1'), { type: 'timeout', side: 'away' })],
+  ['PK 開始', async () => {
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    return scoreBatch(as('s1'), { type: 'pkStart' }, {
+      penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'pk' }
+    });
+  }],
+  ['PK 進', async () => {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: Timestamp.now(), pausedSec: 2700, running: false, period: 'pk' }
+    });
+    return scoreBatch(as('s1'), { type: 'pk', side: 'home', plId: 'pl_1', scored: true }, { penaltyScore: { home: 1, away: 0 } });
+  }],
+  ['PK 沒進', async () => {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: Timestamp.now(), pausedSec: 2700, running: false, period: 'pk' }
+    });
+    return scoreBatch(as('s1'), { type: 'pk', side: 'away', scored: false });
+  }],
+  ['作廢 PK 進', async () => {
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    await scoreBatch(as('s1'), { type: 'pkStart' }, {
+      penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'pk' }
+    });
+    await scoreBatch(as('s1'), { type: 'pk', side: 'home', plId: 'pl_1', scored: true }, { penaltyScore: { home: 1, away: 0 } }, { fromRev: 4 });
+    return scoreBatch(as('s1'), { type: 'void', targetSeq: 5 }, { penaltyScore: { home: 0, away: 0 } }, { fromRev: 5, withVoid: 5 });
+  }],
+  ['作廢 PK 沒進', async () => {
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    await scoreBatch(as('s1'), { type: 'pkStart' }, {
+      penaltyScore: { home: 0, away: 0 },
+      clockBase: { startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period: 'pk' }
+    });
+    await scoreBatch(as('s1'), { type: 'pk', side: 'away', scored: false }, {}, { fromRev: 4 });
+    return scoreBatch(as('s1'), { type: 'void', targetSeq: 5 }, {}, { fromRev: 5, withVoid: 5 });
+  }],
   ['帶 sid 接手', () => setDoc(doc(as('s2'), 'competitions/cp_pub/matches/mt_1/control/scorer'), { uid: 's2', takenAt: serverTimestamp(), sid: SID_S2 })]
 ];
 

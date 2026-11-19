@@ -8,7 +8,7 @@ import {
   Timestamp as CTimestamp, type Firestore
 } from 'firebase/firestore';
 import { loadRules, clearDb, clientDb, closeClients, assertFails, assertSucceeds, adminDb, ago, later } from './_harness.js';
-import { seedBase, setCurrentScorer, patchMatch, SID_S1, SID_S2, OP_OK } from './_fixtures.js';
+import { seedBase, setCurrentScorer, patchMatch, SID_S1, SID_S2, OP_OK, Timestamp } from './_fixtures.js';
 
 type Ev = Record<string, unknown>;
 interface ScoreOpts {
@@ -50,6 +50,14 @@ const secondYellow = (extra: Partial<ScoreOpts> = {}): ScoreOpts => ({
   ...extra
 });
 const goal = (side: 'home' | 'away', extra: Ev = {}): Ev => ({ type: 'goal', side, plId: 'pl_1', goalKind: 'normal', ...extra });
+/** 客戶端批次裡的時鐘（firebase/firestore Timestamp）。 */
+const pkClock = (period: 'pk' | 'h1' | 'h2' | 'ht' = 'pk') => ({
+  startedAt: CTimestamp.now(), pausedSec: 2700, running: false, period
+});
+/** Admin SDK patchMatch 用的時鐘。不可把客戶端 Timestamp 送進 admin set。 */
+const adminClock = (period: 'pk' | 'h1' | 'h2' | 'ht' = 'pk') => ({
+  startedAt: Timestamp.now(), pausedSec: 2700, running: false, period
+});
 const as = (uid: string, role?: string) => clientDb({ uid, ...(role ? { role } : {}) });
 /** 合法第二黃同批再寫一筆 cardLinks。id 不合第二黃的 refSeq 時，用來隔離 cardLinks 子條件。 */
 function extraLink(id: string) {
@@ -186,6 +194,43 @@ describe('通過案例（【P-1】既有記分事件都帶 sid／op）', () => {
       { uid: 's1', takenAt: serverTimestamp(), sid: next }));
     await assertFails(scoreBatch(as('s1'), { ev: goal('home', { sid: SID_S1 }), patch: { score: { home: 2, away: 0 } } }));
     await assertSucceeds(scoreBatch(as('s1'), { ev: goal('home', { sid: next }), patch: { score: { home: 2, away: 0 } } }));
+  });
+  it('【P-10】PK：比分相同可開始、進、沒進、作廢進的與沒進的、撤回終場後補記', async () => {
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      ev: { type: 'pkStart' },
+      patch: { penaltyScore: { home: 0, away: 0 }, clockBase: pkClock() }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4, ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 5, ev: { type: 'pk', side: 'away', scored: false }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'void', targetSeq: 5 }, withVoid: true,
+      patch: { penaltyScore: { home: 0, away: 0 } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 7, ev: { type: 'void', targetSeq: 6 }, withVoid: true
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 8, ev: { type: 'pk', side: 'away', plId: 'pl_2', scored: true },
+      patch: { penaltyScore: { home: 0, away: 1 } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 9, ev: { type: 'fulltime' },
+      patch: { status: 'finished', lock: { locked: true }, finishedAt: serverTimestamp() }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 10, ev: { type: 'undoFinish' },
+      patch: { status: 'live', lock: { locked: false }, finishedAt: null }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 11, ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 1 } }
+    }));
   });
   it('內部賽事：管理員（claims role）與測試者被指派即可記分', async () => {
     await setCurrentScorer('cp_int', 'admin');
@@ -647,6 +692,101 @@ it('【R-32】場次進行中但 lock.locked 為 true：進球被拒（真正測
     await assertFails(scoreBatch(as('s1'), { ev: goal('home', { plId: '王小明0912' }), patch: { score: { home: 2, away: 0 } } }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'card', side: 'home', plId: 'x', cardType: 'red' } }));
     await assertFails(scoreBatch(as('s1'), { ev: { type: 'sub', side: 'home', inPlId: 'pl_3', outPlId: 'bad id' } }));
+  });
+  it('【R-58】比分不同不能 pkStart；已有 penaltyScore 不能再 pkStart', async () => {
+    await patchMatch('cp_pub', { penaltyScore: null });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pkStart' },
+      patch: { penaltyScore: { home: 0, away: 0 }, clockBase: pkClock() }
+    }));
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: { home: 1, away: 0 }, clockBase: adminClock() });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pkStart' },
+      patch: { penaltyScore: { home: 0, away: 0 }, clockBase: pkClock() }
+    }));
+  });
+  it('【R-59】未 pkStart 就 pk、period 不是 pk', async () => {
+    await patchMatch('cp_pub', { penaltyScore: null });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: false } }));
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 }, clockBase: adminClock('h2')
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', scored: true }, patch: { penaltyScore: { home: 1, away: 0 } }
+    }));
+  });
+  it('【R-60】PK 期間正規進球、pk 改正規比分、非 pk 事件改 penaltyScore', async () => {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 }, clockBase: adminClock()
+    });
+    await assertFails(scoreBatch(as('s1'), { ev: goal('home'), patch: { score: { home: 2, away: 1 } } }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 }, score: { home: 2, away: 1 } }
+    }));
+    await patchMatch('cp_pub', {
+      status: 'live', score: { home: 1, away: 0 }, penaltyScore: null,
+      clockBase: { startedAt: Timestamp.now(), pausedSec: 0, running: true, period: 'h1' }
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: goal('home'), patch: { score: { home: 2, away: 0 }, penaltyScore: { home: 1, away: 0 } }
+    }));
+  });
+  it('【R-61】penaltyScore +2、加錯邊、超上界、多鍵', async () => {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 }, clockBase: adminClock()
+    });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', scored: true }, patch: { penaltyScore: { home: 2, away: 0 } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', scored: true }, patch: { penaltyScore: { home: 0, away: 1 } }
+    }));
+    await patchMatch('cp_pub', { penaltyScore: { home: 30, away: 0 } });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'home', scored: true }, patch: { penaltyScore: { home: 31, away: 0 } }
+    }));
+    await patchMatch('cp_pub', { penaltyScore: { home: 0, away: 0 } });
+    await assertFails(scoreBatch(as('s1'), {
+      ev: { type: 'pk', side: 'away', scored: true },
+      patch: { penaltyScore: { home: 0, away: 1, extra: 1 } }
+    }));
+  });
+  it('【R-62】pk 的 scored 不是布林', async () => {
+    await patchMatch('cp_pub', {
+      score: { home: 1, away: 1 }, penaltyScore: { home: 0, away: 0 }, clockBase: adminClock()
+    });
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: 1 } }));
+    await assertFails(scoreBatch(as('s1'), { ev: { type: 'pk', side: 'home', scored: 'yes' } }));
+  });
+  it('【R-63】作廢進了的 pk 扣錯邊、沒扣；作廢沒進卻改 penaltyScore', async () => {
+    await patchMatch('cp_pub', { score: { home: 1, away: 1 }, penaltyScore: null });
+    await assertSucceeds(scoreBatch(as('s1'), {
+      ev: { type: 'pkStart' },
+      patch: { penaltyScore: { home: 0, away: 0 }, clockBase: pkClock() }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 4, ev: { type: 'pk', side: 'home', plId: 'pl_1', scored: true },
+      patch: { penaltyScore: { home: 1, away: 0 } }
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 5, ev: { type: 'pk', side: 'away', plId: 'pl_2', scored: true },
+      patch: { penaltyScore: { home: 1, away: 1 } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'void', targetSeq: 5 }, withVoid: true,
+      patch: { penaltyScore: { home: 1, away: 0 } }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'void', targetSeq: 5 }, withVoid: true
+    }));
+    await assertSucceeds(scoreBatch(as('s1'), {
+      fromRev: 6, ev: { type: 'pk', side: 'home', scored: false }
+    }));
+    await assertFails(scoreBatch(as('s1'), {
+      fromRev: 7, ev: { type: 'void', targetSeq: 7 }, withVoid: true,
+      patch: { penaltyScore: { home: 0, away: 1 } }
+    }));
   });
   it('【R-38】score 超出範圍（100）被拒', async () => {
     await patchMatch('cp_pub', { score: { home: 99, away: 0 } });

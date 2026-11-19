@@ -720,6 +720,41 @@ function resultOf(score: { home: number; away: number }): MatchResult {
   return r;
 }
 
+/**
+ * 以 pk 事件重算 PK 比分。只算 seq 為整數且大於 resetRev、未作廢、scored === true 的 pk。
+ * shots 含沒進與已作廢的 pk，用來判斷「有沒有 pk 事件」。pkStart 不算。
+ * side 只認 home／away。
+ */
+export function derivedPenaltyOf(
+  events: Array<{ seq?: unknown; type?: unknown; side?: unknown; scored?: unknown }>,
+  voidedSeqs: Set<number>,
+  resetRev: number
+): { home: number; away: number; shots: number } {
+  let home = 0;
+  let away = 0;
+  let shots = 0;
+  for (const ev of events) {
+    if (ev == null || typeof ev !== 'object') continue;
+    const seq = ev.seq;
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || !(seq > resetRev)) continue;
+    if (ev.type !== 'pk') continue;
+    shots += 1;
+    if (voidedSeqs.has(seq) || ev.scored !== true) continue;
+    if (ev.side === 'home') home += 1;
+    else if (ev.side === 'away') away += 1;
+  }
+  return { home, away, shots };
+}
+
+/** null 與 {0,0} 不同。形狀不對視同沒有 PK 比分，讓對帳與事件重算不符。 */
+function storedPenalty(raw: unknown): { home: number; away: number } | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.home !== 'number' || !Number.isInteger(o.home)) return null;
+  if (typeof o.away !== 'number' || !Number.isInteger(o.away)) return null;
+  return { home: o.home, away: o.away };
+}
+
 export async function recordResult(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'mtId', 'expectedRev', 'score', 'confirm']);
   const { cid, mtId, expectedRev } = matchIds(input);
@@ -768,11 +803,21 @@ export async function confirmMatchResult(deps: CpDeps, caller: Caller, gate: Gat
     const vd = await readQuery(deps, tx, m.ref.collection('voids').where('seq', '>', m.resetRev).limit(TIMELINE_MAX + 1));
     if (tl.size > TIMELINE_MAX || vd.size > TIMELINE_MAX) throw pre('TIMELINE_TOO_LONG');
     const voided = new Set<number>(vd.docs.map(d => Number(d.id)).filter(n => Number.isInteger(n)));
-    const derived = derivedScoreOf(tl.docs.map(d => d.data()), voided, m.resetRev);
+    const events = tl.docs.map(d => d.data());
+    const derived = derivedScoreOf(events, voided, m.resetRev);
     const score = { home: Number(m.snap.get('score.home')) || 0, away: Number(m.snap.get('score.away')) || 0 };
     if (derived.goals > 0 && m.snap.get('resultSource') !== 'host'
       && (derived.home !== score.home || derived.away !== score.away)) {
       throw pre('SCORE_MISMATCH', { home: derived.home, away: derived.away });
+    }
+    // PK 對帳與正規比分同一批 timeline／voids。3②已在 Rules，這裡不另擋 pkStart 之後的 goal。
+    // 沒有 pk 事件就不比（pkStart 本身不是 pk）。resultSource=host 時以主辦裁定為準。
+    const derivedPk = derivedPenaltyOf(events, voided, m.resetRev);
+    if (derivedPk.shots > 0 && m.snap.get('resultSource') !== 'host') {
+      const stored = storedPenalty(m.snap.get('penaltyScore'));
+      if (stored == null || stored.home !== derivedPk.home || stored.away !== derivedPk.away) {
+        throw pre('PENALTY_MISMATCH', { home: derivedPk.home, away: derivedPk.away });
+      }
     }
     const now = FieldValue.serverTimestamp();
     tx.update(m.ref, {
@@ -800,7 +845,7 @@ export async function setWalkover(deps: CpDeps, caller: Caller, gate: GateResult
     const score = { home: winSide === 'home' ? wo.scoreFor : wo.scoreAgainst, away: winSide === 'away' ? wo.scoreFor : wo.scoreAgainst };
     const now = FieldValue.serverTimestamp();
     tx.update(m.ref, {
-      status: 'walkover', walkoverSide: forfeitSide, score, lock: { locked: true },
+      status: 'walkover', walkoverSide: forfeitSide, score, penaltyScore: null, lock: { locked: true },
       ...(m.snap.get('finishedAt') ? {} : { finishedAt: now }),
       confirmedAt: now, resultSource: 'host',
       result: {
