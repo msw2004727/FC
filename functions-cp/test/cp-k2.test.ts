@@ -1,10 +1,11 @@
 /**
- * K2 指派純函式（不需模擬器）：角色合併、移除保護、到期、Rules assignedData 同一條件。
+ * K2 指派純函式（不需模擬器）：角色合併、移除保護、記分守門、到期、Rules assignedData 同一條件。
  */
 import { describe, expect, it } from 'vitest';
 import { CpError } from '../src/cp/errors.js';
 import {
   SCORE_ASSIGN_MS,
+  assertMayTouchStaff,
   assignedDataOk,
   decideRemoval,
   resolveExpiresAt,
@@ -48,6 +49,29 @@ describe('removeStaff 保護', () => {
     expect(decideRemoval(['coHost', 'scorer', 'referee'], ['scorer'], false)).toEqual({
       ok: true, roles: ['coHost', 'referee'], scoreRoles: ['referee'], clearMatches: false
     });
+  });
+});
+
+describe('記分指派守門', () => {
+  it('四種組合', () => {
+    // 1. 不是自己、不是主辦、對象有 host 或 coHost → 拒絕
+    expect(reasonOf(() => assertMayTouchStaff(['host'], false, false))).toBe('FORBIDDEN');
+    expect(reasonOf(() => assertMayTouchStaff(['host', 'scorer'], false, false))).toBe('FORBIDDEN');
+    expect(reasonOf(() => assertMayTouchStaff(['coHost'], false, false))).toBe('FORBIDDEN');
+    expect(reasonOf(() => assertMayTouchStaff(['coHost', 'referee'], false, false))).toBe('FORBIDDEN');
+    // 2. 是自己、不是主辦（共同主辦改自己）→ 允許
+    expect(reasonOf(() => assertMayTouchStaff(['coHost', 'scorer'], true, false))).toBe('NO_ERROR');
+    expect(reasonOf(() => assertMayTouchStaff(['host'], true, false))).toBe('NO_ERROR');
+    // 3. 不是自己、是主辦（個人主辦、俱樂部代表、管理員的 primary）→ 允許
+    expect(reasonOf(() => assertMayTouchStaff(['host', 'scorer'], false, true))).toBe('NO_ERROR');
+    expect(reasonOf(() => assertMayTouchStaff(['coHost'], false, true))).toBe('NO_ERROR');
+    // 4. 是自己、又是主辦 → 允許
+    expect(reasonOf(() => assertMayTouchStaff(['host', 'scorer'], true, true))).toBe('NO_ERROR');
+  });
+  it('對象只有記分角色時，共同主辦仍可改', () => {
+    expect(reasonOf(() => assertMayTouchStaff(['scorer'], false, false))).toBe('NO_ERROR');
+    expect(reasonOf(() => assertMayTouchStaff(['referee'], false, false))).toBe('NO_ERROR');
+    expect(reasonOf(() => assertMayTouchStaff([], false, false))).toBe('NO_ERROR');
   });
 });
 

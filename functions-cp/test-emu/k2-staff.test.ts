@@ -9,7 +9,7 @@ import { actorHash, ReadMeter } from '../src/cp/context.js';
 import { handleCpHost } from '../src/cp/host.js';
 import { assignedDataOk } from '../src/cp/staff-host.js';
 import { adminDb, assertFails, assertSucceeds, clientDb, closeClients } from '../test-rules/_harness.js';
-import { DAY, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
+import { ADMIN, DAY, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
 
 const MT = 'mt_' + 'a'.repeat(20);
 /** 契約上限：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 n */
@@ -122,10 +122,12 @@ describe('K2 assignStaff／removeStaff', () => {
   });
 
   it('共同主辦可指派既有 staff；非主辦被拒', async () => {
+    // 對象是純記分員。主辦與其他共同主辦由記分守門擋下，不在這條。
     await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [], expiresAt: null });
-    await ok(assign(cid, { uid: 'tester', roles: ['referee'] }, TESTER2));
-    expect((await adminDb().doc(`competitions/${cid}/staff/tester`).get()).get('roles')).toEqual(['host', 'referee']);
-    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).get('roles')).toEqual(['host', 'referee']);
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['scorer'], matchIds: [], expiresAt: null });
+    await ok(assign(cid, { uid: 'tester3', roles: ['referee'] }, TESTER2));
+    expect((await adminDb().doc(`competitions/${cid}/staff/tester3`).get()).get('roles')).toEqual(['referee']);
+    expect((await adminDb().doc(`cpMine/tester3/items/${cid}`).get()).get('roles')).toEqual(['referee']);
     await fails(assign(cid, { uid: 'tester3' }, TESTER3), 'NOT_HOST', 'permission-denied');
   });
 
@@ -188,8 +190,10 @@ describe('K2 assignStaff／removeStaff', () => {
     expect(self.reads).toBeLessThanOrEqual(assignBudget(1));
 
     await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [], expiresAt: null });
+    // 對象是純記分員。指派主辦會被守門拒絕，成功路徑的讀數仍是 7。
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['scorer'], matchIds: [], expiresAt: null });
     const co = new ReadMeter();
-    await ok(assign(cid, { uid: 'tester', roles: ['scorer'] }, TESTER2, makeDeps(0, co)));
+    await ok(assign(cid, { uid: 'tester3', roles: ['scorer'] }, TESTER2, makeDeps(0, co)));
     expect(co.reads).toBe(7);
     expect(co.reads).toBeLessThanOrEqual(assignBudget(1));
 
@@ -262,5 +266,78 @@ describe('K2 assignStaff／removeStaff', () => {
     expect(rm.reads).toBeLessThanOrEqual(REMOVE_BUDGET);
     expect((await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).exists).toBe(false);
     expect((await adminDb().doc(`competitions/${clubCid}/staff/tester3`).get()).exists).toBe(false);
+  });
+
+  it('共同主辦不得改主辦或其他共同主辦；主辦可以；管理員超過寬限仍可；守門不加讀', async () => {
+    const db = adminDb();
+    await ok(assign(cid, { roles: ['scorer', 'referee'], expiresAt: Date.now() + 10 * DAY }));
+    const hostBefore = (await db.doc(`competitions/${cid}/staff/tester`).get()).data()!;
+
+    await db.doc(`competitions/${cid}/staff/tester2`).set({
+      roles: ['coHost', 'scorer'], matchIds: [], expiresAt: null
+    });
+    await db.doc(`competitions/${cid}/staff/tester3`).set({
+      roles: ['coHost'], matchIds: [], expiresAt: null
+    });
+
+    const forbidAssign = new ReadMeter();
+    await fails(
+      assign(cid, { uid: 'tester', roles: ['referee'], matchIds: [] }, TESTER2, makeDeps(0, forbidAssign)),
+      'FORBIDDEN',
+      'permission-denied'
+    );
+    // 閘門 2＋賽事 1＋自己的 staff 1＋對象 staff 1。守門不再讀場次與 cpMine。
+    expect(forbidAssign.reads).toBe(5);
+    expect(forbidAssign.reads).toBeLessThanOrEqual(assignBudget(1));
+
+    const forbidRemove = new ReadMeter();
+    await fails(
+      call(handleCpHost, TESTER2, { action: 'removeStaff', cid, uid: 'tester' }, makeDeps(0, forbidRemove)),
+      'FORBIDDEN',
+      'permission-denied'
+    );
+    expect(forbidRemove.reads).toBe(5);
+    expect(forbidRemove.reads).toBeLessThanOrEqual(REMOVE_BUDGET);
+
+    // 要移除 host 仍先 STAFF_PROTECTED，不是新守門的 FORBIDDEN。
+    await fails(
+      call(handleCpHost, TESTER2, { action: 'removeStaff', cid, uid: 'tester', roles: ['host'] }),
+      'STAFF_PROTECTED',
+      'failed-precondition'
+    );
+
+    const hostAfter = (await db.doc(`competitions/${cid}/staff/tester`).get()).data()!;
+    expect(hostAfter.roles).toEqual(hostBefore.roles);
+    expect(hostAfter.matchIds).toEqual(hostBefore.matchIds);
+    expect(hostAfter.expiresAt.toMillis()).toBe(hostBefore.expiresAt.toMillis());
+    expect(hostAfter.updatedAt.toMillis()).toBe(hostBefore.updatedAt.toMillis());
+
+    await fails(
+      assign(cid, { uid: 'tester3', roles: ['scorer'], matchIds: [MT] }, TESTER2),
+      'FORBIDDEN',
+      'permission-denied'
+    );
+    expect((await db.doc(`competitions/${cid}/staff/tester3`).get()).get('roles')).toEqual(['coHost']);
+    expect((await db.doc(`competitions/${cid}/staff/tester3`).get()).get('matchIds')).toEqual([]);
+
+    // 共同主辦改自己的記分指派仍可：coHost 留下，記分角色換成 referee。
+    await ok(assign(cid, { uid: 'tester2', roles: ['referee'], matchIds: [MT] }, TESTER2));
+    expect((await db.doc(`competitions/${cid}/staff/tester2`).get()).get('roles')).toEqual(['coHost', 'referee']);
+    expect((await db.doc(`competitions/${cid}/staff/tester2`).get()).get('matchIds')).toEqual([MT]);
+
+    await ok(assign(cid, { uid: 'tester3', roles: ['scorer'], matchIds: [MT] }, TESTER));
+    const coHostB = (await db.doc(`competitions/${cid}/staff/tester3`).get()).data()!;
+    expect(coHostB.roles).toEqual(['coHost', 'scorer']);
+    expect(coHostB.matchIds).toEqual([MT]);
+
+    await db.doc(`competitions/${cid}`).update({
+      endedAt: new Date(Date.now() - 4 * DAY),
+      endedBy: 'confirm'
+    });
+    await fails(assign(cid, { roles: ['referee'] }, TESTER), 'COMPETITION_ENDED', 'failed-precondition');
+    await ok(assign(cid, { uid: 'tester', roles: ['referee'], matchIds: [MT] }, ADMIN));
+    const hostByAdmin = (await db.doc(`competitions/${cid}/staff/tester`).get()).data()!;
+    expect(hostByAdmin.roles).toEqual(['host', 'referee']);
+    expect(hostByAdmin.matchIds).toEqual([MT]);
   });
 });

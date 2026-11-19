@@ -11,6 +11,8 @@
  * 讀取預算：assignStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 ≤100；
  * removeStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。
  * 呼叫者就是對象、而且主辦判斷已經讀過那份 staff 時直接重用，省 1 讀。
+ * 記分守門（assertMayTouchStaff）只用已經讀到的 roles，不加讀。被拒時不再讀場次與 cpMine。
+ * removeStaff 先跑 decideRemoval（要移除 host 仍是 STAFF_PROTECTED），通過後才跑守門。
  */
 import type { DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { bad, deny, notFound, pre } from './errors.js';
@@ -84,6 +86,16 @@ export function decideRemoval(current: readonly string[], requested: readonly st
   const roles = current.filter(r => !removing.has(r));
   const scoreRoles = canonScore(roles);
   return { ok: true, roles, scoreRoles, clearMatches: scoreRoles.length === 0 };
+}
+
+/**
+ * 共同主辦不得改動主辦或其他共同主辦的記分指派。
+ * 三者同時成立才拒絕：不是自己、呼叫者不是主辦（primary 為 false）、對象現有 roles 含 host 或 coHost。
+ * 主辦（個人 staff host、俱樂部目前代表、管理員；這三種 primary 為 true）與改自己不受限。不讀文件。
+ */
+export function assertMayTouchStaff(existingRoles: readonly string[], isSelf: boolean, primary: boolean): void {
+  if (isSelf || primary) return;
+  if (existingRoles.includes('host') || existingRoles.includes('coHost')) throw deny('FORBIDDEN');
 }
 
 /** 有給就用（不得早於現在）；沒給則 lastMatchAt + 7 天，算出來早於現在也拒。 */
@@ -212,10 +224,12 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
     const exp = resolveExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs);
     const staffSnap = await targetStaff(deps, tx, access, cid, uid, caller.uid);
     if (uid !== caller.uid && !staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
+    const existing = stringList(staffSnap, 'roles');
+    // 讀到對象 staff 之後、任何寫入之前。被拒就不再讀場次與 cpMine。
+    assertMayTouchStaff(existing, uid === caller.uid, access.primary);
     const snaps = await readMatches(deps, tx, cid, matchIds);
     if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
 
-    const existing = stringList(staffSnap, 'roles');
     const roles = staffRolesAfterAssign(existing, scoreRoles);
     // 讀在所有寫入之前。整份重算，空了就刪。
     const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles });
@@ -250,11 +264,13 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
     const staffSnap = await targetStaff(deps, tx, access, cid, uid, caller.uid);
     if (!staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
     const current = stringList(staffSnap, 'roles');
+    // 先決定移除：要移除 host → STAFF_PROTECTED，先於記分守門。通過後才看能不能動這個人。
     const decision = decideRemoval(current, requested, access.primary);
     if (!decision.ok) {
       if (decision.reason === 'FORBIDDEN') throw deny('FORBIDDEN');
       throw pre(decision.reason);
     }
+    assertMayTouchStaff(current, uid === caller.uid, access.primary);
     const prevMatches = stringList(staffSnap, 'matchIds');
     const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: decision.scoreRoles });
 
