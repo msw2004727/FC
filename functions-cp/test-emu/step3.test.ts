@@ -223,7 +223,7 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     await act(c, ADMIN, { action: 'confirmMatchResult', mtId: stray.id, expectedRev: 4 });
   });
 
-  it('顧問 §3.335 P2：主辦登錄非平手清掉 PK 比分、平手保留', async () => {
+  it('顧問 §3.335 P2：主辦登錄非平手清掉 PK 比分（直接確認也一樣）、平手保留', async () => {
     const ms = await matchesOf(c);
     const now = new Date();
     const finish = async (m: (typeof ms)[number]) => {
@@ -235,7 +235,7 @@ describe('登錄比分、確認、棄權、重置、改期', () => {
     const win = ms[1];
     const winRef = adminDb().doc(`competitions/${c.cid}/matches/${win.id}`);
     await finish(win);
-    await act(c, ADMIN, { action: 'recordResult', mtId: win.id, expectedRev: 4, score: { home: 2, away: 1 }, confirm: false });
+    await act(c, ADMIN, { action: 'recordResult', mtId: win.id, expectedRev: 4, score: { home: 2, away: 1 }, confirm: true });
     expect((await winRef.get()).get('penaltyScore')).toBeNull();
     expect((await winRef.get()).get('score')).toEqual({ home: 2, away: 1 });
 
