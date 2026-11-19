@@ -139,6 +139,11 @@ export interface CompDoc {
   /** 年齡基準日：第一筆名單出現時固定（§3.251 F2） */
   ageBasisAt?: Timestamp | null;
   stateVersion: number;
+  /**
+   * K10：已發出的成員固定編號最大值。
+   * 缺值、非整數或小於 1 時，配號把它當成 1（主辦占號 1）再加 1。只在新建 staff 時前進。
+   */
+  staffSeq?: number;
   [k: string]: unknown;
 }
 

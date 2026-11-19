@@ -10,6 +10,7 @@
  * cpMine 一律在交易內用 prepareMine(..., { scoreRoles }) 讀取後整份重算；記分角色空了且沒有其他索引角色就刪文件。
  * 讀取預算：assignStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 ≤100；
  * removeStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。
+ * K10 成員編號用這次已讀的賽事文件 staffSeq，+0 讀。只有新建 staff 才多寫 1 次賽事文件。
  * 呼叫者就是對象、而且主辦判斷已經讀過那份 staff 時直接重用，省 1 讀。
  * 記分守門（assertMayTouchStaff）只用已經讀到的 roles，不加讀。被拒時不再讀場次與 cpMine。
  * removeStaff 先跑 decideRemoval（要移除 host 仍是 STAFF_PROTECTED），通過後才跑守門。
@@ -37,6 +38,20 @@ import {
 import { prepareMine, type ScoreRole } from './mine.js';
 import { assertNotEnded } from './match-host.js';
 import { onlyKeys } from './validate.js';
+
+/** 建賽時主辦 staff 的固定編號，也是缺 staffSeq 時當成的「目前已知最大號」。 */
+export const HOST_MEMBER_NO = 1;
+
+/**
+ * 新 staff 的 memberNo。staffSeq 缺值、非整數或小於 1 時，已知最大號當 1，再加 1。
+ * 不回收已刪除的號碼：呼叫端把這個值寫回賽事文件的 staffSeq。已存在的文件不要呼叫。
+ */
+export function memberNoForNewStaff(staffSeq: unknown): number {
+  const known = typeof staffSeq === 'number' && Number.isInteger(staffSeq) && staffSeq >= HOST_MEMBER_NO
+    ? staffSeq
+    : HOST_MEMBER_NO;
+  return known + 1;
+}
 
 const UID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const MTID_RE = /^mt_[A-Za-z0-9]{20}$/;
@@ -225,13 +240,26 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
 
     const now = FieldValue.serverTimestamp();
     const ref = deps.db.doc(`competitions/${cid}/staff/${uid}`);
-    tx.set(ref, {
-      roles,
-      matchIds,
-      expiresAt: Timestamp.fromMillis(exp),
-      updatedAt: now,
-      ...(staffSnap.exists ? {} : { createdAt: now })
-    }, { merge: true });
+    // 已存在的文件不改 memberNo，也不寫賽事文件。新建才配下一號，號碼不回收。
+    if (staffSnap.exists) {
+      tx.set(ref, {
+        roles,
+        matchIds,
+        expiresAt: Timestamp.fromMillis(exp),
+        updatedAt: now
+      }, { merge: true });
+    } else {
+      const memberNo = memberNoForNewStaff(comp.staffSeq);
+      tx.set(ref, {
+        roles,
+        matchIds,
+        expiresAt: Timestamp.fromMillis(exp),
+        memberNo,
+        updatedAt: now,
+        createdAt: now
+      }, { merge: true });
+      tx.update(deps.db.doc(`competitions/${cid}`), { staffSeq: memberNo });
+    }
     writeMine();
     writeAudit(deps, tx, cid, caller, 'assignStaff', {
       target: actorHash(cid, uid),

@@ -201,14 +201,18 @@ describe('K3 每事件讀量與統計讀數', () => {
     const tl = db.collection(`competitions/${CID}/matches/${MT}/timeline`);
     await tl.doc('1').set({ seq: 1, type: 'goal', goalKind: 'normal', plId: PLA });
     await tl.doc('2').set({ seq: 2, type: 'card', cardType: 'yellow', plId: PLB });
-    await db.doc(`competitions/${CID}/roster/${PLA}`).set({ displayName: '王大明' });
+    const enA = 'en_' + 'h'.repeat(20);
+    await db.doc(`competitions/${CID}/roster/${PLA}`).set({ displayName: '王大明', enId: enA });
     await db.doc(`competitions/${CID}/roster/${PLB}`).set({ displayName: '李小華' });
     const meter = new ReadMeter();
     expect(await syncMatchStats(makeDeps(0, meter), CID, MT, null)).toBe('set');
+    // e 跟名字同一份公開名單，讀數仍是場次＋timeline＋voids＋名單＋統計文件。
     expect(meter.reads).toBe(1 + 2 + 1 + 2 + 1);
     const row = (await db.doc(statsRef(CID, DVID)).get()).get('m')[MT];
-    expect(row[PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    expect(row[PLA]).toEqual({ n: '王大明', e: enA, g: 1, y: 0, r: 0 });
+    expect(row[PLA].e).toMatch(/^en_[A-Za-z0-9]{20}$/);
     expect(row[PLB]).toEqual({ n: '李小華', g: 0, y: 1, r: 0 });
+    expect(row[PLB].e).toBeUndefined();
 
     const many = 'mt_' + 'n'.repeat(20);
     await db.doc(`competitions/${CID}/matches/${many}`).set(liveMatch({ status: 'confirmed' }));
@@ -220,13 +224,33 @@ describe('K3 每事件讀量與統計讀數', () => {
       });
     }
     await batch.commit();
-    await db.doc(`competitions/${CID}/roster/pl_${'0'.repeat(20)}`).set({ displayName: '不該出現' });
+    const hiddenEn = 'en_' + 'z'.repeat(20);
+    await db.doc(`competitions/${CID}/roster/pl_${'0'.repeat(20)}`).set({
+      displayName: '不該出現', enId: hiddenEn
+    });
     const over = new ReadMeter();
     expect(await syncMatchStats(makeDeps(0, over), CID, many, null)).toBe('set');
     expect(over.reads).toBe(1 + 23 + 1 + 1);
-    const lines = (await db.doc(statsRef(CID, DVID)).get()).get('m')[many] as Record<string, { n?: string }>;
+    const lines = (await db.doc(statsRef(CID, DVID)).get()).get('m')[many] as Record<string, { n?: string; e?: string }>;
     expect(Object.keys(lines)).toHaveLength(23);
-    expect(Object.values(lines).every(line => line.n == null)).toBe(true);
+    expect(Object.values(lines).every(line => line.n == null && line.e == null)).toBe(true);
+    expect(JSON.stringify(lines).includes('不該出現')).toBe(false);
+    expect(JSON.stringify(lines).includes(hiddenEn)).toBe(false);
+  });
+
+  it('roster 的 enId 不合法就省略 e，不多讀', async () => {
+    const db = adminDb();
+    await db.doc(`competitions/${CID}/matches/${MT}`).set(liveMatch({ status: 'confirmed', rev: 1 }));
+    await db.doc(`competitions/${CID}/matches/${MT}/timeline/1`).set({
+      seq: 1, type: 'goal', goalKind: 'normal', plId: PLA
+    });
+    await db.doc(`competitions/${CID}/roster/${PLA}`).set({ displayName: '王大明', enId: 'not-an-entry' });
+    const meter = new ReadMeter();
+    expect(await syncMatchStats(makeDeps(0, meter), CID, MT, null)).toBe('set');
+    expect(meter.reads).toBe(1 + 1 + 1 + 1 + 1);
+    const line = (await db.doc(statsRef(CID, DVID)).get()).get('m')[MT][PLA];
+    expect(line).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    expect(line.e).toBeUndefined();
   });
 
   it('超過 200 筆事件不更新，舊的 m[mtId] 留著', async () => {
@@ -543,7 +567,8 @@ describe('K3 確認、重置、再確認與冠軍名', () => {
       teamId: 'club_secret_zz',
       addedByUid: 'uid_rep_added_zz'
     };
-    await db.doc(`competitions/${c.cid}/roster/${PLA}`).set({ displayName: '王大明', number: 9 });
+    const enId = 'en_' + 'e'.repeat(20);
+    await db.doc(`competitions/${c.cid}/roster/${PLA}`).set({ displayName: '王大明', number: 9, enId });
     await db.doc(`competitions/${c.cid}/rosterPrivate/${PLA}`).set(priv);
     await db.doc(`competitions/${c.cid}/matches/${m.id}/timeline/1`).set({
       seq: 1, type: 'goal', goalKind: 'normal', plId: PLA
@@ -557,8 +582,9 @@ describe('K3 確認、重置、再確認與冠軍名', () => {
     for (const key of Object.keys(data)) expect(STATS_TOP_KEYS).toContain(key);
     expect(data.stalledAt).toBeUndefined();
     expect(data.stalledMt).toBeUndefined();
-    expect(Object.keys(data.m[m.id][PLA]).sort()).toEqual(['g', 'n', 'r', 'y']);
-    expect(data.m[m.id][PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
+    expect(Object.keys(data.m[m.id][PLA]).sort()).toEqual(['e', 'g', 'n', 'r', 'y']);
+    expect(data.m[m.id][PLA]).toEqual({ n: '王大明', e: enId, g: 1, y: 0, r: 0 });
+    expect(data.m[m.id][PLA].e).toMatch(/^en_[A-Za-z0-9]{20}$/);
     const packed = JSON.stringify(data);
     expect(packed.includes('王大明')).toBe(true);
     for (const value of Object.values(stored)) {

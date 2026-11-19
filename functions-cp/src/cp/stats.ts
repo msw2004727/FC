@@ -1,12 +1,12 @@
 /**
  * 射手榜。場次進入或離開 confirmed 時，以交易更新 stats/{dvId}.m[mtId]。
- * 只讀公開 roster 的 displayName，不讀私密名單。路徑只出現在 statsRef。
+ * 只讀公開 roster 的 displayName，同一份文件的合法 enId 存成 e。不讀私密名單。路徑只出現在 statsRef。
  * 超過 200KB 不改 m，改寫公開的 stalledAt／stalledMt。
  * 只在被擋的那一場寫入成功或離開 confirmed 時清除；已有標記時別場再被擋，保留最早的 stalledMt。
  */
 import { logger } from 'firebase-functions/v2';
 import type { DocumentData } from 'firebase-admin/firestore';
-import { CID_RE, DVID_RE, FieldValue, readDoc, readQuery, type CpDeps } from './context.js';
+import { CID_RE, DVID_RE, ENID_RE, FieldValue, readDoc, readQuery, type CpDeps } from './context.js';
 
 /** 單場事件／作廢標記上限（與 Rules、confirm 對帳的 200 相同）。查詢多讀 1 筆用來分辨剛好滿額。 */
 export const STATS_EVENT_MAX = 200;
@@ -28,6 +28,8 @@ const TS_MARK = Object.freeze({ __ts: 1 as const });
 export interface StatLine {
   /** 公開名單 displayName。沒有、或本場超過 22 人時省略。 */
   n?: string;
+  /** 公開名單 enId（en_＋20 碼英數）。沒有、不合法、或本場超過 22 人整批不寫名時省略。 */
+  e?: string;
   /** 一般進球（goalKind normal／penalty）。不含 own、不含 pk、不含作廢。 */
   g: number;
   /** 黃牌張數。第二黃不計在這裡。 */
@@ -70,6 +72,11 @@ function clipName(value: string | null | undefined): string | null {
   const text = value.trim();
   if (!text) return null;
   return Array.from(text).slice(0, NAME_MAX).join('');
+}
+
+/** 賽事內隊伍代號。不是 en_＋20 碼英數就省略，避免把 uid 或隊名寫進公開榜。 */
+function entryCodeOf(value: unknown): string | null {
+  return typeof value === 'string' && ENID_RE.test(value) ? value : null;
 }
 
 function bump(players: MatchStat, plId: string, field: 'g' | 'y' | 'r'): void {
@@ -137,14 +144,15 @@ export function buildMatchStat(
 }
 
 /**
- * includeNames 為 false 時整批不寫名字。
+ * includeNames 為 false 時整批不寫名字，也不寫 e。
  * 這是保守策略：本場進球與得牌者合計超過 22 人就整批不寫名，不先保住進球者。
- * 缺名字或空白就省略 n。
+ * 缺名字或空白就省略 n。e 只收合法 enId；名字空白時仍可留下 e。
  */
 export function attachNames(
   players: MatchStat,
   names: ReadonlyMap<string, string | null>,
-  includeNames: boolean
+  includeNames: boolean,
+  enIds?: ReadonlyMap<string, unknown>
 ): MatchStat {
   const out: MatchStat = {};
   for (const id of Object.keys(players).sort()) {
@@ -153,6 +161,8 @@ export function attachNames(
     if (includeNames) {
       const name = clipName(names.get(id));
       if (name) line.n = name;
+      const code = entryCodeOf(enIds?.get(id));
+      if (code) line.e = code;
     }
     out[id] = line;
   }
@@ -220,16 +230,29 @@ export interface StatsSizeEstimate {
   nameChars: number;
 }
 
-/** 用真實文件形狀估算。matches 是 m 底下的場次數，每場 perMatch 位球員都有名字與三個計數。 */
-export function estimateStatsDoc(path: string, matches: number, perMatch: number, nameChars: number): StatsSizeEstimate {
+/**
+ * 用真實文件形狀估算。matches 是 m 底下的場次數，每場 perMatch 位球員都有名字與三個計數。
+ * withEntryCode 為真時每人另帶合法 e（en_＋20 碼英數，23 個位元組）。
+ */
+export function estimateStatsDoc(
+  path: string,
+  matches: number,
+  perMatch: number,
+  nameChars: number,
+  withEntryCode = false
+): StatsSizeEstimate {
   const name = '名'.repeat(Math.max(0, nameChars));
+  const enId = withEntryCode ? `en_${'0'.repeat(20)}` : '';
   const m: Record<string, MatchStat> = {};
   for (let i = 0; i < matches; i++) {
     const mtId = `mt_${String(i).padStart(20, '0')}`;
     const line: MatchStat = {};
     for (let p = 0; p < perMatch; p++) {
       const plId = `pl_${String(p).padStart(20, '0')}`;
-      line[plId] = name ? { n: name, g: 1, y: 1, r: 1 } : { g: 1, y: 1, r: 1 };
+      const row: StatLine = { g: 1, y: 1, r: 1 };
+      if (name) row.n = name;
+      if (enId) row.e = enId;
+      line[plId] = row;
     }
     m[mtId] = line;
   }
@@ -244,7 +267,9 @@ export function estimateStatsDoc(path: string, matches: number, perMatch: number
 
 function sameLine(a: StatLine | undefined, b: StatLine): boolean {
   if (!a) return false;
-  return a.g === b.g && a.y === b.y && a.r === b.r && (a.n ?? null) === (b.n ?? null);
+  return a.g === b.g && a.y === b.y && a.r === b.r
+    && (a.n ?? null) === (b.n ?? null)
+    && (a.e ?? null) === (b.e ?? null);
 }
 
 function samePlayers(prev: unknown, next: MatchStat): boolean {
@@ -443,15 +468,17 @@ export async function syncMatchStats(
     // 保守策略：本場進球與得牌者合計超過 22 人就整批不寫名，不先保住進球者。
     const includeNames = built.nameIds.length <= STATS_NAME_BATCH;
     const names = new Map<string, string | null>();
+    const enIds = new Map<string, unknown>();
     if (includeNames) {
       for (const plId of built.nameIds) {
-        // 只讀公開名單。私密名單的路徑不出現在這個函式。
+        // 只讀公開名單。e 用同一份的 enId，不加讀。私密名單的路徑不出現在這個函式。
         const roster = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/roster/${plId}`));
         const displayName = roster.exists ? roster.get('displayName') : null;
         names.set(plId, typeof displayName === 'string' ? displayName : null);
+        enIds.set(plId, roster.exists ? roster.get('enId') : null);
       }
     }
-    const players = attachNames(built.players, names, includeNames);
+    const players = attachNames(built.players, names, includeNames, enIds);
     const stats = await readDoc(deps, tx, ref);
     const prev = stats.exists ? (stats.data() as Record<string, unknown> | undefined) ?? null : null;
     const plan = planStatsWrite(prev, mtId, players, path);

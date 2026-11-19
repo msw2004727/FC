@@ -55,7 +55,7 @@ import { cleanLine, findBannedWord } from './text.js';
 import { prepareMine } from './mine.js';
 import { MATCH_HOST_ACTIONS } from './match-host.js';
 import { setDivisionRules } from './rules-host.js';
-import { STAFF_ACTIONS } from './staff-host.js';
+import { HOST_MEMBER_NO, STAFF_ACTIONS } from './staff-host.js';
 import { standingRef } from './match-trigger.js';
 
 /** §5.5 建賽限制 */
@@ -192,16 +192,19 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       firstMatchAt: ts(sched.firstMatchAt), lastMatchAt: ts(sched.lastMatchAt),
       endedAt: null, endedBy: null, rostersLockedAt: null, ageBasisAt: null,
       timezone, venues, feeNote, liveLinks, contactNote, notices: [],
-      stateVersion: 1, createdAt: now, updatedAt: now
+      // K10：已發出的最大成員編號。個人主辦的 staff 同時寫 memberNo 1。俱樂部沒有主辦 staff，1 先占著。
+      stateVersion: 1, staffSeq: HOST_MEMBER_NO, createdAt: now, updatedAt: now
     });
     divisions.forEach((d, i) => {
       tx.create(deps.db.doc(`competitions/${cid}/divisions/${dvIds[i]}`), {
         ...divisionDoc(d, i), entryCount: 0, approvedCount: 0, createdAt: now, updatedAt: now
       });
     });
-    // 個人主辦身分寫在 staff/{uid}（host）；俱樂部主辦只認目前代表，不寫 staff（建立者只留在雜湊稽核）
+    // 個人主辦身分寫在 staff/{uid}（host），固定編號 1；俱樂部主辦只認目前代表，不寫 staff（建立者只留在雜湊稽核）
     if (hostType === 'personal') {
-      tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), { roles: ['host'], matchIds: [], expiresAt: null, createdAt: now });
+      tx.create(deps.db.doc(`competitions/${cid}/staff/${caller.uid}`), {
+        roles: ['host'], matchIds: [], expiresAt: null, memberNo: HOST_MEMBER_NO, createdAt: now
+      });
       writeMine!();
     }
     if (quotaRef && hostType === 'personal') {

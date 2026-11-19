@@ -4,10 +4,12 @@
 import { describe, expect, it } from 'vitest';
 import { CpError } from '../src/cp/errors.js';
 import {
+  HOST_MEMBER_NO,
   SCORE_ASSIGN_MS,
   assertMayTouchStaff,
   assignedDataOk,
   decideRemoval,
+  memberNoForNewStaff,
   resolveExpiresAt,
   staffRolesAfterAssign
 } from '../src/cp/staff-host.js';
@@ -87,6 +89,20 @@ describe('expiresAt', () => {
   it('早於現在（含預設已經過去）拒絕', () => {
     expect(reasonOf(() => resolveExpiresAt(now - 1, last, now))).toBe('FIELD_RANGE');
     expect(reasonOf(() => resolveExpiresAt(null, now - 8 * 86400_000, now))).toBe('FIELD_RANGE');
+  });
+});
+
+describe('成員固定編號', () => {
+  it('建賽主辦是 1；下一號是 staffSeq+1；缺值當最大號 1', () => {
+    expect(HOST_MEMBER_NO).toBe(1);
+    // 建賽寫 staffSeq 1，第一個新建 staff 是 2。
+    expect(memberNoForNewStaff(1)).toBe(2);
+    // 移除 2 之後 staffSeq 仍是 2，下一位是 3，不回收。
+    expect(memberNoForNewStaff(2)).toBe(3);
+    expect(memberNoForNewStaff(8)).toBe(9);
+    for (const missing of [undefined, null, '', 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(memberNoForNewStaff(missing)).toBe(2);
+    }
   });
 });
 

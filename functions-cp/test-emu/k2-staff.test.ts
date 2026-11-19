@@ -4,6 +4,7 @@
  * 不改 Rules、不刪 control/scorer。
  */
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 import { doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { actorHash, ReadMeter } from '../src/cp/context.js';
 import { handleCpHost } from '../src/cp/host.js';
@@ -12,9 +13,10 @@ import { adminDb, assertFails, assertSucceeds, clientDb, closeClients } from '..
 import { ADMIN, DAY, TESTER, TESTER2, TESTER3, call, createInput, fails, makeDeps, ok, resetAll } from './_cp.js';
 
 const MT = 'mt_' + 'a'.repeat(20);
-/** 契約上限：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 n */
+/** 契約上限：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 n。
+ * K10 staffSeq 用已讀的賽事文件，+0 讀，這個上限與下面的實測讀數都不變。 */
 const assignBudget = (n: number) => 2 + 1 + 2 + 1 + 1 + n;
-/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1 */
+/** 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。K10 不改這個上限。 */
 const REMOVE_BUDGET = 2 + 1 + 2 + 1 + 1;
 
 function matchBody(mtId: string, dvId: string) {
@@ -342,5 +344,83 @@ describe('K2 assignStaff／removeStaff', () => {
     const hostByAdmin = (await db.doc(`competitions/${cid}/staff/tester`).get()).data()!;
     expect(hostByAdmin.roles).toEqual(['host', 'referee']);
     expect(hostByAdmin.matchIds).toEqual([MT]);
+  });
+
+  it('成員固定編號：主辦 1、新成員 2、移除後下一位 3、重指派不變', async () => {
+    const db = adminDb();
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(1);
+    expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBe(1);
+
+    // 已存在的主辦重指派：號碼不變，staffSeq 不前進，讀數仍是 6。
+    const again = new ReadMeter();
+    await ok(assign(cid, { roles: ['scorer', 'referee'] }, TESTER, makeDeps(0, again)));
+    expect(again.reads).toBe(6);
+    expect(again.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBe(1);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(1);
+
+    // 管理員指派自己：新文件。閘門 1＋賽事 1＋主辦 0＋staff 1＋cpMine 1＋場次 1＝5，仍在原上限內。
+    const created = new ReadMeter();
+    await ok(assign(cid, { uid: 'admin', roles: ['referee'] }, ADMIN, makeDeps(0, created)));
+    expect(created.reads).toBe(5);
+    expect(created.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await db.doc(`competitions/${cid}/staff/admin`).get()).get('memberNo')).toBe(2);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(2);
+
+    const retouch = new ReadMeter();
+    await ok(assign(cid, { uid: 'admin', roles: ['scorer'] }, ADMIN, makeDeps(0, retouch)));
+    expect(retouch.reads).toBe(5);
+    expect((await db.doc(`competitions/${cid}/staff/admin`).get()).get('memberNo')).toBe(2);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(2);
+
+    await ok(call(handleCpHost, TESTER, { action: 'removeStaff', cid, uid: 'admin' }));
+    expect((await db.doc(`competitions/${cid}/staff/admin`).get()).exists).toBe(false);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(2);
+
+    await ok(assign(cid, { uid: 'admin', roles: ['scorer'] }, ADMIN));
+    expect((await db.doc(`competitions/${cid}/staff/admin`).get()).get('memberNo')).toBe(3);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(3);
+    expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBe(1);
+  });
+
+  it('缺 staffSeq 的舊賽事：新成員為 2；已存在的主辦重指派不補號', async () => {
+    const db = adminDb();
+    await db.doc(`competitions/${cid}`).update({ staffSeq: FieldValue.delete() });
+    await db.doc(`competitions/${cid}/staff/tester`).update({ memberNo: FieldValue.delete() });
+
+    const hostAgain = new ReadMeter();
+    await ok(assign(cid, {}, TESTER, makeDeps(0, hostAgain)));
+    expect(hostAgain.reads).toBe(6);
+    expect(hostAgain.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBeUndefined();
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBeUndefined();
+
+    const meter = new ReadMeter();
+    await ok(assign(cid, { uid: 'admin', roles: ['referee'] }, ADMIN, makeDeps(0, meter)));
+    expect(meter.reads).toBe(5);
+    expect(meter.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await db.doc(`competitions/${cid}/staff/admin`).get()).get('memberNo')).toBe(2);
+    expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(2);
+    expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBeUndefined();
+  });
+
+  it('俱樂部建賽 staffSeq 為 1、沒有主辦 staff；代表新建自己的 staff 為 2，讀數仍是 7', async () => {
+    const created = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({
+      name: '【測試】編號俱樂部', hostType: 'club', hostTeamId: 'club_a'
+    })));
+    const clubCid = created.cid;
+    expect((await adminDb().doc(`competitions/${clubCid}`).get()).get('staffSeq')).toBe(1);
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester`).get()).exists).toBe(false);
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: clubCid }));
+    const mtId = 'mt_' + 'f'.repeat(20);
+    await adminDb().doc(`competitions/${clubCid}/matches/${mtId}`).set(matchBody(mtId, created.dvIds[0]!));
+    const meter = new ReadMeter();
+    await ok(call(handleCpHost, TESTER, {
+      action: 'assignStaff', cid: clubCid, uid: 'tester', roles: ['scorer'], matchIds: [mtId]
+    }, makeDeps(0, meter)));
+    expect(meter.reads).toBe(7);
+    expect(meter.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester`).get()).get('memberNo')).toBe(2);
+    expect((await adminDb().doc(`competitions/${clubCid}`).get()).get('staffSeq')).toBe(2);
   });
 });

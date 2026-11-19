@@ -123,19 +123,57 @@ describe('射手榜純函式', () => {
     expect(buildMatchStat([], voids, 0)).toEqual({ ok: false, reason: 'VOIDS_TOO_LONG' });
   });
 
-  it('名字空白或超過 22 人就不寫 n；超過 30 個字元截斷', () => {
+  it('名字空白或超過 22 人就不寫 n；合法 enId 才寫 e；超過 22 人也不寫 e', () => {
     const players: MatchStat = {
       [PLA]: { g: 1, y: 0, r: 0 },
       [PLB]: { g: 0, y: 1, r: 0 }
     };
+    const enOk = 'en_' + 'a'.repeat(20);
     const named = attachNames(players, new Map<string, string | null>([[PLA, '  王大明  '], [PLB, '   ']]), true);
     expect(named[PLA]).toEqual({ n: '王大明', g: 1, y: 0, r: 0 });
     expect(named[PLB]).toEqual({ g: 0, y: 1, r: 0 });
     const long = attachNames(players, new Map([[PLA, '名'.repeat(31)]]), true);
     expect(Array.from(long[PLA]!.n!).length).toBe(30);
-    const stripped = attachNames(players, new Map([[PLA, '王大明'], [PLB, '李']]), false);
+
+    const withCode = attachNames(
+      players,
+      new Map<string, string | null>([[PLA, '王大明'], [PLB, '   ']]),
+      true,
+      new Map<string, unknown>([[PLA, enOk], [PLB, enOk]])
+    );
+    expect(withCode[PLA]).toEqual({ n: '王大明', e: enOk, g: 1, y: 0, r: 0 });
+    expect(withCode[PLB]).toEqual({ e: enOk, g: 0, y: 1, r: 0 });
+    expect(withCode[PLA]!.e).toMatch(/^en_[A-Za-z0-9]{20}$/);
+
+    const missing = attachNames(players, new Map([[PLA, '王大明']]), true, new Map([[PLA, null]]));
+    expect(missing[PLA]!.e).toBeUndefined();
+    const bad = [
+      'en_short',
+      'en_' + 'a'.repeat(19),
+      'en_' + 'a'.repeat(21),
+      'EN_' + 'A'.repeat(20),
+      'cp_' + 'a'.repeat(20),
+      'en_' + 'a'.repeat(19) + '_',
+      '',
+      'm1',
+      '真名'
+    ];
+    for (const value of bad) {
+      const out = attachNames(players, new Map([[PLA, '王大明']]), true, new Map([[PLA, value]]));
+      expect(out[PLA]!.e, value).toBeUndefined();
+      expect(out[PLA]!.n).toBe('王大明');
+    }
+
+    const stripped = attachNames(
+      players,
+      new Map([[PLA, '王大明'], [PLB, '李']]),
+      false,
+      new Map([[PLA, enOk], [PLB, enOk]])
+    );
     expect(stripped[PLA]?.n).toBeUndefined();
+    expect(stripped[PLA]?.e).toBeUndefined();
     expect(stripped[PLB]?.n).toBeUndefined();
+    expect(stripped[PLB]?.e).toBeUndefined();
   });
 
   it('路徑只在 statsRef；統計原始碼不讀私密名單；觸發器不內嵌路徑', () => {
@@ -155,8 +193,8 @@ describe('射手榜純函式', () => {
     const worst30 = estimateStatsDoc(path, 240, 30, 3);
     const worst = estimateStatsDoc(path, 240, 30, 30);
     const unique = estimateStatsDoc(path, 120, 30, 3);
-    // 單組循環 120 場、每場 8 人有進球或得牌、名字 6 個中文字。數字寫進 REPORT-K3-fix3。
-    const group120 = estimateStatsDoc(path, 120, 8, 6);
+    // 單組循環 120 場、每場 8 人、名字 6 個中文字，另含合法 e。數字寫進 REPORT-K10。
+    const group120 = estimateStatsDoc(path, 120, 8, 6, true);
     console.log('[k3-estimate]', JSON.stringify({
       max: STATS_DOC_MAX_BYTES,
       worst30_240x30x3: worst30.bytes,
@@ -169,13 +207,28 @@ describe('射手榜純函式', () => {
     expect(unique.bytes).toBe(359687);
     expect(worst30.bytes).toBeGreaterThan(STATS_DOC_MAX_BYTES);
     expect(group120).toMatchObject({ matches: 120, perMatch: 8, nameChars: 6, records: 960 });
-    expect(group120.bytes).toBe(109607);
+    expect(group120.bytes).toBe(134567);
     expect(group120.bytes).toBeLessThanOrEqual(STATS_DOC_MAX_BYTES);
 
     const tiny = planStatsWrite(null, MT, { [PLA]: { g: 1, y: 0, r: 0 } }, path);
     expect(tiny.op).toBe('set');
     const same = planStatsWrite({ m: { [MT]: { [PLA]: { g: 1, y: 0, r: 0 } } } }, MT, { [PLA]: { g: 1, y: 0, r: 0 } }, path);
     expect(same.op).toBe('noop');
+    const enOk = 'en_' + 'a'.repeat(20);
+    const addedE = planStatsWrite(
+      { m: { [MT]: { [PLA]: { n: '王', g: 1, y: 0, r: 0 } } } },
+      MT,
+      { [PLA]: { n: '王', e: enOk, g: 1, y: 0, r: 0 } },
+      path
+    );
+    expect(addedE.op).toBe('set');
+    const sameE = planStatsWrite(
+      { m: { [MT]: { [PLA]: { n: '王', e: enOk, g: 1, y: 0, r: 0 } } } },
+      MT,
+      { [PLA]: { n: '王', e: enOk, g: 1, y: 0, r: 0 } },
+      path
+    );
+    expect(sameE.op).toBe('noop');
 
     const line: StatLine = { n: '名'.repeat(30), g: 1, y: 1, r: 1 };
     const players: MatchStat = {};
@@ -348,7 +401,7 @@ describe('射手榜純函式', () => {
     expect(src).toContain('...(leave.clearStall ? {');
   });
 
-  it('文件鍵白名單為 m、updatedAt、stalledAt、stalledMt；球員列只有 n、g、y、r；序列化不含夾具 uid、真名、生日、電話', () => {
+  it('文件鍵白名單為 m、updatedAt、stalledAt、stalledMt；球員列只有 n、e、g、y、r；e 只能是 en_ 代號；序列化不含夾具 uid、真名、生日、電話', () => {
     const fixture = readFileSync(new URL('../test-rules/_fixtures.ts', import.meta.url), 'utf8');
     const privLines = fixture.split('\n').filter(line => line.includes('rosterPrivate/'));
     expect(privLines.length).toBeGreaterThan(0);
@@ -361,19 +414,23 @@ describe('射手榜純函式', () => {
     const phone = '0912000111';
 
     const dirty: Record<string, unknown> = {
-      g: 1, y: 0, r: 0, n: '真名',
+      g: 1, y: 0, r: 0, n: '真名', e: 'm1',
       uid: 'm1', realName: '真名', addedByUid: 'rep', teamId: 'club_a',
       birthday, phone
     };
     for (const s of fromFixture) dirty[s] = s;
+    const enOk = 'en_' + 'q'.repeat(20);
     const players = attachNames(
-      { [PLA]: dirty as StatLine, [PLB]: { g: 0, y: 1, r: 0, realName: '代填', birthday, phone } as StatLine },
+      { [PLA]: dirty as StatLine, [PLB]: { g: 0, y: 1, r: 0, realName: '代填', birthday, phone, e: 'm1' } as StatLine },
       new Map<string, string | null>([[PLA, '公開甲'], [PLB, '   ']]),
-      true
+      true,
+      new Map<string, unknown>([[PLA, enOk], [PLB, 'm1']])
     );
-    expect(Object.keys(players[PLA]!).sort()).toEqual(['g', 'n', 'r', 'y']);
-    expect(players[PLA]).toEqual({ n: '公開甲', g: 1, y: 0, r: 0 });
+    expect(Object.keys(players[PLA]!).sort()).toEqual(['e', 'g', 'n', 'r', 'y']);
+    expect(players[PLA]).toEqual({ n: '公開甲', e: enOk, g: 1, y: 0, r: 0 });
+    expect(players[PLA]!.e).toMatch(/^en_[A-Za-z0-9]{20}$/);
     expect(Object.keys(players[PLB]!).sort()).toEqual(['g', 'r', 'y']);
+    expect(players[PLB]!.e).toBeUndefined();
 
     // 頂層白名單。停更欄可與 m 同時在（別場寫入成功時保留）。其他鍵不得出現。
     const allowedTop = ['m', 'stalledAt', 'stalledMt', 'updatedAt'];
@@ -390,6 +447,8 @@ describe('射手榜純函式', () => {
       expect(packed.includes(`"${key}"`)).toBe(false);
     }
     expect(packed.includes('公開甲')).toBe(true);
+    expect(packed.includes(enOk)).toBe(true);
+    expect(packed.includes('"m1"')).toBe(false);
     const stalledPacked = JSON.stringify(stalledDoc);
     for (const s of [...fromFixture, birthday, phone, 'm1', 'rep']) {
       expect(stalledPacked.includes(s)).toBe(false);
