@@ -1,7 +1,7 @@
 /**
  * cpParticipant 第 2 步動作：reportCompetition（§5.4 檢舉）；第 4 步 acceptInvite（接受邀請記分員，§5.5）。
  * resyncMyClubs（G4 鏡像後）、requestMyDataRemoval（第 6 步前）尚未實作，回 UNKNOWN_ACTION。
- * 下架（hidden）與處理檢舉屬需要權限碼的管理動作，放主 codebase 的 cpAdminOps（不在本 codebase）。
+ * 下架（hidden）與處理檢舉在 cpHost 的 moderate／reviewReport（moderate.ts，只認 claims role；顧問 11-20 同意放賽事 codebase，搬回主 codebase cpAdminOps 列待辦）。
  */
 import { CpError, bad, notFound, pre } from './errors.js';
 import {
