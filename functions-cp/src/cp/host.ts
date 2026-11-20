@@ -56,6 +56,7 @@ import { prepareMine } from './mine.js';
 import { MATCH_HOST_ACTIONS } from './match-host.js';
 import { setDivisionRules } from './rules-host.js';
 import { HOST_MEMBER_NO, STAFF_ACTIONS } from './staff-host.js';
+import { MODERATE_ACTIONS } from './moderate.js';
 import { standingRef } from './match-trigger.js';
 import { matchDayOf } from '../engine/index.js';
 import { taipeiYmd } from './schedule-flex.js';
@@ -541,7 +542,9 @@ export const HOST_ACTIONS = {
   delete: deleteCompetition,
   ...MATCH_HOST_ACTIONS,
   setDivisionRules,
-  ...STAFF_ACTIONS
+  ...STAFF_ACTIONS,
+  // 管理員下架／恢復、檢舉處理（moderate.ts；只認 claims role，2026-11-20 待顧問裁定位置）
+  ...MODERATE_ACTIONS
 } as const;
 
 export async function handleCpHost(deps: CpDeps, caller: Caller, data: unknown) {
