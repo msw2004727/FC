@@ -2,7 +2,7 @@
  * cpHost 第 2 步動作：create、update、publish、setStatus、delete（§6.1）。
  * 第 3 步動作（排賽程、改期、登錄比分、確認、棄權、重置、積分重算、同分裁定與查詢）在 match-host.ts，於 HOST_ACTIONS 合併。
  * 組別規則 setDivisionRules 在 rules-host.ts，直接掛在 HOST_ACTIONS（不放進 MATCH_HOST_ACTIONS，避免循環引用）。
- * 第 4 步最小指派 assignStaff、removeStaff 在 staff-host.ts。createInvite、revokeInvite 仍未實作，回 UNKNOWN_ACTION。
+ * 第 4 步最小指派 assignStaff、removeStaff 與邀請記分員 createInvite、revokeInvite 在 staff-host.ts（接受邀請 acceptInvite 在 participant.ts）。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { CpError, bad, deny, pre } from './errors.js';

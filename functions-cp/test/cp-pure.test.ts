@@ -9,7 +9,7 @@ import { handleCpEntry } from '../src/cp/entry.js';
 import { CpError } from '../src/cp/errors.js';
 import { HOST_ACTIONS, handleCpHost } from '../src/cp/host.js';
 import { MATCH_HOST_ACTIONS } from '../src/cp/match-host.js';
-import { handleCpParticipant } from '../src/cp/participant.js';
+import { PARTICIPANT_ACTIONS, handleCpParticipant } from '../src/cp/participant.js';
 import {
   SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, maskedPublicName, optionalText, surnameOf
 } from '../src/cp/text.js';
@@ -207,9 +207,9 @@ describe('Callable 外殼', () => {
     expect(toErrorShape(new Error('secret stack'))).toEqual({ code: 'internal', reason: 'INTERNAL' });
   });
   it.each([
-    ['cpHost', handleCpHost, ['createInvite', 'revokeInvite', 'toString', '__proto__', '']],  // K2 起 assignStaff、removeStaff 已實作；邀請仍未做
+    ['cpHost', handleCpHost, ['inviteStaff', 'toString', '__proto__', '']],  // K11 起 createInvite、revokeInvite 已實作
     ['cpEntry', handleCpEntry, ['lockRoster', 'unlockRoster', 'constructor', 'hasOwnProperty']],
-    ['cpParticipant', handleCpParticipant, ['acceptInvite', 'resyncMyClubs', 'requestMyDataRemoval']]
+    ['cpParticipant', handleCpParticipant, ['resyncMyClubs', 'requestMyDataRemoval', 'toString']]
   ] as const)('%s 未知或未實作動作一律拒絕（在讀資料庫之前）', async (_n, handler, actions) => {
     for (const action of actions) {
       const out = await runCallable(deps, { uid: 'u' }, { action }, handler);
@@ -220,17 +220,19 @@ describe('Callable 外殼', () => {
     expect(noAction.ok).toBe(false);
   });
   it('F1：cancelMatch、endCompetition、restoreCompetition 已掛上 cpHost，不在未知動作清單', () => {
-    const unknown = ['createInvite', 'revokeInvite', 'toString', '__proto__', ''];
+    const unknown = ['inviteStaff', 'toString', '__proto__', ''];
     for (const name of ['cancelMatch', 'endCompetition', 'restoreCompetition'] as const) {
       expect(typeof MATCH_HOST_ACTIONS[name]).toBe('function');
       expect(unknown).not.toContain(name);
     }
   });
-  it('K2：assignStaff、removeStaff 已掛上 cpHost；邀請仍是未知動作', () => {
+  it('K2／K11：assignStaff、removeStaff、createInvite、revokeInvite 已掛上 cpHost；acceptInvite 掛在 cpParticipant', () => {
     expect(typeof HOST_ACTIONS.assignStaff).toBe('function');
     expect(typeof HOST_ACTIONS.removeStaff).toBe('function');
-    expect('createInvite' in HOST_ACTIONS).toBe(false);
-    expect('revokeInvite' in HOST_ACTIONS).toBe(false);
+    expect(typeof HOST_ACTIONS.createInvite).toBe('function');
+    expect(typeof HOST_ACTIONS.revokeInvite).toBe('function');
+    expect(typeof PARTICIPANT_ACTIONS.acceptInvite).toBe('function');
+    expect('acceptInvite' in HOST_ACTIONS).toBe(false);
   });
   it('未登入在動作分派前就拒絕', async () => {
     const out = await runCallable(deps, null, { action: 'create' }, handleCpHost);
