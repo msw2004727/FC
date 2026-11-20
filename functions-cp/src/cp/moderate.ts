@@ -1,6 +1,6 @@
 /**
  * 管理員下架／恢復與檢舉處理（計畫書 §5.4：管理員下架 hidden 寫稽核、主辦看得到下架原因）。
- * 位置：計畫書 §6.1 原放主 codebase 的 cpAdminOps；2026-11-20 改放賽事 codebase 的 cpHost（待顧問裁定），
+ * 位置：計畫書 §6.1 原放主 codebase 的 cpAdminOps；2026-11-20 顧問同意改放賽事 codebase 的 cpHost（§6.5 的 cpAdminOps 屬目錄安排，搬回列待辦），
  * 因為只認 claims role admin／super_admin（與本 codebase 既有的管理員判斷相同，不涉及權限碼），部署不必動主站。
  *
  * moderate：{ cid, hidden: true, reason } 下架；{ cid, hidden: false } 恢復。
@@ -11,7 +11,8 @@
  *   - stateVersion +1（分享卡與 OG 依此失效）。稽核記下架原因全文（管理員寫給主辦看的說明，不含 uid）；恢復的稽核 details 為空。
  *   - 讀取：閘門（管理員 1）＋賽事 1。
  * reviewReport：{ cid, reportId, status: 'resolved' | 'dismissed' | 'open' } 管理員標記檢舉處理狀態，清掉 reopened。
- *   - 讀取：閘門 1＋賽事 1＋檢舉 1。檢舉文件 id 形狀 rp_＋雜湊；不存在回 REPORT_NOT_FOUND。
+ *   - 讀取：閘門 1＋賽事 1＋檢舉 1。檢舉文件 id 形狀 rp_＋雜湊；不存在回 REPORT_NOT_FOUND；刪除中的賽事回 COMPETITION_DELETING
+ *     （recursiveDelete 不保證順序，避免在已刪的 audits 留孤兒稽核；Opus 審 P3-2）。
  */
 import type { Transaction } from 'firebase-admin/firestore';
 import { bad, deny, notFound, pre } from './errors.js';
@@ -61,7 +62,8 @@ export async function reviewReport(deps: CpDeps, caller: Caller, _gate: GateResu
   const status = requireEnum(input.status, REVIEW_STATUSES, 'status');
 
   return deps.db.runTransaction(async (tx: Transaction) => {
-    await loadComp(deps, tx, cid);
+    const comp = await loadComp(deps, tx, cid);
+    if (comp.deletingAt) throw pre('COMPETITION_DELETING');
     const ref = deps.db.doc(`competitions/${cid}/reports/${reportId}`);
     const snap = await readDoc(deps, tx, ref);
     if (!snap.exists) throw notFound('REPORT_NOT_FOUND');

@@ -56,6 +56,12 @@ describe('管理員下架與恢復', () => {
     await adminDb().doc('cpConfig/launch').set({ isPublic: true }, { merge: true });
     await fails(hide(STRANGER), 'NOT_ADMIN', 'permission-denied');
     await fails(call(handleCpHost, TESTER, { action: 'reviewReport', cid, reportId: 'rp_0123456789abcdef', status: 'resolved' }), 'NOT_ADMIN');
+    // 近似字串的角色一律擋（isAdmin 嚴格比對；Opus 審 P3-3b）；俱樂部代表也擋（P3-3c）
+    for (const role of ['Admin', 'administrator', 'host', 'super-admin', 'coach']) {
+      await fails(hide({ uid: 'stranger', role }), 'NOT_ADMIN');
+    }
+    const clubCid = (await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ hostType: 'club', hostTeamId: 'club_a' })))).cid;
+    await fails(call(handleCpHost, TESTER, { action: 'moderate', cid: clubCid, hidden: true, reason: '冒用俱樂部名稱' }), 'NOT_ADMIN');
     expect((await root()).hidden).toBe(false);
     await ok(hide(SUPER));
     expect((await root()).hidden).toBe(true);
@@ -142,7 +148,14 @@ describe('管理員下架與恢復', () => {
       for (const p of paths) await assertFails(getDoc(doc(clientDb(who as never), p)));
       for (const q of lists(who)) await assertFails(q());
       expect((await assertSucceeds(publicList(who))).docs.map(d => d.id)).not.toContain(cid);
+      // Opus 審 P2-1：不帶 hidden 篩選的公開查詢、直接查 hidden==true，都要被 Rules 拒（不靠查詢條件本身）
+      await assertFails(getDocs(query(collection(clientDb(who as never), 'competitions'),
+        where('visibility', '==', 'public'), where('status', 'in', ['published', 'postponed', 'cancelled']), limit(50))));
+      await assertFails(getDocs(query(collection(clientDb(who as never), 'competitions'), where('hidden', '==', true), limit(50))));
     }
+    // 共同主辦、俱樂部主辦的代表也讀得到原因（Opus 審 P3-3d）
+    await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });
+    expect((await assertSucceeds(getDoc(doc(clientDb(TESTER2), `competitions/${cid}`)))).get('hiddenReason')).toBe('冒用俱樂部名稱');
     for (const who of [TESTER, ADMIN]) {
       for (const p of paths) await assertSucceeds(getDoc(doc(clientDb(who), p)));
       for (const q of lists(who)) await assertSucceeds(q());
@@ -202,6 +215,12 @@ describe('檢舉處理狀態 reviewReport', () => {
     expect(d.reopened).toBe(true);
     await ok(call(handleCpHost, ADMIN, { action: 'reviewReport', cid, reportId: ref.id, status: 'dismissed' }));
     expect((await ref.get()).get('status')).toBe('dismissed');
+    // 重新開啟（Opus 審 P3-3a）
+    await ok(call(handleCpHost, ADMIN, { action: 'reviewReport', cid, reportId: ref.id, status: 'open' }));
+    expect((await ref.get()).get('status')).toBe('open');
+    // 刪除中的賽事不能處理檢舉（P3-2）
+    await adminDb().doc(`competitions/${cid}`).update({ deletingAt: new Date() });
+    await fails(call(handleCpHost, ADMIN, { action: 'reviewReport', cid, reportId: ref.id, status: 'resolved' }), 'COMPETITION_DELETING');
   });
 
   it('不存在回 REPORT_NOT_FOUND；狀態列舉、id 形狀、多帶鍵被拒', async () => {

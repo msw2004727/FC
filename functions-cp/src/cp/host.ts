@@ -547,7 +547,7 @@ export const HOST_ACTIONS = {
   ...MATCH_HOST_ACTIONS,
   setDivisionRules,
   ...STAFF_ACTIONS,
-  // 管理員下架／恢復、檢舉處理（moderate.ts；只認 claims role，2026-11-20 待顧問裁定位置）
+  // 管理員下架／恢復、檢舉處理（moderate.ts；只認 claims role，2026-11-20 顧問同意放賽事 codebase；搬回 cpAdminOps 列待辦）
   ...MODERATE_ACTIONS
 } as const;
 
