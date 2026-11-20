@@ -8,7 +8,7 @@
  *   - 狀態沒變（已下架再下架、未下架再恢復）回 NO_CHANGE，不寫。
  *   - 下架原因 2～200 字（statusReasonOf）寫在賽事根文件 hiddenReason：下架後一般人讀不到根文件
  *     （asia-main.rules isPubLike 要求 hidden == false），主辦、共同主辦、俱樂部代表與管理員讀得到。恢復時清成 null。
- *   - stateVersion +1（分享卡與 OG 依此失效）。稽核記 hidden 與原因長度，不記原因原文以外的個資（原因是管理員寫的公開說明）。
+ *   - stateVersion +1（分享卡與 OG 依此失效）。稽核記下架原因全文（管理員寫給主辦看的說明，不含 uid）；恢復的稽核 details 為空。
  *   - 讀取：閘門（管理員 1）＋賽事 1。
  * reviewReport：{ cid, reportId, status: 'resolved' | 'dismissed' | 'open' } 管理員標記檢舉處理狀態，清掉 reopened。
  *   - 讀取：閘門 1＋賽事 1＋檢舉 1。檢舉文件 id 形狀 rp_＋雜湊；不存在回 REPORT_NOT_FOUND。
@@ -38,7 +38,8 @@ export async function moderate(deps: CpDeps, caller: Caller, _gate: GateResult, 
   return deps.db.runTransaction(async (tx: Transaction) => {
     const comp = await loadComp(deps, tx, cid);
     if (comp.deletingAt) throw pre('COMPETITION_DELETING');
-    if (comp.hidden === hide) throw pre('NO_CHANGE');
+    // 舊文件可能沒有 hidden 欄位：先轉布林（缺值＝未下架）再比，避免恢復時誤寫一筆稽核（顧問 11-20）
+    if ((comp.hidden === true) === hide) throw pre('NO_CHANGE');
     const now = FieldValue.serverTimestamp();
     tx.update(deps.db.doc(`competitions/${cid}`), {
       hidden: hide,

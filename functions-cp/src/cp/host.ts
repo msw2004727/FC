@@ -414,10 +414,12 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   return { cid };
 }
 
-/** 依伺服器資料推導持有本賽事 cpMine 索引的人（個人主辦 staff host、球員、報隊者），更新名稱、首場、分類。 */
+/** 依伺服器資料推導持有本賽事 cpMine 索引的人（全部 staff、球員、報隊者），更新名稱、首場、分類。 */
 async function syncMineIndex(deps: CpDeps, cid: string, fields: { name: string; firstMatchAt: Timestamp; category: string }): Promise<void> {
   const uids = new Set<string>();
-  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
+  // 全部 staff（主辦，以及被指派或接受邀請的記分員／裁判都有 cpMine 索引）。原本只抓 roles 含 host，
+  // 記分員的 cpMine 名稱與首場不會跟著改（與刪除時的孤兒同一原因，顧問 11-20 一起修）。沒有索引的 update 失敗會被略過。
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).select());
   hs.docs.forEach(d => uids.add(d.id));
   const rp = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/rosterPrivate`).select('uid'));
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
@@ -521,7 +523,9 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
   const ep = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/entryPrivate`).select('registeredByUid'));
   ep.docs.forEach(d => { const u = d.get('registeredByUid'); if (typeof u === 'string' && u) uids.add(u); });
-  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).where('roles', 'array-contains', 'host').select());
+  // 全部 staff（主辦，以及被指派或接受邀請的記分員／裁判都有 cpMine 索引）。原本只抓 roles 含 host，
+  // 記分員的 cpMine 會留成孤兒（顧問 11-20 清除測試資料前必修）。staff 每場上限約 30＋主辦，讀取量小。
+  const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).select());
   hs.docs.forEach(d => uids.add(d.id));
   const list = [...uids];
   for (let i = 0; i < list.length; i += 400) {

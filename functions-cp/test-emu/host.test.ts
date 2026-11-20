@@ -224,6 +224,18 @@ describe('刪除（§6.1 必修 7）', () => {
     expect(audit.get('action')).toBe('deleteCompetition');
     expect(JSON.stringify(audit.data())).not.toContain('tester');
   });
+  it('顧問 11-20：記分員／裁判的 cpMine 索引在改名時跟著更新、刪除時一併清除（原本只處理主辦，會留孤兒）', async () => {
+    const { cid } = await create(TESTER);
+    const db = adminDb();
+    await db.doc(`competitions/${cid}/staff/tester3`).set({ roles: ['scorer'], matchIds: [], expiresAt: null, memberNo: 2 });
+    await db.doc(`cpMine/tester3/items/${cid}`).set({ cid, name: '【測試】週末盃', roles: ['scorer'], host: false, entryIds: [], plIds: [] });
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, name: '記分員同步盃' }));
+    expect((await db.doc(`cpMine/tester3/items/${cid}`).get()).get('name')).toBe('記分員同步盃');
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    expect((await db.doc(`cpMine/tester3/items/${cid}`).get()).exists).toBe(false);
+    expect((await db.doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+    expect((await db.doc(`competitions/${cid}`).get()).exists).toBe(false);
+  });
   it('共同主辦不能刪；首場後主辦只能取消、管理員可刪', async () => {
     const { cid } = await create(TESTER);
     await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [] });

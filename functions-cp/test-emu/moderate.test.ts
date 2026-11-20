@@ -85,6 +85,15 @@ describe('管理員下架與恢復', () => {
     await fails(hide(), 'COMPETITION_DELETING');
   });
 
+  it('顧問 11-20：舊文件沒有 hidden 欄位時恢復回 NO_CHANGE、不寫稽核；下架照常', async () => {
+    const { FieldValue } = await import('firebase-admin/firestore');
+    await adminDb().doc(`competitions/${cid}`).update({ hidden: FieldValue.delete() });
+    await fails(restore(), 'NO_CHANGE', 'failed-precondition');
+    expect((await adminDb().collection(`competitions/${cid}/audits`).where('action', '==', 'moderateRestore').get()).size).toBe(0);
+    await ok(hide());
+    expect((await root()).hidden).toBe(true);
+  });
+
   it('下架後：一般人與報隊者讀不到根文件；主辦讀得到下架原因；管理員讀得到', async () => {
     await adminDb().doc('cpConfig/launch').set({ isPublic: true }, { merge: true });
     await adminDb().doc(`competitions/${cid}`).update({ visibility: 'public' });
