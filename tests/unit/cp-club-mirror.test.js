@@ -441,6 +441,20 @@ describe("onTeamWrittenForCompetitions handler", () => {
     expect(world.logger.error.mock.calls.filter(([msg]) => msg.startsWith(mirror.ACCESS_ALERT_PREFIX))).toHaveLength(0);
   });
 
+  test("sanitizeErrorMessage：teamId 跨在第 500 字邊界（含 495～505）、前段替換縮短超過 200 字，輸出仍不含超過 13 碼的 teamId 前段", () => {
+    // 前段放一條約 400 字的文件路徑（會被換成 <doc-path>，縮短約 390 字），讓原本的截斷邊界落到最後 300 字內。
+    // 範圍從 470 起：teamId 共 23 碼，起點 ≤ 486 時舊版「先截 500」會留下 ≥ 14 碼前段；495～505 是複審指定的跨界區。
+    const docPath = `projects/p/databases/asia-main/documents/cpClubs/${"x".repeat(350)}`;
+    for (let pos = 470; pos <= 505; pos += 1) {
+      const head = `${docPath} `;
+      const message = head + "y".repeat(pos - head.length) + TEAM_ID + " tail";
+      expect(message.indexOf(TEAM_ID)).toBe(pos);
+      const out = mirror.sanitizeErrorMessage(message, TEAM_ID);
+      expect(out.length).toBeLessThanOrEqual(300);
+      expect(out).not.toContain(TEAM_ID.slice(0, 14));
+    }
+  });
+
   test("sanitizeErrorMessage：非字串、超長也安全", () => {
     expect(mirror.sanitizeErrorMessage(undefined, TEAM_ID)).toBe("");
     expect(mirror.sanitizeErrorMessage(`x${TEAM_ID}`.repeat(50), TEAM_ID).length).toBeLessThanOrEqual(300);

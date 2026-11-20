@@ -207,7 +207,8 @@ const ACCESS_ALERT_CODES = new Map([
 
 /** 錯誤訊息寫進 log 前遮罩：teamId 原文、文件路徑（含 projects/…/documents/ 全路徑）一律換成遮罩版。 */
 function sanitizeErrorMessage(message, teamId) {
-  let text = String(message || "").slice(0, 500);
+  // 先遮罩全文、最後才截斷（取代原「先截 500」：teamId 跨在截斷邊界時，半截不會被整段比對遮掉，複審 P3）
+  let text = String(message || "");
   text = text.replace(/projects\/[^\s"'`]*?\/documents\/[^\s"'`]+/g, "<doc-path>");
   text = text.replace(/\b(teams|cpClubs)\/[^\s"'`/]+/g, (_m, col) => `${col}/<id>`);
   if (typeof teamId === "string" && teamId.length > 0) text = text.split(teamId).join(maskTeamId(teamId));
