@@ -144,6 +144,10 @@ export interface CompDoc {
    * 缺值、非整數或小於 1 時，配號把它當成 1（主辦占號 1）再加 1。只在新建 staff 時前進。
    */
   staffSeq?: number;
+  /**
+   * 第 4 步邀請記分員：已發出的邀請數，只增不減（撤銷不退額度）。缺值當 0；上限見 staff-host.ts INVITE_MAX。
+   */
+  inviteSeq?: number;
   [k: string]: unknown;
 }
 
@@ -151,6 +155,8 @@ export const CID_RE = /^cp_[A-Za-z0-9]{20}$/;
 export const DVID_RE = /^dv_[A-Za-z0-9]{20}$/;
 export const ENID_RE = /^en_[A-Za-z0-9]{20}$/;
 export const PLID_RE = /^pl_[A-Za-z0-9]{20}$/;
+/** 邀請記分員 id（competitions/{cid}/invites/{ivId}），伺服器產生。 */
+export const IVID_RE = /^iv_[A-Za-z0-9]{20}$/;
 /** 主站俱樂部 id：只做形狀檢查（不信內容，查鏡像路徑時當路徑段用） */
 export const TEAM_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -160,8 +166,8 @@ export function requireId(value: unknown, re: RegExp, field: string): string {
 }
 
 const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-/** 前綴＋20 碼英數（R-ID：cp_／dv_／en_／pl_／mt_；公告 id 用 nt_，不是文件路徑）。 */
-export function newId(prefix: 'cp' | 'dv' | 'en' | 'pl' | 'mt' | 'nt'): string {
+/** 前綴＋20 碼英數（R-ID：cp_／dv_／en_／pl_／mt_／iv_；公告 id 用 nt_，不是文件路徑）。 */
+export function newId(prefix: 'cp' | 'dv' | 'en' | 'pl' | 'mt' | 'nt' | 'iv'): string {
   const bytes = randomBytes(20);
   let s = '';
   // 248 = 62*4，丟棄 ≥248 的位元組以免取模偏差；不足再補

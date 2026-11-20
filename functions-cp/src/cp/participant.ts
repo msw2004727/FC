@@ -1,12 +1,14 @@
 /**
- * cpParticipant 第 2 步動作：reportCompetition（§5.4 檢舉）。
- * acceptInvite（第 4 步）、resyncMyClubs（G4 鏡像後）、requestMyDataRemoval（第 6 步前）尚未實作，回 UNKNOWN_ACTION。
+ * cpParticipant 第 2 步動作：reportCompetition（§5.4 檢舉）；第 4 步 acceptInvite（接受邀請記分員，§5.5）。
+ * resyncMyClubs（G4 鏡像後）、requestMyDataRemoval（第 6 步前）尚未實作，回 UNKNOWN_ACTION。
  * 下架（hidden）與處理檢舉屬需要權限碼的管理動作，放主 codebase 的 cpAdminOps（不在本 codebase）。
  */
-import { CpError, bad } from './errors.js';
+import { CpError, bad, notFound, pre } from './errors.js';
 import {
   CID_RE,
   FieldValue,
+  IVID_RE,
+  Timestamp,
   actorHash,
   assertCompVisible,
   isHostOrCo,
@@ -14,10 +16,21 @@ import {
   loadComp,
   readDoc,
   requireId,
+  writeAudit,
   type Caller,
   type CpDeps,
   type GateResult
 } from './context.js';
+import { prepareMine } from './mine.js';
+import {
+  INVITE_CODE_RE,
+  canonScore,
+  inviteCodeMatches,
+  memberNoForNewStaff,
+  mergeInviteAssignment,
+  staffDisplayName,
+  stringList
+} from './staff-host.js';
 import { optionalText } from './text.js';
 import { asRecord, onlyKeys, requireEnum } from './validate.js';
 
@@ -95,7 +108,85 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
   return { cid, reported: true };
 }
 
-export const PARTICIPANT_ACTIONS = { reportCompetition } as const;
+/**
+ * 接受邀請記分員（§5.5）。必須登入（runCallable 已擋）。
+ * 交易內讀全部在寫之前：賽事 → 狀態檢查 → 邀請（代碼常數時間比對）→ 細分狀態 → 自己的 staff → 主庫顯示名 → cpMine。
+ * 接受者不適用主辦寬限，也不適用管理員例外：已結束（endedAt 有值）一律 COMPETITION_ENDED；下架一律 COMPETITION_HIDDEN。
+ * 邀請不存在與代碼不符回同一個 INVITE_INVALID，避免探測；代碼相符後才細分 INVITE_REVOKED／INVITE_USED／INVITE_EXPIRED。
+ * 讀取：閘門 ≤2＋賽事 1＋邀請 1＋staff 1＋users 1＋cpMine 1 ＝ ≤7。
+ * 主庫 users 在另一個資料庫，不能放進本庫交易，改在交易回呼裡直接讀（只取 displayName）。
+ */
+export async function acceptInvite(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'ivId', 'code']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const ivId = requireId(input.ivId, IVID_RE, 'ivId');
+  const code = requireId(input.code, INVITE_CODE_RE, 'code');
+  const uid = caller.uid;
+
+  return deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    if (comp.hidden) throw pre('COMPETITION_HIDDEN');
+    if (comp.deletingAt) throw pre('COMPETITION_DELETING');
+    if (comp.status === 'cancelled') throw pre('COMPETITION_CLOSED');
+    if (comp.endedAt != null) throw pre('COMPETITION_ENDED');
+
+    const ivRef = deps.db.doc(`competitions/${cid}/invites/${ivId}`);
+    const iv = await readDoc(deps, tx, ivRef);
+    if (!iv.exists || !inviteCodeMatches(code, iv.get('codeHash'))) throw notFound('INVITE_INVALID');
+    const status = iv.get('status');
+    if (status === 'revoked') throw pre('INVITE_REVOKED');
+    if (status === 'used') throw pre('INVITE_USED');
+    if (status !== 'open') throw notFound('INVITE_INVALID');
+    const ivExp = iv.get('expiresAt');
+    const ivExpMs = ivExp && typeof ivExp.toMillis === 'function' ? (ivExp.toMillis() as number) : null;
+    if (ivExpMs == null || deps.now().getTime() >= ivExpMs) throw pre('INVITE_EXPIRED');
+    const inviteRoles = canonScore(stringList(iv, 'roles'));
+    if (inviteRoles.length === 0) throw notFound('INVITE_INVALID');
+    const inviteMatches = stringList(iv, 'matchIds');
+
+    const staffRef = deps.db.doc(`competitions/${cid}/staff/${uid}`);
+    const staffSnap = await readDoc(deps, tx, staffRef);
+    const prevExp = staffSnap.exists ? staffSnap.get('expiresAt') : null;
+    const merged = mergeInviteAssignment({
+      existing: {
+        roles: stringList(staffSnap, 'roles'),
+        matchIds: stringList(staffSnap, 'matchIds'),
+        expiresAtMs: prevExp && typeof prevExp.toMillis === 'function' ? (prevExp.toMillis() as number) : null
+      },
+      invite: { roles: inviteRoles, matchIds: inviteMatches, expiresAtMs: ivExpMs },
+      nowMs: deps.now().getTime()
+    });
+    const profile = await readDoc(deps, null, deps.mainDb.doc(`users/${uid}`));
+    const displayName = staffDisplayName(profile.exists ? profile.get('displayName') : null, gate.bannedWords);
+    const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: merged.scoreRoles });
+
+    const now = FieldValue.serverTimestamp();
+    const assigned = {
+      roles: merged.roles,
+      matchIds: merged.matchIds,
+      expiresAt: merged.expiresAtMs == null ? null : Timestamp.fromMillis(merged.expiresAtMs),
+      displayName,
+      updatedAt: now
+    };
+    let memberNo: number | null;
+    if (staffSnap.exists) {
+      const raw = staffSnap.get('memberNo');
+      memberNo = typeof raw === 'number' ? raw : null;
+      tx.set(staffRef, assigned, { merge: true });
+    } else {
+      memberNo = memberNoForNewStaff(comp.staffSeq);
+      tx.set(staffRef, { ...assigned, memberNo, createdAt: now }, { merge: true });
+      tx.update(deps.db.doc(`competitions/${cid}`), { staffSeq: memberNo });
+    }
+    tx.update(ivRef, { status: 'used', usedAt: now, usedMemberNo: memberNo, updatedAt: now });
+    writeMine();
+    writeAudit(deps, tx, cid, caller, 'acceptInvite', { target: actorHash(cid, uid), ivId, roles: inviteRoles });
+    return { cid, roles: merged.roles, matchCount: merged.matchIds.length };
+  });
+}
+
+export const PARTICIPANT_ACTIONS = { reportCompetition, acceptInvite } as const;
 
 export async function handleCpParticipant(deps: CpDeps, caller: Caller, data: unknown) {
   const input = asRecord(data);
