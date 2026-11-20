@@ -1,6 +1,6 @@
 "use strict";
 
-// G4 俱樂部鏡像回填腳本（functions/cp-club-mirror-backfill.js）：假 Firestore 驗 dry-run 數字、雜湊／筆數不符拒絕、
+// G4 俱樂部鏡像回填腳本（scripts/cp-club-mirror-backfill.js）：假 Firestore 驗 dry-run 數字、雜湊／筆數不符拒絕、
 // create 衝突略過、前置條件（updateTime）略過、收編 seed、孤兒刪除、讀回、備份與回退。不連任何真實環境。
 
 const fs = require("fs");
@@ -18,7 +18,7 @@ const {
   runExecute,
   runRollback,
   serialize,
-} = require("../../functions/cp-club-mirror-backfill");
+} = require("../../scripts/cp-club-mirror-backfill");
 const { repUidsFromTeam } = require("../../functions/cp-club-mirror");
 
 const REP_VECTORS = require("../fixtures/cp-rep-vectors.json").vectors;
@@ -157,6 +157,9 @@ describe("parseArgs", () => {
     expect(() => parseArgs(argv("--rollback", "--backup", "b.json", "--execute"), {})).toThrow("ROLLBACK_EXECUTE_REQUIRES_CONFIRM_COUNT");
     expect(() => parseArgs(argv("--rollback", "--backup", "b.json", "--team", "tm_a"), {})).toThrow("ROLLBACK_FLAG_CONFLICT");
     expect(() => parseArgs(argv("--backup", "b.json"), {})).toThrow("BACKUP_REQUIRES_ROLLBACK");
+    expect(parseArgs(argv("--rollback", "--backup", "b.json", "--overwrite-changed"), {}).overwriteChanged).toBe(true);
+    expect(parseArgs(argv("--rollback", "--backup", "b.json"), {}).overwriteChanged).toBe(false);
+    expect(() => parseArgs(argv("--overwrite-changed"), {})).toThrow("OVERWRITE_CHANGED_REQUIRES_ROLLBACK");
   });
 });
 
@@ -290,6 +293,53 @@ describe("execute", () => {
     expect(world.store.cpClubs.tm_orphan.data.repUids).toEqual(["U_o2"]);
   });
 
+  test("P2-1：寫入前重讀主站，主站已變就略過（skip-team-changed），不用舊資料寫", async () => {
+    const world = baseWorld();
+    const { plan } = await dryRunPlan(world);
+    world.hooks.beforeTx = (id, { put, store }) => {
+      // create：隊長被移除（觸發器判 skip-no-reps 不寫）→ 回填不得再用舊資料建立
+      if (id === "tm_b") put("teams", "tm_b", { name: "乙隊" });
+      // update：主站改名 → 計畫內容已過期
+      if (id === "tm_cleared") put("teams", "tm_cleared", { name: "改名了" });
+      // delete：孤兒的主站隊伍又出現 → 不刪
+      if (id === "tm_orphan" && !store.teams.tm_orphan) put("teams", "tm_orphan", { captainUid: "U_o", name: "孤兒" });
+    };
+    const lines = [];
+    const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: (l) => lines.push(l) });
+    expect(res).toMatchObject({ applied: 4, skipped: 3, readbackMismatch: 0 });
+    const record = JSON.parse(fs.readFileSync(res.backupFile, "utf8"));
+    expect(record.skipped).toEqual([
+      { id: "tm_b", op: "create", reason: "skip-team-changed" },
+      { id: "tm_cleared", op: "update", reason: "skip-team-changed" },
+      { id: "tm_orphan", op: "delete", reason: "skip-team-changed" },
+    ]);
+    expect(world.store.cpClubs.tm_b).toBeUndefined();
+    expect(world.store.cpClubs.tm_cleared.data.repUids).toEqual(["U_gone"]);
+    expect(world.store.cpClubs.tm_orphan.data.repUids).toEqual(["U_o"]);
+    expect(lines.join("\n")).toContain("主站已變 3");
+  });
+
+  test("§3.378：回填期間代表被移除（loadState 後、寫入前）→ 不寫舊代表，計入 skip-team-changed", async () => {
+    const world = baseWorld();
+    const { plan } = await dryRunPlan(world);
+    expect(plan.entries.find((e) => e.id === "tm_a").doc.repUids).toEqual(["U_cap_a"]);
+    expect(plan.entries.find((e) => e.id === SEED_A).doc.repUids).toEqual(["U_seed"]);
+    world.hooks.beforeTx = (id, { put }) => {
+      if (id === "tm_a") put("teams", "tm_a", { name: "甲隊", imageVariants: { card: ASIA_URL("a.webp") } });
+      if (id === SEED_A) put("teams", SEED_A, { name: "種子甲", coachUids: ["U_seed"] });
+    };
+    const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: () => {} });
+    const record = JSON.parse(fs.readFileSync(res.backupFile, "utf8"));
+    expect(record.skipped).toEqual([
+      { id: SEED_A, op: "update", reason: "skip-team-changed" },
+      { id: "tm_a", op: "create", reason: "skip-team-changed" },
+    ]);
+    expect(world.store.cpClubs.tm_a).toBeUndefined();
+    // seed A 維持回填前原狀（沒被回填寫入新的舊代表）；之後由觸發器依現況處理
+    expect(world.store.cpClubs[SEED_A].data).toEqual({ repUids: ["U_seed"], name: "種子甲", image: null, srcUpdatedAt: 1, seededBy: "g4-seed" });
+    expect(record.applied.map((a) => a.id)).not.toContain("tm_a");
+  });
+
   test("中途失敗即停，備份檔保留已寫入清單（finished=false）", async () => {
     const world = baseWorld();
     const { plan } = await dryRunPlan(world);
@@ -312,13 +362,54 @@ describe("rollback", () => {
     const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: () => {} });
     const lines = [];
     const dry = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: false }, log: (l) => lines.push(l) });
-    expect(dry).toEqual({ planned: 7, changedSince: 0, executed: 0 });
+    expect(dry).toEqual({ planned: 7, changedSince: 0, toApply: 7, executed: 0, skipped: 0 });
     await expect(runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, confirmCount: 6 }, log: () => {} }))
       .rejects.toThrow("CONFIRM_COUNT_MISMATCH");
     const done = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, confirmCount: 7 }, log: () => {} });
     expect(done.executed).toBe(7);
     const afterClubs = Object.fromEntries(Object.entries(world.store.cpClubs).map(([id, e]) => [id, e.data]));
     expect(afterClubs).toEqual(beforeClubs);
+  });
+
+  test("回填後又被觸發器改過的文件：預設略過、dry-run 列出筆數；--overwrite-changed 才蓋回備份", async () => {
+    const world = baseWorld();
+    const { plan } = await dryRunPlan(world);
+    const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: () => {} });
+    // 回填後觸發器又改了 tm_a（建立的）與 seed A（收編的）
+    world.put("cpClubs", "tm_a", { repUids: ["U_cap_new"], name: "甲隊", image: null, srcUpdatedAt: 9 });
+    world.put("cpClubs", SEED_A, { repUids: ["U_seed_new"], name: "種子甲", image: null, srcUpdatedAt: 9 });
+    const lines = [];
+    const dry = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: false }, log: (l) => lines.push(l) });
+    expect(dry).toEqual({ planned: 7, changedSince: 2, toApply: 5, executed: 0, skipped: 0 });
+    expect(lines.join("\n")).toContain("回填後又被改過 2 筆：預設略過");
+    expect(lines.join("\n")).toContain("將回退 5 筆");
+    await expect(runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, confirmCount: 7 }, log: () => {} }))
+      .rejects.toThrow("CONFIRM_COUNT_MISMATCH");
+    const done = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, confirmCount: 5 }, log: () => {} });
+    expect(done).toMatchObject({ executed: 5, skipped: 2 });
+    expect(world.store.cpClubs.tm_a.data.repUids).toEqual(["U_cap_new"]);
+    expect(world.store.cpClubs[SEED_A].data.repUids).toEqual(["U_seed_new"]);
+    expect(world.store.cpClubs[SEED_B].data.seededBy).toBe("g4-seed");
+    expect(world.store.cpClubs.tm_orphan.data.repUids).toEqual(["U_o"]);
+
+    // 同一備份再回退一次並帶 --overwrite-changed：剩下兩筆被改過的也蓋回
+    const dry2 = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: false, overwriteChanged: true }, log: () => {} });
+    expect(dry2.toApply).toBe(7);
+    await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, overwriteChanged: true, confirmCount: 7 }, log: () => {} });
+    expect(world.store.cpClubs.tm_a).toBeUndefined();
+    expect(world.store.cpClubs[SEED_A].data.seededBy).toBe("g4-seed");
+  });
+
+  test("dry-run 與回退 execute 之間又被改過：transaction 內重比，仍略過", async () => {
+    const world = baseWorld();
+    const { plan } = await dryRunPlan(world);
+    const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: () => {} });
+    world.hooks.beforeTx = (id, { put }) => {
+      if (id === "tm_b") put("cpClubs", "tm_b", { repUids: ["U_l9"], name: "乙隊", image: null, srcUpdatedAt: 9 });
+    };
+    const done = await runRollback({ cpDb: world.cpDb, Timestamp: FakeTimestamp, args: { backup: res.backupFile, execute: true, confirmCount: 7 }, log: () => {} });
+    expect(done).toMatchObject({ executed: 6, skipped: 1 });
+    expect(world.store.cpClubs.tm_b.data.repUids).toEqual(["U_l9"]);
   });
 
   test("備份序列化保留 Timestamp、拒絕其他特殊型別", () => {

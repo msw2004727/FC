@@ -42,6 +42,51 @@ describe("代表定義與主站 Rules isCurrentUserTeamCaptainOrLeader 一致（
   const end = rules.indexOf("\n    }\n", start);
   const body = rules.slice(start, end);
 
+  // 顧問 Opus 審 P3-1：只抓「比對 request.auth.uid」的條件會漏掉 `isAdmin() ||`、改呼叫其他 helper 等改動；
+  // 改成整段 helper 去註解、空白收斂後全文比對，期望文字由 REP_STRING_FIELDS／REP_LIST_FIELD 組出來。
+  // Rules 的這段 helper 有任何語意改動（含加條件、換 helper、改欄位）都會紅；改了 Rules 要同步改鏡像模組與本測試。
+  function normalizeRules(text) {
+    return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "").replace(/\s+/g, " ").trim();
+  }
+  function expectedHelperText() {
+    const clause = (f) => `(get(teamPath).data.keys().hasAny(['${f}']) && (get(teamPath).data.${f} is string) && get(teamPath).data.${f} == request.auth.uid)`;
+    const listClause = `(get(teamPath).data.keys().hasAny(['${REP_LIST_FIELD}']) && (get(teamPath).data.${REP_LIST_FIELD} is list) && request.auth.uid in get(teamPath).data.${REP_LIST_FIELD})`;
+    return "function isCurrentUserTeamCaptainOrLeader(teamId) { let teamPath = /databases/$(database)/documents/teams/$(teamId); "
+      + "return isAuth() && teamId is string && exists(teamPath) && ( "
+      + [...REP_STRING_FIELDS.map(clause), listClause].join(" || ")
+      + " ); }";
+  }
+  const helperText = (src) => {
+    const s = src.indexOf("function isCurrentUserTeamCaptainOrLeader(teamId) {");
+    return normalizeRules(src.slice(s, src.indexOf("\n    }\n", s) + 6));
+  };
+
+  // 只改 helper 這一段（其他 helper 也有 `return isAuth()` 等相同字串，不能整檔 replace）
+  const rawHelperEnd = end + 6;
+  const mutateHelper = (fn) => rules.slice(0, start) + fn(rules.slice(start, rawHelperEnd)) + rules.slice(rawHelperEnd);
+
+  test("整段 helper 全文比對（去註解、收斂空白）與鏡像模組欄位組出的期望完全相同", () => {
+    expect(helperText(rules)).toBe(expectedHelperText());
+  });
+
+  test.each([
+    ["加 isAdmin() ||", (b) => b.replace("return isAuth()", "return isAdmin() || isAuth()")],
+    ["改呼叫其他 helper", (b) => b.replace("exists(teamPath)", "exists(teamPath) && isTeamActive(teamId)")],
+    ["多一個欄位", (b) => b.replace("|| (get(teamPath).data.keys().hasAny(['leaderUids'])", "|| (get(teamPath).data.keys().hasAny(['coachUid']) && (get(teamPath).data.coachUid is string) && get(teamPath).data.coachUid == request.auth.uid) || (get(teamPath).data.keys().hasAny(['leaderUids'])")],
+    ["型別條件改寬", (b) => b.replace("(get(teamPath).data.ownerUid is string)", "true")],
+    ["刪一個欄位", (b) => b.replace(/\s*\|\| \(get\(teamPath\)\.data\.keys\(\)\.hasAny\(\['creatorUid'\]\)[^\n]*/, "")],
+  ])("Rules 被改（%s）全文比對會紅", (_name, mutate) => {
+    const mutated = mutateHelper(mutate);
+    expect(mutated).not.toBe(rules);
+    expect(helperText(mutated)).not.toBe(expectedHelperText());
+  });
+
+  test("只改縮排與註解不影響全文比對", () => {
+    const reformatted = mutateHelper((b) => b.replace("return isAuth()", "// 註解\n      return   isAuth()"));
+    expect(reformatted).not.toBe(rules);
+    expect(helperText(reformatted)).toBe(expectedHelperText());
+  });
+
   test("Rules 內找得到 helper 本文", () => {
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
@@ -103,6 +148,7 @@ describe("D9 隊徽來源順序 card → cover → image，取第一個通過白
 
   test("全 repo 只有 functions/cp-club-mirror.js 一份代表／隊徽實作", () => {
     const dirs = ["functions", "scripts"];
+    expect(fs.existsSync(path.join(ROOT, "functions", "cp-club-mirror-backfill.js"))).toBe(false);
     const defs = /function\s+(teamLogoOf|isAllowedLogoUrl|repUidsFromTeam|pickTeamImage|clubMirrorFromTeam)\b/;
     const hits = [];
     for (const dir of dirs) {
@@ -366,6 +412,39 @@ describe("onTeamWrittenForCompetitions handler", () => {
     world.failures.teamGet = null;
     world.failures.commit = Object.assign(new Error("permission"), { code: 7 });
     await expect(makeHandler(world)(makeEvent(undefined, team))).rejects.toMatchObject({ code: 7 });
+  });
+
+  test("PERMISSION_DENIED／NOT_FOUND 另記固定前綴告警，錯誤訊息遮罩 teamId 與文件路徑，仍重拋", async () => {
+    const team = { captainUid: "U_cap", name: "隊" };
+    for (const [code, label] of [[7, "PERMISSION_DENIED"], [5, "NOT_FOUND"], ["permission-denied", "PERMISSION_DENIED"]]) {
+      const world = createWorld({ teams: { [TEAM_ID]: team } });
+      const err = Object.assign(new Error(`${code} denied: projects/p/databases/asia-main/documents/cpClubs/${TEAM_ID} and teams/${TEAM_ID} (${TEAM_ID})`), { code });
+      world.failures.commit = err;
+      await expect(makeHandler(world)(makeEvent(undefined, team))).rejects.toBe(err);
+      const calls = world.logger.error.mock.calls;
+      const alerts = calls.filter(([msg]) => msg.startsWith(mirror.ACCESS_ALERT_PREFIX));
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0][0]).toContain(label);
+      const logged = JSON.stringify(calls);
+      expect(logged).not.toContain(TEAM_ID);
+      expect(logged).not.toContain("documents/cpClubs");
+      expect(logged).toContain("<doc-path>");
+      expect(logged).toContain("teams/<id>");
+    }
+  });
+
+  test("其他錯誤碼（UNAVAILABLE 等）不記告警行", async () => {
+    const team = { captainUid: "U_cap", name: "隊" };
+    const world = createWorld({ teams: { [TEAM_ID]: team } });
+    world.failures.teamGet = Object.assign(new Error("unavailable"), { code: 14 });
+    await expect(makeHandler(world)(makeEvent(undefined, team))).rejects.toMatchObject({ code: 14 });
+    expect(world.logger.error.mock.calls.filter(([msg]) => msg.startsWith(mirror.ACCESS_ALERT_PREFIX))).toHaveLength(0);
+  });
+
+  test("sanitizeErrorMessage：非字串、超長也安全", () => {
+    expect(mirror.sanitizeErrorMessage(undefined, TEAM_ID)).toBe("");
+    expect(mirror.sanitizeErrorMessage(`x${TEAM_ID}`.repeat(50), TEAM_ID).length).toBeLessThanOrEqual(300);
+    expect(mirror.sanitizeErrorMessage(`x${TEAM_ID}`.repeat(50), TEAM_ID)).not.toContain(TEAM_ID);
   });
 
   test("log 不含完整 teamId 與 uid", async () => {

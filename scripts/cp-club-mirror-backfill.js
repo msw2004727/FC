@@ -4,11 +4,12 @@
 // 與觸發器 onTeamWrittenForCompetitions 共用 functions/cp-club-mirror.js 的純函式（planMirrorAction 等）。
 //
 // 用法（不加旗標＝dry-run，只讀不寫）。隊徽白名單只讀環境變數 CP_LOGO_BUCKETS（與觸發器同一份），白名單空就停：
-//   CP_LOGO_BUCKETS=<bucket1>,<bucket2> node functions/cp-club-mirror-backfill.js
-//   CP_LOGO_BUCKETS=... node functions/cp-club-mirror-backfill.js --team <teamId,...>
-//   CP_LOGO_BUCKETS=... node functions/cp-club-mirror-backfill.js --execute --confirm-count <N> --plan-hash <sha256> [--team ...]
-//   node functions/cp-club-mirror-backfill.js --rollback --backup <檔>                       （回退 dry-run）
-//   node functions/cp-club-mirror-backfill.js --rollback --backup <檔> --execute --confirm-count <N>
+//   CP_LOGO_BUCKETS=<bucket1>,<bucket2> node scripts/cp-club-mirror-backfill.js
+//   CP_LOGO_BUCKETS=... node scripts/cp-club-mirror-backfill.js --team <teamId,...>
+//   CP_LOGO_BUCKETS=... node scripts/cp-club-mirror-backfill.js --execute --confirm-count <N> --plan-hash <sha256> [--team ...]
+//   node scripts/cp-club-mirror-backfill.js --rollback --backup <檔>                       （回退 dry-run）
+//   node scripts/cp-club-mirror-backfill.js --rollback --backup <檔> --execute --confirm-count <N> [--overwrite-changed]
+//     回退預設略過「回填後又被改過」的文件；--overwrite-changed 才連這些也蓋回備份。
 //   --out <dir>：備份與紀錄輸出位置，只能在 docs/（local-only）或系統暫存目錄下。
 //
 // --execute 與 --rollback --execute 都是正式資料寫入（GATED，站長按鈕，R-SAFE-013）。
@@ -19,6 +20,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { isDeepStrictEqual } = require("util");
 
 const {
   CP_CLUBS_COLLECTION,
@@ -33,7 +35,7 @@ const {
   pickTeamImage,
   planMirrorAction,
   repUidsFromTeam,
-} = require("./cp-club-mirror");
+} = require("../functions/cp-club-mirror");
 
 const PROJECT_ID = "fc-football-6c8dc";
 const SEED_MARK = "g4-seed";
@@ -57,7 +59,7 @@ function parseArgs(argv, env = {}) {
     throw new Error("KEY_FILE_NOT_ALLOWED");
   }
   const tokens = Array.isArray(argv) ? argv.slice(2) : [];
-  const out = { execute: false, rollback: false, teamIds: null, confirmCount: null, planHash: null, backup: null, outDir: DEFAULT_OUT_DIR };
+  const out = { execute: false, rollback: false, overwriteChanged: false, teamIds: null, confirmCount: null, planHash: null, backup: null, outDir: DEFAULT_OUT_DIR };
   const value = (i, code) => {
     const v = tokens[i + 1];
     if (typeof v !== "string" || v === "" || v.startsWith("--")) throw new Error(code);
@@ -67,6 +69,7 @@ function parseArgs(argv, env = {}) {
     const t = tokens[i];
     if (t === "--execute") out.execute = true;
     else if (t === "--rollback") out.rollback = true;
+    else if (t === "--overwrite-changed") out.overwriteChanged = true;
     else if (t === "--team") {
       const ids = value(i, "MISSING_TEAM").split(",").map((s) => s.trim()).filter(Boolean);
       if (ids.length === 0 || ids.some((id) => !TEAM_ID_RE.test(id))) throw new Error("INVALID_TEAM_ID");
@@ -99,6 +102,7 @@ function parseArgs(argv, env = {}) {
     if (out.execute && out.confirmCount === null) throw new Error("ROLLBACK_EXECUTE_REQUIRES_CONFIRM_COUNT");
   } else {
     if (out.backup) throw new Error("BACKUP_REQUIRES_ROLLBACK");
+    if (out.overwriteChanged) throw new Error("OVERWRITE_CHANGED_REQUIRES_ROLLBACK");
     if (out.execute && (out.confirmCount === null || out.planHash === null)) throw new Error("EXECUTE_REQUIRES_COUNT_AND_HASH");
     if (!out.execute && (out.confirmCount !== null || out.planHash !== null)) throw new Error("COUNT_AND_HASH_REQUIRE_EXECUTE");
   }
@@ -335,13 +339,25 @@ async function runExecute({ db, cpDb, FieldValue, args, buckets, now = () => new
 
   for (const entry of plan.entries) {
     const ref = cpDb.collection(CP_CLUBS_COLLECTION).doc(entry.id);
+    const teamRef = db.collection(TEAMS_COLLECTION).doc(entry.id);
     const outcome = await cpDb.runTransaction(async (tx) => {
+      // 與觸發器同順序：先讀鏡像（transaction 內）、再重讀主站現況重算；任何一邊與計畫不同就不寫。
       const snap = await tx.get(ref);
       if (entry.op === "create") {
         if (snap.exists) return "skip-exists";
       } else if (!snap.exists || !snap.updateTime || !entry.expectUpdateTime || !snap.updateTime.isEqual(entry.expectUpdateTime)) {
         return "skip-changed";
       }
+      const teamSnap = await teamRef.get();
+      const current = planMirrorAction({
+        teamExists: teamSnap.exists,
+        teamData: teamSnap.exists ? teamSnap.data() : null,
+        mirrorExists: snap.exists,
+        mirrorData: snap.exists ? snap.data() : null,
+        buckets,
+      });
+      const expected = entry.op === "delete" ? "delete" : "set";
+      if (current.action !== expected || (expected === "set" && !isDeepStrictEqual(current.doc, entry.doc))) return "skip-team-changed";
       if (entry.op === "delete") tx.delete(ref);
       else tx.set(ref, { repUids: entry.doc.repUids, name: entry.doc.name, image: entry.doc.image, srcUpdatedAt: FieldValue.serverTimestamp() });
       return "applied";
@@ -364,40 +380,51 @@ async function runExecute({ db, cpDb, FieldValue, args, buckets, now = () => new
     if (!ok) readbackMismatch += 1;
   }
   const seedLeft = (await cpDb.collection(CP_CLUBS_COLLECTION).where("seededBy", "==", SEED_MARK).count().get()).data().count;
-  log(`執行完成：寫入 ${record.applied.length}、略過 ${record.skipped.length}（已存在 ${record.skipped.filter((s) => s.reason === "skip-exists").length}、被改過 ${record.skipped.filter((s) => s.reason === "skip-changed").length}）`);
+  log(`執行完成：寫入 ${record.applied.length}、略過 ${record.skipped.length}（已存在 ${record.skipped.filter((s) => s.reason === "skip-exists").length}、鏡像被改過 ${record.skipped.filter((s) => s.reason === "skip-changed").length}、主站已變 ${record.skipped.filter((s) => s.reason === "skip-team-changed").length}）`);
   log(`讀回不符 ${readbackMismatch}｜cpClubs where seededBy==${SEED_MARK} 計數 ${seedLeft}`);
   return { backupFile, applied: record.applied.length, skipped: record.skipped.length, readbackMismatch, seedLeft };
 }
 
 // ── 回退 ───────────────────────────────────────────────────────────────
+/** 鏡像現況是否仍是回填當時寫入的內容（delete 則要求仍不存在）。 */
+function isStillAsApplied(applied, snap) {
+  if (applied.op === "delete") return !snap.exists;
+  const data = snap.exists ? snap.data() : null;
+  return !!data && Array.isArray(data.repUids) && sameList(data.repUids, applied.doc.repUids)
+    && data.name === applied.doc.name && data.image === applied.doc.image;
+}
+
 async function runRollback({ cpDb, Timestamp, args, log }) {
   const record = JSON.parse(fs.readFileSync(args.backup, "utf8"));
   if (record.kind !== "cp-club-mirror-backfill" || !Array.isArray(record.applied) || !record.before) throw new Error("BAD_BACKUP_FILE");
   const steps = [...record.applied].reverse();
   let changedSince = 0;
   for (const a of steps) {
-    const snap = await cpDb.collection(CP_CLUBS_COLLECTION).doc(a.id).get();
-    const data = snap.exists ? snap.data() : null;
-    const same = a.op === "delete" ? !snap.exists
-      : !!data && sameList(data.repUids || [], a.doc.repUids) && data.name === a.doc.name && data.image === a.doc.image;
-    if (!same) changedSince += 1;
+    if (!isStillAsApplied(a, await cpDb.collection(CP_CLUBS_COLLECTION).doc(a.id).get())) changedSince += 1;
   }
+  const overwrite = args.overwriteChanged === true;
+  const toApply = overwrite ? steps.length : steps.length - changedSince;
   const restore = steps.filter((a) => record.before[a.id] !== undefined).length;
-  log(`回退計畫：共 ${steps.length} 筆（還原原文 ${restore}、刪除本次新建 ${steps.length - restore}）；回填後又被改過 ${changedSince} 筆（回退會蓋掉，之後隊伍有異動時觸發器會再同步）`);
-  if (!args.execute) return { planned: steps.length, changedSince, executed: 0 };
-  if (args.confirmCount !== steps.length) throw new Error("CONFIRM_COUNT_MISMATCH");
+  log(`回退計畫：共 ${steps.length} 筆（還原原文 ${restore}、刪除本次新建 ${steps.length - restore}）`);
+  log(`  回填後又被改過 ${changedSince} 筆：${overwrite ? "--overwrite-changed，一併蓋回備份" : "預設略過（要覆蓋請加 --overwrite-changed）"}`);
+  log(`  將回退 ${toApply} 筆（--confirm-count 用這個）`);
+  if (!args.execute) return { planned: steps.length, changedSince, toApply, executed: 0, skipped: 0 };
+  if (args.confirmCount !== toApply) throw new Error("CONFIRM_COUNT_MISMATCH");
   let executed = 0;
+  let skipped = 0;
   for (const a of steps) {
     const ref = cpDb.collection(CP_CLUBS_COLLECTION).doc(a.id);
     const before = record.before[a.id];
-    await cpDb.runTransaction(async (tx) => {
+    const done = await cpDb.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      if (!overwrite && !isStillAsApplied(a, snap)) return false;
       if (before === undefined) { if (snap.exists) tx.delete(ref); } else tx.set(ref, deserialize(before, Timestamp));
+      return true;
     });
-    executed += 1;
+    if (done) executed += 1; else skipped += 1;
   }
-  log(`回退完成 ${executed} 筆`);
-  return { planned: steps.length, changedSince, executed };
+  log(`回退完成 ${executed} 筆、略過（回填後又被改過）${skipped} 筆`);
+  return { planned: steps.length, changedSince, toApply, executed, skipped };
 }
 
 async function runDryRun({ db, cpDb, args, buckets, log }) {
@@ -410,8 +437,10 @@ async function runDryRun({ db, cpDb, args, buckets, log }) {
 
 async function main() {
   const args = parseArgs(process.argv, process.env);
-  const { getApps, initializeApp } = require("firebase-admin/app");
-  const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
+  // 根目錄沒有 firebase-admin：沿用 scripts/qa-test-mode/lib.js 的做法，從 functions/node_modules 解析。
+  const fromFunctions = (id) => require(require.resolve(id, { paths: [path.join(REPO_ROOT, "functions")] }));
+  const { getApps, initializeApp } = fromFunctions("firebase-admin/app");
+  const { getFirestore, FieldValue, Timestamp } = fromFunctions("firebase-admin/firestore");
   const app = getApps().length ? getApps()[0] : initializeApp({ projectId: PROJECT_ID });
   const db = getFirestore(app);
   const cpDb = getFirestore(app, CP_DATABASE_ID);

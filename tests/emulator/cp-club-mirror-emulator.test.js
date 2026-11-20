@@ -17,7 +17,7 @@ const fromFunctions = (id) => require(require.resolve(id, { paths: [FUNCTIONS_DI
 const { initializeApp, deleteApp } = fromFunctions("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = fromFunctions("firebase-admin/firestore");
 const { createOnTeamWrittenForCompetitionsHandler, CP_DATABASE_ID } = require("../../functions/cp-club-mirror");
-const { loadState, buildPlan, runExecute, runRollback } = require("../../functions/cp-club-mirror-backfill");
+const { loadState, buildPlan, runExecute, runRollback } = require("../../scripts/cp-club-mirror-backfill");
 
 const EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "";
 const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "demo-cp-club-mirror";
@@ -154,6 +154,58 @@ describe("回填 × 真 Emulator", () => {
     const seed = await mirrorOf("tm_emu_bf_seed");
     expect(seed.get("seededBy")).toBe("g4-seed");
     expect(seed.get("srcUpdatedAt").toMillis()).toBe(5);
+  });
+
+  test("P2-1：loadState 後代表被移除（觸發器判 skip-no-reps 不寫）→ 回填重讀主站、不寫舊代表（skip-team-changed）", async () => {
+    await seedWorld();
+    const state = await loadState({ db, cpDb, teamIds: null });
+    const plan = buildPlan({ ...state, buckets: BUCKETS });
+    expect(plan.entries.find((e) => e.id === "tm_emu_bf_a").doc.repUids).toEqual(["U_a"]);
+    let injected = false;
+    const racingCpDb = {
+      collection: (...a) => cpDb.collection(...a),
+      runTransaction: async (fn) => {
+        if (!injected) {
+          injected = true;
+          // 主站移除隊長 A，觸發器照現況判斷（無鏡像＋無代表 → 不寫）
+          const event = await writeTeamAndEvent("tm_emu_bf_a", { name: "甲", image: ASIA_URL("a.webp") });
+          await expect(handler()(event)).resolves.toEqual({ status: "skip-no-reps" });
+          // 主站改了 seed 隊的代表，觸發器尚未跑（模擬延遲）
+          await db.collection("teams").doc("tm_emu_bf_seed").set({ name: "種子", coachUids: ["U_s"] });
+        }
+        return cpDb.runTransaction(fn);
+      },
+    };
+    const args = { execute: true, teamIds: null, confirmCount: plan.entries.length, planHash: plan.planHash, outDir };
+    const res = await runExecute({ db, cpDb: racingCpDb, FieldValue, args, buckets: BUCKETS, log: () => {} });
+    const record = JSON.parse(fs.readFileSync(res.backupFile, "utf8"));
+    expect(record.skipped).toEqual([
+      { id: "tm_emu_bf_a", op: "create", reason: "skip-team-changed" },
+      { id: "tm_emu_bf_seed", op: "update", reason: "skip-team-changed" },
+    ]);
+    expect((await mirrorOf("tm_emu_bf_a")).exists).toBe(false);
+    expect((await mirrorOf("tm_emu_bf_b")).get("repUids")).toEqual(["U_b"]);
+    expect((await mirrorOf("tm_emu_bf_orphan")).exists).toBe(false);
+    // seed 文件未被回填改寫成舊代表（仍是原狀），之後由觸發器依現況處理
+    expect((await mirrorOf("tm_emu_bf_seed")).get("seededBy")).toBe("g4-seed");
+  });
+
+  test("回退預設略過回填後又被改過的文件", async () => {
+    await seedWorld();
+    const state = await loadState({ db, cpDb, teamIds: null });
+    const plan = buildPlan({ ...state, buckets: BUCKETS });
+    const args = { execute: true, teamIds: null, confirmCount: plan.entries.length, planHash: plan.planHash, outDir };
+    const res = await runExecute({ db, cpDb, FieldValue, args, buckets: BUCKETS, log: () => {} });
+    expect(res.applied).toBe(4);
+    const event = await writeTeamAndEvent("tm_emu_bf_a", { captainUid: "U_a2", name: "甲" });
+    await expect(handler()(event)).resolves.toEqual({ status: "set" });
+    const dry = await runRollback({ cpDb, Timestamp, args: { backup: res.backupFile, execute: false }, log: () => {} });
+    expect(dry).toMatchObject({ changedSince: 1, toApply: 3 });
+    const done = await runRollback({ cpDb, Timestamp, args: { backup: res.backupFile, execute: true, confirmCount: 3 }, log: () => {} });
+    expect(done).toMatchObject({ executed: 3, skipped: 1 });
+    expect((await mirrorOf("tm_emu_bf_a")).get("repUids")).toEqual(["U_a2"]);
+    expect((await mirrorOf("tm_emu_bf_seed")).get("seededBy")).toBe("g4-seed");
+    expect((await mirrorOf("tm_emu_bf_orphan")).get("repUids")).toEqual(["U_o"]);
   });
 
   test("雜湊不符拒絕、不寫", async () => {

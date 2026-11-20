@@ -198,6 +198,22 @@ function maskTeamId(teamId) {
   return id.length <= 13 ? `${id.slice(0, 4)}…` : `${id.slice(0, 13)}…`;
 }
 
+// 需要人處理的錯誤（多半是 IAM 或資料庫不存在）：除了一般失敗 log，另記一行固定前綴的告警方便搜尋。
+const ACCESS_ALERT_PREFIX = "[CP_CLUB_MIRROR_ACCESS_ALERT]";
+const ACCESS_ALERT_CODES = new Map([
+  [7, "PERMISSION_DENIED"], ["permission-denied", "PERMISSION_DENIED"], ["PERMISSION_DENIED", "PERMISSION_DENIED"],
+  [5, "NOT_FOUND"], ["not-found", "NOT_FOUND"], ["NOT_FOUND", "NOT_FOUND"],
+]);
+
+/** 錯誤訊息寫進 log 前遮罩：teamId 原文、文件路徑（含 projects/…/documents/ 全路徑）一律換成遮罩版。 */
+function sanitizeErrorMessage(message, teamId) {
+  let text = String(message || "").slice(0, 500);
+  text = text.replace(/projects\/[^\s"'`]*?\/documents\/[^\s"'`]+/g, "<doc-path>");
+  text = text.replace(/\b(teams|cpClubs)\/[^\s"'`/]+/g, (_m, col) => `${col}/<id>`);
+  if (typeof teamId === "string" && teamId.length > 0) text = text.split(teamId).join(maskTeamId(teamId));
+  return text.slice(0, 300);
+}
+
 function eventAgeMs(event, nowMs) {
   const eventMs = Date.parse(String(event?.time || ""));
   return Number.isFinite(eventMs) ? Math.max(0, nowMs - eventMs) : 0;
@@ -282,11 +298,19 @@ function createOnTeamWrittenForCompetitionsHandler({
       }
       return { status: result.action };
     } catch (err) {
+      const code = err?.code ?? null;
       logger.error("[onTeamWrittenForCompetitions] mirror sync failed; will retry", {
         teamId: maskTeamId(teamId),
-        code: err?.code ?? null,
-        message: String(err?.message || err).slice(0, 300),
+        code,
+        message: sanitizeErrorMessage(err?.message || err, teamId),
       });
+      const alert = ACCESS_ALERT_CODES.get(code);
+      if (alert) {
+        logger.error(`${ACCESS_ALERT_PREFIX} ${alert} on cross-database mirror sync; check IAM / asia-main database`, {
+          teamId: maskTeamId(teamId),
+          code,
+        });
+      }
       throw err;
     }
   };
@@ -318,6 +342,7 @@ function createCpClubMirrorExports({ onDocumentWritten, db, getFirestore, FieldV
 }
 
 module.exports = {
+  ACCESS_ALERT_PREFIX,
   CP_CLUBS_COLLECTION,
   CP_DATABASE_ID,
   IMAGE_VARIANT_ORDER,
@@ -345,6 +370,7 @@ module.exports = {
   planMirrorAction,
   projectTeamForMirror,
   repUidsFromTeam,
+  sanitizeErrorMessage,
   teamImageCandidates,
   teamLogoOf,
 };
