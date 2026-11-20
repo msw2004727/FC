@@ -154,7 +154,8 @@ export async function acceptInvite(deps: CpDeps, caller: Caller, gate: GateResul
         matchIds: stringList(staffSnap, 'matchIds'),
         expiresAtMs: prevExp && typeof prevExp.toMillis === 'function' ? (prevExp.toMillis() as number) : null
       },
-      invite: { roles: inviteRoles, matchIds: inviteMatches, expiresAtMs: ivExpMs }
+      invite: { roles: inviteRoles, matchIds: inviteMatches, expiresAtMs: ivExpMs },
+      nowMs: deps.now().getTime()
     });
     const profile = await readDoc(deps, null, deps.mainDb.doc(`users/${uid}`));
     const displayName = staffDisplayName(profile.exists ? profile.get('displayName') : null, gate.bannedWords);

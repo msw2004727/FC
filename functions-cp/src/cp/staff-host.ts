@@ -381,24 +381,27 @@ export interface InviteMergeInput {
   /** 對象現有 staff（不存在時 roles、matchIds 為空、expiresAtMs 為 null）。 */
   existing: { roles: readonly string[]; matchIds: readonly string[]; expiresAtMs: number | null };
   invite: { roles: readonly string[]; matchIds: readonly string[]; expiresAtMs: number };
+  /** 現在時刻：判斷原本的記分指派是否已過期。 */
+  nowMs: number;
 }
 
 /**
  * 接受邀請後的 staff 指派：角色＝原本記分角色 ∪ 邀請角色（host／coHost 保留）；
- * 場次＝原本 ∪ 邀請（去重，超過 100 回 FIELD_RANGE 不寫）；到期取較晚者。
- * 原本「有記分角色」時 expiresAt null 代表不過期，保留 null。
- * 原本沒有記分角色（例如主辦建賽時的 expiresAt null、共同主辦）時 null 不是指派，改用邀請的到期。
+ * 場次＝原本 ∪ 邀請（去重，超過 100 回 FIELD_RANGE 不寫）。
+ * 到期（顧問 11-20「已有的不動」；Opus 審 P2 取代原本「取較晚者」——那會讓舊場次跟著延長、超出邀請範圍）：
+ *   - 原本有仍有效的記分指派：到期不動（null＝不過期也保留），邀請的場次併入、沿用原本的到期。
+ *   - 原本的記分指派已過期（expiresAt <= 現在）：視同沒有指派，舊場次不併入，場次與到期都只用邀請的。
+ *   - 原本沒有記分角色（主辦建賽時的 expiresAt null、共同主辦）：null 不是指派，改用邀請的到期。
  */
-export function mergeInviteAssignment({ existing, invite }: InviteMergeInput) {
-  const existingScore = canonScore(existing.roles);
+export function mergeInviteAssignment({ existing, invite, nowMs }: InviteMergeInput) {
+  const liveScore = canonScore(existing.roles).length > 0
+    && (existing.expiresAtMs == null || nowMs < existing.expiresAtMs);
+  const existingScore = liveScore ? canonScore(existing.roles) : [];
   const scoreRoles = canonScore([...existingScore, ...invite.roles]);
   const roles = staffRolesAfterAssign(existing.roles, scoreRoles);
-  const matchIds = [...new Set([...existing.matchIds, ...invite.matchIds])];
+  const matchIds = [...new Set([...(liveScore ? existing.matchIds : []), ...invite.matchIds])];
   if (matchIds.length > 100) throw bad('FIELD_RANGE', { field: 'matchIds', min: 0, max: 100 });
-  let expiresAtMs: number | null;
-  if (existingScore.length === 0) expiresAtMs = invite.expiresAtMs;
-  else if (existing.expiresAtMs == null) expiresAtMs = null;
-  else expiresAtMs = Math.max(existing.expiresAtMs, invite.expiresAtMs);
+  const expiresAtMs: number | null = liveScore ? existing.expiresAtMs : invite.expiresAtMs;
   return { roles, scoreRoles, matchIds, expiresAtMs };
 }
 
@@ -416,6 +419,8 @@ export async function createInvite(deps: CpDeps, caller: Caller, gate: GateResul
 
   return deps.db.runTransaction(async tx => {
     const { comp } = await openHost(deps, tx, caller, gate, cid);
+    // 已結束的賽事邀請永遠接受不了（接受者沒有寬限），不讓主辦寬限期或管理員白用額度（Opus 審 P3-3）
+    if (comp.endedAt) throw pre('COMPETITION_ENDED');
     const seq = inviteSeqOf(comp.inviteSeq);
     if (seq >= INVITE_MAX) throw new CpError('resource-exhausted', 'INVITE_LIMIT', { max: INVITE_MAX });
     const exp = resolveInviteExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs);

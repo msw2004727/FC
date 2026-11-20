@@ -244,13 +244,18 @@ describe('K11 邀請記分員', () => {
   it('已是記分員再接受另一張：角色與場次合併、memberNo 與 staffSeq 不變；主辦接受自己的邀請保留 host', async () => {
     const first = await ok<Created>(create(cid, { roles: ['scorer'], matchIds: [MT], expiresAt: Date.now() + 2 * DAY }));
     await ok(accept(cid, first));
+    expect((await staffSnap(cid, 'tester3')).get('displayName')).toBe('路人丁');
+    // 再接受時顯示名更新成主庫最新值（Opus 審：原本沒有斷言）
+    await adminDb(MAIN).doc('users/tester3').set({ displayName: '路人丁改名' }, { merge: true });
     const second = await ok<Created>(create(cid, { roles: ['referee'], matchIds: [MT2, MT] }));
     const r = await ok<{ roles: string[]; matchCount: number }>(accept(cid, second));
     expect(r).toMatchObject({ roles: ['scorer', 'referee'], matchCount: 2 });
     const s = (await staffSnap(cid, 'tester3')).data()!;
     expect(s.roles).toEqual(['scorer', 'referee']);
     expect(s.matchIds).toEqual([MT, MT2]);
-    expect(s.expiresAt.toMillis()).toBe(second.expiresAt);
+    // 顧問「已有的不動」（Opus 審 P2）：原本有效的指派到期維持第一張的，不被第二張延長
+    expect(s.expiresAt.toMillis()).toBe(first.expiresAt);
+    expect(s.displayName).toBe('路人丁改名');
     expect(s.memberNo).toBe(2);
     expect((await compDoc(cid)).staffSeq).toBe(2);
     expect((await ivDoc(cid, second.ivId)).usedMemberNo).toBe(2);
@@ -268,6 +273,34 @@ describe('K11 邀請記分員', () => {
     const mine = (await adminDb().doc(`cpMine/tester/items/${cid}`).get()).data()!;
     expect(mine.roles).toEqual(['host', 'scorer']);
     expect(mine.host).toBe(true);
+  });
+
+  it('原本的記分指派已過期：接受新邀請時舊場次不復活，場次與到期只用邀請的（Opus 審 P2）', async () => {
+    const first = await ok<Created>(create(cid, { roles: ['scorer'], matchIds: [MT] }));
+    await ok(accept(cid, first));
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).update({ expiresAt: new Date(Date.now() - 60_000) });
+    const second = await ok<Created>(create(cid, { roles: ['referee'], matchIds: [MT2] }));
+    const r = await ok<{ roles: string[]; matchCount: number }>(accept(cid, second));
+    expect(r).toMatchObject({ roles: ['referee'], matchCount: 1 });
+    const st = (await staffSnap(cid, 'tester3')).data()!;
+    expect(st.roles).toEqual(['referee']);
+    expect(st.matchIds).toEqual([MT2]);
+    expect(st.expiresAt.toMillis()).toBe(second.expiresAt);
+    expect((await adminDb().doc(`cpMine/tester3/items/${cid}`).get()).get('roles')).toEqual(['referee']);
+  });
+
+  it('只有接受邀請會寫顯示名：主辦用 assignStaff 指派自己不寫 displayName', async () => {
+    await ok(call(handleCpHost, TESTER, { action: 'assignStaff', cid, uid: 'tester', roles: ['scorer'], matchIds: [MT] }));
+    const host = (await staffSnap(cid, 'tester')).data()!;
+    expect(host.roles).toEqual(['host', 'scorer']);
+    expect('displayName' in host).toBe(false);
+  });
+
+  it('已結束的賽事不能建立邀請（管理員也一樣，Opus 審 P3-3）', async () => {
+    await adminDb().doc(`competitions/${cid}`).update({ endedAt: new Date(), endedBy: 'confirm' });
+    await fails(create(cid, {}, ADMIN), 'COMPETITION_ENDED', 'failed-precondition');
+    await fails(create(cid), 'COMPETITION_ENDED', 'failed-precondition');
+    expect((await compDoc(cid)).inviteSeq ?? 0).toBe(0);
   });
 
   it('顯示名含禁用字或空 → displayName null', async () => {

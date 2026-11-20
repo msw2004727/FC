@@ -73,37 +73,59 @@ describe('staff 顯示名', () => {
 
 describe('接受邀請的指派合併', () => {
   const MT = (c: string) => 'mt_' + c.repeat(20);
+  const NOW = 2000;
   it('新人：角色、場次、到期照邀請', () => {
     const r = mergeInviteAssignment({
       existing: { roles: [], matchIds: [], expiresAtMs: null },
-      invite: { roles: ['referee'], matchIds: [MT('a')], expiresAtMs: 1000 }
+      invite: { roles: ['referee'], matchIds: [MT('a')], expiresAtMs: 9000 }, nowMs: NOW
     });
-    expect(r).toEqual({ roles: ['referee'], scoreRoles: ['referee'], matchIds: [MT('a')], expiresAtMs: 1000 });
+    expect(r).toEqual({ roles: ['referee'], scoreRoles: ['referee'], matchIds: [MT('a')], expiresAtMs: 9000 });
   });
-  it('已是記分員：角色與場次聯集，到期取較晚；原本不過期保留 null', () => {
+  it('已是有效記分員：角色與場次聯集，到期不動（顧問「已有的不動」）；原本不過期保留 null', () => {
     const r = mergeInviteAssignment({
       existing: { roles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 5000 },
-      invite: { roles: ['referee'], matchIds: [MT('a'), MT('b')], expiresAtMs: 1000 }
+      invite: { roles: ['referee'], matchIds: [MT('a'), MT('b')], expiresAtMs: 9000 }, nowMs: NOW
     });
+    // Opus 審 P2：原本取較晚者會把舊場次延長到 9000；改為維持 5000
     expect(r).toEqual({ roles: ['scorer', 'referee'], scoreRoles: ['scorer', 'referee'], matchIds: [MT('a'), MT('b')], expiresAtMs: 5000 });
     const keep = mergeInviteAssignment({
       existing: { roles: ['referee'], matchIds: [], expiresAtMs: null },
-      invite: { roles: ['scorer'], matchIds: [MT('c')], expiresAtMs: 1000 }
+      invite: { roles: ['scorer'], matchIds: [MT('c')], expiresAtMs: 9000 }, nowMs: NOW
     });
     expect(keep.expiresAtMs).toBeNull();
+  });
+  it('原本的記分指派已過期：視同沒有指派，舊場次不復活，場次與到期只用邀請的（Opus 審 P2）', () => {
+    const r = mergeInviteAssignment({
+      existing: { roles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 1500 },
+      invite: { roles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 }, nowMs: NOW
+    });
+    expect(r).toEqual({ roles: ['scorer'], scoreRoles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 });
+    // 剛好等於現在也算過期（與 Rules request.time < expiresAt 一致）
+    const edge = mergeInviteAssignment({
+      existing: { roles: ['referee'], matchIds: [MT('a')], expiresAtMs: NOW },
+      invite: { roles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 }, nowMs: NOW
+    });
+    expect(edge).toEqual({ roles: ['scorer'], scoreRoles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 });
+  });
+  it('過期的舊指派不保留舊記分角色，host／coHost 照樣保留', () => {
+    const r = mergeInviteAssignment({
+      existing: { roles: ['coHost', 'referee'], matchIds: [MT('a')], expiresAtMs: 100 },
+      invite: { roles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 }, nowMs: NOW
+    });
+    expect(r).toEqual({ roles: ['coHost', 'scorer'], scoreRoles: ['scorer'], matchIds: [MT('b')], expiresAtMs: 9000 });
   });
   it('主辦（host、expiresAt null、沒有記分角色）接受：host 保留、到期改用邀請', () => {
     const r = mergeInviteAssignment({
       existing: { roles: ['host'], matchIds: [], expiresAtMs: null },
-      invite: { roles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 1000 }
+      invite: { roles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 9000 }, nowMs: NOW
     });
-    expect(r).toEqual({ roles: ['host', 'scorer'], scoreRoles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 1000 });
+    expect(r).toEqual({ roles: ['host', 'scorer'], scoreRoles: ['scorer'], matchIds: [MT('a')], expiresAtMs: 9000 });
   });
   it('合併後超過 100 場回 FIELD_RANGE', () => {
     const many = Array.from({ length: 100 }, (_, i) => 'mt_' + String(i).padStart(20, 'x'));
     expect(reasonOf(() => mergeInviteAssignment({
-      existing: { roles: ['scorer'], matchIds: many, expiresAtMs: 1 },
-      invite: { roles: ['scorer'], matchIds: [MT('z')], expiresAtMs: 1 }
+      existing: { roles: ['scorer'], matchIds: many, expiresAtMs: 9000 },
+      invite: { roles: ['scorer'], matchIds: [MT('z')], expiresAtMs: 9000 }, nowMs: NOW
     }))).toBe('FIELD_RANGE');
   });
 });
