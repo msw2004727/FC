@@ -114,6 +114,55 @@ export function teamLogoOf(raw: unknown, buckets?: readonly string[]): string | 
   return s;
 }
 
+/**
+ * 賽事封面（計畫書「賽事封面圖」做法甲；顧問 §3.536）：前端裁切後直傳 Storage，這裡只驗兩個下載網址。
+ * - null＝移除封面；物件只能有 url、thumb 兩鍵，兩鍵都必填。
+ * - 每個網址：NFKC＋去頭尾空白、≤ 1200 字、`https://` 後只許可見 ASCII、本專案 bucket 的 Firebase Storage 下載網址
+ *   （沿用隊徽 isAllowedLogoUrl／CP_LOGO_BUCKETS），且 URL 解析後原樣不變（不收反斜線、#、需要再編碼的字元）。
+ * - 物件路徑（解碼後）：url＝images/competitions/c_{16 碼}/cover_{13 碼毫秒}.(webp|jpg)，thumb 同理換成 thumb_；
+ *   兩者必須在同一個 c_ 資料夾。路徑不含 uid（§3.251 (c)）。
+ * - 與隊徽「不合格寫 null」不同：封面是主辦自己送的欄位，不合格明確回錯。
+ */
+export interface CoverInput { url: string; thumb: string }
+const COVER_KEYS = ['url', 'thumb'] as const;
+const COVER_PATH_RE = /^images\/competitions\/(c_[a-z0-9]{16})\/(cover|thumb)_[0-9]{13}\.(?:webp|jpg)$/;
+
+/** 回傳解碼後的資料夾鍵；不合格丟錯（field 為 cover.url 或 cover.thumb）。 */
+function coverUrlOf(raw: unknown, kind: 'url' | 'thumb', buckets?: readonly string[]): { url: string; folder: string } {
+  const field = `cover.${kind}`;
+  if (raw == null) throw bad('FIELD_REQUIRED', { field });
+  if (typeof raw !== 'string') throw bad('FIELD_TYPE', { field });
+  const s = raw.normalize('NFKC').trim();
+  if (s.length === 0 || s.length > TEAM_LOGO_MAX) throw bad('FIELD_LENGTH', { field, min: 1, max: TEAM_LOGO_MAX });
+  if (!TEAM_LOGO_RE.test(s)) throw bad('FIELD_FORMAT', { field });
+  if (!isAllowedLogoUrl(s, buckets)) throw bad('COVER_URL_NOT_ALLOWED', { field });
+  const u = new URL(s); // isAllowedLogoUrl 已確認可解析
+  if (u.href !== s || u.hash !== '') throw bad('FIELD_FORMAT', { field });
+  const m = /^\/v0\/b\/[^/]+\/o\/([^/]+)$/.exec(u.pathname);
+  let path: string;
+  try {
+    path = decodeURIComponent(m ? m[1]! : '');
+  } catch {
+    throw bad('COVER_URL_NOT_ALLOWED', { field });
+  }
+  const p = COVER_PATH_RE.exec(path);
+  if (!p || p[2] !== (kind === 'url' ? 'cover' : 'thumb')) throw bad('COVER_URL_NOT_ALLOWED', { field });
+  return { url: s, folder: p[1]! };
+}
+
+export function coverOf(v: unknown, buckets?: readonly string[]): CoverInput | null {
+  if (v === null) return null;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('FIELD_TYPE', { field: 'cover' });
+  const o = v as Record<string, unknown>;
+  for (const k of Object.keys(o)) {
+    if (!(COVER_KEYS as readonly string[]).includes(k)) throw bad('UNKNOWN_FIELD', { field: 'cover' });
+  }
+  const url = coverUrlOf(o.url, 'url', buckets);
+  const thumb = coverUrlOf(o.thumb, 'thumb', buckets);
+  if (url.folder !== thumb.folder) throw bad('COVER_URL_NOT_ALLOWED', { field: 'cover' });
+  return { url: url.url, thumb: thumb.url };
+}
+
 export function competitionName(v: unknown, bannedWords: readonly string[]): string {
   const name = requireLine(v, 'name', 2, LIMITS.nameMax);
   if (findBannedWord(name, bannedWords)) throw bad('BANNED_WORD', { field: 'name' });

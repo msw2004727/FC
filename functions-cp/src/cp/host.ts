@@ -40,6 +40,7 @@ import {
   categoryOf,
   competitionName,
   contactNoteOf,
+  coverOf,
   divisionsOf,
   feeNoteOf,
   hostDisplayName,
@@ -91,7 +92,7 @@ function divisionDoc(d: DivisionInput, order: number) {
 const CREATE_KEYS = [
   'action', 'name', 'hostType', 'hostTeamId', 'hostDisplay', 'sport', 'timezone', 'category',
   'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt', 'venues', 'feeNote', 'liveLinks', 'divisions',
-  'contactNote'
+  'contactNote', 'cover'
 ];
 
 export async function createCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
@@ -109,6 +110,8 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const liveLinks = liveLinksOf(input.liveLinks);
   const feeNote = feeNoteOf(input.feeNote, hostType);
   const contactNote = contactNoteOf(input.contactNote, gate.bannedWords);
+  // 封面選填（顧問 §3.536 做法甲）：沒帶或 null 寫 null；帶了就驗兩個網址
+  const cover = input.cover == null ? null : coverOf(input.cover);
   const divisions = divisionsOf(input.divisions);
   assertFeeAllowed(divisions, hostType);
   if (divisions.some(d => d.dvId)) throw bad('BAD_ID', { field: 'divisions' });
@@ -194,7 +197,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
       regOpenAt: ts(sched.regOpenAt), regCloseAt: ts(sched.regCloseAt),
       firstMatchAt: ts(sched.firstMatchAt), lastMatchAt: ts(sched.lastMatchAt),
       endedAt: null, endedBy: null, rostersLockedAt: null, ageBasisAt: null,
-      timezone, venues, feeNote, liveLinks, contactNote, notices: [],
+      timezone, venues, feeNote, liveLinks, contactNote, cover, notices: [],
       // K10：已發出的最大成員編號。個人主辦的 staff 同時寫 memberNo 1。俱樂部沒有主辦 staff，1 先占著。
       stateVersion: 1, staffSeq: HOST_MEMBER_NO, createdAt: now, updatedAt: now
     });
@@ -265,7 +268,7 @@ function standingGroupIds(schedule: unknown): string[] {
 // ── update ─────────────────────────────────────────────────────────────
 const UPDATE_KEYS = [
   'action', 'cid', 'name', 'category', 'hostDisplay', 'regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt',
-  'venues', 'feeNote', 'liveLinks', 'divisions', 'contactNote'
+  'venues', 'feeNote', 'liveLinks', 'divisions', 'contactNote', 'cover'
 ];
 const SCHEDULE_KEYS = ['regOpenAt', 'regCloseAt', 'firstMatchAt', 'lastMatchAt'];
 
@@ -277,13 +280,19 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   const schedKeys = SCHEDULE_KEYS.filter(has);
   if (schedKeys.length > 0 && schedKeys.length < 4) throw bad('SCHEDULE_ALL_REQUIRED', { field: 'schedule' });
   const divisions = has('divisions') ? divisionsOf(input.divisions) : null;
+  // 封面：null＝移除；物件＝換新（交易前先驗網址）
+  const cover = has('cover') ? coverOf(input.cover) : undefined;
+  // 顧問 §3.536 第 3 點：已結束／已取消時主辦與管理員都只能「只送 cover: null」移除封面，換新與其他欄位照舊擋
+  const removeCoverOnly = cover === null && Object.keys(input).every(k => k === 'action' || k === 'cid' || k === 'cover');
   let mineSync: { name: string; firstMatchAt: Timestamp; category: 'league' | 'cup' | 'friendly' } | null = null;
 
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
     assertCompVisible(comp, gate);
     await assertHostOrCo(deps, tx, cid, comp, caller);
-    if (comp.status === 'cancelled' || comp.endedAt) throw pre('COMPETITION_CLOSED');
+    if ((comp.status === 'cancelled' || comp.endedAt) && !removeCoverOnly) {
+      throw pre('COMPETITION_CLOSED', cover ? { field: 'cover' } : undefined);
+    }
     if (comp.hidden && !isAdmin(caller)) throw pre('COMPETITION_HIDDEN');
     if (divisions) assertFeeAllowed(divisions, comp.hostType);
 
@@ -328,6 +337,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
     if (has('feeNote')) patch.feeNote = feeNoteOf(input.feeNote, comp.hostType);
     if (has('liveLinks')) patch.liveLinks = liveLinksOf(input.liveLinks);
     if (has('contactNote')) patch.contactNote = contactNoteOf(input.contactNote, gate.bannedWords);
+    if (cover !== undefined) patch.cover = cover;
 
     // 組別：送來的是完整清單（有 dvId＝更新、沒有＝新增、清單外＝刪除）
     let divisionWrites: (() => void)[] = [];
