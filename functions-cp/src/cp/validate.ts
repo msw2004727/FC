@@ -138,13 +138,17 @@ function coverUrlOf(raw: unknown, kind: 'url' | 'thumb', buckets?: readonly stri
   if (!isAllowedLogoUrl(s, buckets)) throw bad('COVER_URL_NOT_ALLOWED', { field });
   const u = new URL(s); // isAllowedLogoUrl 已確認可解析
   if (u.href !== s || u.hash !== '') throw bad('FIELD_FORMAT', { field });
-  const m = /^\/v0\/b\/[^/]+\/o\/([^/]+)$/.exec(u.pathname);
+  // 只收 getDownloadURL 的標準形：bucket 段不編碼、物件段＝encodeURIComponent(路徑)、query 只有 alt=media（可帶 token）。
+  // 獨立審查 P3：不帶 alt=media 會拿到 JSON 中繼資料而破圖；編碼變體雖指向同一物件，但前端比對會判不合格。
+  if (!/^\?alt=media(?:&token=[A-Za-z0-9-]{1,64})?$/.test(u.search)) throw bad('COVER_URL_NOT_ALLOWED', { field });
+  const m = /^\/v0\/b\/[a-z0-9._-]+\/o\/([^/]+)$/.exec(u.pathname);
   let path: string;
   try {
     path = decodeURIComponent(m ? m[1]! : '');
   } catch {
     throw bad('COVER_URL_NOT_ALLOWED', { field });
   }
+  if (!m || encodeURIComponent(path) !== m[1]) throw bad('COVER_URL_NOT_ALLOWED', { field });
   const p = COVER_PATH_RE.exec(path);
   if (!p || p[2] !== (kind === 'url' ? 'cover' : 'thumb')) throw bad('COVER_URL_NOT_ALLOWED', { field });
   return { url: s, folder: p[1]! };

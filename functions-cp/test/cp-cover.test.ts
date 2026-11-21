@@ -121,6 +121,30 @@ describe('coverOf 拒絕', () => {
     expectErr(() => coverOf({ url: COVER.replace('firebasestorage.googleapis.com', 'FIREBASESTORAGE.googleapis.com'), thumb: THUMB }, BUCKETS),
       'FIELD_FORMAT', 'cover.url');
   });
+  it('query 不是標準形（沒有 alt=media、多出參數、token 怪字元）→ COVER_URL_NOT_ALLOWED', () => {
+    const base = `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(`images/competitions/${KEY}/cover_1763700000000.webp`)}`;
+    for (const q of ['', '?', '?alt=json', '?token=abc', '?alt=media&x=1', '?alt=media&token=a|b', '?token=abc&alt=media']) {
+      expectErr(() => coverOf({ url: base + q, thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
+    }
+    expect(coverOf({ url: `${base}?alt=media`, thumb: THUMB }, BUCKETS)?.url).toBe(`${base}?alt=media`);
+  });
+  it('編碼變體（bucket 段編碼、路徑字母編碼、小寫 %2f、雙重編碼、%2e%2e）→ COVER_URL_NOT_ALLOWED', () => {
+    const q = '?alt=media&token=t0';
+    const p = `images/competitions/${KEY}/cover_1763700000000.webp`;
+    const bad = [
+      `https://firebasestorage.googleapis.com/v0/b/demo%2Dcp.firebasestorage.app/o/${enc(p)}${q}`,
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(p).replace('images', '%69mages')}${q}`,
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(p).replace(/%2F/g, '%2f')}${q}`,
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(p).replace(/%2F/g, '%252F')}${q}`,
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(`images/competitions/${KEY}/%2e%2e/cover_1763700000000.webp`)}${q}`,
+    ];
+    for (const url of bad) expectErr(() => coverOf({ url, thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
+  });
+  it('主機尾點 → 不收', () => {
+    const url = COVER.replace('googleapis.com/', 'googleapis.com./');
+    const e = thrown(() => coverOf({ url, thumb: THUMB }, BUCKETS));
+    expect(e).toBeInstanceOf(CpError);
+  });
   it('帶帳密或埠號的網址 → COVER_URL_NOT_ALLOWED', () => {
     expectErr(() => coverOf({ url: COVER.replace('https://', 'https://u:p@'), thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
     expectErr(() => coverOf({ url: COVER.replace('.com/', '.com:8443/'), thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
