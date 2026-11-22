@@ -1029,9 +1029,8 @@ export async function endCompetition(deps: CpDeps, caller: Caller, gate: GateRes
     const comp = await hostComp(deps, tx, caller, gate, cid);
     if (comp.status !== 'published') throw pre('STATUS_NOT_EDITABLE', { status: comp.status });
     if (comp.endedAt) throw pre('COMPETITION_ENDED');
-    // 至少一個組別已有賽程即可。未確認場次留在原狀態，不在這裡改、也不計分。
-    const divs = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/divisions`).limit(LIMITS.divisionsMax));
-    if (divs.empty || divs.docs.every(d => !d.get('schedule'))) throw pre('SCHEDULE_REQUIRED');
+    // 沒排賽程也能手動結束（站長 11-23：只用來報名、不在系統排賽程的賽事）；取代原本「至少一組有賽程」的 SCHEDULE_REQUIRED。
+    // 未確認場次留在原狀態，不在這裡改、也不計分。
     const now = FieldValue.serverTimestamp();
     tx.update(deps.db.doc(`competitions/${cid}`), {
       endedAt: now, endedBy: 'host', endReason: reason,

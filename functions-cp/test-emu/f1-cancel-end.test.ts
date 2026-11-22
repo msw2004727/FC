@@ -18,7 +18,7 @@ const TEAMS4 = ['甲', '乙', '丙', '丁'];
 /** 契約上限。管理員實測路徑更緊，下面的 toBe 鎖住。 */
 const READ_BUDGET = {
   cancelMatch: 6,          // 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋場次 1
-  endCompetition: 13,      // 閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋組別 ≤8
+  endCompetition: 5,       // 閘門 ≤2＋賽事 1＋主辦判斷 ≤2（11-23 起不讀組別，原 13）
   restoreCompetition: 3,   // 閘門 ≤2＋賽事 1
   triggerCancel: 13,       // 場次 1＋摘要 1＋場次重讀 1＋賽事 1＋組別 ≤8＋聚合 1
   triggerCancelEnds: 14    // 上式＋總場次聚合 1。K3 末場取消另讀 1 張積分榜寫冠軍名，實測 8，仍在上限內
@@ -202,7 +202,7 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
       action: 'endCompetition', cid: c.cid, reason: '本季提前結束'
     }, makeDeps(LATER, meter)));
     expect(ended.endedBy).toBe('host');
-    expect(meter.reads).toBe(3);
+    expect(meter.reads).toBe(2); // 11-23 不再讀組別（原 3／4）
     expect(meter.reads).toBeLessThanOrEqual(READ_BUDGET.endCompetition);
     let comp = (await adminDb().doc(`competitions/${c.cid}`).get()).data()!;
     expect(comp.endedBy).toBe('host');
@@ -270,10 +270,23 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     );
   });
 
-  it('沒有賽程不能結束；至少一個組別有賽程就可以；不是 published 不行', async () => {
+  it('沒有賽程也能結束（站長 11-23），不改場次、不讀組別', async () => {
     await resetAll();
     const bare = await setupComp(TEAMS4);
-    await fails(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: bare.cid, reason: '想結束' }, later()), 'SCHEDULE_REQUIRED');
+    const meter = new ReadMeter();
+    await ok(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: bare.cid, reason: '只報名不排賽程' }, makeDeps(LATER, meter)));
+    expect(meter.reads).toBe(2);
+    expect(meter.reads).toBeLessThanOrEqual(READ_BUDGET.endCompetition);
+    const comp = (await adminDb().doc(`competitions/${bare.cid}`).get()).data()!;
+    expect(comp.endedBy).toBe('host');
+    expect(comp.endReason).toBe('只報名不排賽程');
+    expect(comp.endedAt).not.toBeNull();
+    await fails(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: bare.cid, reason: '再結束一次' }, later()), 'COMPETITION_ENDED');
+  });
+
+  it('有賽程可以結束、場次不改；不是 published 不行', async () => {
+    await resetAll();
+    const bare = await setupComp(TEAMS4);
     await generate(bare);
     await adminDb().doc(`competitions/${bare.cid}`).update({ status: 'draft' });
     await fails(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: bare.cid, reason: '想結束' }, later()), 'STATUS_NOT_EDITABLE');
@@ -282,7 +295,7 @@ describe('§3.272 取消單場、手動結束、管理員恢復', () => {
     await adminDb().doc(`competitions/${bare.cid}/divisions/${dv2}`).set({ name: '加賽組', playersOnField: 5 });
     const meter = new ReadMeter();
     await ok(call(handleCpHost, ADMIN, { action: 'endCompetition', cid: bare.cid, reason: '只打一組' }, makeDeps(LATER, meter)));
-    expect(meter.reads).toBe(4);
+    expect(meter.reads).toBe(2); // 11-23 不再讀組別（原 3／4）
     expect(meter.reads).toBeLessThanOrEqual(READ_BUDGET.endCompetition);
     const comp = (await adminDb().doc(`competitions/${bare.cid}`).get()).data()!;
     expect(comp.endedBy).toBe('host');
