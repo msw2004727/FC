@@ -190,3 +190,64 @@ describe('下架時封面不對外', () => {
     expect(back.get('cover')).toBeNull();
   });
 });
+
+describe('封面選填 card（卡片縮圖，顧問設計稿第 4 節）', () => {
+  const withCard = (key = K1, ms = '1763700000000') => ({
+    ...coverIn(key, ms), card: dl(`images/competitions/${key}/card_${ms}.webp`)
+  });
+  let cid = '';
+  beforeEach(async () => {
+    await resetAll();
+  });
+  afterAll(() => closeClients());
+
+  it('建立帶 card：寫進 cover.card；不帶 card 的建立 cover 只有 url、thumb 兩鍵', async () => {
+    const a = await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ cover: withCard() })));
+    expect((await root(a.cid)).cover).toEqual(withCard());
+    const b = await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ cover: coverIn(), name: '【測試】舊形狀盃' })));
+    const c = (await root(b.cid)).cover;
+    expect(c).toEqual(coverIn());
+    expect(Object.keys(c).sort()).toEqual(['thumb', 'url']);
+  });
+
+  it('建立時 card 不合格：整筆擋、沒有寫任何賽事', async () => {
+    await failsField(call(handleCpHost, TESTER, createInput({
+      cover: { ...coverIn(K1), card: dl(`images/competitions/${K2}/card_1763700000000.webp`) }
+    })), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+    await failsField(call(handleCpHost, TESTER, createInput({
+      cover: { ...coverIn(K1), card: dl(`images/competitions/${K1}/thumb_1763700000000.webp`) }
+    })), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+    await failsField(call(handleCpHost, TESTER, createInput({
+      cover: { ...coverIn(K1), card: dl(`images/competitions/${K1}/card_1763700000000.webp`, 'other-project.appspot.com') }
+    })), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+    await failsField(call(handleCpHost, TESTER, createInput({ cover: { ...withCard(), extra: 'x' } })), 'UNKNOWN_FIELD', 'cover');
+    expect((await adminDb().collection('competitions').get()).size).toBe(0);
+  });
+
+  it('更新：加上 card、換成不帶 card 的新封面時舊 card 一起消失、cover: null 整個移除', async () => {
+    cid = (await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ cover: coverIn() })))).cid;
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, cover: withCard(K2, '1763700009999') }));
+    expect((await root(cid)).cover).toEqual(withCard(K2, '1763700009999'));
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, cover: coverIn(K1, '1763700001111') }));
+    expect((await root(cid)).cover).toEqual(coverIn(K1, '1763700001111'));
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, cover: withCard() }));
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, cover: null }));
+    expect((await root(cid)).cover).toBeNull();
+  });
+
+  it('更新時 card 不合格回錯並保留原封面', async () => {
+    cid = (await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ cover: withCard() })))).cid;
+    await failsField(call(handleCpHost, TESTER, { action: 'update', cid, cover: { ...coverIn(K2), card: dl(`images/competitions/${K1}/card_1763700000000.webp`) } }),
+      'COVER_URL_NOT_ALLOWED', 'cover.card');
+    expect((await root(cid)).cover).toEqual(withCard());
+  });
+
+  it('已結束：帶 card 的換新被擋，只送 cover: null 可以移除（含 card）', async () => {
+    cid = (await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ cover: withCard() })))).cid;
+    await adminDb().doc(`competitions/${cid}`).update({ endedAt: new Date(), endedBy: 'manual' });
+    await failsField(call(handleCpHost, ADMIN, { action: 'update', cid, cover: withCard(K2) }), 'COMPETITION_CLOSED', 'cover');
+    expect((await root(cid)).cover).toEqual(withCard());
+    await ok(call(handleCpHost, TESTER, { action: 'update', cid, cover: null }));
+    expect((await root(cid)).cover).toBeNull();
+  });
+});

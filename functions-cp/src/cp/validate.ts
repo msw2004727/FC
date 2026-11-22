@@ -121,14 +121,18 @@ export function teamLogoOf(raw: unknown, buckets?: readonly string[]): string | 
  *   （沿用隊徽 isAllowedLogoUrl／CP_LOGO_BUCKETS），且 URL 解析後原樣不變（不收反斜線、#、需要再編碼的字元）。
  * - 物件路徑（解碼後）：url＝images/competitions/c_{16 碼}/cover_{13 碼毫秒}.(webp|jpg)，thumb 同理換成 thumb_；
  *   兩者必須在同一個 c_ 資料夾。路徑不含 uid（§3.251 (c)）。
+ * - 選填 card（清單卡片用 800×300，顧問設計稿「賽事封面-卡片縮圖與載入策略」第 4 節）：檔名 card_，
+ *   檢查與另兩張完全相同，且必須與 url、thumb 同資料夾。沒帶（或 null）就不寫 card 鍵，舊資料形狀不變。
  * - 與隊徽「不合格寫 null」不同：封面是主辦自己送的欄位，不合格明確回錯。
  */
-export interface CoverInput { url: string; thumb: string }
-const COVER_KEYS = ['url', 'thumb'] as const;
-const COVER_PATH_RE = /^images\/competitions\/(c_[a-z0-9]{16})\/(cover|thumb)_[0-9]{13}\.(?:webp|jpg)$/;
+export interface CoverInput { url: string; thumb: string; card?: string }
+const COVER_KEYS = ['url', 'thumb', 'card'] as const;
+const COVER_PATH_RE = /^images\/competitions\/(c_[a-z0-9]{16})\/(cover|thumb|card)_[0-9]{13}\.(?:webp|jpg)$/;
+/** 欄位 → 檔名種類（card 欄只收 card_，依此類推） */
+const COVER_KIND = { url: 'cover', thumb: 'thumb', card: 'card' } as const;
 
-/** 回傳解碼後的資料夾鍵；不合格丟錯（field 為 cover.url 或 cover.thumb）。 */
-function coverUrlOf(raw: unknown, kind: 'url' | 'thumb', buckets?: readonly string[]): { url: string; folder: string } {
+/** 回傳解碼後的資料夾鍵；不合格丟錯（field 為 cover.url、cover.thumb 或 cover.card）。 */
+function coverUrlOf(raw: unknown, kind: keyof typeof COVER_KIND, buckets?: readonly string[]): { url: string; folder: string } {
   const field = `cover.${kind}`;
   if (raw == null) throw bad('FIELD_REQUIRED', { field });
   if (typeof raw !== 'string') throw bad('FIELD_TYPE', { field });
@@ -150,7 +154,7 @@ function coverUrlOf(raw: unknown, kind: 'url' | 'thumb', buckets?: readonly stri
   }
   if (!m || encodeURIComponent(path) !== m[1]) throw bad('COVER_URL_NOT_ALLOWED', { field });
   const p = COVER_PATH_RE.exec(path);
-  if (!p || p[2] !== (kind === 'url' ? 'cover' : 'thumb')) throw bad('COVER_URL_NOT_ALLOWED', { field });
+  if (!p || p[2] !== COVER_KIND[kind]) throw bad('COVER_URL_NOT_ALLOWED', { field });
   return { url: s, folder: p[1]! };
 }
 
@@ -164,7 +168,10 @@ export function coverOf(v: unknown, buckets?: readonly string[]): CoverInput | n
   const url = coverUrlOf(o.url, 'url', buckets);
   const thumb = coverUrlOf(o.thumb, 'thumb', buckets);
   if (url.folder !== thumb.folder) throw bad('COVER_URL_NOT_ALLOWED', { field: 'cover' });
-  return { url: url.url, thumb: thumb.url };
+  if (o.card == null) return { url: url.url, thumb: thumb.url };
+  const card = coverUrlOf(o.card, 'card', buckets);
+  if (card.folder !== url.folder) throw bad('COVER_URL_NOT_ALLOWED', { field: 'cover.card' });
+  return { url: url.url, thumb: thumb.url, card: card.url };
 }
 
 export function competitionName(v: unknown, bannedWords: readonly string[]): string {

@@ -150,3 +150,60 @@ describe('coverOf 拒絕', () => {
     expectErr(() => coverOf({ url: COVER.replace('.com/', '.com:8443/'), thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
   });
 });
+
+describe('coverOf 選填 card（卡片縮圖 800×300，顧問設計稿第 4 節）', () => {
+  const CARD = dl(`images/competitions/${KEY}/card_1763700000002.webp`);
+  it('帶合法 card：三張原樣留下；JPEG 退路也收', () => {
+    expect(coverOf({ url: COVER, thumb: THUMB, card: CARD }, BUCKETS)).toEqual({ url: COVER, thumb: THUMB, card: CARD });
+    const jpg = dl(`images/competitions/${KEY}/card_1763700000002.jpg`, B2);
+    expect(coverOf({ url: COVER, thumb: THUMB, card: jpg }, BUCKETS)?.card).toBe(jpg);
+  });
+  it('不帶 card（舊請求）照過，回傳物件沒有 card 鍵；card: null 視同沒帶', () => {
+    const a = coverOf({ url: COVER, thumb: THUMB }, BUCKETS)!;
+    expect(Object.keys(a)).toEqual(['url', 'thumb']);
+    const b = coverOf({ url: COVER, thumb: THUMB, card: null }, BUCKETS)!;
+    expect(Object.keys(b)).toEqual(['url', 'thumb']);
+  });
+  it('card 仍不能單獨存在：少了 url 或 thumb 照樣 FIELD_REQUIRED', () => {
+    expectErr(() => coverOf({ thumb: THUMB, card: CARD }, BUCKETS), 'FIELD_REQUIRED', 'cover.url');
+    expectErr(() => coverOf({ url: COVER, card: CARD }, BUCKETS), 'FIELD_REQUIRED', 'cover.thumb');
+  });
+  it.each([
+    ['放封面檔名 cover_', `images/competitions/${KEY}/cover_1763700000002.webp`],
+    ['放縮圖檔名 thumb_', `images/competitions/${KEY}/thumb_1763700000002.webp`],
+    ['種類錯（banner_）', `images/competitions/${KEY}/banner_1763700000002.webp`],
+    ['別的資料夾類別', `images/events/${KEY}/card_1763700000002.webp`],
+    ['副檔名 png', `images/competitions/${KEY}/card_1763700000002.png`]
+  ])('card 欄%s → COVER_URL_NOT_ALLOWED（cover.card）', (_label, path) => {
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: dl(path) }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+  });
+  it('url、thumb 欄放 card_ 檔名 → 擋（種類必須對應欄位）', () => {
+    const asCard = (n: string) => dl(`images/competitions/${KEY}/card_${n}.webp`);
+    expectErr(() => coverOf({ url: asCard('1763700000000'), thumb: THUMB }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.url');
+    expectErr(() => coverOf({ url: COVER, thumb: asCard('1763700000001') }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.thumb');
+  });
+  it('card 與 url、thumb 不同資料夾 → COVER_URL_NOT_ALLOWED（cover.card）', () => {
+    const other = dl('images/competitions/c_zzzzzzzzzz999999/card_1763700000002.webp');
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: other }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+  });
+  it('card 非本專案 bucket、外站、query 不標準、編碼變體 → COVER_URL_NOT_ALLOWED（cover.card）', () => {
+    const p = `images/competitions/${KEY}/card_1763700000002.webp`;
+    const bads = [
+      dl(p, 'evil-bucket'),
+      'https://cdn.example/card.webp',
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(p)}?alt=json`,
+      `https://firebasestorage.googleapis.com/v0/b/${B}/o/${enc(p).replace(/%2F/g, '%2f')}?alt=media&token=t0`
+    ];
+    for (const card of bads) expectErr(() => coverOf({ url: COVER, thumb: THUMB, card }, BUCKETS), 'COVER_URL_NOT_ALLOWED', 'cover.card');
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: CARD }, []), 'COVER_URL_NOT_ALLOWED', 'cover.url');
+  });
+  it('card 型別、格式、長度錯 → FIELD_TYPE／FIELD_FORMAT／FIELD_LENGTH（cover.card）', () => {
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: 1 }, BUCKETS), 'FIELD_TYPE', 'cover.card');
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: CARD.replace('https:', 'http:') }, BUCKETS), 'FIELD_FORMAT', 'cover.card');
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: CARD + '#x' }, BUCKETS), 'FIELD_FORMAT', 'cover.card');
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: '  ' }, BUCKETS), 'FIELD_LENGTH', 'cover.card');
+  });
+  it('有 card 時多餘鍵仍擋 → UNKNOWN_FIELD（cover）', () => {
+    expectErr(() => coverOf({ url: COVER, thumb: THUMB, card: CARD, hero: CARD }, BUCKETS), 'UNKNOWN_FIELD', 'cover');
+  });
+});
