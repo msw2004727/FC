@@ -17,7 +17,9 @@ const U_ADMIN = `U${"9".repeat(32)}`;
 const EVENT_ID = "ce_1800000000000_abc";
 const TITLE = "通知測試活動";
 const LOCATION = "河濱球場";
-const LOG_FIELD_WHITELIST = ["cancelled", "channels", "fn", "inboxFailed", "promoted", "removed", "signup"];
+const LOG_FIELD_WHITELIST = [
+  "cancelled", "cancelledRegs", "channels", "fn", "inboxFailed", "promoted", "promotedRegs", "removed", "signup",
+];
 
 let fn;
 let harness;
@@ -102,27 +104,64 @@ test("報名：恰一行計數 log，欄位白名單，不含 uid／活動代號
   expect(logs).toHaveLength(1);
   expect(logs[0][0]).toBe("info");
   expect(logs[0][2]).toEqual({
-    fn: "registerForEvent", signup: 1, promoted: 0, cancelled: 0, removed: 0, inboxFailed: 0, channels: "inbox",
+    fn: "registerForEvent", signup: 1, promoted: 0, cancelled: 0, removed: 0,
+    cancelledRegs: 0, promotedRegs: 0, inboxFailed: 0, channels: "inbox",
   });
   expectCleanLog(logs[0]);
   expect(fake.paths().filter((p) => p.startsWith("linePushQueue/"))).toEqual([]);
 });
 
-test("取消並遞補：計數與 audit 的 cancelledCount／promotedCount 一致；不寫 LINE 佇列", async () => {
+function cancelAudit() {
+  return fake.paths().filter((p) => /^auditLogsByDay\/[^/]+\/auditEntries\/[^/]+$/.test(p))
+    .map((p) => fake.get(p))
+    .find((entry) => entry.action === "event_cancel_signup");
+}
+
+test("取消並遞補：Regs 與 audit 的 cancelledCount／promotedCount 一致；不寫 LINE 佇列", async () => {
   setup();
   await fn.cancelRegistration({ auth: { uid: U_SELF, token: {} }, data: { eventId: EVENT_ID, registrationIds: ["r1"] } });
   const logs = dispatchLogs();
   expect(logs).toHaveLength(1);
   expect(logs[0][2]).toEqual({
-    fn: "cancelRegistration", signup: 0, promoted: 1, cancelled: 1, removed: 0, inboxFailed: 0, channels: "inbox",
+    fn: "cancelRegistration", signup: 0, promoted: 1, cancelled: 1, removed: 0,
+    cancelledRegs: 1, promotedRegs: 1, inboxFailed: 0, channels: "inbox",
   });
   expectCleanLog(logs[0]);
-  const audit = fake.paths().filter((p) => /^auditLogsByDay\/[^/]+\/auditEntries\/[^/]+$/.test(p))
-    .map((p) => fake.get(p))
-    .find((entry) => entry.action === "event_cancel_signup");
+  const audit = cancelAudit();
   expect(audit).toBeDefined();
-  expect(audit.meta).toMatchObject({ cancelledCount: logs[0][2].cancelled, promotedCount: logs[0][2].promoted });
+  expect(audit.meta).toMatchObject({ cancelledCount: logs[0][2].cancelledRegs, promotedCount: logs[0][2].promotedRegs });
   expect(fake.paths().filter((p) => p.startsWith("linePushQueue/"))).toEqual([]);
+});
+
+test("本人＋2 同行者取消、遞補一組 2 筆：Regs 等於 audit 筆數，人數 ≤ 筆數（審查 P2-2）", async () => {
+  const companion = (docId, uid, n, status, ms) => reg(docId, {
+    userId: uid, userName: `comp-${n}`, participantType: "companion", companionId: `cmp${n}`,
+    companionName: `comp-${n}`, status, registeredAt: new FakeTimestamp(ms),
+  });
+  setup({
+    [`events/${EVENT_ID}`]: {
+      id: EVENT_ID, title: TITLE, date: "2099/06/15 10:00~12:00", location: LOCATION, type: "play",
+      status: "full", max: 3, current: 3, waitlist: 2, participants: [], waitlistNames: [],
+    },
+    [`events/${EVENT_ID}/registrations/c1`]: companion("c1", U_SELF, 1, "confirmed", 1001),
+    [`events/${EVENT_ID}/registrations/c2`]: companion("c2", U_SELF, 2, "confirmed", 1002),
+    [`events/${EVENT_ID}/registrations/r2`]: reg("r2", {
+      userId: U_OTHER, userName: "other", status: "waitlisted", registeredAt: new FakeTimestamp(2000),
+    }),
+    [`events/${EVENT_ID}/registrations/c3`]: companion("c3", U_OTHER, 3, "waitlisted", 2001),
+  });
+  await fn.cancelRegistration({
+    auth: { uid: U_SELF, token: {} }, data: { eventId: EVENT_ID, registrationIds: ["r1", "c1", "c2"] },
+  });
+  const logs = dispatchLogs();
+  expect(logs).toHaveLength(1);
+  const summary = logs[0][2];
+  expect(summary).toMatchObject({ cancelled: 1, cancelledRegs: 3, promoted: 1, promotedRegs: 2, signup: 0 });
+  const audit = cancelAudit();
+  expect(audit.meta).toMatchObject({ cancelledCount: summary.cancelledRegs, promotedCount: summary.promotedRegs });
+  expect(summary.cancelled).toBeLessThanOrEqual(summary.cancelledRegs);
+  expect(summary.promoted).toBeLessThanOrEqual(summary.promotedRegs);
+  expectCleanLog(logs[0]);
 });
 
 test("manager_remove：計入 removed，不計 cancelled", async () => {

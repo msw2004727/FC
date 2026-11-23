@@ -19,8 +19,10 @@ const EVENT_DATA = { title: "通知測試活動", date: "2099/06/15 10:00~12:00"
 const TAIL = `活動名稱：${EVENT_DATA.title}\n活動時間：${EVENT_DATA.date}\n活動地點：${EVENT_DATA.location}`;
 const PROMOTED_BODY = `恭喜！您已從候補升為正取：\n\n${TAIL}`;
 
-// 計數 log 欄位白名單（顧問 §3.637 c）：只有函式名、各類筆數、失敗數、通道標籤
-const LOG_FIELD_WHITELIST = ["cancelled", "channels", "fn", "inboxFailed", "promoted", "removed", "signup"];
+// 計數 log 欄位白名單（顧問 §3.637 c；審查 P2-2 加 cancelledRegs／promotedRegs）：函式名、各類人數、報名筆數、失敗數、通道標籤
+const LOG_FIELD_WHITELIST = [
+  "cancelled", "cancelledRegs", "channels", "fn", "inboxFailed", "promoted", "promotedRegs", "removed", "signup",
+];
 
 function registerResult(extra = {}) {
   return {
@@ -164,7 +166,7 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     const notices = buildRegistrationNotices({
       fn: "cancelRegistration", result: cancelResult({ promoted: [{ userId: OTHER }] }), callerUid: CALLER, cancelReason: "user_cancel",
     });
-    await dispatchRegistrationNotices("cancelRegistration", notices, deps);
+    await dispatchRegistrationNotices("cancelRegistration", notices, { cancelledRegs: 1, promotedRegs: 1 }, deps);
     expect(writes).toEqual([
       { recipientUid: CALLER, title: "取消報名通知", body: TAIL, category: "activity", categoryLabel: "活動" },
       { recipientUid: OTHER, title: "候補遞補通知", body: PROMOTED_BODY, category: "activity", categoryLabel: "活動" },
@@ -175,14 +177,15 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     const { deps, logs } = makeDeps();
     const result = registerResult({ promoted: [{ userId: OTHER, participantType: "self" }] });
     const notices = buildRegistrationNotices({ fn: "registerForEvent", result, callerUid: CALLER });
-    await dispatchRegistrationNotices("registerForEvent", notices, deps);
+    await dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 1 }, deps);
     expect(logs).toHaveLength(1);
     const [level, message, payload] = logs[0];
     expect(level).toBe("info");
     expect(message).toBe("[registrationNotify] dispatched");
     expect(Object.keys(payload).sort()).toEqual(LOG_FIELD_WHITELIST);
     expect(payload).toEqual({
-      fn: "registerForEvent", signup: 1, promoted: 1, cancelled: 0, removed: 0, inboxFailed: 0, channels: "inbox",
+      fn: "registerForEvent", signup: 1, promoted: 1, cancelled: 0, removed: 0,
+      cancelledRegs: 0, promotedRegs: 1, inboxFailed: 0, channels: "inbox",
     });
     for (const [key, value] of Object.entries(payload)) {
       if (key === "fn") expect(["registerForEvent", "cancelRegistration"]).toContain(value);
@@ -200,7 +203,7 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     const notices = buildRegistrationNotices({
       fn: "cancelRegistration", result: cancelResult({ promoted: [{ userId: OTHER }] }), callerUid: CALLER, cancelReason: "user_cancel",
     });
-    const summary = await dispatchRegistrationNotices("cancelRegistration", notices, deps);
+    const summary = await dispatchRegistrationNotices("cancelRegistration", notices, { cancelledRegs: 1, promotedRegs: 1 }, deps);
     expect(writes.map((w) => w.recipientUid)).toEqual([CALLER, OTHER]);
     expect(summary).toMatchObject({ cancelled: 1, promoted: 1, inboxFailed: 1 });
     expect(logs.map((entry) => entry[0])).toEqual(["warn"]);
@@ -211,11 +214,24 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     const { deps } = makeDeps();
     deps.writeInboxNotification = () => { throw new Error("sync boom"); };
     const notices = buildRegistrationNotices({ fn: "registerForEvent", result: registerResult(), callerUid: CALLER });
-    await expect(dispatchRegistrationNotices("registerForEvent", notices, deps)).resolves.toMatchObject({ signup: 1, inboxFailed: 1 });
+    await expect(dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 0 }, deps)).resolves.toMatchObject({ signup: 1, inboxFailed: 1 });
   });
 });
 
 describe("notifyRegistrationResult：index.js 的唯一呼叫點", () => {
+  test("Regs 是交易結果的報名筆數，人數是去重後（Q3 後人數 ≤ 筆數）", async () => {
+    const { deps } = makeDeps();
+    const result = cancelResult({
+      cancelled: [{ docId: "r1", userId: CALLER }, { docId: "c1", userId: CALLER }, { docId: "c2", userId: CALLER }],
+      promoted: [{ userId: OTHER }, { userId: OTHER }],
+    });
+    await expect(notifyRegistrationResult({ fn: "cancelRegistration", result, callerUid: CALLER, cancelReason: "user_cancel" }, deps))
+      .resolves.toMatchObject({ cancelled: 1, cancelledRegs: 3, promoted: 1, promotedRegs: 2 });
+    const registered = registerResult({ promoted: [{ userId: OTHER }, { userId: OTHER }] });
+    await expect(notifyRegistrationResult({ fn: "registerForEvent", result: registered, callerUid: CALLER }, deps))
+      .resolves.toMatchObject({ signup: 1, cancelledRegs: 0, promoted: 1, promotedRegs: 2 });
+  });
+
   test("正常：build＋dispatch，回傳計數", async () => {
     const { deps, writes } = makeDeps();
     await expect(notifyRegistrationResult({ fn: "registerForEvent", result: registerResult(), callerUid: CALLER }, deps))

@@ -78,7 +78,9 @@ function buildRegistrationNotices({ fn, result, callerUid, cancelReason }) {
 // 逐則寫站內信，全部結束後寫一行只計數的 log；單則失敗只計入 inboxFailed，不往外丟。
 // 注意 inboxFailed 只算「被拒絕的 promise」：正式的 writeInboxNotification 會自己 catch、不 reject，
 // 所以正式環境這欄幾乎恆為 0；實際的寫入失敗要看 [writeInboxNotification] 的 ERROR 數（審查 P2-1）
-async function dispatchRegistrationNotices(fn, notices, { writeInboxNotification, logger }) {
+// cancelledRegs／promotedRegs 是報名筆數（與 audit 的 cancelledCount／promotedCount 同口徑）；
+// cancelled／removed／promoted 是去重後的人數（Q3 後人數 ≤ 筆數，審查 P2-2）
+async function dispatchRegistrationNotices(fn, notices, { cancelledRegs, promotedRegs }, { writeInboxNotification, logger }) {
   const outcomes = await Promise.allSettled(notices.map(async (notice) => writeInboxNotification({
     recipientUid: notice.recipientUid,
     title: notice.title,
@@ -93,6 +95,8 @@ async function dispatchRegistrationNotices(fn, notices, { writeInboxNotification
     promoted: countOf("promoted"),
     cancelled: countOf("cancelled"),
     removed: countOf("removed"),
+    cancelledRegs,
+    promotedRegs,
     inboxFailed: outcomes.filter((outcome) => outcome.status === "rejected").length,
     channels: CHANNELS_LABEL,
   };
@@ -104,13 +108,21 @@ async function dispatchRegistrationNotices(fn, notices, { writeInboxNotification
   return summary;
 }
 
+// 交易結果的報名筆數（取消含管理員移除；遞補含同行者）
+function countRegistrationRows({ fn, result }) {
+  return {
+    cancelledRegs: fn === "cancelRegistration" ? result.cancelled.length : 0,
+    promotedRegs: (result.promoted || []).length,
+  };
+}
+
 // index.js 唯一呼叫點：同步丟錯（例如交易結果缺欄位）也轉成 rejected promise，交給 settleBestEffortPostCommitOps，
 // 不讓已成功的交易變成失敗（R-CF-003）
 function notifyRegistrationResult(input, deps) {
   let pending;
   try {
     const notices = buildRegistrationNotices(input);
-    pending = dispatchRegistrationNotices(input.fn, notices, deps);
+    pending = dispatchRegistrationNotices(input.fn, notices, countRegistrationRows(input), deps);
   } catch (error) {
     pending = Promise.reject(error);
   }
