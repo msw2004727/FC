@@ -214,6 +214,19 @@ describe("P2／P3 push:true（測試內改常數）", () => {
     expect(queuePaths(fake)).toEqual(first);
   });
 
+  test("P2 index.js 用 create()：同鍵佇列已存在時不覆寫，只計 pushDeduped", async () => {
+    const queueId = queueIdOf({ kind: "signup", eventId: EVENT_ID, recipientUid: U_SELF, opKey: "p2-existing" });
+    const existing = { schema: 1, source: "registration", kind: "signup", status: "claimed", marker: "first-delivery" };
+    const fake = createFakeFirestore({ ...seedOpen(), [`webPushQueue/${queueId}`]: existing });
+    harness.current = fake;
+    await fn.registerForEvent({
+      auth: { uid: U_SELF, token: {} },
+      data: { eventId: EVENT_ID, participants: [{ userId: U_SELF, userName: "self" }], requestId: "p2-existing" },
+    });
+    expect(fake.get(`webPushQueue/${queueId}`)).toEqual(existing);
+    expect(dispatchLogs(harness)[0][2]).toMatchObject({ pushQueued: 0, pushDeduped: 1, pushFailed: 0 });
+  });
+
   test("P2 同鍵 create 第二次：只計 pushDeduped，不覆寫既有佇列", async () => {
     const queued = new Map();
     const createQueueDoc = jest.fn(async (id, data) => {
