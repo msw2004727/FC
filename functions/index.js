@@ -37,6 +37,7 @@ const { createDeleteTeamCallable } = require("./team-deletion");
 const { createDeleteEventCallable } = require("./event-deletion");
 const registrationGuards = require("./registration-guards");
 const lateCancel = require("./late-cancel");
+const registrationNotify = require("./registration-notify");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
 const { createRelationQueries } = require("./notification-relation-queries");
@@ -14283,25 +14284,12 @@ exports.registerForEvent = onCall(
       })
     );
 
-    // P2: 通知
+    // P2: 站內信（本人報名成功、P4 空洞遞補者）統一由 registration-notify 發送，收件人只取自交易結果
     const selfReg = result.registrations.find((r) => r.participantType === "self");
-    if (selfReg) {
-      const statusLabel = selfReg.status === "waitlisted" ? "候補" : "正取";
-      postOps.push(
-        writeInboxNotification({
-          recipientUid: callerUid,
-          title: "報名成功通知",
-          body:
-            `報名結果：${statusLabel}\n\n` +
-            (result.earlyBirdCharged ? `早鳥報名扣除：${result.earlyBirdCost} 積分\n\n` : "") +
-            `活動名稱：${result.eventData.title}\n` +
-            `活動時間：${result.eventData.date}\n` +
-            `活動地點：${result.eventData.location}`,
-          category: "activity",
-          categoryLabel: "活動",
-        })
-      );
-    }
+    postOps.push(registrationNotify.notifyRegistrationResult(
+      { fn: "registerForEvent", result, callerUid },
+      { writeInboxNotification, logger }
+    ));
 
     // P3: adjustExp（僅 confirmed 才加分）
     if (selfReg && selfReg.status === "confirmed" && !result.earlyBirdCharged) {
@@ -14318,26 +14306,9 @@ exports.registerForEvent = onCall(
       );
     }
 
-    // P4（F1）：空洞遞補者的通知、EXP 與 operationLog，文案同 cancelRegistration P2／P5；
-    // 但同組同行者只通知主報名者一次、EXP 照報名規則只給本人（cancelRegistration 對同行者逐筆通知與加分，未對齊）
-    const notifiedPromotedUids = new Set();
+    // P4（F1）：空洞遞補者的 EXP 與 operationLog（通知在 P2：同組同行者只通知主報名者一次），文案同 cancelRegistration P2／P5；
+    // EXP 照報名規則只給本人（cancelRegistration 對同行者逐筆加分，未對齊）
     for (const promoted of result.promoted || []) {
-      if (!notifiedPromotedUids.has(promoted.userId)) {
-        notifiedPromotedUids.add(promoted.userId);
-        postOps.push(
-          writeInboxNotification({
-            recipientUid: promoted.userId,
-            title: "候補遞補通知",
-            body:
-              `恭喜！您已從候補升為正取：\n\n` +
-              `活動名稱：${result.eventData.title}\n` +
-              `活動時間：${result.eventData.date}\n` +
-              `活動地點：${result.eventData.location}`,
-            category: "activity",
-            categoryLabel: "活動",
-          })
-        );
-      }
       if (promoted.participantType !== "companion" && !promoted.courseLinked) {
         postOps.push(
           adjustExpInternal({
@@ -15561,38 +15532,14 @@ exports.cancelRegistration = onCall(
     try {
     const postOps = [];
 
-    // P1: 通知取消者
-    for (const reg of result.cancelled) {
-      postOps.push(
-        writeInboxNotification({
-          recipientUid: reg.userId,
-          title: cancelReason === "manager_remove" ? "報名已被管理員移除" : "取消報名通知",
-          body:
-            `活動名稱：${result.eventData.title}\n` +
-            `活動時間：${result.eventData.date}\n` +
-            `活動地點：${result.eventData.location}`,
-          category: "activity",
-          categoryLabel: "活動",
-        })
-      );
-    }
+    // P1: 站內信（取消者／被移除者、升補者）統一由 registration-notify 發送，收件人只取自交易結果
+    postOps.push(registrationNotify.notifyRegistrationResult(
+      { fn: "cancelRegistration", result, callerUid, cancelReason },
+      { writeInboxNotification, logger }
+    ));
 
-    // P2: 通知升補者
+    // P2: 升補者補發 EXP
     for (const candidate of result.promoted) {
-      postOps.push(
-        writeInboxNotification({
-          recipientUid: candidate.userId,
-          title: "候補遞補通知",
-          body:
-            `恭喜！您已從候補升為正取：\n\n` +
-            `活動名稱：${result.eventData.title}\n` +
-            `活動時間：${result.eventData.date}\n` +
-            `活動地點：${result.eventData.location}`,
-          category: "activity",
-          categoryLabel: "活動",
-        })
-      );
-      // 升補者補發 EXP
       if (!candidate.courseLinked) {
         postOps.push(
           adjustExpInternal({
