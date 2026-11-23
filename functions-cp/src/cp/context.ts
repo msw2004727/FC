@@ -23,7 +23,7 @@ import { bannedWordsOf } from './text.js';
 export interface CpDeps {
   /** asia-main 具名庫 */
   db: Firestore;
-  /** 主站 (default) 庫（只讀 users 的顯示名與生日） */
+  /** 主站 (default) 庫（只讀 users 的顯示名與生日，以及建賽時角色文件的 disabledCodes，見 host-permission.ts） */
   mainDb: Firestore;
   now: () => Date;
   /** 讀取計數（e2e 讀取預算斷言用；正式環境也照算，只放記憶體） */

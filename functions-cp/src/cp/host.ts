@@ -61,6 +61,7 @@ import { MODERATE_ACTIONS } from './moderate.js';
 import { standingRef } from './match-trigger.js';
 import { matchDayOf } from '../engine/index.js';
 import { taipeiYmd } from './schedule-flex.js';
+import { assertCanHostCompetition } from './host-permission.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -97,6 +98,8 @@ const CREATE_KEYS = [
 
 export async function createCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, CREATE_KEYS);
+  // 主辦賽事開關（顧問 §3.612）：launchGate 之後、交易之前。super_admin 不讀；其他角色多 1 讀。只擋建立，其他動作不受影響。
+  await assertCanHostCompetition(deps, caller);
   const nowMs = deps.now().getTime();
   if (input.hostType === 'group') throw bad('HOST_TYPE_NOT_SUPPORTED', { field: 'hostType' });
   const hostType = requireEnum(input.hostType, ['personal', 'club'] as const, 'hostType');

@@ -9,7 +9,9 @@ export type CpErrorCode =
   | 'failed-precondition'
   | 'not-found'
   | 'already-exists'
-  | 'resource-exhausted';
+  | 'resource-exhausted'
+  // 主辦權限文件讀取失敗（host-permission.ts，fail-closed 拒絕建賽）
+  | 'unavailable';
 
 export class CpError extends Error {
   readonly code: CpErrorCode;
@@ -30,3 +32,4 @@ export const bad = (reason: string, params?: Record<string, string | number | bo
 export const pre = (reason: string, params?: Record<string, string | number | boolean>) =>
   new CpError('failed-precondition', reason, params);
 export const notFound = (reason: string) => new CpError('not-found', reason);
+export const unavailable = (reason: string) => new CpError('unavailable', reason);
