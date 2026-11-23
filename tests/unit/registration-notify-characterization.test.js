@@ -389,6 +389,16 @@ describe("情境 10：站內信寫入失敗不影響已成功的交易", () => {
     };
   }
 
+  // 正式 helper writeInboxNotification 自己 catch、不 reject：計數 log 的 inboxFailed 仍是 0，
+  // 實際寫入失敗只會出現在 [writeInboxNotification] 的 error log（審查 P2-1）
+  function expectInboxFailureVisibleOnlyInHelperLog(expectedHelperErrors) {
+    const dispatched = harness.logs.filter((entry) => entry[1] === "[registrationNotify] dispatched");
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0][2].inboxFailed).toBe(0);
+    expect(harness.logs.filter((entry) => entry[0] === "error" && entry[1] === "[writeInboxNotification]"))
+      .toHaveLength(expectedHelperErrors);
+  }
+
   test("registerForEvent 仍回 success，報名已寫入", async () => {
     setup({ [`events/${EVENT_ID}`]: event() });
     failInboxBatches();
@@ -397,6 +407,7 @@ describe("情境 10：站內信寫入失敗不影響已成功的交易", () => {
     expect(result.registrations[0].status).toBe("confirmed");
     expect(fake.get(`events/${EVENT_ID}/registrations/${result.registrations[0].docId}`).status).toBe("confirmed");
     expectNotices([]);
+    expectInboxFailureVisibleOnlyInHelperLog(1);
   });
 
   test("cancelRegistration 仍回 success，取消與遞補已寫入", async () => {
@@ -415,6 +426,7 @@ describe("情境 10：站內信寫入失敗不影響已成功的交易", () => {
     expect(fake.get(`events/${EVENT_ID}/registrations/r1`).status).toBe("cancelled");
     expect(fake.get(`events/${EVENT_ID}/registrations/r2`).status).toBe("confirmed");
     expectNotices([]);
+    expectInboxFailureVisibleOnlyInHelperLog(2);
   });
 });
 

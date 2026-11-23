@@ -75,7 +75,9 @@ function buildRegistrationNotices({ fn, result, callerUid, cancelReason }) {
   throw new Error("REGISTRATION_NOTIFY_UNKNOWN_FN");
 }
 
-// 逐則寫站內信，全部結束後寫一行只計數的 log；單則失敗只計入 inboxFailed，不往外丟
+// 逐則寫站內信，全部結束後寫一行只計數的 log；單則失敗只計入 inboxFailed，不往外丟。
+// 注意 inboxFailed 只算「被拒絕的 promise」：正式的 writeInboxNotification 會自己 catch、不 reject，
+// 所以正式環境這欄幾乎恆為 0；實際的寫入失敗要看 [writeInboxNotification] 的 ERROR 數（審查 P2-1）
 async function dispatchRegistrationNotices(fn, notices, { writeInboxNotification, logger }) {
   const outcomes = await Promise.allSettled(notices.map(async (notice) => writeInboxNotification({
     recipientUid: notice.recipientUid,
