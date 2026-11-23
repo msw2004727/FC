@@ -39,6 +39,7 @@ paths:
 
 - **R-UI-020 [B/HARD]**：新增／改展示名單用 `App._userTag(name, forceRole, options)` 輸出 `.user-capsule`；禁手寫或寫死 `uc-user`。
 - **R-UI-021 [B/HARD]**：底色表示角色，Lv 獨立。`css/profile.css` mapping：`uc-user` 中性、`uc-coach` 琥珀、`uc-captain` 紫、`uc-team-leader` 藍、`uc-venue_owner` 橘、`uc-admin` 藍、`uc-super_admin` 紅。
+  - **形狀依名單容器**（底色 mapping 不變）：預設 `.user-capsule` 是橢圓膠囊（A `css/profile.css`、FC-B `src/ui/user-capsule.css` 的 `border-radius: var(--radius-full)`）。FC-B 覆寫：①活動報名名單 `.att-roster .user-capsule`（含候補 `.att-roster-waitlist`）改**圓角 6px＋左 3px 色條**（`border-left-color: currentColor`），見 `src/features/events/components/companion-roster.css` 的 `.att-roster .user-capsule.user-capsule`；同行者組 `.att-roster .cr-lead > .user-capsule` 色條改組色 `var(--cr-g)`、中性 `uc-user` 底改淡組色。②俱樂部成員管理 `src/features/clubs/legacy/team.css` 的 `.td-member-management-panel .td-member-name-wrap .user-capsule`、俱樂部資訊卡 `src/features/clubs/legacy/team-detail-v2.css` 的 `.td-v2-info-card .user-capsule` 只改尺寸，仍是橢圓。設計活動名單畫面時照①，不得畫成橢圓；其他名單未列者照預設。（2026-11-23 補：取代原本只寫 A 橢圓膠囊的描述，因 2026-11-07～08 FC-B 名單改版經站長預覽定案為圓角＋左色條、未寫回規則，AI 設計名單時一再畫成橢圓。）
 - **R-UI-022 [B/HARD]**：Lv、`uc-att-warn`、`uc-recent-noshow`、`uc-team-jersey` 由 generator options。
 - **R-UI-023 [A/HARD]**：身份傳 `options.uid`；名稱只顯示；點擊 `App.showUserProfile(name,{ uid })`。
 - **R-UI-024 [C/DEFAULT]**：文字輸入、inline editable cell 不適用；legacy 名單不一次回溯，重構時收斂。
