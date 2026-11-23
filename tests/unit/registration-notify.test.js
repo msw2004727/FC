@@ -233,6 +233,20 @@ describe("notifyRegistrationResult：index.js 的唯一呼叫點", () => {
     expect(writes).toEqual([]);
   });
 
+  test("回傳的 rejected promise 沒被 await 也不會變成 unhandled rejection（後置程式在 settle 前丟錯時不拖垮行程）", async () => {
+    const { deps } = makeDeps();
+    const seen = [];
+    const onUnhandled = (reason) => seen.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      notifyRegistrationResult({ fn: "other", result: registerResult(), callerUid: CALLER }, deps);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+    expect(seen).toEqual([]);
+  });
+
   test("未知 fn：回 rejected promise", async () => {
     const { deps } = makeDeps();
     await expect(notifyRegistrationResult({ fn: "other", result: registerResult(), callerUid: CALLER }, deps))

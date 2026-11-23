@@ -105,12 +105,17 @@ async function dispatchRegistrationNotices(fn, notices, { writeInboxNotification
 // index.js 唯一呼叫點：同步丟錯（例如交易結果缺欄位）也轉成 rejected promise，交給 settleBestEffortPostCommitOps，
 // 不讓已成功的交易變成失敗（R-CF-003）
 function notifyRegistrationResult(input, deps) {
+  let pending;
   try {
     const notices = buildRegistrationNotices(input);
-    return dispatchRegistrationNotices(input.fn, notices, deps);
+    pending = dispatchRegistrationNotices(input.fn, notices, deps);
   } catch (error) {
-    return Promise.reject(error);
+    pending = Promise.reject(error);
   }
+  // 先掛處理器：若後面的後置程式在 settle 之前同步丟錯，這個 rejection 也不會變成 unhandled rejection；
+  // settle 拿到的仍是同一個 promise，照樣記錄失敗
+  pending.catch(() => {});
+  return pending;
 }
 
 module.exports = {
