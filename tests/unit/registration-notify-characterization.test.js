@@ -352,32 +352,33 @@ describe("情境 4～7、9：cancelRegistration", () => {
   });
 
   // Q3 範圍（審查 P3-2）：課程連動同一個 userId 有兩筆時，合併成一則
-  test("9b 課程連動同一 userId 兩筆一起請假：合併成 1 則（Q3）", async () => {
+  test("9b 課程連動同一 userId（家長）兩筆、不同學員一起請假：合併成 1 則（Q3）", async () => {
     const teamId = "tm_1800000000000_abcdef";
     const courseLinkId = "link-1";
     const courseFields = {
       courseLinkId, courseTeamId: teamId, coursePlanId: "plan-1", courseSessionId: "sess-1",
     };
-    const courseReg = (docId, ms) => reg(docId, {
-      userId: "student-a", userName: "kid", status: "confirmed", registeredAt: new FakeTimestamp(ms),
-      source: "eduCourseLesson", ...courseFields, courseStudentId: "student-a",
+    const courseReg = (docId, ms, studentId) => reg(docId, {
+      userId: U_SELF, userName: "parent", status: "confirmed", registeredAt: new FakeTimestamp(ms),
+      source: "eduCourseLesson", ...courseFields, courseStudentId: studentId,
     });
     setup({
       [`events/${EVENT_ID}`]: event({
         max: 2, current: 2, courseLinked: true, courseLinkSource: "eduCourseLesson", ...courseFields,
       }),
-      [`events/${EVENT_ID}/registrations/rc1`]: courseReg("rc1", 1000),
-      [`events/${EVENT_ID}/registrations/rc2`]: courseReg("rc2", 1001),
+      [`events/${EVENT_ID}/registrations/rc1`]: courseReg("rc1", 1000, "student-a"),
+      [`events/${EVENT_ID}/registrations/rc2`]: courseReg("rc2", 1001, "student-b"),
       [`teams/${teamId}`]: { id: teamId, name: "team" },
       [`teams/${teamId}/coursePlans/plan-1`]: { id: "plan-1" },
       [`teams/${teamId}/coursePlans/plan-1/sessions/sess-1`]: { id: "sess-1", date: "2099/06/15" },
       [`teams/${teamId}/coursePlans/plan-1/sessionEventLinks/sess-1`]: { eventId: EVENT_ID, courseLinkId },
-      [`teams/${teamId}/students/student-a`]: { id: "student-a", name: "kid", parentUid: U_SELF },
+      [`teams/${teamId}/students/student-a`]: { id: "student-a", name: "kid-a", parentUid: U_SELF },
+      [`teams/${teamId}/students/student-b`]: { id: "student-b", name: "kid-b", parentUid: U_SELF },
     });
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["rc1", "rc2"] });
     expect(result.cancelled.map((r) => r.docId).sort()).toEqual(["rc1", "rc2"]);
     expect(result.cancelled.every((r) => r.courseLinked === true)).toBe(true);
-    expectNotices([n("student-a", CANCELLED)]);
+    expectNotices([n(U_SELF, CANCELLED)]);
     const dispatched = harness.logs.filter((entry) => entry[1] === "[registrationNotify] dispatched");
     expect(dispatched[0][2]).toMatchObject({ cancelled: 1, cancelledRegs: 2 });
   });

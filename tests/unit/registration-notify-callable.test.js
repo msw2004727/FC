@@ -172,7 +172,29 @@ test("manager_remove：計入 removed，不計 cancelled", async () => {
   });
   const logs = dispatchLogs();
   expect(logs).toHaveLength(1);
-  expect(logs[0][2]).toMatchObject({ fn: "cancelRegistration", cancelled: 0, removed: 1, promoted: 1 });
+  expect(logs[0][2]).toMatchObject({
+    fn: "cancelRegistration", cancelled: 0, removed: 1, promoted: 1, cancelledRegs: 1, promotedRegs: 1,
+  });
+  expect(cancelAudit().meta).toMatchObject({
+    reason: "manager_remove", cancelledCount: logs[0][2].cancelledRegs, promotedCount: logs[0][2].promotedRegs,
+  });
+  expectCleanLog(logs[0]);
+});
+
+test("capacity_change：計入 cancelled，Regs 與 audit 一致", async () => {
+  setup();
+  await fn.cancelRegistration({
+    auth: { uid: U_ADMIN, token: {} },
+    data: { eventId: EVENT_ID, registrationIds: ["r1"], reason: "capacity_change" },
+  });
+  const logs = dispatchLogs();
+  expect(logs).toHaveLength(1);
+  expect(logs[0][2]).toMatchObject({
+    fn: "cancelRegistration", cancelled: 1, removed: 0, promoted: 1, cancelledRegs: 1, promotedRegs: 1,
+  });
+  expect(cancelAudit().meta).toMatchObject({
+    reason: "capacity_change", cancelledCount: logs[0][2].cancelledRegs, promotedCount: logs[0][2].promotedRegs,
+  });
   expectCleanLog(logs[0]);
 });
 
