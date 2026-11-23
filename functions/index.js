@@ -13177,6 +13177,16 @@ async function writeInboxNotification({ recipientUid, title, body, category, cat
   }
 }
 
+// 報名類通知的注入（registerForEvent P2、cancelRegistration P1 共用）：站內信＋網頁推播佇列。
+// 佇列只在 registration-notify 的 push 常數為 true 時才會被呼叫；create() 讓同鍵第二次 ALREADY_EXISTS（去重）。
+const registrationNotifyDeps = {
+  writeInboxNotification,
+  logger,
+  createQueueDoc: (queueId, data) => db.collection("webPushQueue").doc(queueId).create(data),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  now: () => Date.now(),
+};
+
 // Registration ops monitoring helpers.
 function timestampToMillis(value) {
   if (!value) return 0;
@@ -14287,8 +14297,8 @@ exports.registerForEvent = onCall(
     // P2: 站內信（本人報名成功、P4 空洞遞補者）統一由 registration-notify 發送，收件人只取自交易結果
     const selfReg = result.registrations.find((r) => r.participantType === "self");
     postOps.push(registrationNotify.notifyRegistrationResult(
-      { fn: "registerForEvent", result, callerUid },
-      { writeInboxNotification, logger }
+      { fn: "registerForEvent", result, callerUid, eventId, requestId },
+      registrationNotifyDeps
     ));
 
     // P3: adjustExp（僅 confirmed 才加分）
@@ -15534,8 +15544,8 @@ exports.cancelRegistration = onCall(
 
     // P1: 站內信（取消者／被移除者、升補者）統一由 registration-notify 發送，收件人只取自交易結果
     postOps.push(registrationNotify.notifyRegistrationResult(
-      { fn: "cancelRegistration", result, callerUid, cancelReason },
-      { writeInboxNotification, logger }
+      { fn: "cancelRegistration", result, callerUid, cancelReason, eventId, requestId },
+      registrationNotifyDeps
     ));
 
     // P2: 升補者補發 EXP

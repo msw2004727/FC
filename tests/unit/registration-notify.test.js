@@ -68,8 +68,9 @@ function makeDeps({ failFor = [] } = {}) {
 }
 
 describe("通道常數（Q2）", () => {
-  test("inbox 開、line 關，且凍結不可改", () => {
-    expect(REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false });
+  // 測試同步更新（W2-B）：常數多了 push，預設 false（顧問 §3.641）
+  test("inbox 開、line 關、push 關，且凍結不可改", () => {
+    expect(REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: false });
     expect(Object.isFrozen(REGISTRATION_NOTIFY_CHANNELS)).toBe(true);
   });
 

@@ -6,9 +6,21 @@
  * - 文字與收斂前 functions/index.js 的四段 writeInboxNotification 逐字相同（顧問 §3.637 Q7）。
  * - LINE 固定不發（Q2）：打開要改這個常數、重部署並另送裁定；這裡沒有任何 LINE 呼叫。
  * - 只計數的 log：欄位白名單見 dispatchRegistrationNotices，不含 uid、活動代號、標題、內文。
+ * - 網頁推播（W2-B，顧問 §3.641）：push 預設 false；false 時 enqueueWebPushNotices 第一行就 return，不碰 Firestore，
+ *   log 與 S4 逐欄相同。true 時每則 notice create 一筆 webPushQueue（只 Admin SDK），由 sendWebPushFromQueue 持私鑰發送；
+ *   入列失敗只計 pushFailed，與站內信並行、互不影響（R-CF-003）。本檔不 require firebase-admin、web-push。
  */
 
-const REGISTRATION_NOTIFY_CHANNELS = Object.freeze({ inbox: true, line: false });
+const crypto = require("crypto");
+const { queueIdOf } = require("./web-push-validate");
+const {
+  WEB_PUSH_TITLE_MAX,
+  WEB_PUSH_BODY_MAX,
+  WEB_PUSH_CLICK_URL,
+  WEB_PUSH_QUEUE_RETENTION_MS,
+} = require("./web-push-config");
+
+const REGISTRATION_NOTIFY_CHANNELS = Object.freeze({ inbox: true, line: false, push: false });
 
 const CHANNELS_LABEL = Object.entries(REGISTRATION_NOTIFY_CHANNELS)
   .filter(([, enabled]) => enabled === true)
@@ -75,19 +87,69 @@ function buildRegistrationNotices({ fn, result, callerUid, cancelReason }) {
   throw new Error("REGISTRATION_NOTIFY_UNKNOWN_FN");
 }
 
+// 合法 requestId（字串、1～100 字）當 opKey；缺時用伺服器隨機值（交易本身已擋重複報名／取消）
+function opKeyOf(requestId) {
+  if (typeof requestId === "string" && requestId.length > 0) return requestId.slice(0, 100);
+  return crypto.randomUUID();
+}
+
+const isAlreadyExists = (error) => error?.code === 6 || error?.code === "already-exists";
+
+// 依 code point 截斷（不切壞 emoji）
+const truncate = (value, max) => Array.from(String(value)).slice(0, max).join("");
+
+/**
+ * 網頁推播入列：push 為 false 時第一行就 return（不建立任何 Firestore 參照）。
+ * 為 true 時每則 notice create 一筆 webPushQueue/{queueId}；同鍵 ALREADY_EXISTS 只計 deduped，其他錯誤計 failed，不往外丟。
+ * 佇列欄位白名單：schema、source、kind、recipientUid、title、body、url、status、createdAt、expireAt（不存 eventId、callerUid、requestId）。
+ */
+async function enqueueWebPushNotices(notices, { eventId, requestId }, { createQueueDoc, serverTimestamp, now }) {
+  if (REGISTRATION_NOTIFY_CHANNELS.push !== true) return null;
+  const opKey = opKeyOf(requestId);
+  const outcomes = await Promise.allSettled(notices.map(async (notice) => {
+    const queueId = queueIdOf({ kind: notice.kind, eventId, recipientUid: notice.recipientUid, opKey });
+    return createQueueDoc(queueId, {
+      schema: 1,
+      source: "registration",
+      kind: notice.kind,
+      recipientUid: notice.recipientUid,
+      title: truncate(notice.title, WEB_PUSH_TITLE_MAX),
+      body: truncate(notice.body, WEB_PUSH_BODY_MAX),
+      url: WEB_PUSH_CLICK_URL,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      expireAt: new Date(now() + WEB_PUSH_QUEUE_RETENTION_MS),
+    });
+  }));
+  const result = { queued: 0, deduped: 0, failed: 0 };
+  outcomes.forEach((outcome) => {
+    if (outcome.status === "fulfilled") result.queued += 1;
+    else if (isAlreadyExists(outcome.reason)) result.deduped += 1;
+    else result.failed += 1;
+  });
+  return result;
+}
+
 // 逐則寫站內信，全部結束後寫一行只計數的 log；單則失敗只計入 inboxFailed，不往外丟。
 // 注意 inboxFailed 只算「被拒絕的 promise」：正式的 writeInboxNotification 會自己 catch、不 reject，
 // 所以正式環境這欄幾乎恆為 0；實際的寫入失敗要看 [writeInboxNotification] 的 ERROR 數（審查 P2-1）
 // cancelledRegs／promotedRegs 是報名筆數（與 audit 的 cancelledCount／promotedCount 同口徑）；
 // cancelled／removed／promoted 是去重後的人數（Q3 後人數 ≤ 筆數，審查 P2-2）
-async function dispatchRegistrationNotices(fn, notices, { cancelledRegs, promotedRegs }, { writeInboxNotification, logger }) {
-  const outcomes = await Promise.allSettled(notices.map(async (notice) => writeInboxNotification({
-    recipientUid: notice.recipientUid,
-    title: notice.title,
-    body: notice.body,
-    category: "activity",
-    categoryLabel: "活動",
-  })));
+// 網頁推播入列與站內信並行；入列結果不影響站內信（push 為 false 時 log 不出現 push* 欄位）
+async function dispatchRegistrationNotices(fn, notices, { cancelledRegs, promotedRegs }, deps, pushContext = {}) {
+  const { writeInboxNotification, logger } = deps;
+  const pushPending = (async () => enqueueWebPushNotices(notices, pushContext, deps))()
+    .catch(() => ({ queued: 0, deduped: 0, failed: notices.length }));
+  const [outcomes, push] = await Promise.all([
+    Promise.allSettled(notices.map(async (notice) => writeInboxNotification({
+      recipientUid: notice.recipientUid,
+      title: notice.title,
+      body: notice.body,
+      category: "activity",
+      categoryLabel: "活動",
+    }))),
+    pushPending,
+  ]);
   const countOf = (kind) => notices.filter((notice) => notice.kind === kind).length;
   const summary = {
     fn,
@@ -100,7 +162,12 @@ async function dispatchRegistrationNotices(fn, notices, { cancelledRegs, promote
     inboxFailed: outcomes.filter((outcome) => outcome.status === "rejected").length,
     channels: CHANNELS_LABEL,
   };
-  if (summary.inboxFailed > 0) {
+  if (push) {
+    summary.pushQueued = push.queued;
+    summary.pushDeduped = push.deduped;
+    summary.pushFailed = push.failed;
+  }
+  if (summary.inboxFailed > 0 || (push && push.failed > 0)) {
     logger.warn("[registrationNotify] dispatched", summary);
   } else {
     logger.info("[registrationNotify] dispatched", summary);
@@ -122,7 +189,10 @@ function notifyRegistrationResult(input, deps) {
   let pending;
   try {
     const notices = buildRegistrationNotices(input);
-    pending = dispatchRegistrationNotices(input.fn, notices, countRegistrationRows(input), deps);
+    pending = dispatchRegistrationNotices(input.fn, notices, countRegistrationRows(input), deps, {
+      eventId: input.eventId,
+      requestId: input.requestId,
+    });
   } catch (error) {
     pending = Promise.reject(error);
   }
@@ -136,5 +206,6 @@ module.exports = {
   REGISTRATION_NOTIFY_CHANNELS,
   buildRegistrationNotices,
   dispatchRegistrationNotices,
+  enqueueWebPushNotices,
   notifyRegistrationResult,
 };
