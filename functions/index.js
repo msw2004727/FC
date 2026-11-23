@@ -3857,8 +3857,8 @@ exports.commitSecondaryIdentityAvatar = onCall(
 const ADMIN_EXP_PERMISSION = "admin.exp.entry";
 
 // ── 積分調整授權強化：auto 模式的 requestId 與「目標不是本人」條件 ──
-// 代發只放行三種規則：complete_activity 正值、register_activity 固定 +10（同 adjustExpInternal）、
-// noshow_penalty 依呼叫者分級；金額上限一律沿用 auto 的 ±100，不另讀規則設定。
+// 代發（只限 admin.exp.entry，第二批）只放行三種規則：complete_activity 正值、register_activity 固定 +10（同 adjustExpInternal）、
+// noshow_penalty 雙向；金額上限一律沿用 auto 的 ±100，不另讀規則設定。
 const AUTO_EXP_DELEGATED_RULE_KEYS = new Set(["complete_activity", "noshow_penalty", "register_activity"]);
 const AUTO_EXP_REGISTER_ACTIVITY_AMOUNT = 10;
 // 本人正值只剩一次性規則 line_binding（2026-11-23 第一批，取代原「目標是本人不限規則」）；
@@ -3889,13 +3889,6 @@ async function authorizeSelfAutoExp({ callerUid, amount, ruleKey, requestId, par
 const AUTO_EXP_REQUEST_ID_RE = /^autoexp_([A-Za-z0-9-]{1,128})_(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_([^\s/]{1,160}))?$/;
 // A 的尾段是時間戳或「預期總額_時間戳_段號」（可為負數），不是活動 ID。
 const AUTO_EXP_NUMERIC_TAIL_RE = /^-?\d+(?:_-?\d+)*$/;
-// A 沒帶活動 ID 時的退回查詢：依序查，命中即停。
-const AUTO_EXP_RELATION_FALLBACK_QUERIES = Object.freeze([
-  ["creatorUid", "=="],
-  ["ownerUid", "=="],
-  ["captainUid", "=="],
-  ["delegateUids", "array-contains"],
-]);
 
 // requestId 形狀：B `autoexp_<uid>_complete_activity_<eventId>`；A `autoexp_<uid>_<ruleKey>_<時間戳…>`。
 function parseAutoExpRequestId(requestId) {
@@ -3921,19 +3914,12 @@ function denyAutoExp(reason, { callerUid, ruleKey, callerRoleLevel = null, hasEv
   return new HttpsError(code, "Auto mode target not permitted");
 }
 
-async function hasAnyEventRelationForUid(uid) {
-  for (const [field, op] of AUTO_EXP_RELATION_FALLBACK_QUERIES) {
-    const snap = await db.collection("events").where(field, op, uid).limit(1).get();
-    if (!snap.empty) return true;
-  }
-  return false;
-}
-
-async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed, eventId }) {
+// 第二批（2026-11-23，顧問 §3.617，取代「教練以上／活動 owner／delegate／曾主辦過活動即可代發」）：
+// 代發（目標不是本人）一律只認 admin.exp.entry；規則白名單與金額限制照舊。
+// 「帶活動代號＋目標出席＋後端定去重鍵」留待日後打開完成活動加分時再做（local-only 設計檔）。
+async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed }) {
   const givenRuleKey = typeof ruleKey === "string" ? ruleKey : "";
-  const givenEventId = typeof eventId === "string" ? eventId.trim().slice(0, 128) : "";
-  const targetEventId = givenEventId || parsed.eventId;
-  const logBase = { callerUid, ruleKey: parsed.ruleKey, hasEventId: !!targetEventId };
+  const logBase = { callerUid, ruleKey: parsed.ruleKey, hasEventId: !!parsed.eventId };
 
   if (!AUTO_EXP_DELEGATED_RULE_KEYS.has(parsed.ruleKey) || (givenRuleKey && givenRuleKey !== parsed.ruleKey)) {
     throw denyAutoExp("rule_key", logBase);
@@ -3944,21 +3930,9 @@ async function authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, 
   }
 
   const access = await getCallerAccessContext(request);
-  const callerRoleLevel = ROLE_LEVELS[access.role] || 0;
-  const denyBase = { ...logBase, callerRoleLevel };
-  const privileged = access.hasPermission(ADMIN_EXP_PERMISSION) || callerRoleLevel >= ROLE_LEVELS.coach;
-  // 只靠活動關係通過者，放鴿子只能扣分；管理者可雙向（A 對帳與補正會退分）
-  if (parsed.ruleKey === "noshow_penalty" && !privileged && amount >= 0) {
-    throw denyAutoExp("amount", denyBase);
+  if (!access.hasPermission(ADMIN_EXP_PERMISSION)) {
+    throw denyAutoExp("caller", { ...logBase, callerRoleLevel: ROLE_LEVELS[access.role] || 0 });
   }
-  let allowed = privileged;
-  if (!allowed && targetEventId) {
-    const eventDoc = await getEventDocByPublicId(targetEventId);
-    allowed = !!eventDoc && canManageScopedEventForAccess(eventDoc.data() || {}, callerUid);
-  } else if (!allowed) {
-    allowed = await hasAnyEventRelationForUid(callerUid);
-  }
-  if (!allowed) throw denyAutoExp("caller", denyBase);
 }
 
 exports.adjustExp = onCall(
@@ -3969,7 +3943,7 @@ exports.adjustExp = onCall(
     }
 
     const callerUid = request.auth.uid;
-    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey, eventId } = request.data || {};
+    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey } = request.data || {};
 
     // ── 冪等性保護（可選）：參數與權限檢查全部通過後才建立，並與 EXP 寫入同一個 batch ──
     const dedupRef = (typeof requestId === "string" && requestId.length > 0)
@@ -4013,11 +3987,18 @@ exports.adjustExp = onCall(
       if (parsedRequestId && parsedRequestId.ownerUid !== targets[0]) {
         throw denyAutoExp("request_id_owner", autoLog);
       }
-      // 目標是本人須通過本人條件；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
-      if (targets[0] === callerUid) {
+      // 目標是本人須通過本人條件；不是本人須通過代發條件（規則白名單、固定金額、admin.exp.entry）。
+      // 舊帳號（users 文件 ID ≠ 登入 UID）：目標文件的 uid／lineUserId 等於呼叫者也算本人，在授權前判定（第二批）。
+      let selfTarget = targets[0] === callerUid;
+      if (!selfTarget) {
+        const targetSnap = await db.collection("users").doc(targets[0]).get();
+        const targetData = targetSnap.exists ? (targetSnap.data() || {}) : {};
+        selfTarget = targetData.uid === callerUid || targetData.lineUserId === callerUid;
+      }
+      if (selfTarget) {
         await authorizeSelfAutoExp({ callerUid, amount, ruleKey, requestId, parsed: parsedRequestId });
       } else {
-        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed: parsedRequestId, eventId });
+        await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed: parsedRequestId });
       }
     } else {
       // manual / batch / team / teamExp：需要 admin.exp.entry 權限

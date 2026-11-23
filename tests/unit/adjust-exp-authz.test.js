@@ -272,13 +272,13 @@ describe('auto 模式：參數', () => {
   test('目標查無使用者：回 not_found，不建立去重紀錄', async () => {
     const ghost = `U${'0'.repeat(32)}`;
     const requestId = bId(ghost);
-    const res = await call(U_COACH, auto(ghost, { requestId }));
+    const res = await call(U_EXP_ADMIN, auto(ghost, { requestId }));
     expect(res.results[0]).toMatchObject({ success: false, error: 'not_found' });
     expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
   });
 
   test('不讀 siteConfig/autoExpRules：設定文件不存在也照常代發', async () => {
-    const res = await call(U_COACH, auto(U_OTHER, { requestId: bId(U_OTHER) }));
+    const res = await call(U_EXP_ADMIN, auto(U_OTHER, { requestId: bId(U_OTHER) }));
     expect(res.results[0].success).toBe(true);
     expect(fake.has('siteConfig/autoExpRules')).toBe(false);
   });
@@ -323,11 +323,13 @@ describe('auto 模式：目標不是本人，requestId 必填與歸屬', () => {
   });
 });
 
+// 第二批（2026-11-23，顧問 §3.617）：代發一律只認 admin.exp.entry；拿掉教練以上、活動 owner／delegate、曾主辦過活動的放行。
+// 測試同步更新：原「教練／委託人／ownerUid／退回查詢放行」案例改為拒絕（站長按鈕同意舊站幹部完成活動加分停發）。
 describe('auto 模式：目標不是本人，呼叫者身分', () => {
   beforeEach(() => seed());
 
-  test('教練以上（角色等級）可代發 complete_activity（B 結算形狀，不帶 ruleKey）', async () => {
-    const res = await call(U_COACH, auto(U_OTHER, { requestId: bId(U_OTHER) }));
+  test('具 admin.exp.entry 的自訂角色（等級 0）可代發 complete_activity（B 結算形狀）', async () => {
+    const res = await call(U_EXP_ADMIN, auto(U_OTHER, { requestId: bId(U_OTHER) }));
     expect(res.results[0]).toMatchObject({ success: true, oldExp: 200, newExp: 230 });
     expect(fake.has(`_expDedupe/${bId(U_OTHER)}`)).toBe(true);
   });
@@ -337,64 +339,61 @@ describe('auto 模式：目標不是本人，呼叫者身分', () => {
     expect(res.results[0].success).toBe(true);
   });
 
-  test('具 admin.exp.entry 的自訂角色（等級 0）可代發 noshow_penalty（A 對帳形狀）', async () => {
+  test('具 admin.exp.entry 的自訂角色可代發 noshow_penalty（A 對帳形狀）', async () => {
     const res = await call(U_EXP_ADMIN, auto(U_OTHER, { amount: -50, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER), reason: '自動：放鴿子扣分（1 次 × -50）' }));
     expect(res.results[0]).toMatchObject({ success: true, newExp: 150 });
   });
 
-  test('一般用戶擔任該活動委託人：requestId 帶活動 ID 時放行', async () => {
-    const res = await call(U_DELEGATE, auto(U_OTHER, { requestId: bId(U_OTHER) }));
-    expect(res.results[0].success).toBe(true);
-  });
-
-  test('活動的 ownerUid 也算主辦（與 Rules isEventOwnerOrDelegateForData 一致）', async () => {
-    const res = await call(U_OWNER_FIELD, auto(U_OTHER, { requestId: bId(U_OTHER) }));
-    expect(res.results[0].success).toBe(true);
-  });
-
-  test('request.data.eventId 優先於 requestId 解析', async () => {
-    // requestId 指向 EVENT_ID（不是委託），data.eventId 指向 EVENT_ID_2（是委託）
-    const res = await call(U_DELEGATE_ELSEWHERE, auto(U_OTHER, { requestId: bId(U_OTHER), eventId: EVENT_ID_2 }));
-    expect(res.results[0].success).toBe(true);
-  });
-
-  test('一般用戶是別場活動的委託人：指定活動不符時拒絕（不退回廣查）', async () => {
-    await expectDenied(call(U_DELEGATE_ELSEWHERE, auto(U_OTHER, { requestId: bId(U_OTHER) })));
+  test('靠個別授權（userPermissionGrants）持有 admin.exp.entry 也可代發；停用的授權不算', async () => {
+    seed({ [`userPermissionGrants/${U_SELF}`]: { uid: U_SELF, permissions: ['admin.exp.entry'], enabled: true } });
+    const res = await call(U_SELF, auto(U_OTHER, { requestId: bId(U_OTHER) }));
+    expect(res.results[0]).toMatchObject({ success: true, newExp: 230 });
+    seed({ [`userPermissionGrants/${U_SELF}`]: { uid: U_SELF, permissions: ['admin.exp.entry'], enabled: false } });
+    await expectDenied(call(U_SELF, auto(U_OTHER, { requestId: bId(U_OTHER) })));
     expect(expOf(U_OTHER)).toBe(200);
   });
 
-  test('指定的活動不存在時拒絕', async () => {
-    await expectDenied(call(U_DELEGATE, auto(U_OTHER, { requestId: bId(U_OTHER, 'ce_missing_x') })));
+  test('洞 1：數字尾段（無活動 ID）＋曾主辦過活動 → 拒絕，可重複的路徑關閉', async () => {
+    for (const caller of [U_CREATOR, U_OWNER_FIELD, U_CAPTAIN_FIELD, U_DELEGATE_ELSEWHERE]) {
+      await expectDenied(call(caller, auto(U_OTHER, { requestId: aId(U_OTHER) })));
+    }
+    expect(expOf(U_OTHER)).toBe(200);
+    expect(fake.has(`_expDedupe/${aId(U_OTHER)}`)).toBe(false);
   });
 
-  test.each([
-    ['creatorUid', U_CREATOR],
-    ['ownerUid', U_OWNER_FIELD],
-    ['captainUid', U_CAPTAIN_FIELD],
-    ['delegateUids', U_DELEGATE_ELSEWHERE],
-  ])('A 時間戳形狀（無活動 ID）：一般用戶在任一活動的 %s → 退回查詢後放行', async (_field, caller) => {
-    const res = await call(caller, auto(U_OTHER, { requestId: aId(U_OTHER) }));
-    expect(res.results[0].success).toBe(true);
+  test('洞 2：帶活動 ID、呼叫者是該場委託人或主辦 → 拒絕（不再只看呼叫者關係）', async () => {
+    await expectDenied(call(U_DELEGATE, auto(U_OTHER, { requestId: bId(U_OTHER) })));
+    await expectDenied(call(U_OWNER_FIELD, auto(U_OTHER, { requestId: bId(U_OTHER) })));
+    await expectDenied(call(U_DELEGATE_ELSEWHERE, auto(U_OTHER, { requestId: bId(U_OTHER), eventId: EVENT_ID_2 })));
+    expect(expOf(U_OTHER)).toBe(200);
   });
 
-  test('退回查詢命中即停：creatorUid 命中時只查一段', async () => {
-    const before = fake.state.reads.direct;
-    await call(U_CREATOR, auto(U_OTHER, { requestId: aId(U_OTHER) }));
-    const creatorReads = fake.state.reads.direct - before;
-    seed();
-    const before2 = fake.state.reads.direct;
-    await call(U_DELEGATE_ELSEWHERE, auto(U_OTHER, { requestId: aId(U_OTHER) }));
-    // 委託人要查完前三段才命中第四段，比 creatorUid 多 3 次讀取
-    expect(fake.state.reads.direct - before2 - creatorReads).toBe(3);
+  test('洞 3：教練以上（角色等級）對任何人 → 拒絕', async () => {
+    await expectDenied(call(U_COACH, auto(U_OTHER, { requestId: bId(U_OTHER) })));
+    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: 50, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 0) })));
+    expect(expOf(U_OTHER)).toBe(200);
+    const [log] = deniedLogs();
+    expect(log[2]).toMatchObject({ reason: 'caller', callerRoleLevel: 1 });
   });
 
-  test('拿不到活動 ID、也不是任何活動主辦／委託的一般用戶 → 拒絕', async () => {
+  test('洞 4：舊帳號（目標文件的 uid／lineUserId 是呼叫者）走本人規則：正值拒絕、負值放行', async () => {
+    const legacyDoc = `U${'b'.repeat(32)}`;
+    seed({ [`users/${legacyDoc}`]: user(U_EXP_ADMIN, { lineUserId: legacyDoc, role: 'exp_clerk' }) });
+    await expectDenied(call(U_EXP_ADMIN, auto(legacyDoc, { requestId: bId(legacyDoc) })));
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'self_rule' });
+    expect(fake.get(`users/${legacyDoc}`).exp).toBe(200);
+    seed({ [`users/${legacyDoc}`]: user(U_OTHER, { lineUserId: U_EXP_ADMIN }) });
+    await expectDenied(call(U_EXP_ADMIN, auto(legacyDoc, { requestId: bId(legacyDoc) })));
+    const res = await call(U_EXP_ADMIN, auto(legacyDoc, { amount: -3, requestId: aId(legacyDoc, 'cancel_registration') }));
+    expect(res.results[0]).toMatchObject({ success: true, newExp: 197 });
+  });
+
+  test('拿不到活動 ID 的一般用戶 → 拒絕，log 只留遮罩 uid', async () => {
     await expectDenied(call(U_SELF, auto(U_OTHER, { requestId: aId(U_OTHER) })));
     expect(fake.has(`_expDedupe/${aId(U_OTHER)}`)).toBe(false);
     expect(expOf(U_OTHER)).toBe(200);
     const [log] = deniedLogs();
     expect(log[2]).toMatchObject({ reason: 'caller', ruleKey: 'complete_activity', callerRoleLevel: 0, hasEventId: false });
-    // log 只留遮罩過的 uid
     expect(JSON.stringify(log)).not.toContain(U_SELF);
   });
 });
@@ -416,34 +415,33 @@ describe('auto 模式：目標不是本人，規則與金額', () => {
   });
 
   test('complete_activity：正值、上限 100', async () => {
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: -30, requestId: bId(U_OTHER) })));
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: 101, requestId: bId(U_OTHER) })), 'invalid-argument');
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: -30, requestId: bId(U_OTHER) })));
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: 101, requestId: bId(U_OTHER) })), 'invalid-argument');
     expect(fake.has(`_expDedupe/${bId(U_OTHER)}`)).toBe(false);
-    const res = await call(U_COACH, auto(U_OTHER, { amount: 100, requestId: bId(U_OTHER) }));
+    const res = await call(U_EXP_ADMIN, auto(U_OTHER, { amount: 100, requestId: bId(U_OTHER) }));
     expect(res.results[0]).toMatchObject({ success: true, newExp: 300 });
   });
 
-  test('noshow_penalty：管理者（教練以上／admin.exp.entry）可 −100～+100（退分與多次合併）', async () => {
-    const r1 = await call(U_COACH, auto(U_OTHER, { amount: 50, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 0) }));
+  test('noshow_penalty：admin.exp.entry 可 −100～+100（退分與多次合併）', async () => {
+    const r1 = await call(U_EXP_ADMIN, auto(U_OTHER, { amount: 50, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 0) }));
     expect(r1.results[0]).toMatchObject({ success: true, newExp: 250 });
     const r2 = await call(U_EXP_ADMIN, auto(U_OTHER, { amount: -100, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, -150) }));
     expect(r2.results[0]).toMatchObject({ success: true, newExp: 150 });
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: 101, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 1) })), 'invalid-argument');
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: 0, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 2) })), 'invalid-argument');
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: 101, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 1) })), 'invalid-argument');
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: 0, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 2) })), 'invalid-argument');
   });
 
-  test('noshow_penalty：只靠活動關係通過的一般用戶只能扣分（≤100）', async () => {
-    await expectDenied(call(U_DELEGATE, auto(U_OTHER, { amount: 50, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, 0) })));
-    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'amount', callerRoleLevel: 0 });
-    const res = await call(U_DELEGATE, auto(U_OTHER, { amount: -100, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, -100) }));
-    expect(res.results[0]).toMatchObject({ success: true, newExp: 100 });
+  test('noshow_penalty：活動委託人（無 admin.exp.entry）扣分也拒絕', async () => {
+    await expectDenied(call(U_DELEGATE, auto(U_OTHER, { amount: -100, ruleKey: 'noshow_penalty', requestId: noshowId(U_OTHER, -100) })));
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'caller', callerRoleLevel: 0 });
+    expect(expOf(U_OTHER)).toBe(200);
   });
 
   test('register_activity 固定 +10', async () => {
     const id = aId(U_OTHER, 'register_activity');
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: 20, requestId: id })));
-    await expectDenied(call(U_COACH, auto(U_OTHER, { amount: -10, requestId: id })));
-    const res = await call(U_COACH, auto(U_OTHER, { amount: 10, requestId: id }));
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: 20, requestId: id })));
+    await expectDenied(call(U_EXP_ADMIN, auto(U_OTHER, { amount: -10, requestId: id })));
+    const res = await call(U_EXP_ADMIN, auto(U_OTHER, { amount: 10, requestId: id }));
     expect(res.results[0]).toMatchObject({ success: true, newExp: 210 });
   });
 
@@ -455,9 +453,9 @@ describe('auto 模式：目標不是本人，規則與金額', () => {
   test('被拒後同一 requestId 仍可由合法呼叫者使用（去重紀錄未被佔用）', async () => {
     await expectDenied(call(U_SELF, auto(U_OTHER, { requestId: bId(U_OTHER) })));
     expect(fake.has(`_expDedupe/${bId(U_OTHER)}`)).toBe(false);
-    const res = await call(U_DELEGATE, auto(U_OTHER, { requestId: bId(U_OTHER) }));
+    const res = await call(U_EXP_ADMIN, auto(U_OTHER, { requestId: bId(U_OTHER) }));
     expect(res.results[0].success).toBe(true);
-    const again = await call(U_DELEGATE, auto(U_OTHER, { requestId: bId(U_OTHER) }));
+    const again = await call(U_EXP_ADMIN, auto(U_OTHER, { requestId: bId(U_OTHER) }));
     expect(again).toEqual({ success: true, deduplicated: true });
     expect(expOf(U_OTHER)).toBe(230);
   });
