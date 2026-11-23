@@ -96,8 +96,8 @@ function createWorld({ teams = {}, clubs = {} } = {}) {
   return { store, hooks, counters, put, db: makeDb("main"), cpDb: makeDb("cp") };
 }
 
-const SEED_A = "tm_1777088574910_seedaa";
-const SEED_B = "tm_1777087499329_seedbb";
+const SEED_A = "tm_1700000000002_seedaa";
+const SEED_B = "tm_1600000000001_seedbb";
 
 function baseWorld() {
   return createWorld({
@@ -199,8 +199,8 @@ describe("dry-run 計畫", () => {
     expect(text).toContain("寫入筆數 7");
     expect(text).toContain("seededBy=g4-seed 2 份");
     expect(text).toContain("收編非四欄文件 2");
-    expect(text).toContain("tm_1777088574…");
-    expect(text).toContain("tm_1777087499…");
+    expect(text).toContain("tm_1700000000…");
+    expect(text).toContain("tm_1600000000…");
     expect(text).toContain("seededBy：有 → 移除");
     expect(text).toMatch(/image：不同（null null → fc-football-6c8dc-asia-east1 #[0-9a-f]{8}）/);
     expect(text).toMatch(/抽樣 8 筆/);
