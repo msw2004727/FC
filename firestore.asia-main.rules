@@ -1,0 +1,653 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════════════════
+//  asia-main（asia-east1 具名資料庫）Security Rules 草稿 — 賽事系統第 1 步
+//  依據：docs/specs/tournament-research/賽事系統-設計計畫書.md v2.1
+//        §4.2 文件結構、§5.1 身分、§5.2 讀取、§5.3 寫入、§6.3 直寫記分、§12.2 內部期
+//  狀態：草稿，只在模擬器測試（functions-cp/test-rules/）；尚未部署（G2／G3 另送裁）。
+//
+//  原則
+//  - 管理員只認 custom claims `role in ['admin','super_admin']`（主站 setRoleClaimMerged 只寫 role）；
+//    權限碼在主庫，這裡查不到，需要權限碼的動作一律走 Callable。
+//  - 賽事內角色只看 competitions/{cid}/staff/{uid}（伺服器寫）；俱樂部關係只看鏡像 cpClubs（伺服器寫）。
+//  - 鏡像只信路徑上的 teamId／uid。
+//  - 不開任何 collectionGroup 讀取（不寫 {path=**}）。
+//  - 直寫只開三處：matches/{mt} update、matches/{mt}/timeline/{eventId} create、
+//    matches/{mt}/voids/{targetSeq} create，以及 matches/{mt}/control/scorer（接手）。其餘一律 Admin SDK。
+//  - 記分模型：每筆動作＝一筆事件；場次文件單一遞增 rev；事件 id `e{rev}`；
+//    場次 update 與事件 create（作廢另加 voids 標記）必須同一批，以 getAfter／existsAfter 互相驗證。
+// ════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 共用身分 ─────────────────────────────────────────────────────
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.role in ['admin', 'super_admin'];
+    }
+    function docPath(rel) { return /databases/$(database)/documents/$(rel); }
+    // 內部期測試者：cpConfig/launch/testers/{uid}（只有主 codebase cpAdminOps 可寫）
+    function isTester() {
+      return signedIn() && exists(/databases/$(database)/documents/cpConfig/launch/testers/$(uid()));
+    }
+
+    // ── 賽事根文件判斷 ───────────────────────────────────────────────
+    function compPath(cid) { return /databases/$(database)/documents/competitions/$(cid); }
+    function staffPath(cid) { return /databases/$(database)/documents/competitions/$(cid)/staff/$(uid()); }
+    function clubPath(teamId) { return /databases/$(database)/documents/cpClubs/$(teamId); }
+
+    // 內部賽事（visibility=='internal'）只有管理員與測試者可碰（§12.2-c）
+    // （寫成「public 或 管理員／測試者」而不是再比對 'internal'：list 查詢不帶 visibility 篩選時，
+    //   測試者的條件才能在查詢層級成立；visibility 只有 public／internal 兩值，由伺服器寫入）
+    function internalGate(c) {
+      return c.visibility == 'public' || isAdmin() || isTester();
+    }
+    // 對外可見狀態（§5.2：status != 'draft' 且未下架；用 in 清單讓 list 查詢可證明）
+    function isPubLike(c) {
+      return c.status in ['published', 'postponed', 'cancelled'] && c.hidden == false;
+    }
+    function isRepOf(teamId) {
+      return signedIn() && teamId is string
+        && exists(clubPath(teamId))
+        && uid() in get(clubPath(teamId)).data.repUids;
+    }
+    // 賽事內主辦角色（staff/{uid}.roles，伺服器寫）：host＝個人主辦、coHost＝共同主辦
+    function hasStaffRole(cid, roles) {
+      return signedIn() && exists(staffPath(cid))
+        && get(staffPath(cid)).data.roles.hasAny(roles);
+    }
+    // 主辦或共同主辦（顧問 §3.251 (a)(c)，取代「hostUid 本人＋代表＋共同主辦」）：
+    // - 俱樂部主辦只認「目前」代表（鏡像 repUids）；建立者被撤換代表後不再有主辦權。
+    // - 個人主辦與共同主辦看 staff 角色；公開主文件不再放建立者 uid。
+    function isHostOrCo(cid, c) {
+      return (c.hostType == 'club' && isRepOf(c.hostTeamId))
+        || hasStaffRole(cid, ['host', 'coHost']);
+    }
+    // 公開條件先判（公開已發布賽事不讀任何相依文件）；其餘一律先過內部期閘門（主辦本人亦同，
+    // 與 Callable 的 assertCompVisible 一致，解掉 Opus 終審 P3 的兩邊不一致）。
+    function canReadCompData(cid, c) {
+      return isAdmin()
+        || (isPubLike(c) && internalGate(c))
+        || (internalGate(c) && isHostOrCo(cid, c));
+    }
+    function canReadComp(cid) {
+      return exists(compPath(cid)) && canReadCompData(cid, get(compPath(cid)).data);
+    }
+    function canManageComp(cid) {
+      return exists(compPath(cid)) && (
+        isAdmin()
+        || (internalGate(get(compPath(cid)).data) && isHostOrCo(cid, get(compPath(cid)).data))
+      );
+    }
+
+    // ── 直寫記分共用判斷（§6.3）─────────────────────────────────────
+    // 預算註記（V5）：Rules 每個請求（整個 batch 共用）最多評估 1000 個運算式。
+    // 寫法原則：每份文件只 get 一次並以 let 傳遞；affectedKeys 只算一次；
+    // 時鐘／鎖／比分的形狀只在「這次有改」時驗證（未改的值是伺服器寫的）。
+    function matchPath(cid, mt) { return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt); }
+    function eventPath(cid, mt, seq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/timeline/$('e' + string(seq));
+    }
+    function voidPath(cid, mt, targetSeq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/voids/$(string(targetSeq));
+    }
+    function cardLinkPath(cid, mt, ySeq) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/cardLinks/$(string(ySeq));
+    }
+    function scorerCtlPath(cid, mt) {
+      return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/control/scorer;
+    }
+    // 賽事可記分：已發布、未下架、內部賽事只限管理員／測試者（取消、延期、草稿一律拒）
+    function compScorableData(c) {
+      return c.status == 'published' && c.hidden == false && internalGate(c);
+    }
+    // 本場指派：roles 含 scorer 或 referee、matchIds 含本場（空陣列＝無權限）、未過期
+    // （文件不存在時 get 產生錯誤值；本函式只用在 && 正向語境，錯誤＝拒絕）
+    function assignedData(s, mt) {
+      return s.roles.hasAny(['scorer', 'referee'])
+        && s.matchIds.hasAny([mt])
+        && (s.expiresAt == null || request.time < s.expiresAt);
+    }
+    function isAssigned(cid, mt) {
+      return signedIn() && assignedData(get(staffPath(cid)).data, mt);
+    }
+    // 記分者：賽事可記分＋本場指派＋目前記分者
+    function scorerOk(cid, mt) {
+      return signedIn()
+        && compScorableData(get(compPath(cid)).data)
+        && assignedData(get(staffPath(cid)).data, mt)
+        && get(scorerCtlPath(cid, mt)).data.uid == uid();
+    }
+
+    function validScore(s) {
+      return s.keys().hasOnly(['home', 'away']) && s.home is int && s.away is int
+        && s.home >= 0 && s.home <= 99 && s.away >= 0 && s.away <= 99;
+    }
+    function validClockBase(cb) {
+      // 缺鍵時後面的欄位存取會出錯而拒絕，不必再 hasAll（省拒絕路徑的運算式）。
+      return cb.keys().hasOnly(['startedAt', 'pausedSec', 'running', 'period'])
+        && (cb.startedAt == null || cb.startedAt is timestamp)
+        && cb.pausedSec is int && cb.pausedSec >= 0 && cb.pausedSec <= 10800
+        && cb.running is bool
+        && cb.period in ['pre', 'h1', 'ht', 'h2', 'et1', 'et2', 'pk', 'ft'];
+    }
+    function clockOk(ch, b) { return !ch.hasAny(['clockBase']) || validClockBase(b.clockBase); }
+    // 比分變動：side 那邊 +d、另一邊不變
+    function scoreDelta(a, b, side, d) {
+      return validScore(b.score) && (
+        (side == 'home' && b.score.home == a.score.home + d && b.score.away == a.score.away)
+        || (side == 'away' && b.score.away == a.score.away + d && b.score.home == a.score.home));
+    }
+    // PK 比分（§3.317-4）：剛好 home／away 兩鍵、整數、0～30。多鍵、非整數、越界都拒。
+    function validPenalty(s) {
+      return s is map && s.keys().hasOnly(['home', 'away'])
+        && s.home is int && s.away is int
+        && s.home >= 0 && s.home <= 30 && s.away >= 0 && s.away <= 30;
+    }
+    // side 那邊的 PK 比分 +d、另一邊不變。d 為 1（進）或 -1（作廢進了的一腳）。
+    function penaltyDelta(a, b, side, d) {
+      return validPenalty(b.penaltyScore) && (
+        (side == 'home' && b.penaltyScore.home == a.penaltyScore.home + d && b.penaltyScore.away == a.penaltyScore.away)
+        || (side == 'away' && b.penaltyScore.away == a.penaltyScore.away + d && b.penaltyScore.home == a.penaltyScore.home));
+    }
+    // pkStart：正規比分必須相等（§3.317-3①）。penaltyScore 從 null 變成 0:0，period 變成 pk。
+    function pkStartFx(a, b, ch) {
+      return ch.hasOnly(['penaltyScore', 'clockBase', 'rev', 'updatedAt'])
+        && a.status == 'live'
+        // 缺欄位視同 null（Flash 複審 P3：cp 建場次都明寫 null，防舊文件缺鍵時誤擋）
+        && a.get('penaltyScore', null) == null
+        && b.penaltyScore == {'home': 0, 'away': 0}
+        && b.clockBase.period == 'pk'
+        && a.score.home == a.score.away;
+    }
+    // 進：該方 +1。沒進：penaltyScore 不變（變動鍵只有 rev／updatedAt）。
+    // 兩臂都要已 pkStart（penaltyScore 不是 null）。只看 period 時，clock 可先把 period 設成 pk。
+    function pkFx(a, b, ch, ev) {
+      return a.status == 'live' && a.clockBase.period == 'pk' && a.penaltyScore != null && (
+        (ev.scored == true && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt']) && penaltyDelta(a, b, ev.side, 1))
+        || (ev.scored == false && ch.hasOnly(['rev', 'updatedAt']))
+      );
+    }
+
+    // ⑤ 作廢進球要扣分；作廢牌只動 rev。目標文件只 get 一次，避免拒絕路徑多讀。
+    // 沒進的 pk 不作廢扣分。進了的 pk 要改 penaltyScore，matchUpdateOk 的 hasOnly 放不進，改走 pkVoidFx。
+    function voidFx(a, b, ch, t) {
+      return (t.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt']) && scoreDelta(a, b, t.side, -1))
+        || (t.type == 'card' && ch.hasOnly(['rev', 'updatedAt']))
+        || (t.type == 'pk' && t.scored != true && ch.hasOnly(['rev', 'updatedAt']));
+    }
+    // 作廢進了的 pk：該方 penaltyScore −1。只在 pkUpdateOk 的 void 臂呼叫，避免一般拒絕把 penaltyDelta 算進去。
+    function pkVoidFx(cid, mt, a, b, ch, ev) {
+      let t = get(eventPath(cid, mt, ev.targetSeq)).data;
+      return t.type == 'pk' && t.scored == true
+        && ch.hasOnly(['penaltyScore', 'rev', 'updatedAt'])
+        && penaltyDelta(a, b, t.side, -1);
+    }
+    // 改了 clockBase 的寫入不走 effectOk。那條拒絕路徑已靠近 1000，
+    // 停錶的欄位比較或再讀一次事件都會讓一般進球拒絕耗盡預算。
+    // 進球沒改 clockBase：hasAny 為 false，後面的 hasOnly 不算，三元也不進本體。
+    // pkStart 帶 penaltyScore，hasOnly 為 false，同樣不進本體。
+    // matchUpdateOk 的變動鍵不含 clockBase，所以純時鐘在 existsAfter／effectOk 之前就失敗。
+    function clockChangeGate(cid, mt) {
+      let ch = request.resource.data.diff(resource.data).affectedKeys();
+      return ch.hasAny(['clockBase'])
+        && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt']);
+    }
+    function clockChangeUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      let ev = getAfter(eventPath(cid, mt, b.rev)).data;
+      return (ev.type == 'undoFinish' || a.lock.locked == false)
+        && b.rev is int && b.rev == a.rev + 1
+        && b.rev - a.get('resetRev', 0) <= 200
+        && b.updatedAt == request.time
+        && ev.createdAt == request.time
+        && ev.sid is string
+        && scorerOk(cid, mt)
+        && clockOk(ch, b)
+        // 已進 PK（有 penaltyScore）時，所有改 clockBase 的寫入 period 都必須仍是 pk
+        // （Opus 逐行審 + Flash 複審 P2：原本只鎖 clock／timeout，半場、續賽、終場、撤回終場可改走）。
+        && (a.get('penaltyScore', null) == null || b.clockBase.period == 'pk')
+        && (
+          // 時鐘修正。
+          (ev.type == 'clock'
+            && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime'])
+          // 停錶：只准 running true→false、period 不變、pausedSec 不得倒退。
+          // 契約時鐘語意：停錶時 pausedSec 寫成目前已進行秒數、startedAt 寫成暫停開始時間（用戶端時間，只供顯示 §3.250），
+          // 所以這兩欄必定會變（取代原「startedAt、pausedSec 必須相同」：那會擋掉正確的停錶、只讓時鐘倒退的寫法通過）。
+          || (ev.type == 'timeout'
+            && ch.hasOnly(['clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime']
+            && a.clockBase.running == true
+            && b.clockBase.running == false
+            && b.clockBase.pausedSec >= a.clockBase.pausedSec
+            && b.clockBase.period == a.clockBase.period)
+          // 半場、續賽、開賽會帶 status＋clockBase。終場、自撤回若帶 clockBase 也走這裡。
+          // 不帶 clockBase 的仍由 effectOk 放行。
+          || (ev.type in ['kickoff', 'halftime', 'resume']
+            && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
+            && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
+              || (ev.type == 'halftime' && a.status == 'live' && b.status == 'halftime')
+              || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live')))
+          || (ev.type == 'fulltime'
+            && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+            && a.status in ['live', 'halftime'] && b.status == 'finished'
+            && b.lock == {'locked': true} && b.finishedAt == request.time)
+          || (ev.type == 'undoFinish'
+            && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+            && a.status == 'finished' && a.lock.locked == true
+            && request.time < a.finishedAt + duration.value(180, 's')
+            && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
+        );
+    }
+    // 場次 update 依事件類型的效果（a = 寫入前、b = 寫入後、ch = 變動鍵、ev = 同批事件）
+    function effectOk(cid, mt, a, b, ch, ev) {
+      // ev.createdAt == request.time：證明事件是本請求同批新建（Opus 終審 P1-A）
+      // ② 這裡只確認有 sid。與接手文件相等放在 eventCreateOk：
+      // 場次 update 再 get 一次接手文件會讓拒絕路徑超過 1000 運算式。
+      // clockOk 只呼叫一次。分開放進開賽／終場／撤回會讓拒絕路徑各走一次 validClockBase。
+      return ev.createdAt == request.time
+        && ev.sid is string
+        && (ev.type == 'undoFinish' || a.lock.locked == false)
+        && clockOk(ch, b) && (
+        // 未進 PK 看 penaltyScore，不看 period。clock 可先把 period 改回 h1，只看 period 會被繞過。
+        (ev.type == 'goal' && ch.hasOnly(['score', 'rev', 'updatedAt'])
+          && a.status == 'live' && a.get('penaltyScore', null) == null && scoreDelta(a, b, ev.side, 1))
+        || (ev.type == 'void' && a.status in ['live', 'halftime']
+          && voidFx(a, b, ch, get(eventPath(cid, mt, ev.targetSeq)).data))
+        || (ev.type in ['card', 'sub'] && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'])
+        // 不停錶的 timeout：不動 clockBase。沒改時鐘則 period 不會離開 pk。
+        // 停錶與 clock、以及帶 clockBase 的半場／續賽，改走 clockChangeUpdateOk。
+        || (ev.type == 'timeout'
+          && !ch.hasAny(['clockBase'])
+          && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'])
+        || (ev.type in ['kickoff', 'halftime', 'resume']
+          && ch.hasOnly(['status', 'clockBase', 'rev', 'updatedAt'])
+          && ((ev.type == 'kickoff' && a.status == 'scheduled' && b.status == 'live')
+            || (ev.type == 'halftime' && a.status == 'live' && b.status == 'halftime')
+            || (ev.type == 'resume' && a.status == 'halftime' && b.status == 'live')))
+        || (ev.type == 'fulltime'
+          && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+          && a.status in ['live', 'halftime'] && b.status == 'finished'
+          && b.lock == {'locked': true} && b.finishedAt == request.time)
+        || (ev.type == 'undoFinish'
+          && ch.hasOnly(['status', 'lock', 'finishedAt', 'clockBase', 'rev', 'updatedAt'])
+          && a.status == 'finished' && a.lock.locked == true
+          && request.time < a.finishedAt + duration.value(180, 's')
+          && b.status == 'live' && b.lock == {'locked': false} && b.finishedAt == null)
+        // 沒進的 PK 不動 penaltyScore，留在這條。進球與 pkStart 改走 pkUpdateOk。
+        // 必須已 pkStart。period 已是 pk 但 penaltyScore 仍是 null 時拒絕。
+        || (ev.type == 'pk' && ev.scored == false
+          && ch.hasOnly(['rev', 'updatedAt'])
+          && a.status == 'live' && a.clockBase.period == 'pk'
+          && a.penaltyScore != null)
+      );
+    }
+    // 記分 update 主判斷：便宜的檢查先做，再讀 staff／control／賽事
+    function matchUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      return a.status != 'confirmed'
+        && b.rev is int && b.rev == a.rev + 1
+        // ⑦ 每次重置後最多 200 筆（EVENT_MAX，§3.307）。缺 resetRev 視同 0。超過連終場都拒。
+        && b.rev - a.get('resetRev', 0) <= 200
+        && b.updatedAt == request.time
+        && ch.hasOnly(['score', 'status', 'lock', 'finishedAt', 'rev', 'updatedAt'])
+        && existsAfter(eventPath(cid, mt, b.rev))
+        && scorerOk(cid, mt)
+        && effectOk(cid, mt, a, b, ch, getAfter(eventPath(cid, mt, b.rev)).data);
+    }
+    // 只有動到 penaltyScore 才進 PK 規則。一般拒絕時這條常是錯誤值，所以 allow 用三元，不在錯誤時進入 pkUpdateOk。
+    function pkGate(cid, mt) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['penaltyScore']);
+    }
+    // PK 場次 update。跟 matchUpdateOk 拆開，避免拒絕路徑把 PK 效果併進同一條超過 1000 運算式。
+    // penaltyScore 不在 matchUpdateOk 的變動鍵裡，所以只有這條能改它。
+    function pkUpdateOk(cid, mt) {
+      let a = resource.data;
+      let b = request.resource.data;
+      let ch = b.diff(a).affectedKeys();
+      let ev = getAfter(eventPath(cid, mt, b.rev)).data;
+      return a.status in ['live', 'halftime']
+        && a.lock.locked == false
+        && b.rev is int && b.rev == a.rev + 1
+        && b.rev - a.get('resetRev', 0) <= 200
+        && b.updatedAt == request.time
+        && ev.createdAt == request.time
+        && ev.sid is string
+        && scorerOk(cid, mt)
+        && clockOk(ch, b)
+        && (
+          (ev.type == 'pkStart' && pkStartFx(a, b, ch))
+          || (ev.type == 'pk' && pkFx(a, b, ch, ev))
+          || (ev.type == 'void' && pkVoidFx(cid, mt, a, b, ch, ev))
+        );
+    }
+
+    // 事件內容（§6.3 第 3、4、6 點）
+    // 只收 pl_ 前綴 id（Opus 終審 P2-1：防止在公開 timeline 寫入任意文字／個資）
+    function plIdOk(v) { return v is string && v.matches('^pl_[A-Za-z0-9_-]{1,37}$'); }
+    // ② 裝置工作階段。長度 16～32，只允許英數、底線、連字號。
+    // 有界量詞 {16,32} 會把運算式預算吃光，所以長度用 size()，字元類用無界比對。
+    function sidOk(v) {
+      return v is string && v.size() >= 16 && v.size() <= 32 && v.matches('^[A-Za-z0-9_-]+$');
+    }
+    // ③ 動作 id。長度 8～24，只允許英數、底線、連字號。唯一性由用戶端對帳，規則不查。
+    // 有界量詞 {8,24} 與 sid 一樣會吃光預算，所以長度用 size()。
+    function opOk(v) {
+      return v is string && v.size() >= 8 && v.size() <= 24 && v.matches('^[A-Za-z0-9_-]+$');
+    }
+    function evShapeOk(ev) {
+      return sidOk(ev.sid) && opOk(ev.op) && (
+        (ev.type == 'goal'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'goalKind', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away']
+          && ev.goalKind in ['normal', 'penalty', 'own']
+          && (!('plId' in ev) || plIdOk(ev.plId)))
+        || (ev.type == 'card'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'cardType', 'refSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away'] && plIdOk(ev.plId)
+          && ev.cardType in ['yellow', 'second_yellow', 'red']
+          // ⑥ 第二黃必帶 refSeq；其他牌不得帶。
+          && ((ev.cardType == 'second_yellow') == ('refSeq' in ev)))
+        || (ev.type == 'sub'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'inPlId', 'outPlId', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away'] && plIdOk(ev.inPlId) && plIdOk(ev.outPlId))
+        || (ev.type in ['kickoff', 'halftime', 'resume', 'fulltime', 'undoFinish', 'clock', 'pkStart']
+          && ev.keys().hasOnly(['seq', 'type', 'matchSecond', 'createdAt', 'sid', 'op']))
+        // PK 一腳：plId 選填（pl_ 前綴）、scored 必須是布林。
+        || (ev.type == 'pk'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'plId', 'scored', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away']
+          && ev.scored is bool
+          && (!('plId' in ev) || plIdOk(ev.plId)))
+        || (ev.type == 'void'
+          && ev.keys().hasOnly(['seq', 'type', 'targetSeq', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.targetSeq is int && ev.targetSeq >= 1 && ev.targetSeq < ev.seq)
+        // 球隊暫停：side 只能是 home／away。缺 side 時讀欄位會出錯而拒絕。
+        || (ev.type == 'timeout'
+          && ev.keys().hasOnly(['seq', 'type', 'side', 'matchSecond', 'createdAt', 'sid', 'op'])
+          && ev.side in ['home', 'away'])
+      );
+    }
+    // 事件 create：
+    // - 不另判斷記分者：本條要求同批把場次 rev 從 seq-1 改成 seq（get／getAfter），
+    //   而場次 update 只有 matchUpdateOk 一條路（create／delete 全拒、Admin SDK 才繞得過），
+    //   該條已驗證記分者與事件類型效果；batch 原子性保證兩邊同時成立。省下重複的 get 與運算式預算。
+    // - 必填鍵（side、goalKind、targetSeq…）缺少時，存取產生錯誤值 → 拒絕。
+    function eventCreateOk(cid, mt, eventId) {
+      let ev = request.resource.data;
+      let before = get(matchPath(cid, mt)).data;
+      return ev.seq is int
+        && eventId == 'e' + string(ev.seq)
+        && eventId.matches('^e[1-9][0-9]{0,5}$')
+        && ev.createdAt == request.time
+        && ev.matchSecond is int && ev.matchSecond >= 0 && ev.matchSecond <= 10800
+        && before.rev == ev.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == ev.seq
+        && evShapeOk(ev)
+        // ② 與接手文件的 sid 相等（R-42）。格式已由 evShapeOk／sidOk 擋下，這裡不再重驗。
+        && ev.sid == get(scorerCtlPath(cid, mt)).data.sid
+        && (ev.type != 'void' || voidTargetOk(cid, mt, ev, before))
+        && (!(ev.type == 'card' && ev.cardType == 'second_yellow') || secondYellowOk(cid, mt, ev, before));
+    }
+    // ⑥ 舊連結指向的第二黃已作廢。第一張黃牌沒有連結時不讀 voids。
+    function linkedYellowVoided(cid, mt, seq) {
+      return exists(voidPath(cid, mt, seq));
+    }
+    function yellowFree(cid, mt, ySeq) {
+      return !exists(cardLinkPath(cid, mt, ySeq))
+        || linkedYellowVoided(cid, mt, get(cardLinkPath(cid, mt, ySeq)).data.seq);
+    }
+    // ⑥ 第二黃：refSeq 是同隊同人、未作廢、重置線之後的黃牌，且目前沒有有效連結；同批 cardLinks 指向本筆。
+    function secondYellowOk(cid, mt, ev, before) {
+      let y = get(eventPath(cid, mt, ev.refSeq)).data;
+      return ev.refSeq is int && ev.refSeq < ev.seq && ev.refSeq > before.get('resetRev', 0)
+        && y.type == 'card' && y.cardType == 'yellow'
+        && y.side == ev.side && y.plId == ev.plId
+        && !exists(voidPath(cid, mt, ev.refSeq))
+        && yellowFree(cid, mt, ev.refSeq)
+        && getAfter(cardLinkPath(cid, mt, ev.refSeq)).data.seq == ev.seq;
+    }
+    // 作廢事件：目標必須是進球、牌或 pk、寫入前沒有標記、同批建立標記（§6.3 第 4 點）
+    // 球隊暫停 timeout 不開作廢。pk 放在 goal 後面，進球作廢不會多付一次型別比較。
+    // ① targetSeq 必須大於場次 resetRev（重置前的事件不能再作廢）。缺欄位視同 0（建立賽程時伺服器寫 0）。
+    // 場次 get 與 eventCreateOk 同路徑，同一操作內快取，不另計存取。
+    function voidTargetOk(cid, mt, ev, before) {
+      let t = get(eventPath(cid, mt, ev.targetSeq)).data;
+      return ev.targetSeq > before.get('resetRev', 0)
+        && (t.type == 'goal'
+          || t.type == 'pk'
+          || (t.type == 'card' && (t.cardType != 'yellow' || yellowFree(cid, mt, ev.targetSeq))))
+        && !exists(voidPath(cid, mt, ev.targetSeq))
+        && existsAfter(voidPath(cid, mt, ev.targetSeq));
+    }
+    // 作廢標記 create：同批的 void 事件指向本標記（記分者判斷同 eventCreateOk 說明）
+    function voidCreateOk(cid, mt, targetSeq) {
+      let v = request.resource.data;
+      return targetSeq.matches('^[1-9][0-9]{0,5}$')
+        && v.keys().hasOnly(['seq', 'createdAt'])
+        && v.seq is int
+        && v.createdAt == request.time
+        && get(matchPath(cid, mt)).data.rev == v.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == v.seq
+        && getAfter(eventPath(cid, mt, v.seq)).data.type == 'void'
+        && getAfter(eventPath(cid, mt, v.seq)).data.targetSeq == int(targetSeq);
+    }
+    // ⑥ cardLinks：同批第二黃指向這張黃牌。記分者由場次 update 保證。
+    function cardLinkWriteOk(cid, mt, ySeq) {
+      let v = request.resource.data;
+      let ev = getAfter(eventPath(cid, mt, v.seq)).data;
+      return ySeq.matches('^[1-9][0-9]{0,5}$')
+        && v.keys().hasOnly(['seq', 'createdAt'])
+        && v.seq is int
+        && v.createdAt == request.time
+        && get(matchPath(cid, mt)).data.rev == v.seq - 1
+        && getAfter(matchPath(cid, mt)).data.rev == v.seq
+        && ev.cardType == 'second_yellow'
+        && ev.refSeq == int(ySeq);
+    }
+    // 接手（control/scorer）：本場指派者寫自己的 uid；自撤回窗口內不得接手
+    function takeoverOk(cid, mt) {
+      let t = request.resource.data;
+      let m = get(matchPath(cid, mt)).data;
+      return t.keys().hasOnly(['uid', 'takenAt', 'sid'])
+        && t.keys().hasAll(['uid', 'takenAt', 'sid'])
+        && t.uid == uid()
+        && t.takenAt == request.time
+        && sidOk(t.sid)
+        && m.status != 'confirmed'
+        && !(m.status == 'finished' && request.time < m.finishedAt + duration.value(180, 's'))
+        && compScorableData(get(compPath(cid)).data)
+        && isAssigned(cid, mt);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  集合
+    // ════════════════════════════════════════════════════════════════
+
+    // 對外開關（伺服器寫；公開讀，前端入口判斷用）
+    match /cpConfig/{docId} {
+      allow get: if docId == 'launch';
+      allow list, write: if false;
+      // 測試者名單：本人可讀自己那份（入口判斷）；其餘一律不可讀寫
+      match /testers/{testerUid} {
+        allow get: if signedIn() && testerUid == uid() && docId == 'launch';
+        allow list, write: if false;
+      }
+    }
+
+    match /competitions/{cid} {
+      allow get: if canReadCompData(cid, resource.data);
+
+      // list（§5.2）：一律 limit <= 50；公開清單須帶 visibility／hidden／status 篩選；
+      // 個人主辦自己的清單改走 cpMine（§3.251 (c)：主文件不放建立者 uid）；俱樂部代表清單帶 hostTeamId == T（V16）；管理員另一條。
+      allow list: if request.query.limit != null && request.query.limit <= 50 && (
+        isAdmin()
+        || (isPubLike(resource.data) && internalGate(resource.data))
+        // 俱樂部代表清單：非管理員／測試者時查詢須另帶 visibility == 'public'（內部期閘門）
+        // （hostTeamId 只有俱樂部主辦的賽事才有，由 cpHost 寫入；查詢只需帶 hostTeamId == T）
+        || (isRepOf(resource.data.hostTeamId) && internalGate(resource.data))
+      );
+      allow create, update, delete: if false;   // 一律 Callable（cpHost）
+
+      // 公開子集合（伺服器寫）：父文件可讀即可讀；list 限單一 cid 下、limit <= 100
+      match /divisions/{dvId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /entries/{enId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /roster/{plId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /standings/{stId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      match /summary/{shardId} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow write: if false;
+      }
+      // 射手榜（K3，顧問 §3.338 補二：甲）：伺服器寫、公開只讀單份。內容只有公開顯示名與統計數字。
+      // 不開 list（文件可達 200KB，避免一次抓整個集合）；獨立區塊，不碰記分路徑的運算式預算。
+      match /stats/{dvId} {
+        allow get: if canReadComp(cid);
+        allow list: if false;
+        allow write: if false;
+      }
+
+      // 私密：主辦、共同主辦、管理員、該隊代表（鏡像）；rosterPrivate 另加本人
+      match /entryPrivate/{enId} {
+        allow get: if canManageComp(cid) || (canReadComp(cid) && isRepOf(resource.data.teamId));
+        allow list: if request.query.limit != null && request.query.limit <= 100 && (
+          canManageComp(cid) || (canReadComp(cid) && isRepOf(resource.data.teamId))
+        );
+        allow write: if false;
+      }
+      match /rosterPrivate/{plId} {
+        allow get: if canManageComp(cid)
+          || (canReadComp(cid) && (isRepOf(resource.data.teamId)
+              || (signedIn() && resource.data.uid != null && resource.data.uid == uid())));
+        allow list: if request.query.limit != null && request.query.limit <= 100 && (
+          canManageComp(cid)
+          || (canReadComp(cid) && (isRepOf(resource.data.teamId)
+              || (signedIn() && resource.data.uid == uid())))
+        );
+        allow write: if false;
+      }
+
+      // 賽事內人員：本人、主辦、共同主辦（管理員走 canManageComp）
+      match /staff/{staffUid} {
+        allow get: if (signedIn() && staffUid == uid()) || canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /invites/{ivId} {
+        allow get: if canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /audits/{auditId} {
+        allow get: if canManageComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canManageComp(cid);
+        allow write: if false;
+      }
+      match /reports/{reportId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+
+      // ── 場次（公開，不含 uid）＋直寫記分 ─────────────────────────────
+      match /matches/{mt} {
+        allow get: if canReadComp(cid);
+        allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+        allow create, delete: if false;
+
+        // 記分 update（§6.3 第 4 點）。PK、只改 clockBase 另條 allow，避免拒絕路徑把效果併進同一條。
+        allow update: if matchUpdateOk(cid, mt);
+        // 閘門在一般拒絕是錯誤值，&& 仍會算右式。三元只在閘門為 true 時才進入 pkUpdateOk。
+        allow update: if pkGate(cid, mt) ? pkUpdateOk(cid, mt) : false;
+        // 改了 clockBase（且沒改 penaltyScore／score）才進入。進球的閘門是 false。
+        allow update: if clockChangeGate(cid, mt) ? clockChangeUpdateOk(cid, mt) : false;
+
+        // 公開事件：只能 create，沒有任何 update／delete 路徑
+        match /timeline/{eventId} {
+          allow get: if canReadComp(cid);
+          allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+          allow create: if eventCreateOk(cid, mt, eventId);
+          allow update, delete: if false;
+        }
+
+        // ⑥ 第一黃被第二黃引用的公開標記。只許 get；list 一律拒（R-54）。不能刪。
+        match /cardLinks/{ySeq} {
+          allow get: if canReadComp(cid);
+          allow list: if false;
+          allow create: if cardLinkWriteOk(cid, mt, ySeq) && !exists(cardLinkPath(cid, mt, ySeq));
+          allow update: if cardLinkWriteOk(cid, mt, ySeq) && linkedYellowVoided(cid, mt, resource.data.seq);
+          allow delete: if false;
+        }
+
+        // 作廢標記：公開、不含 uid、只能 create；必須與 void 事件同批
+        match /voids/{targetSeq} {
+          allow get: if canReadComp(cid);
+          allow list: if request.query.limit != null && request.query.limit <= 100 && canReadComp(cid);
+          allow create: if voidCreateOk(cid, mt, targetSeq);
+          allow update, delete: if false;
+        }
+
+        // 私密：目前記分者（接手，§6.3 第 2 點）
+        match /control/{ctlId} {
+          // 被指派者讀取也要過內部期閘門（Opus 終審 P2-2，§12.2-c）。
+          // 記分批次會 get 這份文件。先走已指派路徑，避免每次都先算 canManageComp。
+          // 布林結果與「先 canManageComp」相同；staff 不存在時 exists 為假，才落到 canManageComp（管理員）。
+          allow get: if ctlId == 'scorer' && (
+            (signedIn()
+              && exists(staffPath(cid))
+              && assignedData(get(staffPath(cid)).data, mt)
+              && internalGate(get(compPath(cid)).data))
+            || canManageComp(cid));
+          allow list: if false;
+          allow create, update: if ctlId == 'scorer' && takeoverOk(cid, mt);
+          allow delete: if false;
+        }
+      }
+    }
+
+    // 自己的清單索引（伺服器寫；本人可讀）
+    match /cpMine/{mineUid}/items/{itemId} {
+      allow get: if signedIn() && mineUid == uid();
+      allow list: if signedIn() && mineUid == uid()
+        && request.query.limit != null && request.query.limit <= 50;
+      allow write: if false;
+    }
+
+    // 鏡像、配額、通知外送匣：用戶端一律不可讀寫（只給 Rules 判斷與伺服器）
+    match /cpClubs/{teamId} {
+      allow read, write: if false;
+      match /members/{memberUid} { allow read, write: if false; }
+    }
+    match /cpHostQuota/{hostUid} { allow read, write: if false; }
+    match /cpOutbox/{outId} { allow read, write: if false; }
+    // 頂層稽核（第 2 步：刪除賽事時寫，賽事內 audits 會跟著刪）：只給伺服器與主 codebase cpAdminOps
+    match /cpAudits/{auditId} { allow read, write: if false; }
+    // 檢舉 LINE 冷卻與每日計數（伺服器寫；與外送匣 cpOutbox 分開，顧問 §3.254）
+    match /cpLineThrottle/{throttleId} { allow read, write: if false; }
+    // 其他路徑：Rules 預設拒絕；刻意不寫 {document=**}／{path=**}（§5.2 不開 collectionGroup）
+  }
+}

@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function finishMustLock() {
+      return request.resource.data.status != 'finished'
+        || request.resource.data.lock.locked == true;
+    }
+
+    // (B) 賽務
+    allow update: if finishMustLock();
+
+    // (C) 其他分支
+
+    // (D) 三分鐘自撤回
+    allow update: if request.time < resource.data.scoreSubmittedAt + duration.value(3, 'm')
+      && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['status', 'period', 'result', 'lock', 'scoreSubmittedAt', 'scoreSubmittedBy', 'updatedBy']);
+  }
+}
