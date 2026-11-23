@@ -52,6 +52,8 @@ function classifyEndpoint(endpoint) {
   }
   const host = url.hostname.toLowerCase();
   if (!host || host.startsWith("[") || IPV4_LITERAL.test(host)) return { ok: false, reason: "rejected_host" };
+  // 不得有空 label（a..push.apple.com、結尾點），否則後綴比對會被繞過（審查 P3-2）
+  if (host.split(".").some((label) => label === "")) return { ok: false, reason: "rejected_host" };
   if (Object.prototype.hasOwnProperty.call(config.WEB_PUSH_ENDPOINT_EXACT_HOSTS, host)) {
     return { ok: true, service: config.WEB_PUSH_ENDPOINT_EXACT_HOSTS[host] };
   }

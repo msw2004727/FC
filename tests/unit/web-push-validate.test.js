@@ -99,6 +99,32 @@ describe("classifyEndpoint：https＋主機白名單", () => {
     expect(v.classifyEndpoint(endpoint)).toEqual({ ok: false, reason: "rejected_format" });
   });
 
+  // 審查 P3-1：補拒收案例（原因可能是 host 或 format，只要不收）
+  test.each([
+    ["http:", "http://fcm.googleapis.com/fcm/send/abc"],
+    ["精確主機結尾點", "https://fcm.googleapis.com./fcm/send/abc"],
+    ["後綴主機結尾點", "https://wns2-par02p.notify.windows.com./w/?token=abc"],
+    ["xn-- punycode 仿冒", "https://xn--fcm-0na.googleapis.com/fcm/send/abc"],
+    ["全形點（URL 會正規化成 fcm.googleapis.com，必須在原字串就擋）", "https://fcm。googleapis。com/fcm/send/abc"],
+    ["十六進位 IP", "https://0x7f.1/fcm/send/abc"],
+    ["十進位 IP", "https://2130706433/fcm/send/abc"],
+    ["[::1]", "https://[::1]/fcm/send/abc"],
+    ["帶帳密", "https://user:pw@web.push.apple.com/abc"],
+    [":8443", "https://web.push.apple.com:8443/abc"],
+    ["evilfcm…attacker", "https://evilfcm.googleapis.com.attacker/fcm/send/abc"],
+  ])("拒（審查 P3-1）：%s", (_label, endpoint) => {
+    expect(v.classifyEndpoint(endpoint).ok).toBe(false);
+  });
+
+  // 審查 P3-2：主機不得有空 label
+  test.each([
+    ["a..push.apple.com", "https://a..push.apple.com/abc"],
+    ["x..notify.windows.com", "https://x..notify.windows.com/w/?token=abc"],
+    ["開頭點", "https://.push.apple.com/abc"],
+  ])("拒（空 label）：%s", (_label, endpoint) => {
+    expect(v.classifyEndpoint(endpoint)).toEqual({ ok: false, reason: "rejected_host" });
+  });
+
   test("長度剛好 1024 收", () => {
     const base = "https://fcm.googleapis.com/fcm/send/";
     expect(v.classifyEndpoint(base + "a".repeat(1024 - base.length)).ok).toBe(true);
