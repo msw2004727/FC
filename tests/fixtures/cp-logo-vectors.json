@@ -1,0 +1,50 @@
+{
+  "_comment": "隊徽白名單共用向量（G4，顧問 §3.372 D9）。teamLogoOf：與 functions-cp/src/cp/validate.ts teamLogoOf＋logo-hosts.ts 同一份規則，FC jest（tests/unit/cp-club-mirror.test.js）與 functions-cp vitest 各跑自己的實作，期望值要相同，改一邊要同步另一邊。teamImage：主站鏡像的來源順序 imageVariants.card → imageVariants.cover → image，取第一個通過白名單的網址（不是第一個有值的），只有主站 functions/cp-club-mirror.js 使用。buckets 欄位用 bucketSets 的名稱。",
+  "bucketSets": {
+    "both": ["fc-football-6c8dc-asia-east1", "fc-football-6c8dc.firebasestorage.app"],
+    "defaultOnly": ["fc-football-6c8dc.firebasestorage.app"],
+    "empty": []
+  },
+  "teamLogoOf": [
+    { "name": "asia bucket 合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/teams%2Fa%2Fcard.webp?alt=media&token=t0", "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/teams%2Fa%2Fcard.webp?alt=media&token=t0" },
+    { "name": "預設 bucket 合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/teams%2Fa.jpg?alt=media", "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/teams%2Fa.jpg?alt=media" },
+    { "name": "只設預設 bucket 時 asia bucket 不合格", "buckets": "defaultOnly", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/teams%2Fa.jpg", "expected": null },
+    { "name": "白名單空一律不合格", "buckets": "empty", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/teams%2Fa.jpg", "expected": null },
+    { "name": "前後空白會去掉", "buckets": "both", "raw": "  https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png \n", "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png" },
+    { "name": "全形字 NFKC 正規化後合格", "buckets": "both", "raw": "ｈｔｔｐｓ://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png" },
+    { "name": "http 不合格", "buckets": "both", "raw": "http://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": null },
+    { "name": "外部網域不合格", "buckets": "both", "raw": "https://example.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": null },
+    { "name": "storage.googleapis.com 不合格", "buckets": "both", "raw": "https://storage.googleapis.com/fc-football-6c8dc-asia-east1/x.png", "expected": null },
+    { "name": "其他 bucket 不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/other-project.appspot.com/o/x.png", "expected": null },
+    { "name": "bucket 百分比編碼解碼後比對", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc%2Dasia-east1/o/x.png", "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc%2Dasia-east1/o/x.png" },
+    { "name": "bucket 壞的百分比編碼不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/%E0%A4%A/o/x.png", "expected": null },
+    { "name": "明寫 443 埠等同預設埠", "buckets": "both", "raw": "https://firebasestorage.googleapis.com:443/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": "https://firebasestorage.googleapis.com:443/v0/b/fc-football-6c8dc-asia-east1/o/x.png" },
+    { "name": "其他埠不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com:8443/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": null },
+    { "name": "帶帳密不合格", "buckets": "both", "raw": "https://user:pw@firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": null },
+    { "name": "沒有物件路徑不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/", "expected": null },
+    { "name": "路徑不是 /v0/b/ 不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v1/b/fc-football-6c8dc-asia-east1/o/x.png", "expected": null },
+    { "name": "未編碼中文不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/隊徽.png", "expected": null },
+    { "name": "含空白不合格", "buckets": "both", "raw": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/a b.png", "expected": null },
+    { "name": "空字串不合格", "buckets": "both", "raw": "", "expected": null },
+    { "name": "只有空白不合格", "buckets": "both", "raw": "   ", "expected": null },
+    { "name": "數字不合格", "buckets": "both", "raw": 42, "expected": null },
+    { "name": "null 不合格", "buckets": "both", "raw": null, "expected": null },
+    { "name": "物件不合格", "buckets": "both", "raw": { "url": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/x.png" }, "expected": null },
+    { "name": "長度 1200 合格", "buckets": "both", "rawRepeat": { "prefix": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/", "char": "a", "totalLength": 1200 }, "expected": "SAME_AS_RAW" },
+    { "name": "長度 1201 不合格", "buckets": "both", "rawRepeat": { "prefix": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/", "char": "a", "totalLength": 1201 }, "expected": null }
+  ],
+  "teamImage": [
+    { "name": "card 合格取 card", "buckets": "both", "team": { "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp", "cover": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp" }, "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp", "reason": "ok" },
+    { "name": "card 外部網址不合格往下取 cover", "buckets": "both", "team": { "imageVariants": { "card": "https://example.com/card.webp", "cover": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp" }, "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp", "reason": "ok" },
+    { "name": "card、cover 都不合格取 image", "buckets": "both", "team": { "imageVariants": { "card": "http://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp", "cover": "https://firebasestorage.googleapis.com/v0/b/other.appspot.com/o/cover.webp" }, "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/image.jpg" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/image.jpg", "reason": "ok" },
+    { "name": "只有預設 bucket 白名單時 asia card 不合格、取預設 bucket 的 image", "buckets": "defaultOnly", "team": { "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" }, "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/image.jpg" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/image.jpg", "reason": "ok" },
+    { "name": "全部不合格回 null（原因取第一個有值的）", "buckets": "both", "team": { "imageVariants": { "card": "https://example.com/card.webp" }, "image": "not a url" }, "expected": null, "reason": "not-allowed" },
+    { "name": "第一個有值的格式錯", "buckets": "both", "team": { "imageVariants": { "cover": "javascript:alert(1)" } }, "expected": null, "reason": "format" },
+    { "name": "沒有 imageVariants 取 image", "buckets": "both", "team": { "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp", "reason": "ok" },
+    { "name": "imageVariants 是字串時忽略", "buckets": "both", "team": { "imageVariants": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/v.webp", "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp", "reason": "ok" },
+    { "name": "card 空字串取 cover", "buckets": "both", "team": { "imageVariants": { "card": "", "cover": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp" } }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp", "reason": "ok" },
+    { "name": "其他 variant（thumb）不算", "buckets": "both", "team": { "imageVariants": { "thumb": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/thumb.webp" } }, "expected": null, "reason": "none" },
+    { "name": "完全沒圖", "buckets": "both", "team": {}, "expected": null, "reason": "none" },
+    { "name": "白名單空時合格網址也是 null", "buckets": "empty", "team": { "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" } }, "expected": null, "reason": "not-allowed" }
+  ]
+}

@@ -20142,3 +20142,13 @@ Object.assign(exports, createOpsRollupExports({
   Timestamp,
   onSchedule,
 }));
+
+// G4 賽事俱樂部鏡像（顧問 §3.372 方案 a）：主站 teams 代表 → asia-main cpClubs；獨立新函式，不碰 onTeamUpdate／watchUsersChanges。
+const { createCpClubMirrorExports } = require("./cp-club-mirror");
+Object.assign(exports, createCpClubMirrorExports({
+  onDocumentWritten,
+  db,
+  getFirestore,
+  FieldValue,
+  logger,
+}));

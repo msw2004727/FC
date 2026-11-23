@@ -1,0 +1,107 @@
+{
+  "_comment": "俱樂部代表共用向量（G4，顧問 §3.372）。代表＝主站 firestore.rules isCurrentUserTeamCaptainOrLeader：captainUid、creatorUid、ownerUid、leaderUid（是字串才算）＋ leaderUids（清單內的字串）；教練不算。reps＝依定義算出的代表 uid（排序、去重）；nonReps＝必定不是代表的探測 uid。使用者：functions/cp-club-mirror.js repUidsFromTeam（tests/unit/cp-club-mirror.test.js）、Rules 模擬器（tests/firestore-rules/cp-rep-vectors-rules.test.js）、新站 FC-B rep-clubs.ts isClubRepresentative（另一個 repo，複製本檔過去，改一邊要同步另一邊）。",
+  "vectors": [
+    {
+      "name": "五個代表欄位都有",
+      "team": { "captainUid": "U_rep_a", "creatorUid": "U_rep_b", "ownerUid": "U_rep_c", "leaderUid": "U_rep_d", "leaderUids": ["U_rep_e", "U_rep_f"] },
+      "reps": ["U_rep_a", "U_rep_b", "U_rep_c", "U_rep_d", "U_rep_e", "U_rep_f"],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "只有教練不算代表",
+      "team": { "coachUids": ["U_coach"], "coachUid": "U_coach2" },
+      "reps": [],
+      "nonReps": ["U_coach", "U_coach2"]
+    },
+    {
+      "name": "隊長加教練只收隊長",
+      "team": { "captainUid": "U_cap", "coachUids": ["U_coach"] },
+      "reps": ["U_cap"],
+      "nonReps": ["U_coach"]
+    },
+    {
+      "name": "空字串不收",
+      "team": { "captainUid": "", "leaderUids": ["", "U_lead"] },
+      "reps": ["U_lead"],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "數字型別不收",
+      "team": { "captainUid": 123, "leaderUid": 456 },
+      "reps": [],
+      "nonReps": ["123", "456"]
+    },
+    {
+      "name": "null 不收",
+      "team": { "captainUid": null, "creatorUid": null, "leaderUids": null },
+      "reps": [],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "leaderUids 是字串不是清單不收",
+      "team": { "leaderUids": "U_lead" },
+      "reps": [],
+      "nonReps": ["U_lead"]
+    },
+    {
+      "name": "leaderUids 混型清單只收字串",
+      "team": { "leaderUids": ["U_lead_a", 5, null, { "uid": "U_in_map" }, true, "U_lead_c"] },
+      "reps": ["U_lead_a", "U_lead_c"],
+      "nonReps": ["5", "U_in_map", "true"]
+    },
+    {
+      "name": "重複去重",
+      "team": { "captainUid": "U_same", "creatorUid": "U_same", "leaderUids": ["U_same", "U_same", "U_lead"] },
+      "reps": ["U_lead", "U_same"],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "leaderUid 與 leaderUids 兩者都算",
+      "team": { "leaderUid": "U_lead_single", "leaderUids": ["U_lead_list"] },
+      "reps": ["U_lead_list", "U_lead_single"],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "不 trim：前後空白是不同 uid",
+      "team": { "captainUid": " U_pad " },
+      "reps": [" U_pad "],
+      "nonReps": ["U_pad"]
+    },
+    {
+      "name": "大小寫不同是不同 uid",
+      "team": { "ownerUid": "U_Case" },
+      "reps": ["U_Case"],
+      "nonReps": ["u_case"]
+    },
+    {
+      "name": "map 型別不收",
+      "team": { "creatorUid": { "uid": "U_map" } },
+      "reps": [],
+      "nonReps": ["U_map"]
+    },
+    {
+      "name": "布林不收",
+      "team": { "leaderUid": true },
+      "reps": [],
+      "nonReps": ["true"]
+    },
+    {
+      "name": "相似欄位名不算",
+      "team": { "captainUids": ["U_x"], "leaderUID": "U_y", "ownerUids": ["U_z"], "creatorUID": "U_w", "uid": "U_v" },
+      "reps": [],
+      "nonReps": ["U_x", "U_y", "U_z", "U_w", "U_v"]
+    },
+    {
+      "name": "沒有任何欄位",
+      "team": { "name": "只有名字" },
+      "reps": [],
+      "nonReps": ["U_other"]
+    },
+    {
+      "name": "只有 ownerUid",
+      "team": { "ownerUid": "U_owner" },
+      "reps": ["U_owner"],
+      "nonReps": ["U_other"]
+    }
+  ]
+}
