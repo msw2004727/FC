@@ -400,7 +400,7 @@ function createReleaseTeamReservationsHandler(deps) {
           participantType: item.participantType || "self",
         })),
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "" },
-        eventPublicId: String(ed.id || "").trim(),
+        eventPublicId: ed.id || "",
       };
     });
   }
