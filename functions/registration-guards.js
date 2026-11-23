@@ -113,6 +113,7 @@ function pickCancelDedupeResult(txResult = {}) {
     cancelled: Array.isArray(txResult.cancelled) ? txResult.cancelled.map(toFirestoreSafe) : [],
     alreadyCancelled: Array.isArray(txResult.alreadyCancelled) ? txResult.alreadyCancelled.map(toFirestoreSafe) : [],
     promoted: Array.isArray(txResult.promoted) ? txResult.promoted.map(toFirestoreSafe) : [],
+    ...(txResult.lateCancelMarked === true ? { lateCancelMarked: true } : {}),
   };
 }
 

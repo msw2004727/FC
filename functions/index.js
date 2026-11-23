@@ -36,6 +36,7 @@ const { createTransferUserTeamCallable } = require("./team-transfer");
 const { createDeleteTeamCallable } = require("./team-deletion");
 const { createDeleteEventCallable } = require("./event-deletion");
 const registrationGuards = require("./registration-guards");
+const lateCancel = require("./late-cancel");
 const { createNotificationGuards, NOTIFICATION_GUARD_LIMITS } = require("./notification-guards");
 const { decideRelation } = require("./notification-relation-decide");
 const { createRelationQueries } = require("./notification-relation-queries");
@@ -78,6 +79,7 @@ const crypto = require("crypto");
 initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
+const markLateCancelForOperator = lateCancel.createLateCancelMarker({ db, FieldValue, Timestamp, logger });
 // 2026-11-12 冷啟動批 1(a)：取代原本模組載入時就建立 Storage 實例（頂層 storageAdmin 常數）的寫法。
 // 建立實例會載入 @google-cloud/storage（本機量測約佔冷啟動 require 0.14 s），117 支函式只有
 // commitSecondaryIdentityAvatar 用到，改為第一次使用時才建立並重用同一實例；契約測試禁止頂層建立。
@@ -314,6 +316,7 @@ const ALLOWED_AUDIT_ACTIONS = new Set([
   "course_linked_event_edit",
   "event_waitlist_promote",
   "event_waitlist_demote",
+  "late_cancel_red_clear",
 ]);
 const ALLOWED_AUDIT_TARGET_TYPES = new Set([
   "system",
@@ -15357,6 +15360,18 @@ exports.cancelRegistration = onCall(
       const hadConfirmed = targetRegs.some((r) => r.status === "confirmed");
       const shouldNormalizeUnlimitedWaitlist = normalizeNonNegativeInteger(ed.max, 0) <= 0;
 
+      // 臨時取消（契約 §4 第 1～5 條）：只用交易內已讀到的活動與報名判定，零額外讀取；記點在交易後 P3b。
+      const lateCancelDecision = lateCancel.evaluateLateCancel({
+        eventData: ed,
+        eventStartMs: parseEventStartDateInTaipei(ed.date)?.getTime?.() ?? NaN,
+        nowMs: Date.now(),
+        cancelReason,
+        targetRegs,
+        isCourseLinkedReg: isCourseLinkedRegistrationData,
+        sinceMs: lateCancel.LATE_CANCEL_SINCE_MS,
+      });
+      const lateCancelRegDocIds = new Set(lateCancelDecision.markedRegDocIds);
+
       // 在副本上操作
       const simRegs = allEventRegs.map((r) => ({ ...r }));
       const cancelledDocIds = new Set(targetRegs.map((r) => r._docId));
@@ -15374,6 +15389,7 @@ exports.cancelRegistration = onCall(
           [`${newStatus}At`]: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         };
+        if (lateCancelRegDocIds.has(reg._docId)) regUpdate.lateCancel = true;
         if (isCourseLinkedRegistrationData(reg)) {
           regUpdate.courseAttendanceKind = "leave";
           regUpdate.courseRosterOverride = null;
@@ -15481,6 +15497,8 @@ exports.cancelRegistration = onCall(
         })),
         event: occupancy,
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
+        lateCancelMarked: lateCancelDecision.marked,
+        lateCancelEventDocId: eventDoc.id,
       };
       // T8（T-087）：同交易建立去重文件（最後一個寫入、之後沒有讀取），只存精簡結果
       if (shouldCreateDedupe) {
@@ -15577,6 +15595,17 @@ exports.cancelRegistration = onCall(
           });
         })());
       }
+
+      // P3b：臨時取消記點（契約 §4 第 6 條、§5）。users 與 userAttendanceStats 只在被判定時才讀；失敗只記 log，取消本身已成功。
+      if (result.lateCancelMarked === true) {
+        postOps.push(markLateCancelForOperator({
+          eventDocId: result.lateCancelEventDocId,
+          eventId,
+          operatorUid: callerUid,
+          regDocIds: result.cancelled.map((r) => r.docId),
+          loadOperatorUser: loadCallerExpUser,
+        }));
+      }
     }
 
     // P4: auditLog
@@ -15629,6 +15658,7 @@ exports.cancelRegistration = onCall(
       alreadyCancelled: result.alreadyCancelled || [],
       promoted: result.promoted,
       event: result.event,
+      lateCancelMarked: result.lateCancelMarked === true,
     };
       })();
     } catch (error) {
@@ -15639,6 +15669,73 @@ exports.cancelRegistration = onCall(
       logRegistrationCallableTiming("cancelRegistration", startedAt, timing, outcome);
     }
   })
+);
+
+exports.clearLateCancelRed = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const targetUid = typeof request.data?.targetUid === "string" ? request.data.targetUid.trim() : "";
+    if (!targetUid || targetUid.length > 128 || targetUid.includes("/")) {
+      throw new HttpsError("invalid-argument", "targetUid is required");
+    }
+
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.no_show_adjust")) {
+      throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+    }
+
+    const found = await findUserDocByUidOrLineUserId(targetUid);
+    if (!found) {
+      throw new HttpsError("not-found", "USER_NOT_FOUND");
+    }
+
+    const userRef = db.collection("users").doc(found.docId);
+    let changed = false;
+    try {
+      await db.runTransaction(async (tx) => {
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists) {
+          throw new HttpsError("not-found", "USER_NOT_FOUND");
+        }
+        const data = userSnap.data() || {};
+        if (data.lateCancelLevel !== "red") {
+          changed = false;
+          return;
+        }
+        tx.update(userRef, { lateCancelLevel: null, lateCancelRecent: [] });
+        changed = true;
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      console.error("[clearLateCancelRed]", {
+        code: String(error?.code || "unknown").slice(0, 40),
+      });
+      throw new HttpsError("internal", "INTERNAL");
+    }
+
+    if (changed === true) {
+      await writeAuditEntryInternal({
+        action: "late_cancel_red_clear",
+        targetType: "user",
+        targetId: found.docId,
+        targetLabel: "",
+        result: "success",
+        source: "cloud_function",
+        meta: {
+          reasonCode: "late_cancel_red_clear",
+          statusFrom: "red",
+          statusTo: "none",
+        },
+        actorUid: request.auth.uid,
+      });
+    }
+
+    return { ok: true };
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════
