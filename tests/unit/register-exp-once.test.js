@@ -83,6 +83,9 @@ const activeRegId = (docId, uid = U_SELF) => fake.list(`events/${docId}/registra
 const postCommitErrors = () => harness.logs
   .filter((entry) => entry[0] === "error")
   .filter((entry) => JSON.stringify(entry.slice(1)).match(/bestEffortPostCommitOps|POST_COMMIT_FAILED/));
+const cancelLogs = () => fake.list("expLogs")
+  .map((id) => fake.get(`expLogs/${id}`))
+  .filter((log) => log.ruleKey === "cancel_registration");
 const registerLogs = () => fake.list("expLogs")
   .map((id) => fake.get(`expLogs/${id}`))
   .filter((log) => log.ruleKey === "register_activity");
@@ -108,7 +111,7 @@ describe("報名 +10 每人每場只發一次", () => {
     expect(fake.get(`_expDedupe/regexp_${U_SELF}_${DOC_ID}`)).toBeUndefined();
   });
 
-  test("取消再報名三輪：只第一次 +10，每次本人取消 −10，經驗值永遠不超過第一次報名後", async () => {
+  test("取消再報名三輪：加分、扣分各每人每場一次，淨 0（§3.630）", async () => {
     seed();
     const history = [];
     for (let round = 0; round < 3; round += 1) {
@@ -117,10 +120,26 @@ describe("報名 +10 每人每場只發一次", () => {
       await cancel(PUB_ID, [activeRegId(DOC_ID)]);
       history.push(expOf(U_SELF));
     }
-    // +10 → −10 → 再報名不加（淨 0）→ 之後每輪只剩取消 −10
-    expect(history).toEqual([110, 100, 100, 90, 90, 80]);
+    // +10 → −10 → 之後再報名不加、再取消不扣
+    expect(history).toEqual([110, 100, 100, 100, 100, 100]);
     expect(registerLogs()).toHaveLength(1);
+    expect(cancelLogs()).toHaveLength(1);
+    expect(fake.get(`_expDedupe/regexp_${U_SELF}_${PUB_ID}`)).toMatchObject({ ruleKey: "register_activity" });
+    expect(fake.get(`_expDedupe/regexpcancel_${U_SELF}_${PUB_ID}`)).toMatchObject({ ruleKey: "cancel_registration" });
+    expect(fake.get(`_expDedupe/regexpcancel_${U_SELF}_${DOC_ID}`)).toBeUndefined();
     expect(postCommitErrors()).toEqual([]);
+  });
+
+  test("上線前已在正取的舊報名：取消 −10、再報名 +10、再取消不扣，淨 0", async () => {
+    seed({ [`events/${DOC_ID}/registrations/r1`]: reg("r1") });
+    await cancel(PUB_ID, ["r1"]);
+    expect(expOf(U_SELF)).toBe(90);
+    await registerSelf();
+    expect(expOf(U_SELF)).toBe(100);
+    await cancel(PUB_ID, [activeRegId(DOC_ID)]);
+    expect(expOf(U_SELF)).toBe(100);
+    await registerSelf();
+    expect(expOf(U_SELF)).toBe(100);
   });
 
   test("降再升：forceDemote 後 forcePromote，第二次進入正取不加分", async () => {
@@ -181,6 +200,19 @@ describe("本人取消扣回（user_cancel）", () => {
     expect(cancelLogs[0].amount).toBe("-10");
   });
 
+  test("只取消同行者：不扣、不佔用扣分鍵；之後本人取消照扣 10", async () => {
+    seed({
+      [`events/${DOC_ID}/registrations/r1`]: reg("r1"),
+      [`events/${DOC_ID}/registrations/c1`]: reg("c1", { participantType: "companion", companionId: "cmp1", userName: "c1" }),
+    });
+    await cancel(PUB_ID, ["c1"]);
+    expect(fake.get(`events/${DOC_ID}/registrations/c1`).status).toBe("cancelled");
+    expect(expOf(U_SELF)).toBe(100);
+    expect(fake.get(`_expDedupe/regexpcancel_${U_SELF}_${PUB_ID}`)).toBeUndefined();
+    await cancel(PUB_ID, ["r1"]);
+    expect(expOf(U_SELF)).toBe(90);
+  });
+
   test("候補取消不扣", async () => {
     seed({ [`events/${DOC_ID}/registrations/r1`]: reg("r1", { status: "waitlisted" }) });
     await cancel(PUB_ID, ["r1"]);
@@ -195,7 +227,7 @@ describe("本人取消扣回（user_cancel）", () => {
     expect(expOf(U_SELF)).toBe(100);
   });
 
-  test("沒有 participantType 的舊正取報名照本人扣 10；扣分不帶去重鍵，兩場各扣一次", async () => {
+  test("沒有 participantType 的舊正取報名照本人扣 10；扣分鍵依場次分開，兩場各扣一次", async () => {
     const legacy = reg("r1");
     delete legacy.participantType;
     seed({
@@ -206,6 +238,10 @@ describe("本人取消扣回（user_cancel）", () => {
     await cancel(PUB_ID_2, ["r2"]);
     expect(expOf(U_SELF)).toBe(80);
     expect(fake.list("_expDedupe").filter((id) => id.startsWith("regexp_"))).toEqual([]);
+    expect(fake.list("_expDedupe").sort()).toEqual([
+      `regexpcancel_${U_SELF}_${PUB_ID}`,
+      `regexpcancel_${U_SELF}_${PUB_ID_2}`,
+    ].sort());
   });
 
   test("扣回判斷不進回傳值與取消去重文件", async () => {
@@ -238,5 +274,17 @@ describe("呼叫點契約", () => {
       }
     }
     expect(calls).toBe(7);
+  });
+
+  test("本人取消扣分帶 regexpcancel_ 去重鍵（與加分鍵分開）", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "..", "functions", "index.js"), "utf8");
+    const re = /adjustExpInternal\(\{([\s\S]*?)\}\)/g;
+    const hits = [];
+    let m;
+    while ((m = re.exec(source))) {
+      if (m[1].includes('"cancel_registration"')) hits.push(m[1]);
+    }
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatch(/dedupKey: `regexpcancel_\$\{reg\.userId\}_\$\{eventId\}`/);
   });
 });

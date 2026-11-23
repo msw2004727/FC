@@ -15615,7 +15615,7 @@ exports.cancelRegistration = onCall(
         if (!callerExpUserPromise) callerExpUserPromise = findUserDocByUidOrLineUserId(callerUid).catch(() => null);
         return callerExpUserPromise;
       };
-      // 扣回當初的 +10：候補、早鳥、同行者、課程不扣（顧問 §3.620）
+      // 扣回當初的 +10：候補、早鳥、同行者、課程不扣（顧問 §3.620）；每人每場最多扣一次（§3.630，鍵與加分分開）
       const expRefundDocIds = new Set(result.expRefundDocIds || []);
       for (const reg of result.cancelled) {
         if (reg.courseLinked || !expRefundDocIds.has(reg.docId)) continue;
@@ -15627,6 +15627,7 @@ exports.cancelRegistration = onCall(
             reason: `取消報名：${result.eventData.title}`,
             ruleKey: "cancel_registration",
             operatorUid: callerUid,
+            dedupKey: `regexpcancel_${reg.userId}_${eventId}`,
             ...(knownUser && knownUser.docId ? { targetUser: knownUser } : {}),
           });
         })());
