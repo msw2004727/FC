@@ -15,6 +15,7 @@ const PRIVATE_PREFIXES = [
   '/scripts/',
   '/tests/',
   '/functions/',
+  '/functions-cp/',
 ];
 
 const PRIVATE_FILES = [
@@ -25,6 +26,7 @@ const PRIVATE_FILES = [
   '/README.md',
   '/LICENSE',
   '/firestore.rules',
+  '/firestore.asia-main.rules',
   '/firestore.indexes.json',
   '/storage.rules',
   '/firebase.json',
@@ -47,6 +49,7 @@ const PRIVATE_SAMPLES = [
   '/scripts/bump-version.js',
   '/tests/unit/x.test.js',
   '/functions/index.js',
+  '/functions-cp/package.json',
   // Pages 靜態檔服務會解碼 %XX、接受連續斜線（2026-10-22 正式站實測），worker 必須比對正規化後路徑
   '/CLAUDE%2Emd',
   '/%43LAUDE.md',

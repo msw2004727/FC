@@ -24,6 +24,7 @@ const PRIVATE_REPO_PATH_PREFIXES = [
   "/scripts/",
   "/tests/",
   "/functions/",
+  "/functions-cp/",
 ];
 const PRIVATE_REPO_FILES = new Set([
   "/CLAUDE.md",
@@ -33,6 +34,7 @@ const PRIVATE_REPO_FILES = new Set([
   "/README.md",
   "/LICENSE",
   "/firestore.rules",
+  "/firestore.asia-main.rules",
   "/firestore.indexes.json",
   "/storage.rules",
   "/firebase.json",
