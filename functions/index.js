@@ -3861,6 +3861,30 @@ const ADMIN_EXP_PERMISSION = "admin.exp.entry";
 // noshow_penalty 依呼叫者分級；金額上限一律沿用 auto 的 ±100，不另讀規則設定。
 const AUTO_EXP_DELEGATED_RULE_KEYS = new Set(["complete_activity", "noshow_penalty", "register_activity"]);
 const AUTO_EXP_REGISTER_ACTIVITY_AMOUNT = 10;
+// 本人正值只剩一次性規則 line_binding（2026-11-23 第一批，取代原「目標是本人不限規則」）；
+// 去重鍵必須是固定形狀（不帶尾段），金額必須等於 siteConfig/autoExpRules 的設定值。
+const AUTO_EXP_SELF_ONE_TIME_RULE_KEY = "line_binding";
+
+/** siteConfig/autoExpRules 的金額：數字或整數字串；其他（空字串、非整數、物件、NaN）一律當 0。 */
+function parseAutoExpRuleAmount(raw) {
+  if (typeof raw === "number") return Number.isInteger(raw) ? raw : 0;
+  if (typeof raw === "string" && /^\s*-?\d+\s*$/.test(raw)) return Number(raw.trim());
+  return 0;
+}
+
+async function authorizeSelfAutoExp({ callerUid, amount, ruleKey, requestId, parsed }) {
+  // 扣自己（負值）不會得利，照常放行（含 A 取消報名、放鴿子對帳扣分）。
+  if (amount < 0) return;
+  const autoLog = { callerUid, ruleKey, hasEventId: false };
+  const ruleOk = !!parsed
+    && parsed.ruleKey === AUTO_EXP_SELF_ONE_TIME_RULE_KEY
+    && requestId === `autoexp_${callerUid}_${AUTO_EXP_SELF_ONE_TIME_RULE_KEY}`
+    && (!ruleKey || ruleKey === AUTO_EXP_SELF_ONE_TIME_RULE_KEY);
+  if (!ruleOk) throw denyAutoExp("self_rule", autoLog);
+  const rulesSnap = await db.collection("siteConfig").doc("autoExpRules").get();
+  const configured = parseAutoExpRuleAmount(rulesSnap.exists ? (rulesSnap.data() || {})[AUTO_EXP_SELF_ONE_TIME_RULE_KEY] : undefined);
+  if (configured <= 0 || amount !== configured) throw denyAutoExp("self_amount", autoLog);
+}
 // 格式：autoexp_<目標 uid>_<規則>[_<尾段>]；uid 段不含底線（LINE／QA uid 皆然），以此切段完全比對。
 const AUTO_EXP_REQUEST_ID_RE = /^autoexp_([A-Za-z0-9-]{1,128})_(complete_activity|register_activity|cancel_registration|host_activity|line_binding|noshow_penalty|badge_bonus|join_team)(?:_([^\s/]{1,160}))?$/;
 // A 的尾段是時間戳或「預期總額_時間戳_段號」（可為負數），不是活動 ID。
@@ -3969,7 +3993,7 @@ exports.adjustExp = onCall(
 
     // ── 權限檢查 ──
     if (mode === "auto") {
-      // auto 模式：任何已登入用戶可觸發，限制幅度 ±100 + 冪等性保護
+      // auto 模式：任何已登入用戶可觸發，限制幅度 ±100 + 冪等性保護；本人正值只限一次性規則（authorizeSelfAutoExp）
       if (amount < -100 || amount > 100) {
         throw new HttpsError("invalid-argument", "Auto mode amount must be between -100 and +100");
       }
@@ -3989,8 +4013,10 @@ exports.adjustExp = onCall(
       if (parsedRequestId && parsedRequestId.ownerUid !== targets[0]) {
         throw denyAutoExp("request_id_owner", autoLog);
       }
-      // 目標是本人照舊；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
-      if (targets[0] !== callerUid) {
+      // 目標是本人須通過本人條件；不是本人須通過代發條件（規則白名單、固定金額、呼叫者身分）
+      if (targets[0] === callerUid) {
+        await authorizeSelfAutoExp({ callerUid, amount, ruleKey, requestId, parsed: parsedRequestId });
+      } else {
         await authorizeDelegatedAutoExp({ request, callerUid, amount, ruleKey, parsed: parsedRequestId, eventId });
       }
     } else {

@@ -96,10 +96,13 @@ const bId = (uid, eventId = EVENT_ID) => `autoexp_${uid}_complete_activity_${eve
 const aId = (uid, key = 'complete_activity') => `autoexp_${uid}_${key}_${TS}`;
 const noshowId = (uid, total = -50) => `autoexp_${uid}_noshow_penalty_${total}_${TS}_0`;
 
-describe('auto 模式：目標是本人', () => {
-  beforeEach(() => seed());
+// 正式設定值存成字串（顧問 §3.615 唯讀：line_binding '100'）。
+const SELF_CONFIG = { 'siteConfig/autoExpRules': { line_binding: '100', register_activity: '3', host_activity: '0', badge_bonus: '100' } };
 
-  test('本人照舊放行（不限規則），去重紀錄與寫入同批建立', async () => {
+describe('auto 模式：目標是本人', () => {
+  beforeEach(() => seed(SELF_CONFIG));
+
+  test('本人綁定 LINE（固定去重鍵、金額等於設定值）放行，去重紀錄與寫入同批建立', async () => {
     const requestId = `autoexp_${U_SELF}_line_binding`;
     const res = await call(U_SELF, auto(U_SELF, { amount: 100, ruleKey: 'line_binding', requestId }));
     expect(res.success).toBe(true);
@@ -124,21 +127,68 @@ describe('auto 模式：目標是本人', () => {
     await expectDenied(call(U_SELF, auto(U_SELF, { amount: -101 })), 'invalid-argument');
   });
 
-  test('本人不帶 requestId 照舊放行', async () => {
-    const res = await call(U_SELF, auto(U_SELF, { amount: 10 }));
-    expect(res.results[0].success).toBe(true);
+  test('本人不帶 requestId：正值拒絕、負值（扣自己）放行', async () => {
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 10 })));
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'self_rule' });
+    const res = await call(U_SELF, auto(U_SELF, { amount: -3 }));
+    expect(res.results[0]).toMatchObject({ success: true, oldExp: 200, newExp: 197 });
   });
 
   test.each([
     ['A 主辦活動', aId(U_SELF, 'host_activity'), undefined],
     ['A 徽章對帳', `autoexp_${U_SELF}_badge_bonus_200_${TS}_0`, 'badge_bonus'],
-    ['A 取消報名', aId(U_SELF, 'cancel_registration'), undefined],
     ['A 報名活動', aId(U_SELF, 'register_activity'), undefined],
     ['A 加入俱樂部', aId(U_SELF, 'join_team'), undefined],
+    ['A 放鴿子退分', noshowId(U_SELF, 50), 'noshow_penalty'],
     ['B 主辦活動', aId(U_SELF, 'host_activity'), 'host_activity'],
-  ])('既有本人形狀照常通過：%s', async (_label, requestId, ruleKey) => {
-    const res = await call(U_SELF, auto(U_SELF, { amount: 10, requestId, ...(ruleKey ? { ruleKey } : {}) }));
-    expect(res.results[0].success).toBe(true);
+    ['綁定 LINE 帶尾段（換尾段繞去重）', `autoexp_${U_SELF}_line_binding_${TS}`, undefined],
+    ['綁定 LINE 但 ruleKey 寫別的', `autoexp_${U_SELF}_line_binding`, 'complete_activity'],
+  ])('本人正值一律停發（2026-11-23 第一批）：%s → 拒絕、不加分、不佔去重鍵', async (_label, requestId, ruleKey) => {
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 10, requestId, ...(ruleKey ? { ruleKey } : {}) })));
+    expect(expOf(U_SELF)).toBe(200);
+    expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
+  });
+
+  test('綁定 LINE 金額正確但去重鍵帶尾段（每次換尾段就能重領）→ 拒絕', async () => {
+    const requestId = `autoexp_${U_SELF}_line_binding_${TS}`;
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount: 100, requestId })));
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'self_rule' });
+    expect(expOf(U_SELF)).toBe(200);
+  });
+
+  test.each([
+    ['A 取消報名', aId(U_SELF, 'cancel_registration'), undefined, -3],
+    ['A 放鴿子扣分', noshowId(U_SELF), 'noshow_penalty', -50],
+    ['A 徽章扣回', `autoexp_${U_SELF}_badge_bonus_0_${TS}_0`, 'badge_bonus', -100],
+  ])('本人負值照常：%s', async (_label, requestId, ruleKey, amount) => {
+    const res = await call(U_SELF, auto(U_SELF, { amount, requestId, ...(ruleKey ? { ruleKey } : {}) }));
+    expect(res.results[0]).toMatchObject({ success: true, newExp: 200 + amount });
+  });
+
+  test.each([
+    ['金額不等於設定值', { line_binding: '100' }, 50],
+    ['設定不存在', null, 100],
+    ['設定為 0', { line_binding: '0' }, 100],
+    ['設定壞值（非整數字串）', { line_binding: '100點' }, 100],
+    ['設定壞值（小數）', { line_binding: 99.5 }, 100],
+    ['設定壞值（物件）', { line_binding: { v: 100 } }, 100],
+  ])('綁定 LINE 金額鎖定：%s → 拒絕', async (_label, config, amount) => {
+    seed(config ? { 'siteConfig/autoExpRules': config } : {});
+    const requestId = `autoexp_${U_SELF}_line_binding`;
+    await expectDenied(call(U_SELF, auto(U_SELF, { amount, requestId })));
+    expect(deniedLogs()[0][2]).toMatchObject({ reason: 'self_amount' });
+    expect(expOf(U_SELF)).toBe(200);
+    expect(fake.has(`_expDedupe/${requestId}`)).toBe(false);
+  });
+
+  test.each([
+    ['字串 "100"', '100'],
+    ['前後空白字串', ' 100 '],
+    ['數字 100', 100],
+  ])('綁定 LINE 設定值轉數字：%s → 放行 +100', async (_label, raw) => {
+    seed({ 'siteConfig/autoExpRules': { line_binding: raw } });
+    const res = await call(U_SELF, auto(U_SELF, { amount: 100, requestId: `autoexp_${U_SELF}_line_binding` }));
+    expect(res.results[0]).toMatchObject({ success: true, newExp: 300 });
   });
 
   test('去重鍵 uid 段不是目標時拒絕，且不建立去重紀錄；目標本人之後仍可使用', async () => {
@@ -183,7 +233,7 @@ describe('auto 模式：目標是本人', () => {
   test('本人路徑查到的文件不是本人（只有 lineUserId 吻合）→ 拒絕，不改到該文件', async () => {
     const noDoc = `U${'c'.repeat(32)}`;
     const otherDoc = `U${'d'.repeat(32)}`;
-    seed({ [`users/${otherDoc}`]: user(otherDoc, { lineUserId: noDoc }) });
+    seed({ ...SELF_CONFIG, [`users/${otherDoc}`]: user(otherDoc, { lineUserId: noDoc }) });
     await expectDenied(call(noDoc, auto(noDoc, { amount: 100, requestId: `autoexp_${noDoc}_line_binding` })));
     await expectDenied(call(noDoc, auto(noDoc, { amount: 100 })));
     expect(expOf(otherDoc)).toBe(200);
