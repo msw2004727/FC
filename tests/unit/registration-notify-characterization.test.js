@@ -237,7 +237,8 @@ describe("情境 4～7、9：cancelRegistration", () => {
     expect(postCommitErrors()).toEqual([]);
   });
 
-  test("5 取消本人＋2 同行者（3 筆）：改前逐筆 3 則", async () => {
+  // Q3（顧問 §3.637）：改前逐筆 3 則 → 改後每人 1 則
+  test("5 取消本人＋2 同行者（3 筆）：本人 1 則（Q3）", async () => {
     setup({
       [`events/${EVENT_ID}`]: event({ current: 3 }),
       [`events/${EVENT_ID}/registrations/r1`]: reg("r1", {
@@ -248,10 +249,11 @@ describe("情境 4～7、9：cancelRegistration", () => {
     });
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1", "c1", "c2"] });
     expect(result.cancelled).toHaveLength(3);
-    expectNotices([n(U_SELF, CANCELLED), n(U_SELF, CANCELLED), n(U_SELF, CANCELLED)]);
+    expectNotices([n(U_SELF, CANCELLED)]);
   });
 
-  test("6 取消後遞補一組（主＋同行者）：改前被遞補者逐筆 2 則", async () => {
+  // Q3：改前取消者 2 則、被遞補者 2 則 → 改後各 1 則
+  test("6 取消後遞補一組（主＋同行者）：取消者 1 則、被遞補者 1 則（Q3）", async () => {
     setup({
       [`events/${EVENT_ID}`]: event({ max: 2, current: 2, waitlist: 2 }),
       [`events/${EVENT_ID}/registrations/r1`]: reg("r1", {
@@ -265,10 +267,7 @@ describe("情境 4～7、9：cancelRegistration", () => {
     });
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1", "c1"] });
     expect(result.promoted.map((r) => r.docId).sort()).toEqual(["c2", "r2"]);
-    expectNotices([
-      n(U_SELF, CANCELLED), n(U_SELF, CANCELLED),
-      n(U_OTHER, PROMOTED), n(U_OTHER, PROMOTED),
-    ]);
+    expectNotices([n(U_SELF, CANCELLED), n(U_OTHER, PROMOTED)]);
   });
 
   test("7a manager_remove：被移除者收「報名已被管理員移除」，呼叫者不收", async () => {
@@ -282,7 +281,8 @@ describe("情境 4～7、9：cancelRegistration", () => {
     expectNotices([n(U_SELF, REMOVED)]);
   });
 
-  test("7b 主辦一次移除多人（其中一人帶同行者）：改前逐筆，一般人每人 1 則", async () => {
+  // Q3：改前帶同行者的那人 2 則 → 改後 1 則；其他人照舊每人 1 則
+  test("7b 主辦一次移除多人（其中一人帶同行者）：仍是每人 1 則（Q3）", async () => {
     setup({
       [`events/${EVENT_ID}`]: event({ current: 4 }),
       [`events/${EVENT_ID}/registrations/r1`]: reg("r1", {
@@ -300,10 +300,7 @@ describe("情境 4～7、9：cancelRegistration", () => {
       eventId: EVENT_ID, registrationIds: ["r1", "c1", "r2", "r3"], reason: "manager_remove",
     });
     expect(result.cancelled).toHaveLength(4);
-    expectNotices([
-      n(U_SELF, REMOVED), n(U_SELF, REMOVED),
-      n(U_OTHER, REMOVED), n(U_THIRD, REMOVED),
-    ]);
+    expectNotices([n(U_SELF, REMOVED), n(U_OTHER, REMOVED), n(U_THIRD, REMOVED)]);
   });
 
   test("7c capacity_change：標題為「取消報名通知」", async () => {

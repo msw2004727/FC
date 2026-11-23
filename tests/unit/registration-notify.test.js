@@ -136,16 +136,14 @@ describe("buildRegistrationNotices：cancelRegistration", () => {
     expect(notices.map((x) => [x.kind, x.title])).toEqual([["cancelled", "取消報名通知"]]);
   });
 
-  test("同一人多筆取消、同一人多筆被遞補：逐筆發（收斂前行為）", () => {
+  // Q3（顧問 §3.637）：收斂前逐筆 5 則 → 每人 1 則
+  test("同一人多筆取消、同一人多筆被遞補：每人一則（Q3）", () => {
     const result = cancelResult({
       cancelled: [{ docId: "r1", userId: CALLER }, { docId: "c1", userId: CALLER }, { docId: "c2", userId: CALLER }],
       promoted: [{ userId: OTHER }, { userId: OTHER }],
     });
     const notices = buildRegistrationNotices({ fn: "cancelRegistration", result, callerUid: CALLER, cancelReason: "user_cancel" });
-    expect(notices.map((x) => [x.kind, x.recipientUid])).toEqual([
-      ["cancelled", CALLER], ["cancelled", CALLER], ["cancelled", CALLER],
-      ["promoted", OTHER], ["promoted", OTHER],
-    ]);
+    expect(notices.map((x) => [x.kind, x.recipientUid])).toEqual([["cancelled", CALLER], ["promoted", OTHER]]);
   });
 
   test("主辦一次移除多人：每人一則", () => {

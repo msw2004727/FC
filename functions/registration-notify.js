@@ -32,6 +32,11 @@ function promotedNotice(recipientUid, eventData) {
   };
 }
 
+// 依首次出現順序去掉重複的 userId（同一人本人＋同行者只算一次）
+function uniqueUserIds(regs) {
+  return [...new Set(regs.map((reg) => reg.userId))];
+}
+
 // 純函式：交易結果 → [{ kind, recipientUid, title, body }]
 function buildRegistrationNotices({ fn, result, callerUid, cancelReason }) {
   const notices = [];
@@ -50,22 +55,20 @@ function buildRegistrationNotices({ fn, result, callerUid, cancelReason }) {
       });
     }
     // F1 空洞遞補：同組同行者只通知主報名者一次
-    const notifiedPromotedUids = new Set();
-    for (const promoted of result.promoted || []) {
-      if (notifiedPromotedUids.has(promoted.userId)) continue;
-      notifiedPromotedUids.add(promoted.userId);
-      notices.push(promotedNotice(promoted.userId, result.eventData));
+    for (const uid of uniqueUserIds(result.promoted || [])) {
+      notices.push(promotedNotice(uid, result.eventData));
     }
     return notices;
   }
   if (fn === "cancelRegistration") {
     const kind = cancelReason === "manager_remove" ? "removed" : "cancelled";
     const title = cancelReason === "manager_remove" ? "報名已被管理員移除" : "取消報名通知";
-    for (const reg of result.cancelled) {
-      notices.push({ kind, recipientUid: reg.userId, title, body: eventLines(result.eventData) });
+    // 顧問 §3.637 Q3：本人＋同行者多筆取消或一組被遞補時每人一則，對齊 F1（取代收斂前的逐筆發送）
+    for (const uid of uniqueUserIds(result.cancelled)) {
+      notices.push({ kind, recipientUid: uid, title, body: eventLines(result.eventData) });
     }
-    for (const candidate of result.promoted) {
-      notices.push(promotedNotice(candidate.userId, result.eventData));
+    for (const uid of uniqueUserIds(result.promoted)) {
+      notices.push(promotedNotice(uid, result.eventData));
     }
     return notices;
   }
