@@ -131,6 +131,8 @@ describe("cancelRegistration 臨時取消接線", () => {
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1"], requestId: "req-1" });
     expect(result.success).toBe(true);
     expect(result.lateCancelMarked).toBe(true);
+    // 既有 P3：本人取消仍扣 5 EXP（P3b 不影響）。
+    expect(fake.get(`users/${U_SELF}`).exp).toBe(95);
 
     const regData = fake.get(`events/${EVENT_ID}/registrations/r1`);
     expect(regData.status).toBe("cancelled");
@@ -319,6 +321,58 @@ describe("cancelRegistration 臨時取消接線", () => {
     expect(failLogs.length).toBeGreaterThan(0);
     const serialized = JSON.stringify(failLogs);
     expect(serialized).not.toContain(U_SELF);
+    // 交給 settleBestEffortPostCommitOps 記錄（R-CF-003）。
+    expect(harnessStub.logs.some((row) => row[0] === "error" && row[1] === "[bestEffortPostCommitOps]")).toBe(true);
+  });
+});
+
+describe("審查補案（Opus §P3）", () => {
+  test("時限外才遞補的正取（開始前 7 小時遞補、時限 6 小時、開始前 5 小時取消）→ 記", async () => {
+    const startMs = Date.now() + 5 * 60 * 60 * 1000;
+    fake = createFakeFirestore(seedStore({
+      [`events/${EVENT_ID}`]: makeEvent({ date: taipeiEventDate(startMs), lateCancelHours: 6 }),
+      [`events/${EVENT_ID}/registrations/r1`]: makeReg("r1", {
+        promotedAt: new FakeTimestamp(startMs - 7 * 60 * 60 * 1000),
+      }),
+    }));
+    harnessStub.current = fake;
+    const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1"], requestId: "req-p3-1" });
+    expect(result.lateCancelMarked).toBe(true);
+    expect(fake.get(`events/${EVENT_ID}/registrations/r1`).lateCancel).toBe(true);
+    expect(fake.get(`users/${U_SELF}`).lateCancelTotal).toBe(1);
+  });
+
+  test("主交易讀取數：時限內（會記點）與時限外（不記點）相同", async () => {
+    const mainTxReads = async (startOffsetMs, requestId) => {
+      fake = createFakeFirestore(seedStore({
+        [`events/${EVENT_ID}`]: makeEvent({ date: taipeiEventDate(Date.now() + startOffsetMs) }),
+      }));
+      harnessStub.current = fake;
+      let snapshot = null;
+      // 第一個交易（主交易）commit 前記下交易內讀取數；P3b 的記點交易不算。
+      fake.state.beforeTransactionCommit = async () => { snapshot = fake.state.reads.tx; };
+      const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1"], requestId });
+      return { snapshot, marked: result.lateCancelMarked };
+    };
+    const inside = await mainTxReads(60 * 60 * 1000, "req-p3-2a");
+    const outside = await mainTxReads(5 * 60 * 60 * 1000, "req-p3-2b");
+    expect(inside.marked).toBe(true);
+    expect(outside.marked).toBe(false);
+    expect(typeof inside.snapshot).toBe("number");
+    expect(inside.snapshot).toBe(outside.snapshot);
+  });
+
+  test("clearLateCancelRed：只靠 userPermissionGrants 個別授權也可解除", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_SELF}`]: { uid: U_SELF, name: "self", exp: 100, lateCancelLevel: "red", lateCancelTotal: 3 },
+      [`users/${U_ADMIN_NO}`]: { uid: U_ADMIN_NO, role: "user", name: "granted", exp: 100 },
+      [`userPermissionGrants/${U_ADMIN_NO}`]: { permissions: ["admin.repair.no_show_adjust"] },
+    });
+    harnessStub.current = fake;
+    const res = await fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_NO }, data: { targetUid: U_SELF } });
+    expect(res).toEqual({ ok: true });
+    expect(fake.get(`users/${U_SELF}`).lateCancelLevel).toBe(null);
+    expect(fake.get(`users/${U_SELF}`).lateCancelTotal).toBe(3);
   });
 });
 
