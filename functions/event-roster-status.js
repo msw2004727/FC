@@ -203,6 +203,8 @@ function createRosterStatusHandler(action, dependencies) {
           postOps.push(postOp(() => adjustExpInternal({
             targetUid: promoted.userId, amount: 10, reason: `候補遞補報名：${result.title}`,
             ruleKey: "register_activity", operatorUid: callerUid,
+            // 每人每場只發一次（顧問 §3.620）；eventId 是公開 data.id（R-ID-009）
+            dedupKey: `regexp_${promoted.userId}_${eventId}`,
           })));
         }
       }

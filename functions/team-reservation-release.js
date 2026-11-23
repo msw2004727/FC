@@ -400,6 +400,7 @@ function createReleaseTeamReservationsHandler(deps) {
           participantType: item.participantType || "self",
         })),
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "" },
+        eventPublicId: String(ed.id || "").trim(),
       };
     });
   }
@@ -433,6 +434,8 @@ function createReleaseTeamReservationsHandler(deps) {
           amount: 10,
           reason: `候補遞補報名：${result.eventData.title}`,
           ruleKey: "register_activity",
+          // 每人每場只發一次（顧問 §3.620）；用公開 data.id（R-ID-009），runPostCommit 的 eventId 是文件 ID
+          dedupKey: `regexp_${uid}_${result.eventPublicId || eventId}`,
         }));
       }
     }

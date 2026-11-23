@@ -90,6 +90,7 @@ describe("T-070 名單交易與投影", () => {
     expect(h.deps.adjustExpInternal).toHaveBeenCalledTimes(1);
     expect(h.deps.adjustExpInternal).toHaveBeenCalledWith(expect.objectContaining({
       targetUid: "uidOther", amount: 10, ruleKey: "register_activity", operatorUid: "uidB",
+      dedupKey: "regexp_uidOther_evtA",
     }));
     expect(h.deps.writeAuditEntryInternal).toHaveBeenCalledWith(expect.objectContaining({
       meta: { registrationId: "regA", promotedRegistrationIds: ["regB"] },

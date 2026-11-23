@@ -131,8 +131,8 @@ describe("cancelRegistration 臨時取消接線", () => {
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1"], requestId: "req-1" });
     expect(result.success).toBe(true);
     expect(result.lateCancelMarked).toBe(true);
-    // 既有 P3：本人取消仍扣 5 EXP（P3b 不影響）。
-    expect(fake.get(`users/${U_SELF}`).exp).toBe(95);
+    // 既有 P3：本人取消正取扣回 10 EXP（顧問 §3.620，原 −5；P3b 不影響）。
+    expect(fake.get(`users/${U_SELF}`).exp).toBe(90);
 
     const regData = fake.get(`events/${EVENT_ID}/registrations/r1`);
     expect(regData.status).toBe("cancelled");

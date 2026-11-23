@@ -12923,8 +12923,13 @@ function providedExpUserMatches(targetUser, targetUid) {
 
 // ── 內部用 adjustExp（同進程直接呼叫，不走 onCall） ──
 // targetUser 可選：{ docId, data }。吻合才沿用；未傳或對不上時照舊再讀。
-async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorUid, targetUser: providedUser }) {
+// dedupKey 可選（顧問 §3.620）：與加分同一個 batch create `_expDedupe/<dedupKey>`，已存在就整批不寫、回 deduplicated。
+// register_activity 一律帶 `regexp_<uid>_<活動公開 data.id>`（R-ID-009），同一人同一場只加一次。
+async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorUid, targetUser: providedUser, dedupKey }) {
   if (!targetUid || typeof amount !== "number" || amount === 0) return null;
+  const safeDedupKey = typeof dedupKey === "string" && dedupKey
+    ? dedupKey.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 300)
+    : "";
 
   const targetUser = providedExpUserMatches(providedUser, targetUid)
     ? { docId: String(providedUser.docId).trim(), data: providedUser.data || {} }
@@ -12958,7 +12963,20 @@ async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorU
     updatedAt: FieldValue.serverTimestamp(),
   });
   batch.create(db.collection("expLogs").doc(), log);
-  await batch.commit();
+  if (safeDedupKey) {
+    batch.create(db.collection("_expDedupe").doc(safeDedupKey), {
+      ruleKey: log.ruleKey || null,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  try {
+    await batch.commit();
+  } catch (err) {
+    if (safeDedupKey && (err?.code === 6 || err?.code === "already-exists")) {
+      return { targetUid, amount: 0, deduplicated: true };
+    }
+    throw err;
+  }
 
   return { targetUid, amount };
 }
@@ -14294,6 +14312,7 @@ exports.registerForEvent = onCall(
           reason: `報名活動：${result.eventData.title}`,
           ruleKey: "register_activity",
           operatorUid: callerUid,
+          dedupKey: `regexp_${callerUid}_${eventId}`,
           ...(callerUserDoc && callerUserDoc.docId ? { targetUser: callerUserDoc } : {}),
         })
       );
@@ -14327,6 +14346,7 @@ exports.registerForEvent = onCall(
             reason: `候補遞補報名：${result.eventData.title}`,
             ruleKey: "register_activity",
             operatorUid: callerUid,
+            dedupKey: `regexp_${promoted.userId}_${eventId}`,
           })
         );
       }
@@ -14969,6 +14989,7 @@ exports.updateCourseLinkedEvent = onCall(
           reason: `候補遞補報名：${result.eventData.title}`,
           ruleKey: "register_activity",
           operatorUid: callerUid,
+          dedupKey: `regexp_${promoted.userId}_${eventId}`,
         }));
       }
     }
@@ -15506,6 +15527,11 @@ exports.cancelRegistration = onCall(
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
         lateCancelMarked: lateCancelDecision.marked,
         lateCancelEventDocId: eventDoc.id,
+        // 本人取消扣回 10（顧問 §3.620）：只有取消前是正取、非早鳥、非同行者、非課程的那幾筆；不回傳、不進去重文件
+        expRefundDocIds: targetRegs
+          .filter((r) => r.status === "confirmed" && r.earlyBird !== true
+            && r.participantType !== "companion" && !isCourseLinkedRegistrationData(r))
+          .map((r) => r._docId),
       };
       // T8（T-087）：同交易建立去重文件（最後一個寫入、之後沒有讀取），只存精簡結果
       if (shouldCreateDedupe) {
@@ -15575,6 +15601,7 @@ exports.cancelRegistration = onCall(
             reason: `候補遞補報名：${result.eventData.title}`,
             ruleKey: "register_activity",
             operatorUid: callerUid,
+            dedupKey: `regexp_${candidate.userId}_${eventId}`,
           })
         );
       }
@@ -15588,13 +15615,15 @@ exports.cancelRegistration = onCall(
         if (!callerExpUserPromise) callerExpUserPromise = findUserDocByUidOrLineUserId(callerUid).catch(() => null);
         return callerExpUserPromise;
       };
+      // 扣回當初的 +10：候補、早鳥、同行者、課程不扣（顧問 §3.620）
+      const expRefundDocIds = new Set(result.expRefundDocIds || []);
       for (const reg of result.cancelled) {
-        if (reg.courseLinked) continue;
+        if (reg.courseLinked || !expRefundDocIds.has(reg.docId)) continue;
         postOps.push((async () => {
           const knownUser = reg.userId === callerUid ? await loadCallerExpUser() : null;
           return adjustExpInternal({
             targetUid: reg.userId,
-            amount: -5,
+            amount: -10,
             reason: `取消報名：${result.eventData.title}`,
             ruleKey: "cancel_registration",
             operatorUid: callerUid,
@@ -16088,6 +16117,7 @@ exports.adjustTeamReservation = onCall(
           reason: `候補遞補報名：${result.eventData.title}`,
           ruleKey: "register_activity",
           operatorUid: callerUid,
+          dedupKey: `regexp_${candidate.userId}_${safeEventId}`,
         })
       );
     }

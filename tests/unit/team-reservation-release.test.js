@@ -486,6 +486,8 @@ describe("releaseTeamReservations handler", () => {
     expect(h.deps.adjustExpInternal).toHaveBeenCalledTimes(1);
     const expArgs = h.deps.adjustExpInternal.mock.calls[0][0];
     expect(expArgs).toMatchObject({ targetUid: "u_main", amount: 10, ruleKey: "register_activity" });
+    // 去重鍵用公開 data.id（evtA），不是文件 ID（evtLongId123）（顧問 §3.620、R-ID-009）
+    expect(expArgs.dedupKey).toBe("regexp_u_main_evtA");
     expect(expArgs.operatorUid).toBeUndefined();
     expect(h.deps.settleBestEffortPostCommitOps).toHaveBeenCalledWith("releaseTeamReservations", expect.any(Array));
     expect(h.deps.settleBestEffortPostCommitOps.mock.calls[0][1]).toHaveLength(3);
