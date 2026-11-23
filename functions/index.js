@@ -20130,3 +20130,10 @@ Object.assign(exports, createCpClubMirrorExports({
   FieldValue,
   logger,
 }));
+
+// 網頁推播 W2-B：訂閱註冊／退訂兩支 Callable（不持秘密，只寫 webPushSubscriptions 與註冊計數；uid 取 request.auth.uid）
+const { WEB_PUSH_CALLABLE_OPTIONS } = require("./web-push-config");
+const { createWebPushSubscriptionHandlers } = require("./web-push-subscription");
+const webPushSubscriptionHandlers = createWebPushSubscriptionHandlers({ db, FieldValue, HttpsError, logger });
+exports.registerWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.register);
+exports.unregisterWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.unregister);
