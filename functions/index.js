@@ -129,6 +129,8 @@ const DATA_SYNC_SETTINGS_PASSWORD = defineSecret("DATA_SYNC_SETTINGS_PASSWORD");
 // T-024：放檔頭避免 Callable 載入時觸發 TDZ；密碼只存 Secret Manager。
 // 多筆密碼格式見 qa-test-mode-core.js。
 const QA_TEST_PASSWORD = defineSecret("QA_TEST_PASSWORD");
+// 網頁推播 W2-B：VAPID 私鑰只綁 sendWebPushFromQueue（報名核心兩支與訂閱 Callable 都不宣告）
+const WEB_PUSH_VAPID_PRIVATE_KEY = defineSecret("WEB_PUSH_VAPID_PRIVATE_KEY");
 const VALID_ROLES = new Set([
   "user",
   "coach",
@@ -20147,3 +20149,24 @@ const { createWebPushSubscriptionHandlers } = require("./web-push-subscription")
 const webPushSubscriptionHandlers = createWebPushSubscriptionHandlers({ db, FieldValue, HttpsError, logger });
 exports.registerWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.register);
 exports.unregisterWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.unregister);
+
+// 網頁推播 W2-B：佇列 onCreate 發送函式（顧問 §3.641 Q1）；唯一持有 VAPID 私鑰，web-push 在處理器內 lazy require
+const { createSendWebPushFromQueueHandler } = require("./web-push-sender");
+exports.sendWebPushFromQueue = onDocumentCreated(
+  {
+    document: "webPushQueue/{queueId}",
+    region: "asia-east1",
+    secrets: [WEB_PUSH_VAPID_PRIVATE_KEY],
+    minInstances: 0,
+    maxInstances: 3,
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    retry: false,
+  },
+  createSendWebPushFromQueueHandler({
+    db,
+    FieldValue,
+    logger,
+    getPrivateKey: () => WEB_PUSH_VAPID_PRIVATE_KEY.value(),
+  })
+);
