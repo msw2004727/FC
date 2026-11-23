@@ -1048,6 +1048,7 @@ service cloud.firestore {
 
       // teamReservationReleaseHours（團隊預留自動釋出時數）：值域由 Functions 兜底（非允許值視為 0），Rules 不檢查以省運算式預算；
       // teamReservationReleasedAt／teamReservationReleasedSummary 只由 Functions 寫，不加入這兩個白名單。
+      // lateCancelHours（臨時取消時限）：同上，值域由 Functions normalizeLateCancelHours 兜底（缺值＝2、壞值＝0），Rules 不檢查以省運算式預算。
       function eventUpdateBasicFieldsOnly(changed) {
         return changed.hasOnly([
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
@@ -1056,7 +1057,7 @@ service cloud.firestore {
           'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
-          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours', 'lateCancelHours',
           'updatedAt'
         ]);
       }
@@ -1069,7 +1070,7 @@ service cloud.firestore {
           'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
-          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion', 'teamReservationReleaseHours', 'lateCancelHours',
           'status', 'updatedAt'
         ]);
       }
@@ -1699,7 +1700,11 @@ service cloud.firestore {
       function isSafeSuperAdminUserUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         // 會員資料讀取強化：super_admin 也不得把四欄寫回根文件。
-        return !changed.hasAny(['uid', 'lineUserId', 'createdAt', 'phone', 'email', 'companions', 'eduChildren']);
+        // 臨時取消標記五欄只由 Functions 寫（手動解除走 clearLateCancelRed Callable 並寫 auditLog），super_admin 也不得直寫。
+        return !changed.hasAny([
+          'uid', 'lineUserId', 'createdAt', 'phone', 'email', 'companions', 'eduChildren',
+          'lateCancelLevel', 'lateCancelUntil', 'lateCancelReleaseAt', 'lateCancelRecent', 'lateCancelTotal'
+        ]);
       }
 
       function isSafeTeamMembershipUpdateByStaff() {
@@ -3893,6 +3898,10 @@ service cloud.firestore {
       allow write: if false;
     }
     match /userAttendanceStatsQueue/{uid} {
+      allow read, write: if false;
+    }
+    // 臨時取消去重（{eventDocId}_{operatorUid}）：只由 Functions cancelRegistration 以 create() 寫，Client SDK 全拒。
+    match /lateCancelMarks/{markId} {
       allow read, write: if false;
     }
     // 人氣指數：父文件只開放單筆讀取（get），不開放列舉（list，避免任何人列出所有被看過的 uid）；
