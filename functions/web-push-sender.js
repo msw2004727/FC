@@ -33,6 +33,22 @@ const safeToken = (raw) => {
 const loadWebPushDefault = () => require("web-push");
 
 /**
+ * 由 VAPID 私鑰（32 位元組，base64url）推出公鑰（未壓縮點 0x04||x||y，base64url）。格式不對回空字串、不丟錯。
+ * 發送前用它自我檢查：Secret Manager 的私鑰必須對得上程式常數的公鑰，否則停發（W1 結案條件 a）。
+ */
+function vapidPublicKeyOf(privateKey) {
+  try {
+    const raw = Buffer.from(String(privateKey || ""), "base64url");
+    if (raw.length !== 32) return "";
+    const ecdh = require("crypto").createECDH("prime256v1");
+    ecdh.setPrivateKey(raw);
+    return ecdh.getPublicKey().toString("base64url");
+  } catch {
+    return "";
+  }
+}
+
+/**
  * 送一筆推播請求：不跟隨重新導向、不保留回應本文。回 { statusCode }（沒有回應時 statusCode 為 0、帶 errorCode）。
  * requestImpl 預設 https.request；測試可換成 http.request 對本機伺服器實測。
  */
@@ -76,6 +92,9 @@ function createSendWebPushFromQueueHandler({
   requestImpl = null,
 }) {
   const collections = settings.WEB_PUSH_COLLECTIONS;
+  // 同一個執行個體只對同一把私鑰算一次（私鑰換版時重算）
+  let checkedPrivateKey = null;
+  let keyPairMatches = false;
 
   function emptyCounters() {
     return { subs: 0, sent: 0, gone: 0, failed: 0, keyMismatch: 0, codes: {}, services: {} };
@@ -142,6 +161,15 @@ function createSendWebPushFromQueueHandler({
     const privateKey = typeof getPrivateKey === "function" ? String(getPrivateKey() || "") : "";
     if (!privateKey || !settings.WEB_PUSH_VAPID_PUBLIC_KEY || !settings.WEB_PUSH_VAPID_KEY_ID) {
       logError("vapid_missing", { code: "VAPID_NOT_CONFIGURED", name: "ConfigError" });
+      skip("disabled");
+      return;
+    }
+    if (checkedPrivateKey !== privateKey) {
+      checkedPrivateKey = privateKey;
+      keyPairMatches = vapidPublicKeyOf(privateKey) === settings.WEB_PUSH_VAPID_PUBLIC_KEY;
+    }
+    if (!keyPairMatches) {
+      logError("vapid_mismatch", { code: "VAPID_KEY_MISMATCH", name: "ConfigError" });
       skip("disabled");
       return;
     }
@@ -245,4 +273,4 @@ function createSendWebPushFromQueueHandler({
   };
 }
 
-module.exports = { createSendWebPushFromQueueHandler, postPushRequest };
+module.exports = { createSendWebPushFromQueueHandler, postPushRequest, vapidPublicKeyOf };

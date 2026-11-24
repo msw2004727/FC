@@ -13,13 +13,15 @@ const { EventEmitter } = require("events");
 const { PassThrough } = require("stream");
 const config = require("../../functions/web-push-config");
 const validate = require("../../functions/web-push-validate");
-const { createSendWebPushFromQueueHandler, postPushRequest } = require("../../functions/web-push-sender");
+const { createSendWebPushFromQueueHandler, postPushRequest, vapidPublicKeyOf } = require("../../functions/web-push-sender");
 const {
   FakeTimestamp, FieldValue, HttpsError, createFakeFirestore, loadFunctionsIndex,
 } = require("./registration-callable-harness");
 
-const FAKE_PUBLIC = "test-only-public-key-not-real";
-const FAKE_PRIVATE = "test-only-private-key-not-real";
+// 執行時動態產生的測試金鑰對（發送前會核對私鑰推出的公鑰，不能再用假字串）
+const TEST_VAPID = require("../../functions/node_modules/web-push").generateVAPIDKeys();
+const FAKE_PUBLIC = TEST_VAPID.publicKey;
+const FAKE_PRIVATE = TEST_VAPID.privateKey;
 const SETTINGS = { ...config, WEB_PUSH_VAPID_PUBLIC_KEY: FAKE_PUBLIC, WEB_PUSH_VAPID_KEY_ID: validate.computeVapidKeyId(FAKE_PUBLIC) };
 const RECIPIENT = `U${"7".repeat(32)}`;
 const OTHER = `U${"8".repeat(32)}`;
@@ -162,6 +164,30 @@ describe("停發與跳過（S1、S2、S3、S7、S8）", () => {
       expect(transport.calls).toHaveLength(0);
       expect(processed(logs)[0].reason).toBe("disabled");
       expect(logs.find((l) => l[1] === "[webPush] error")[2].stage).toBe("vapid_missing");
+    }
+  });
+
+  test("私鑰推出的公鑰與常數不符（或私鑰格式錯）→ 停發、記 vapid_mismatch，不讀訂閱、不認領、不送", async () => {
+    const other = require("../../functions/node_modules/web-push").generateVAPIDKeys();
+    for (const privateKey of [other.privateKey, "not-a-valid-key", Buffer.alloc(31, 1).toString("base64url")]) {
+      const { run, transport, logs, fake } = setup({ privateKey, seed: { [subPath(endpointOf(1))]: subDoc(1) } });
+      await run();
+      expect(transport.calls).toHaveLength(0);
+      expect(processed(logs)[0].reason).toBe("disabled");
+      const error = logs.find((l) => l[1] === "[webPush] error")[2];
+      expect(error).toEqual({ stage: "vapid_mismatch", code: "VAPID_KEY_MISMATCH", name: "ConfigError" });
+      expect(JSON.stringify(logs)).not.toContain(privateKey);
+      expect(fake.get(`webPushQueue/${QUEUE_ID}`).status).toBe("pending");
+    }
+  });
+
+  test("vapidPublicKeyOf：與 web-push 產生的金鑰對一致；長度或格式不對回空字串", () => {
+    for (let i = 0; i < 5; i += 1) {
+      const pair = require("../../functions/node_modules/web-push").generateVAPIDKeys();
+      expect(vapidPublicKeyOf(pair.privateKey)).toBe(pair.publicKey);
+    }
+    for (const bad of ["", null, undefined, "!!!", Buffer.alloc(33, 1).toString("base64url")]) {
+      expect(vapidPublicKeyOf(bad)).toBe("");
     }
   });
 

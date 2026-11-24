@@ -2,13 +2,13 @@
 
 /**
  * 網頁推播（W2-B）常數：只放公開值與上限，私鑰只在 Secret Manager（WEB_PUSH_VAPID_PRIVATE_KEY，只綁 sendWebPushFromQueue）。
- * - 公鑰與 key id 在 W1（站長本人點頭建立金鑰）之前一律留空字串：註冊 Callable 拒收、發送函式視為停發（fail-closed）。
- *   W1 完成後同一個 commit 填公鑰並以 computeVapidKeyId(公鑰) 填 key id（測試鎖住兩者一致）。
+ * - 公鑰與 key id 已於 W1（2026-11-24 站長點頭建立金鑰）填入；key id＝computeVapidKeyId(公鑰)（測試鎖住兩者一致）。
+ *   任一留空時註冊 Callable 拒收、發送函式停發（fail-closed）；發送前另核對私鑰推出的公鑰與本常數相同，不符即停發。
  * - 主機白名單依各家官方文件（出處見 WEB_PUSH_ENDPOINT_HOST_SOURCES），實機主機待 W5 測試複核。
  * - 常數初值照顧問 §3.641 Q8：每日 20、訂閱 5、作廢 30 分鐘、推播 TTL 12 小時、單筆逾時 10 秒。
  */
 
-// W1 前留空（不在 repo 產生或寫入任何真實金鑰）
+// 公開值（W1 填入）；私鑰只在 Secret Manager，不進 repo
 const WEB_PUSH_VAPID_PUBLIC_KEY = "BH_ixX7vhX5QjtwewYj-50ylvKTaGiV4ErQMVSJiXIL7H3gGFKY4QwJFeB35GzqZLxG7Ia2Pft3Cw4ywUNmpyRY";
 const WEB_PUSH_VAPID_KEY_ID = "726cade1dd107515";
 const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
