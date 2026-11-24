@@ -91,6 +91,14 @@
       ]
     },
     {
+      "collectionGroup": "registrations",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "eventId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "attendanceRecords",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
