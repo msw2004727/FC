@@ -123,8 +123,8 @@ describe("register：身分與輸入", () => {
   });
 
   test("W1 前（伺服器 key id 為空）：連空字串 key id 也拒收（fail-closed）", async () => {
-    const { handlers, fake } = setup({ settings: config });
-    expect(config.WEB_PUSH_VAPID_KEY_ID).toBe("");
+    // W1 後正式常數已填公鑰；此案以明確留空的設定鎖住 fail-closed 行為
+    const { handlers, fake } = setup({ settings: { ...config, WEB_PUSH_VAPID_PUBLIC_KEY: "", WEB_PUSH_VAPID_KEY_ID: "" } });
     await expectCode(handlers.register(registerReq(U_A, subData(1, { vapidKeyId: "" }))), "failed-precondition");
     expect(fake.state.writes).toHaveLength(0);
   });

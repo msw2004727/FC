@@ -156,7 +156,7 @@ describe("停發與跳過（S1、S2、S3、S7、S8）", () => {
   });
 
   test("W1 前（公鑰或私鑰缺）→ 停發並記 ERROR", async () => {
-    for (const variant of [{ settings: config }, { privateKey: "" }]) {
+    for (const variant of [{ settings: { ...SETTINGS, WEB_PUSH_VAPID_PUBLIC_KEY: "", WEB_PUSH_VAPID_KEY_ID: "" } }, { privateKey: "" }]) {
       const { run, transport, logs } = setup({ ...variant, seed: { [subPath(endpointOf(1))]: subDoc(1) } });
       await run();
       expect(transport.calls).toHaveLength(0);

@@ -9,8 +9,8 @@
  */
 
 // W1 前留空（不在 repo 產生或寫入任何真實金鑰）
-const WEB_PUSH_VAPID_PUBLIC_KEY = "";
-const WEB_PUSH_VAPID_KEY_ID = "";
+const WEB_PUSH_VAPID_PUBLIC_KEY = "BH_ixX7vhX5QjtwewYj-50ylvKTaGiV4ErQMVSJiXIL7H3gGFKY4QwJFeB35GzqZLxG7Ia2Pft3Cw4ywUNmpyRY";
+const WEB_PUSH_VAPID_KEY_ID = "726cade1dd107515";
 const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
 
 // E3 備用停發：改 false 重新部署發送函式即停發（主手段是控制文件 webPushControl/sender.sendEnabled）
