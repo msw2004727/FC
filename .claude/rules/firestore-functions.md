@@ -26,6 +26,12 @@ paths:
 - **R-DATA-004 [B/HARD]**：R-QA-008 全部 Rules 驗證通過才 release；禁 skip。修改前查 memory `stealth`、`Rules`。
 - **R-DATA-005 [A/HARD/GATED]**：Rules deploy 獨立授權；部署後代表性 Prod 寫入也另授權，用最小受控資料驗活動、報名、取消。
 
+### 11.1a 帶筆數上限的查詢（2026-11-24 新增；起因：新站首頁下一場漏主辦場次，盤點見 local-only docs/specs/fcb-query-limit-audit-2026-11-24.md）
+
+- **R-QUERY-001 [B/HARD]**：帶筆數上限（`limit(N)`）的查詢必須二選一：①有明確排序，且被截掉的是最不重要的一端；②多抓一筆偵測超量，超量時讓畫面或錯誤回報看得到。只做單筆查找的 `limit(1)` 與游標分頁讀完的例外。
+- **R-QUERY-002 [B/HARD]**：不得依賴文件代號的順序代表建立時間或新舊（R-ID-008 的舊格式隨機代號排序與時間無關）。依 `date` 字串排序或篩選的查詢依賴 `YYYY/MM/DD` 補零格式，寫入端改格式前要先改這些查詢。
+- **R-QUERY-003 [C/DEFAULT]**：讀取量應與畫面要顯示的東西成正比，不與個人或全站歷史累積成正比；做不到時在新站的查詢登記表（FC-B `src/data/contract/query-limit-registry.ts`，由其檢查測試強制）寫明理由與狀態。
+
 ### 11.2 Cloud Functions
 
 - **R-CF-001 [A/HARD]**：callable 指定 canonical region `asia-east1`，前端 `httpsCallable()` region 一致；mismatch 優先視偽 CORS。
