@@ -38,7 +38,10 @@ const loadWebPushDefault = () => require("web-push");
  */
 function vapidPublicKeyOf(privateKey) {
   try {
-    const raw = Buffer.from(String(privateKey || ""), "base64url");
+    // 先擋 web-push 也不收的字元（空白、換行、=）：Buffer 的 base64url 解碼會略過它們
+    const text = String(privateKey || "");
+    if (!/^[A-Za-z0-9_-]{43}$/.test(text)) return "";
+    const raw = Buffer.from(text, "base64url");
     if (raw.length !== 32) return "";
     const ecdh = require("crypto").createECDH("prime256v1");
     ecdh.setPrivateKey(raw);

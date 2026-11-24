@@ -94,7 +94,7 @@ function fakeWebPush() {
   };
 }
 
-function setup({ seed = {}, control = { sendEnabled: true }, settings = SETTINGS, statusFor, privateKey = FAKE_PRIVATE, now, bodyText, queue = queueDoc() } = {}) {
+function setup({ seed = {}, control = { sendEnabled: true }, settings = SETTINGS, statusFor, privateKey = FAKE_PRIVATE, getPrivateKey, now, bodyText, queue = queueDoc() } = {}) {
   const fullSeed = { [`webPushQueue/${QUEUE_ID}`]: queue, ...seed };
   if (control) fullSeed["webPushControl/sender"] = control;
   const fake = createFakeFirestore(fullSeed);
@@ -109,7 +109,7 @@ function setup({ seed = {}, control = { sendEnabled: true }, settings = SETTINGS
       warn: (...args) => logs.push(["warn", ...args]),
       error: (...args) => logs.push(["error", ...args]),
     },
-    getPrivateKey: () => privateKey,
+    getPrivateKey: getPrivateKey || (() => privateKey),
     settings,
     loadWebPush: () => webPush,
     requestImpl: transport.requestImpl,
@@ -169,9 +169,18 @@ describe("停發與跳過（S1、S2、S3、S7、S8）", () => {
 
   test("私鑰推出的公鑰與常數不符（或私鑰格式錯）→ 停發、記 vapid_mismatch，不讀訂閱、不認領、不送", async () => {
     const other = require("../../functions/node_modules/web-push").generateVAPIDKeys();
-    for (const privateKey of [other.privateKey, "not-a-valid-key", Buffer.alloc(31, 1).toString("base64url")]) {
+    const malformed = [`${FAKE_PRIVATE}
+`, ` ${FAKE_PRIVATE}`, `${FAKE_PRIVATE}=`];
+    for (const privateKey of [other.privateKey, "not-a-valid-key", Buffer.alloc(31, 1).toString("base64url"), ...malformed]) {
       const { run, transport, logs, fake } = setup({ privateKey, seed: { [subPath(endpointOf(1))]: subDoc(1) } });
+      const touched = [];
+      const collection = fake.db.collection.bind(fake.db);
+      fake.db.collection = (name) => { touched.push(name); return collection(name); };
       await run();
+      // 沒查訂閱、沒寫每日計數（webPushQueue 是測試自己取觸發文件）
+      expect(touched).toContain("webPushControl");
+      expect(touched).not.toContain("webPushSubscriptions");
+      expect(touched).not.toContain("webPushDaily");
       expect(transport.calls).toHaveLength(0);
       expect(processed(logs)[0].reason).toBe("disabled");
       const error = logs.find((l) => l[1] === "[webPush] error")[2];
@@ -181,12 +190,33 @@ describe("停發與跳過（S1、S2、S3、S7、S8）", () => {
     }
   });
 
+  test("同一個執行個體：私鑰換版時重算（錯→對會送出；對→錯會停發）", async () => {
+    const wrong = require("../../functions/node_modules/web-push").generateVAPIDKeys().privateKey;
+    for (const [first, second, expectSecondSends] of [[wrong, FAKE_PRIVATE, true], [FAKE_PRIVATE, wrong, false]]) {
+      let key = first;
+      const { run, transport, logs } = setup({ getPrivateKey: () => key, seed: { [subPath(endpointOf(1))]: subDoc(1) } });
+      await run();
+      const firstSent = transport.calls.length;
+      key = second;
+      await run();
+      if (expectSecondSends) {
+        expect(firstSent).toBe(0);
+        expect(transport.calls).toHaveLength(1);
+      } else {
+        expect(firstSent).toBe(1);
+        expect(transport.calls).toHaveLength(1);
+        expect(logs.filter((l) => l[1] === "[webPush] error").map((l) => l[2].stage)).toContain("vapid_mismatch");
+      }
+    }
+  });
+
   test("vapidPublicKeyOf：與 web-push 產生的金鑰對一致；長度或格式不對回空字串", () => {
     for (let i = 0; i < 5; i += 1) {
       const pair = require("../../functions/node_modules/web-push").generateVAPIDKeys();
       expect(vapidPublicKeyOf(pair.privateKey)).toBe(pair.publicKey);
     }
-    for (const bad of ["", null, undefined, "!!!", Buffer.alloc(33, 1).toString("base64url")]) {
+    for (const bad of ["", null, undefined, "!!!", Buffer.alloc(33, 1).toString("base64url"), `${FAKE_PRIVATE}
+`, ` ${FAKE_PRIVATE}`, `${FAKE_PRIVATE}=`]) {
       expect(vapidPublicKeyOf(bad)).toBe("");
     }
   });
