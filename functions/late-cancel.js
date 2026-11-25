@@ -3,7 +3,7 @@
 const LATE_CANCEL_HOURS = Object.freeze([0, 2, 3, 6, 12, 24, 48]);
 const DEFAULT_LATE_CANCEL_HOURS = 2;
 // 暫定值：上線時由 PM／顧問依「前端上線日＋至少 1 天」確認，前後端同步改（契約 §2）。
-const LATE_CANCEL_SINCE_MS = Date.parse("2026-11-27T00:00:00+08:00");
+const LATE_CANCEL_SINCE_MS = Date.parse("2026-11-25T00:00:00+08:00");
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 const LATE_CANCEL_RECENT_WINDOW_MS = 90 * DAY_MS;

@@ -191,10 +191,13 @@ describe("cancelRegistration 臨時取消接線", () => {
     expect(fake.has(`lateCancelMarks/${EVENT_ID}_${U_SELF}`)).toBe(false);
   });
 
-  test("起算點前不記（未 stub 的 loader）", async () => {
+  // 起算點改為 2026-11-25（站長 11-25 指示提前）後，實際時間已過起算點，「起算點前不記」無法再用真時鐘測
+  // （函式在 vm 沙箱跑，假時鐘進不去）；改測反方向：未 stub 的 loader 用正式常數，起算點後的活動在時限內會記。
+  // 起算點前不記的判斷由 late-cancel.test.js 以注入 sinceMs 覆蓋，接線字串另有「sinceMs: lateCancel.LATE_CANCEL_SINCE_MS」檢查。
+  test("起算點後時限內會記（未 stub 的 loader，正式常數）", async () => {
     const result = await cancel(U_SELF, { eventId: EVENT_ID, registrationIds: ["r1"], requestId: "req-6" }, fnNoStub);
-    expect(result.lateCancelMarked).toBe(false);
-    expect(fake.has(`lateCancelMarks/${EVENT_ID}_${U_SELF}`)).toBe(false);
+    expect(result.lateCancelMarked).toBe(true);
+    expect(fake.has(`lateCancelMarks/${EVENT_ID}_${U_SELF}`)).toBe(true);
   });
 
   test("時限內遞補不記；時限外遞補記", async () => {
