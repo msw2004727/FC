@@ -64,7 +64,7 @@ function createWebPushSubscriptionHandlers({
       throw new HttpsError("unauthenticated", "Authentication required");
     }
     // 開通前只收 QA；failed-precondition 讓前端記下並停止重試，訊息與 WEB_PUSH_KEY_MISMATCH 分開、不回顯輸入
-    if (settings.WEB_PUSH_REGISTER_QA_ONLY && !isActiveQaToken(request.auth.token)) {
+    if (settings.WEB_PUSH_REGISTER_QA_ONLY !== false && !isActiveQaToken(request.auth.token)) {
       logLine(LOG_REGISTER, { result: "rejected_not_qa" });
       throw new HttpsError("failed-precondition", "WEB_PUSH_NOT_OPEN");
     }

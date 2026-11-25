@@ -17,7 +17,13 @@ const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
 const WEB_PUSH_SENDER_ENABLED = true;
 
 // 開通前登記只收 QA 帳號（伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）。
-// 開通批次改成 false，與 FC-B 的 WEB_PUSH_UI_PUBLIC 同批改（隱私權頁推播說明同批上）。
+// 開通步驟（兩個 repo、兩條部署線，不可能同時生效，順序固定）：
+//   1. 本常數改 false，同批翻轉 tests/unit/web-push-subscription.test.js 的「正式常數為 true」與
+//      「正式常數（開通前）：一般 token 註冊被拒（WEB_PUSH_NOT_OPEN），不寫」兩案，先部署 Functions；
+//   2. 確認 log 不再出現 rejected_not_qa；
+//   3. 再上 FC-B：WEB_PUSH_UI_PUBLIC 改 true（同批翻轉 FC-B config.test.ts 鎖 false 的斷言）＋隱私權頁推播說明。
+//   反過來（先上 FC-B）時一般使用者看得到開關、按了只會失敗。
+//   QA 測試裝置若曾被本閘門拒絕，前端會記 rejectedKeyId 不再自動回報：開通後在該裝置手動關開一次（乾淨審 P2-2）。
 const WEB_PUSH_REGISTER_QA_ONLY = true;
 
 const WEB_PUSH_COLLECTIONS = Object.freeze({

@@ -160,6 +160,19 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     expect(txnCalls).toBe(0);
   });
 
+  test("一般 token＋不合格輸入 → 仍回 WEB_PUSH_NOT_OPEN（閘門在輸入檢查之前）", async () => {
+    const { handlers, fake } = setup();
+    const request = { auth: { uid: U_A, token: {} }, data: { ...subData(1), endpoint: "https://evil.test/x" } };
+    const error = await handlers.register(request).catch((e) => e);
+    expect(error).toMatchObject({ code: "failed-precondition", message: "WEB_PUSH_NOT_OPEN" });
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("設定值缺漏（undefined）時閘門仍關著", async () => {
+    const ctx = setup({ settings: { ...SETTINGS, WEB_PUSH_REGISTER_QA_ONLY: undefined } });
+    await expectNotOpen(ctx, {});
+  });
+
   test("token 缺漏（undefined）→ 拒絕", async () => {
     await expectNotOpen(setup(), undefined);
   });
