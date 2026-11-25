@@ -10,7 +10,9 @@
  * - 訂閱數達上限時擠掉 lastSeenAt 最舊的（Q6）。
  * - log 欄位白名單：result、service、platform、subCount（不含 uid、endpoint、金鑰）。
  * - 開通前（WEB_PUSH_REGISTER_QA_ONLY＝true）register 只收有效 QA token（claims 來自 qa-test-mode.js 的
- *   createCustomToken：qa＝true、qaExp 毫秒）；擋在任何 Firestore 讀寫之前。unregister 不擋（見該函式註解）。
+ *   createCustomToken：qa＝true、qaExp 毫秒）與最高管理員 token（custom claim role＝"super_admin"，
+ *   index.js createCustomToken 每次登入以 users 文件 role 經 setRoleClaimMerged 寫入；供站長本人實機實測）；
+ *   擋在任何 Firestore 讀寫之前。開通時常數改 false 即全部放行。unregister 不擋（見該函式註解）。
  */
 
 const config = require("./web-push-config");
@@ -59,12 +61,23 @@ function createWebPushSubscriptionHandlers({
     return typeof exp === "number" && Number.isFinite(exp) && exp > now();
   }
 
+  // 最高管理員 token：custom claim role 必須正好是 "super_admin"（只看 claim、不讀 Firestore；
+  // 降級後舊 ID token 在刷新前仍帶舊 claim，最長約 1 小時，開通前實測期可接受）
+  function isSuperAdminToken(token) {
+    return !!token && token.role === "super_admin";
+  }
+
+  // 開通前登記只收 QA 與最高管理員；開通時 WEB_PUSH_REGISTER_QA_ONLY 改 false
+  function isPreOpenRegisterAllowed(token) {
+    return isActiveQaToken(token) || isSuperAdminToken(token);
+  }
+
   async function register(request) {
     if (!request || !request.auth || typeof request.auth.uid !== "string" || !request.auth.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
     }
-    // 開通前只收 QA；failed-precondition 讓前端記下並停止重試，訊息與 WEB_PUSH_KEY_MISMATCH 分開、不回顯輸入
-    if (settings.WEB_PUSH_REGISTER_QA_ONLY !== false && !isActiveQaToken(request.auth.token)) {
+    // 開通前只收 QA 與最高管理員；failed-precondition 讓前端記下並停止重試，訊息與 WEB_PUSH_KEY_MISMATCH 分開、不回顯輸入
+    if (settings.WEB_PUSH_REGISTER_QA_ONLY !== false && !isPreOpenRegisterAllowed(request.auth.token)) {
       logLine(LOG_REGISTER, { result: "rejected_not_qa" });
       throw new HttpsError("failed-precondition", "WEB_PUSH_NOT_OPEN");
     }

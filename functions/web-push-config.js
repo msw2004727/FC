@@ -16,7 +16,7 @@ const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
 // E3 備用停發：改 false 重新部署發送函式即停發（主手段是控制文件 webPushControl/sender.sendEnabled）
 const WEB_PUSH_SENDER_ENABLED = true;
 
-// 開通前登記只收 QA 帳號（伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）。
+// 開通前登記只收 QA 帳號與最高管理員（role claim＝super_admin，站長實機實測用；伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）。
 // 開通步驟（兩個 repo、兩條部署線，不可能同時生效，順序固定）：
 //   1. 本常數改 false，同批翻轉 tests/unit/web-push-subscription.test.js 的「正式常數為 true」與
 //      「正式常數（開通前）：一般 token 註冊被拒（WEB_PUSH_NOT_OPEN），不寫」兩案，先部署 Functions；

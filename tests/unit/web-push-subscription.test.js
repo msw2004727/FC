@@ -216,6 +216,53 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     expect(fake.state.writes).toHaveLength(0);
   });
 
+  // 開通前也收最高管理員（站長本人實機實測）：只認 custom claim role 正好是 "super_admin"
+  test("super_admin token（無 QA claims）：通過並照原流程建立訂閱", async () => {
+    const { handlers, fake, logs } = setup();
+    await expect(handlers.register(registerReq(U_A, subData(1), { role: "super_admin" }))).resolves.toEqual({ ok: true });
+    expect(fake.get(subPath(endpointOf(1))).uid).toBe(U_A);
+    expect(logs.at(-1)[2].result).toBe("created");
+  });
+
+  test("super_admin 但輸入不合：仍走原本的輸入檢查（invalid-argument）", async () => {
+    const { handlers, fake } = setup();
+    await expectCode(handlers.register(registerReq(U_A, subData(1, { endpoint: "https://evil.test/x" }), { role: "super_admin" })), "invalid-argument");
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each([
+    ["role admin", { role: "admin" }],
+    ["role user", { role: "user" }],
+    ["role coach", { role: "coach" }],
+    ["缺 role", { role: undefined }],
+    ["role 空字串", { role: "" }],
+    ["role 大小寫不同 Super_Admin", { role: "Super_Admin" }],
+    ["role 大寫 SUPER_ADMIN", { role: "SUPER_ADMIN" }],
+    ["role 前後空白", { role: " super_admin " }],
+    ["role 是陣列", { role: ["super_admin"] }],
+    ["role 是 true", { role: true }],
+    ["superAdmin 布林（不是 role）", { superAdmin: true }],
+  ])("非最高管理員（%s）且無 QA → WEB_PUSH_NOT_OPEN，不讀不寫", async (_label, token) => {
+    const ctx = setup();
+    let txnCalls = 0;
+    const orig = ctx.fake.db.runTransaction.bind(ctx.fake.db);
+    ctx.fake.db.runTransaction = (...args) => { txnCalls += 1; return orig(...args); };
+    await expectNotOpen(ctx, token);
+    expect(txnCalls).toBe(0);
+    expect(ctx.fake.state.reads).toEqual({ tx: 0, direct: 0 });
+  });
+
+  test("admin＋過期 QA → 拒絕（兩條都不成立）", async () => {
+    const FIXED = Date.UTC(2026, 10, 25, 4, 0, 0);
+    await expectNotOpen(setup({ fixedNow: FIXED }), qaToken({ role: "admin", qaExp: FIXED - 1000 }));
+  });
+
+  test("super_admin＋過期 QA：仍通過（最高管理員條件獨立成立）", async () => {
+    const FIXED = Date.UTC(2026, 10, 25, 4, 0, 0);
+    const { handlers } = setup({ fixedNow: FIXED });
+    await expect(handlers.register(registerReq(U_A, subData(1), qaToken({ role: "super_admin", qaExp: FIXED - 1000 })))).resolves.toEqual({ ok: true });
+  });
+
   test("常數改 false（開通後）：一般 token 可通過", async () => {
     const { handlers, fake } = setup({ settings: { ...SETTINGS, WEB_PUSH_REGISTER_QA_ONLY: false } });
     await expect(handlers.register(registerReq(U_A, subData(1), {}))).resolves.toEqual({ ok: true });
