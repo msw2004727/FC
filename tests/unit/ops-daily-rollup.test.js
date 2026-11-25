@@ -120,6 +120,7 @@ function createFakeDb(seed, hooks = {}) {
       count() {
         return {
           get: async () => {
+            if (hooks.failCount && hooks.failCount.collection === collectionName) throw hooks.failCount.error;
             readDocs += 1;
             return { data: () => ({ count: matchDocs(collectionName, filters).length }) };
           },
@@ -276,6 +277,7 @@ function baseSeed(extra = {}) {
       { id: "20261015", data: { billing: { totalCost: 1, currency: "USD", billingPeriod: "2026-10" } } },
       { id: "20261031", data: { billing: { totalCost: 200, currency: "USD", billingPeriod: "2026-10" } } },
     ],
+    webPushSubscriptions: extra.webPushSubscriptions || [],
     sub: {
       held: {
         registrations: [{ _id: "r1", userId: "u1", status: "confirmed", eventId: "held" }],
@@ -288,6 +290,21 @@ function baseSeed(extra = {}) {
     },
   };
 }
+
+function webPushSubs(counts) {
+  const docs = [];
+  Object.entries(counts).forEach(([platform, n]) => {
+    for (let index = 0; index < n; index += 1) {
+      docs.push({
+        id: `sub-${platform}-${index}`,
+        data: { uid: `uid-${platform}-${index}`, endpoint: `https://fcm.googleapis.com/fcm/send/ep-${platform}-${index}`, platform },
+      });
+    }
+  });
+  return docs;
+}
+
+const WEB_PUSH_SEED = { android: 3, desktop: 2, ios_pwa: 4, other: 1 };
 
 function run(db, extra = {}) {
   const logs = [];
@@ -535,6 +552,69 @@ describe("ops-daily-rollup", () => {
       expect(reconcileDb.writes.some((item) => item.path.startsWith("opsSummary/"))).toBe(false);
     } finally {
       spy.mockRestore();
+    }
+  });
+
+  test.each(["daily", "reconcile"])("%s：latest 帶各平台推播訂閱數，total 為四項相加，讀取計數 +4", async (mode) => {
+    const db = createFakeDb(baseSeed({ webPushSubscriptions: webPushSubs(WEB_PUSH_SEED) }));
+    const result = await run(db, { mode });
+    expect(db.saved("opsSummary", "latest").webPush).toEqual({
+      android: 3, desktop: 2, ios_pwa: 4, other: 1, total: 10,
+    });
+    const countQueries = mode === "daily" ? 5 : 0;
+    expect(result.counter.counts).toBe(countQueries + 4);
+    expect(result.counter.total).toBe(db.readDocs);
+    expect(db.saved("opsSummary", "noshow")).not.toBeNull();
+  });
+
+  test("沒有任何訂閱時各平台為 0", async () => {
+    const db = createFakeDb(baseSeed());
+    await run(db);
+    expect(db.saved("opsSummary", "latest").webPush).toEqual({
+      android: 0, desktop: 0, ios_pwa: 0, other: 0, total: 0,
+    });
+  });
+
+  test.each(["daily", "reconcile"])("%s：推播 count 失敗時 webPush 為 null，其他彙總照寫，log 不含識別資料", async (mode) => {
+    const warns = [];
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation((line) => warns.push(String(line)));
+    try {
+      const error = Object.assign(new Error("denied uid-android-0 https://fcm.googleapis.com/fcm/send/ep-android-0"), { code: 7 });
+      const db = createFakeDb(
+        baseSeed({ webPushSubscriptions: webPushSubs(WEB_PUSH_SEED) }),
+        { failCount: { collection: "webPushSubscriptions", error } },
+      );
+      const result = await run(db, { mode });
+      const latest = db.saved("opsSummary", "latest");
+      expect(latest).not.toBeNull();
+      expect(latest.webPush).toBeNull();
+      expect(latest.asOf).toBe("2026-11-08");
+      expect(latest.cost).toMatchObject({ monthToDate: 80 });
+      expect(db.saved("opsSummary", "noshow").asOf).toBe("2026-11-08");
+      expect(db.commits).toEqual([["opsSummary/latest", "opsSummary/noshow"]]);
+      expect(errSpy).not.toHaveBeenCalled();
+      expect(result.counter.counts).toBe(mode === "daily" ? 5 : 0);
+      expect(result.counter.total).toBe(db.readDocs);
+      expect(warns).toHaveLength(1);
+      expect(JSON.parse(warns[0])).toEqual({ tag: "[opsWebPushCount]", mode, code: "7" });
+      expect(warns[0]).not.toMatch(/uid-|ep-|fcm|denied|https?:/);
+    } finally {
+      errSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("推播集合取用直接拋錯（非數字 code）也不讓彙總失敗，code 記 unknown", async () => {
+    const warns = [];
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation((line) => warns.push(String(line)));
+    try {
+      const db = createFakeDb(baseSeed(), { failCollections: { webPushSubscriptions: "boom uid-x" } });
+      await run(db);
+      expect(db.saved("opsSummary", "latest").webPush).toBeNull();
+      expect(JSON.parse(warns[0])).toEqual({ tag: "[opsWebPushCount]", mode: "daily", code: "unknown" });
+    } finally {
+      warnSpy.mockRestore();
     }
   });
 });

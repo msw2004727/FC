@@ -30,6 +30,7 @@ const {
 } = require("./ops-rollup-core");
 const { normalizeEventDateKey } = require("./noshow-v2-core");
 const { addDaysKey } = require("./ops-ltv-report");
+const { WEB_PUSH_COLLECTIONS, WEB_PUSH_PLATFORMS } = require("./web-push-config");
 
 const SCHEDULE_BASE = Object.freeze({
   region: "asia-east1",
@@ -320,6 +321,37 @@ async function loadUsageCost(db, FieldPath, nowMs, counter) {
   });
 }
 
+function safeErrorCode(err) {
+  const raw = err && err.code;
+  const value = typeof raw === "number" && Number.isInteger(raw) ? String(raw) : (typeof raw === "string" ? raw : "");
+  return /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : "unknown";
+}
+
+// W6：登記中的網頁推播訂閱數（每台裝置一筆），依 platform 各 count 一次。
+// total 用各平台相加，不另 count 整個集合：註冊時 normalizePlatform 把 platform 收斂到 WEB_PUSH_PLATFORMS，
+// 各平台相加就是整個集合；多 count 一次要多付讀取，且兩次查詢時間點不同可能對不上。
+// 只用單一欄位等值 where，走自動單欄索引，不需複合索引。
+// 這段失敗不讓整份彙總失敗：webPush 寫 null，log 只留固定 tag、mode 與錯誤 code（不含 uid、endpoint、金鑰、錯誤訊息）。
+async function loadWebPushCounts(db, { mode, counter }) {
+  try {
+    // 依序查：中途失敗時，讀取計數只算已完成的那幾次。
+    const subscriptions = db.collection(WEB_PUSH_COLLECTIONS.subscriptions);
+    const webPush = {};
+    let total = 0;
+    for (const platform of WEB_PUSH_PLATFORMS) {
+      const snap = await subscriptions.where("platform", "==", platform).count().get();
+      addReads(counter, "counts", 1);
+      webPush[platform] = Number(snap.data().count) || 0;
+      total += webPush[platform];
+    }
+    webPush.total = total;
+    return webPush;
+  } catch (err) {
+    console.warn(JSON.stringify({ tag: "[opsWebPushCount]", mode, code: safeErrorCode(err) }));
+    return null;
+  }
+}
+
 async function readSummaryWindow(db, FieldPath, asOf, counter) {
   const fromId = dateKeyToDocId(addDaysKey(asOf, -(SUMMARY_LOOKBACK_DAYS - 1)));
   const toId = dateKeyToDocId(asOf);
@@ -483,6 +515,7 @@ async function runOpsRollup({ db, Timestamp, fieldPath, nowMs = Date.now(), mode
     const dailyByDate = await readSummaryWindow(db, FieldPath, asOf, counter);
     step = "loadCost";
     const cost = await loadUsageCost(db, FieldPath, nowMs, counter);
+    const webPush = await loadWebPushCounts(db, { mode, counter });
     const integrity = mode === "reconcile"
       ? { lastReconcileAt: Timestamp.fromMillis(nowMs), lastMismatchDays: mismatches }
       : {
@@ -500,7 +533,8 @@ async function runOpsRollup({ db, Timestamp, fieldPath, nowMs = Date.now(), mode
     });
     step = "writeSummary";
     const batch = db.batch();
-    batch.set(db.collection("opsSummary").doc("latest"), stampComputed(summaries.latest, Timestamp, nowMs));
+    // opsSummary/latest 整份覆寫，daily 與 reconcile 都要帶 webPush，否則週一對帳會把它洗掉。
+    batch.set(db.collection("opsSummary").doc("latest"), stampComputed({ ...summaries.latest, webPush }, Timestamp, nowMs));
     batch.set(db.collection("opsSummary").doc("noshow"), stampComputed(summaries.noshow, Timestamp, nowMs));
     await batch.commit();
     log(JSON.stringify({
