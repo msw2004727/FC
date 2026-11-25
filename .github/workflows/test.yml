@@ -33,6 +33,8 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      # 網頁推播測試要用 functions 的 web-push（產生測試金鑰、加密），單元測試前先裝 functions 相依（2026-11-25）
+      - run: npm ci --prefix functions
       - run: npm run check:registration-ops
       - run: npm run test:unit
       - run: npm run test:unit:coverage -- --coverageReporters=text-summary --coverageReporters=json-summary
