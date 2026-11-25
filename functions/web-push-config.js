@@ -16,7 +16,10 @@ const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
 // E3 備用停發：改 false 重新部署發送函式即停發（主手段是控制文件 webPushControl/sender.sendEnabled）
 const WEB_PUSH_SENDER_ENABLED = true;
 
-// 開通前登記只收 QA 帳號與最高管理員（role claim＝super_admin，站長實機實測用；伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）。
+// 現況：2026-11-25 公開，登記開放所有已登入使用者（未登入仍擋；輸入驗證、訂閱數上限、防洗寫照舊）。
+// 改回 true＝回到開通前：登記只收 QA 帳號與最高管理員（role claim＝super_admin；伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）；
+// 改回時同批翻轉 tests/unit/web-push-subscription.test.js 的「register：公開後正式常數」整組與 index.js 接線「正式常數（公開後）」一案（不能刪，改注入或翻轉斷言）。
+// 以下為原開通步驟，留作重開或關閉時的參考。
 // 開通步驟（兩個 repo、兩條部署線，不可能同時生效，順序固定）：
 //   1. 本常數改 false，同批翻轉 tests/unit/web-push-subscription.test.js 的「正式常數為 true」與
 //      「正式常數（開通前）：一般 token 註冊被拒（WEB_PUSH_NOT_OPEN），不寫」兩案，先部署 Functions；
@@ -24,7 +27,7 @@ const WEB_PUSH_SENDER_ENABLED = true;
 //   3. 再上 FC-B：WEB_PUSH_UI_PUBLIC 改 true（同批翻轉 FC-B config.test.ts 鎖 false 的斷言）＋隱私權頁推播說明。
 //   反過來（先上 FC-B）時一般使用者看得到開關、按了只會失敗。
 //   QA 測試裝置若曾被本閘門拒絕，前端會記 rejectedKeyId 不再自動回報：開通後在該裝置手動關開一次（乾淨審 P2-2）。
-const WEB_PUSH_REGISTER_QA_ONLY = true;
+const WEB_PUSH_REGISTER_QA_ONLY = false;
 
 const WEB_PUSH_COLLECTIONS = Object.freeze({
   subscriptions: "webPushSubscriptions",

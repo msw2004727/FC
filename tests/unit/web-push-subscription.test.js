@@ -47,7 +47,7 @@ function setup({ settings = SETTINGS, seed = {}, fixedNow } = {}) {
   return { fake, logs, clock, handlers };
 }
 
-// 開通前正式常數只收 QA：預設帶有效 QA token（claims 形狀照 qa-test-mode.js 的 createCustomToken）
+// 預設帶有效 QA token（開通前閘門下也能通過；公開後正式常數不檢查 QA）（claims 形狀照 qa-test-mode.js 的 createCustomToken）
 const qaToken = (extra = {}) => ({
   qa: true, qaTeamId: "qa-team-test", qaExp: Date.now() + 7 * 24 * HOUR, qaAgent: "agent-test", qaPersona: "member", ...extra,
 });
@@ -135,7 +135,39 @@ describe("register：身分與輸入", () => {
   });
 });
 
+describe("register：公開後正式常數（2026-11-25）", () => {
+  test("正式常數為 false", () => {
+    expect(config.WEB_PUSH_REGISTER_QA_ONLY).toBe(false);
+  });
+
+  test("正式常數：一般已登入 token（無 QA、非最高管理員）照原流程建立訂閱", async () => {
+    const { handlers, fake, logs } = setup();
+    await expect(handlers.register(registerReq(U_A, subData(1), {}))).resolves.toEqual({ ok: true });
+    const doc = fake.get(subPath(endpointOf(1)));
+    expect(doc.uid).toBe(U_A);
+    expect(doc.service).toBe("fcm");
+    expect(logs.at(-1)[2].result).toBe("created");
+    expect(JSON.stringify(logs)).not.toContain("rejected_not_qa");
+  });
+
+  test("正式常數：一般 token 未登入仍 unauthenticated，不寫", async () => {
+    const { handlers, fake } = setup();
+    await expectCode(handlers.register(registerReq(null, subData(1), {})), "unauthenticated");
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("正式常數：一般 token＋不合格輸入 → invalid-argument（輸入檢查照舊），不寫", async () => {
+    const { handlers, fake } = setup();
+    await expectCode(handlers.register(registerReq(U_A, subData(1, { endpoint: "https://evil.test/x" }), {})), "invalid-argument");
+    expect(fake.state.writes).toHaveLength(0);
+  });
+});
+
 describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
+  // 2026-11-25 公開後正式常數為 false；開通前閘門的所有保護改以 settings 注入 true 繼續測（不刪不放寬）
+  const QA_ONLY_SETTINGS = { ...SETTINGS, WEB_PUSH_REGISTER_QA_ONLY: true };
+  const setupQa = (opts = {}) => setup({ settings: QA_ONLY_SETTINGS, ...opts });
+
   const expectNotOpen = async ({ handlers, fake, logs }, token) => {
     const request = { auth: { uid: U_A, token }, data: subData(1) };
     const error = await handlers.register(request).catch((e) => e);
@@ -147,12 +179,8 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     expect(JSON.stringify(logs)).not.toContain(U_A);
   };
 
-  test("正式常數為 true", () => {
-    expect(config.WEB_PUSH_REGISTER_QA_ONLY).toBe(true);
-  });
-
-  test("一般 token → failed-precondition（WEB_PUSH_NOT_OPEN），不讀不寫", async () => {
-    const ctx = setup();
+  test("閘門啟用（注入 true）：一般 token → failed-precondition（WEB_PUSH_NOT_OPEN），不讀不寫", async () => {
+    const ctx = setupQa();
     let txnCalls = 0;
     const orig = ctx.fake.db.runTransaction.bind(ctx.fake.db);
     ctx.fake.db.runTransaction = (...args) => { txnCalls += 1; return orig(...args); };
@@ -161,7 +189,7 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
   });
 
   test("一般 token＋不合格輸入 → 仍回 WEB_PUSH_NOT_OPEN（閘門在輸入檢查之前）", async () => {
-    const { handlers, fake } = setup();
+    const { handlers, fake } = setupQa();
     const request = { auth: { uid: U_A, token: {} }, data: { ...subData(1), endpoint: "https://evil.test/x" } };
     const error = await handlers.register(request).catch((e) => e);
     expect(error).toMatchObject({ code: "failed-precondition", message: "WEB_PUSH_NOT_OPEN" });
@@ -174,7 +202,7 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
   });
 
   test("token 缺漏（undefined）→ 拒絕", async () => {
-    await expectNotOpen(setup(), undefined);
+    await expectNotOpen(setupQa(), undefined);
   });
 
   test.each([
@@ -183,7 +211,7 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     ["qa 是 1", { qa: 1 }],
     ["qa false", { qa: false }],
   ])("%s → 拒絕", async (_label, extra) => {
-    await expectNotOpen(setup(), qaToken(extra));
+    await expectNotOpen(setupQa(), qaToken(extra));
   });
 
   const FIXED_NOW = Date.UTC(2026, 10, 25, 4, 0, 0);
@@ -195,37 +223,37 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     ["qaExp 是 NaN", { qaExp: Number.NaN }],
     ["qaExp 是 Infinity", { qaExp: Number.POSITIVE_INFINITY }],
   ])("qa true 但 %s → 拒絕", async (_label, extra) => {
-    await expectNotOpen(setup({ fixedNow: FIXED_NOW }), qaToken(extra));
+    await expectNotOpen(setupQa({ fixedNow: FIXED_NOW }), qaToken(extra));
   });
 
   test("qaExp 比現在晚 1 毫秒：通過", async () => {
-    const { handlers } = setup({ fixedNow: FIXED_NOW });
+    const { handlers } = setupQa({ fixedNow: FIXED_NOW });
     await expect(handlers.register(registerReq(U_A, subData(1), qaToken({ qaExp: FIXED_NOW + 1 })))).resolves.toEqual({ ok: true });
   });
 
   test("QA 有效：照原流程建立訂閱", async () => {
-    const { handlers, fake, logs } = setup();
+    const { handlers, fake, logs } = setupQa();
     await expect(handlers.register(registerReq(U_A, subData(1)))).resolves.toEqual({ ok: true });
     expect(fake.get(subPath(endpointOf(1))).uid).toBe(U_A);
     expect(logs.at(-1)[2].result).toBe("created");
   });
 
   test("QA 有效但輸入不合：仍走原本的輸入檢查（invalid-argument）", async () => {
-    const { handlers, fake } = setup();
+    const { handlers, fake } = setupQa();
     await expectCode(handlers.register(registerReq(U_A, subData(1, { endpoint: "https://evil.test/x" }))), "invalid-argument");
     expect(fake.state.writes).toHaveLength(0);
   });
 
   // 開通前也收最高管理員（站長本人實機實測）：只認 custom claim role 正好是 "super_admin"
   test("super_admin token（無 QA claims）：通過並照原流程建立訂閱", async () => {
-    const { handlers, fake, logs } = setup();
+    const { handlers, fake, logs } = setupQa();
     await expect(handlers.register(registerReq(U_A, subData(1), { role: "super_admin" }))).resolves.toEqual({ ok: true });
     expect(fake.get(subPath(endpointOf(1))).uid).toBe(U_A);
     expect(logs.at(-1)[2].result).toBe("created");
   });
 
   test("super_admin 但輸入不合：仍走原本的輸入檢查（invalid-argument）", async () => {
-    const { handlers, fake } = setup();
+    const { handlers, fake } = setupQa();
     await expectCode(handlers.register(registerReq(U_A, subData(1, { endpoint: "https://evil.test/x" }), { role: "super_admin" })), "invalid-argument");
     expect(fake.state.writes).toHaveLength(0);
   });
@@ -243,7 +271,7 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
     ["role 是 true", { role: true }],
     ["superAdmin 布林（不是 role）", { superAdmin: true }],
   ])("非最高管理員（%s）且無 QA → WEB_PUSH_NOT_OPEN，不讀不寫", async (_label, token) => {
-    const ctx = setup();
+    const ctx = setupQa();
     let txnCalls = 0;
     const orig = ctx.fake.db.runTransaction.bind(ctx.fake.db);
     ctx.fake.db.runTransaction = (...args) => { txnCalls += 1; return orig(...args); };
@@ -254,12 +282,12 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
 
   test("admin＋過期 QA → 拒絕（兩條都不成立）", async () => {
     const FIXED = Date.UTC(2026, 10, 25, 4, 0, 0);
-    await expectNotOpen(setup({ fixedNow: FIXED }), qaToken({ role: "admin", qaExp: FIXED - 1000 }));
+    await expectNotOpen(setupQa({ fixedNow: FIXED }), qaToken({ role: "admin", qaExp: FIXED - 1000 }));
   });
 
   test("super_admin＋過期 QA：仍通過（最高管理員條件獨立成立）", async () => {
     const FIXED = Date.UTC(2026, 10, 25, 4, 0, 0);
-    const { handlers } = setup({ fixedNow: FIXED });
+    const { handlers } = setupQa({ fixedNow: FIXED });
     await expect(handlers.register(registerReq(U_A, subData(1), qaToken({ role: "super_admin", qaExp: FIXED - 1000 })))).resolves.toEqual({ ok: true });
   });
 
@@ -270,14 +298,14 @@ describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
   });
 
   test("unregister 不受影響：一般 token 也能刪自己的訂閱", async () => {
-    const { handlers, fake } = setup();
+    const { handlers, fake } = setupQa();
     await handlers.register(registerReq(U_A, subData(1)));
     await expect(handlers.unregister(registerReq(U_A, { endpoint: endpointOf(1) }, {}))).resolves.toEqual({ ok: true });
     expect(fake.get(subPath(endpointOf(1)))).toBeUndefined();
   });
 
   test("unregister 不受影響：QA 已過期也能刪自己的訂閱", async () => {
-    const { handlers, fake } = setup();
+    const { handlers, fake } = setupQa();
     await handlers.register(registerReq(U_A, subData(1)));
     await handlers.unregister(registerReq(U_A, { endpoint: endpointOf(1) }, qaToken({ qaExp: Date.now() - 1000 })));
     expect(fake.get(subPath(endpointOf(1)))).toBeUndefined();
@@ -452,12 +480,14 @@ describe("index.js 接線", () => {
     }
   });
 
-  test("正式常數（開通前）：一般 token 註冊被拒（WEB_PUSH_NOT_OPEN），不寫", async () => {
+  test("正式常數（公開後）：一般 token 註冊照原流程建立訂閱", async () => {
     const { exports: fn, harness } = loadFunctionsIndex();
     harness.current = createFakeFirestore({});
-    const error = await fn.registerWebPushSubscription(registerReq(U_A, subData(1), {})).catch((e) => e);
-    expect(error).toMatchObject({ code: "failed-precondition", message: "WEB_PUSH_NOT_OPEN" });
-    expect(harness.current.state.writes).toHaveLength(0);
+    const data = subData(1, { vapidKeyId: config.WEB_PUSH_VAPID_KEY_ID });
+    await expect(fn.registerWebPushSubscription(registerReq(U_A, data, {}))).resolves.toEqual({ ok: true });
+    const doc = harness.current.get(subPath(endpointOf(1)));
+    expect(doc.uid).toBe(U_A);
+    expect(doc.vapidKeyId).toBe(config.WEB_PUSH_VAPID_KEY_ID);
   });
 
   test("W1 前正式常數：已登入註冊也被拒（failed-precondition），不寫", async () => {
