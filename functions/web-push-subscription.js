@@ -62,7 +62,7 @@ function createWebPushSubscriptionHandlers({
   }
 
   // 最高管理員 token：custom claim role 必須正好是 "super_admin"（只看 claim、不讀 Firestore；
-  // 降級後舊 ID token 在刷新前仍帶舊 claim，最長約 1 小時，開通前實測期可接受）
+  // 經 syncUserRole 等呼叫 setRoleClaimMerged 的路徑降級時，舊 ID token 刷新前仍帶舊 claim，約 1 小時；若只改 users 文件、沒同步 claim，會持續到下次登入（乾淨審 P3-1），開通前實測期可接受）
   function isSuperAdminToken(token) {
     return !!token && token.role === "super_admin";
   }
