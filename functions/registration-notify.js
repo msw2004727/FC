@@ -6,7 +6,7 @@
  * - 文字與收斂前 functions/index.js 的四段 writeInboxNotification 逐字相同（顧問 §3.637 Q7）。
  * - LINE 固定不發（Q2）：打開要改這個常數、重部署並另送裁定；這裡沒有任何 LINE 呼叫。
  * - 只計數的 log：欄位白名單見 dispatchRegistrationNotices，不含 uid、活動代號、標題、內文。
- * - 網頁推播（W2-B，顧問 §3.641）：push 預設 false；false 時 enqueueWebPushNotices 第一行就 return，不碰 Firestore，
+ * - 網頁推播（W2-B，顧問 §3.641）：push 於開通實測段（2026-11-25）改 true；設回 false 時 enqueueWebPushNotices 第一行就 return，不碰 Firestore，
  *   log 與 S4 逐欄相同。true 時每則 notice create 一筆 webPushQueue（只 Admin SDK），由 sendWebPushFromQueue 持私鑰發送；
  *   入列失敗只計 pushFailed，與站內信並行、互不影響（R-CF-003）。本檔不 require firebase-admin、web-push。
  */
