@@ -11,6 +11,7 @@ const {
   dispatchRegistrationNotices,
   notifyRegistrationResult,
 } = require("../../functions/registration-notify");
+const { loadNotifyWithPushOff } = require("./registration-notify-variants");
 
 const CALLER = "Ucaller000000000000000000000000000";
 const OTHER = "Uother0000000000000000000000000000";
@@ -23,6 +24,8 @@ const PROMOTED_BODY = `恭喜！您已從候補升為正取：\n\n${TAIL}`;
 const LOG_FIELD_WHITELIST = [
   "cancelled", "cancelledRegs", "channels", "fn", "inboxFailed", "promoted", "promotedRegs", "removed", "signup",
 ];
+// push 開（開通實測段 2026-11-25 起為正式常數）時 log 只多這三個計數欄；push 關時與上面 S4 白名單逐欄相同
+const PUSH_LOG_FIELD_WHITELIST = [...LOG_FIELD_WHITELIST, "pushDeduped", "pushFailed", "pushQueued"].sort();
 
 function registerResult(extra = {}) {
   return {
@@ -50,9 +53,11 @@ function cancelResult(extra = {}) {
 function makeDeps({ failFor = [] } = {}) {
   const writes = [];
   const logs = [];
+  const queued = [];
   return {
     writes,
     logs,
+    queued,
     deps: {
       writeInboxNotification: jest.fn(async (payload) => {
         writes.push(payload);
@@ -63,14 +68,18 @@ function makeDeps({ failFor = [] } = {}) {
         warn: (...args) => logs.push(["warn", ...args]),
         error: (...args) => logs.push(["error", ...args]),
       },
+      // 與 index.js 的 registrationNotifyDeps 同形：網頁推播佇列注入（push 關時不應被呼叫）
+      createQueueDoc: jest.fn(async (queueId, data) => { queued.push({ queueId, data }); }),
+      serverTimestamp: () => "ts",
+      now: () => 0,
     },
   };
 }
 
 describe("通道常數（Q2）", () => {
-  // 測試同步更新（W2-B）：常數多了 push，預設 false（顧問 §3.641）
-  test("inbox 開、line 關、push 關，且凍結不可改", () => {
-    expect(REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: false });
+  // 測試同步更新（W2-B）：常數多了 push（顧問 §3.641）；開通實測段（2026-11-25）起正式常數 push 為 true
+  test("inbox 開、line 關、push 開，且凍結不可改", () => {
+    expect(REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: true });
     expect(Object.isFrozen(REGISTRATION_NOTIFY_CHANNELS)).toBe(true);
   });
 
@@ -174,41 +183,46 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     ]);
   });
 
+  // 正式常數 push:true：log 多 pushQueued／pushDeduped／pushFailed，其餘保護（白名單、值型別、不含 uid 等）不變
   test("計數 log：每次一行，欄位只在白名單內、值只有數字或列舉，不含 uid、活動代號、標題、內文", async () => {
-    const { deps, logs } = makeDeps();
+    const { deps, logs, queued } = makeDeps();
     const result = registerResult({ promoted: [{ userId: OTHER, participantType: "self" }] });
     const notices = buildRegistrationNotices({ fn: "registerForEvent", result, callerUid: CALLER });
-    await dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 1 }, deps);
+    await dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 1 }, deps, { eventId: "ce_x", requestId: "req-log" });
+    expect(queued.map((q) => [q.data.kind, q.data.recipientUid])).toEqual([["signup", CALLER], ["promoted", OTHER]]);
     expect(logs).toHaveLength(1);
     const [level, message, payload] = logs[0];
     expect(level).toBe("info");
     expect(message).toBe("[registrationNotify] dispatched");
-    expect(Object.keys(payload).sort()).toEqual(LOG_FIELD_WHITELIST);
+    expect(Object.keys(payload).sort()).toEqual(PUSH_LOG_FIELD_WHITELIST);
     expect(payload).toEqual({
       fn: "registerForEvent", signup: 1, promoted: 1, cancelled: 0, removed: 0,
-      cancelledRegs: 0, promotedRegs: 1, inboxFailed: 0, channels: "inbox",
+      cancelledRegs: 0, promotedRegs: 1, inboxFailed: 0, channels: "inbox+push",
+      pushQueued: 2, pushDeduped: 0, pushFailed: 0,
     });
     for (const [key, value] of Object.entries(payload)) {
       if (key === "fn") expect(["registerForEvent", "cancelRegistration"]).toContain(value);
-      else if (key === "channels") expect(value).toBe("inbox");
+      else if (key === "channels") expect(value).toBe("inbox+push");
       else expect(Number.isInteger(value)).toBe(true);
     }
     const serialized = JSON.stringify(logs);
-    for (const secret of [CALLER, OTHER, EVENT_DATA.title, EVENT_DATA.location, "報名成功通知", "恭喜"]) {
+    for (const secret of [CALLER, OTHER, "ce_x", "req-log", EVENT_DATA.title, EVENT_DATA.location, "報名成功通知", "恭喜"]) {
       expect(serialized).not.toContain(secret);
     }
   });
 
+  // 正式常數 push:true：站內信單則失敗仍只影響 inboxFailed，推播入列照常（pushFailed 0），warn 由站內信失敗觸發
   test("單則寫入失敗：其餘照寫、計入 inboxFailed、改 warn，不往外丟", async () => {
-    const { deps, writes, logs } = makeDeps({ failFor: [CALLER] });
+    const { deps, writes, logs, queued } = makeDeps({ failFor: [CALLER] });
     const notices = buildRegistrationNotices({
       fn: "cancelRegistration", result: cancelResult({ promoted: [{ userId: OTHER }] }), callerUid: CALLER, cancelReason: "user_cancel",
     });
     const summary = await dispatchRegistrationNotices("cancelRegistration", notices, { cancelledRegs: 1, promotedRegs: 1 }, deps);
     expect(writes.map((w) => w.recipientUid)).toEqual([CALLER, OTHER]);
-    expect(summary).toMatchObject({ cancelled: 1, promoted: 1, inboxFailed: 1 });
+    expect(summary).toMatchObject({ cancelled: 1, promoted: 1, inboxFailed: 1, pushQueued: 2, pushDeduped: 0, pushFailed: 0 });
+    expect(queued).toHaveLength(2);
     expect(logs.map((entry) => entry[0])).toEqual(["warn"]);
-    expect(Object.keys(logs[0][2]).sort()).toEqual(LOG_FIELD_WHITELIST);
+    expect(Object.keys(logs[0][2]).sort()).toEqual(PUSH_LOG_FIELD_WHITELIST);
   });
 
   test("writeInboxNotification 同步丟錯也只計入 inboxFailed", async () => {
@@ -217,6 +231,59 @@ describe("dispatchRegistrationNotices：寫站內信與計數 log", () => {
     const notices = buildRegistrationNotices({ fn: "registerForEvent", result: registerResult(), callerUid: CALLER });
     await expect(dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 0 }, deps)).resolves.toMatchObject({ signup: 1, inboxFailed: 1 });
   });
+});
+
+// push:false 情境（開通實測段前的正式行為）：測試內把原始碼常數改 false 後載入，保護 log 與 S4 逐欄相同、不入列
+describe("dispatchRegistrationNotices：push:false（測試內改常數）", () => {
+  let off;
+
+  beforeAll(() => {
+    off = loadNotifyWithPushOff();
+  });
+
+  test("常數改 false 後 push 關，仍凍結", () => {
+    expect(off.REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: false });
+    expect(Object.isFrozen(off.REGISTRATION_NOTIFY_CHANNELS)).toBe(true);
+  });
+
+    test("計數 log：每次一行，欄位只在白名單內、值只有數字或列舉，不含 uid、活動代號、標題、內文", async () => {
+      const { deps, logs } = makeDeps();
+      const result = registerResult({ promoted: [{ userId: OTHER, participantType: "self" }] });
+      const notices = off.buildRegistrationNotices({ fn: "registerForEvent", result, callerUid: CALLER });
+      await off.dispatchRegistrationNotices("registerForEvent", notices, { cancelledRegs: 0, promotedRegs: 1 }, deps);
+      expect(deps.createQueueDoc).not.toHaveBeenCalled();
+      expect(logs).toHaveLength(1);
+      const [level, message, payload] = logs[0];
+      expect(level).toBe("info");
+      expect(message).toBe("[registrationNotify] dispatched");
+      expect(Object.keys(payload).sort()).toEqual(LOG_FIELD_WHITELIST);
+      expect(payload).toEqual({
+        fn: "registerForEvent", signup: 1, promoted: 1, cancelled: 0, removed: 0,
+        cancelledRegs: 0, promotedRegs: 1, inboxFailed: 0, channels: "inbox",
+      });
+      for (const [key, value] of Object.entries(payload)) {
+        if (key === "fn") expect(["registerForEvent", "cancelRegistration"]).toContain(value);
+        else if (key === "channels") expect(value).toBe("inbox");
+        else expect(Number.isInteger(value)).toBe(true);
+      }
+      const serialized = JSON.stringify(logs);
+      for (const secret of [CALLER, OTHER, EVENT_DATA.title, EVENT_DATA.location, "報名成功通知", "恭喜"]) {
+        expect(serialized).not.toContain(secret);
+      }
+    });
+
+    test("單則寫入失敗：其餘照寫、計入 inboxFailed、改 warn，不往外丟", async () => {
+      const { deps, writes, logs } = makeDeps({ failFor: [CALLER] });
+      const notices = off.buildRegistrationNotices({
+        fn: "cancelRegistration", result: cancelResult({ promoted: [{ userId: OTHER }] }), callerUid: CALLER, cancelReason: "user_cancel",
+      });
+      const summary = await off.dispatchRegistrationNotices("cancelRegistration", notices, { cancelledRegs: 1, promotedRegs: 1 }, deps);
+      expect(deps.createQueueDoc).not.toHaveBeenCalled();
+      expect(writes.map((w) => w.recipientUid)).toEqual([CALLER, OTHER]);
+      expect(summary).toMatchObject({ cancelled: 1, promoted: 1, inboxFailed: 1 });
+      expect(logs.map((entry) => entry[0])).toEqual(["warn"]);
+      expect(Object.keys(logs[0][2]).sort()).toEqual(LOG_FIELD_WHITELIST);
+    });
 });
 
 describe("notifyRegistrationResult：index.js 的唯一呼叫點", () => {

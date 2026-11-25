@@ -20,7 +20,7 @@ const {
   WEB_PUSH_QUEUE_RETENTION_MS,
 } = require("./web-push-config");
 
-const REGISTRATION_NOTIFY_CHANNELS = Object.freeze({ inbox: true, line: false, push: false });
+const REGISTRATION_NOTIFY_CHANNELS = Object.freeze({ inbox: true, line: false, push: true });
 
 const CHANNELS_LABEL = Object.entries(REGISTRATION_NOTIFY_CHANNELS)
   .filter(([, enabled]) => enabled === true)

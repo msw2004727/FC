@@ -1,23 +1,22 @@
 "use strict";
 
 /**
- * 網頁推播 W2-B：報名發送點入列（情境 P1～P3）。
- * - P1 push:false（正式常數）：報名、取消、遞補、移除全情境 webPushQueue 寫入 0，log 與 S4 逐欄相同。
- * - P2／P3 push:true：測試內把 registration-notify.js 原始碼的常數改成 true 後載入（正式程式沒有任何覆寫入口），
+ * 網頁推播 W2-B：報名發送點入列（情境 P0～P3）。
+ * - P0 正式常數 push:true（開通實測段 2026-11-25 起）：報名、取消並遞補、移除都寫 webPushQueue，log 多 push* 三欄且仍在白名單內。
+ * - P1 push:false：測試內把原始碼常數改成 false 後載入（loadNotifyWithPushOff），全情境 webPushQueue 寫入 0，log 與 S4 逐欄相同。
+ *   （取代原本「P1 push:false（正式常數）」直接用正式常數的寫法，保護內容不變。）
+ * - P2／P3 push:true：測試內載入 push:true 版本（loadNotifyWithPushOn，正式程式沒有任何覆寫入口），
  *   再透過 harness 的 stubs 交給 index.js。
  */
 
 const fs = require("fs");
-const path = require("path");
-const Module = require("module");
 const registrationNotify = require("../../functions/registration-notify");
 const { queueIdOf } = require("../../functions/web-push-validate");
 const {
   FakeTimestamp, createFakeFirestore, loadFunctionsIndex,
 } = require("./registration-callable-harness");
+const { NOTIFY_FILE, loadNotifyWithPushOn, loadNotifyWithPushOff } = require("./registration-notify-variants");
 
-const NOTIFY_FILE = path.join(__dirname, "../../functions/registration-notify.js");
-const PUSH_OFF = "Object.freeze({ inbox: true, line: false, push: false })";
 const U_SELF = `U${"1".repeat(32)}`;
 const U_OTHER = `U${"2".repeat(32)}`;
 const U_ADMIN = `U${"9".repeat(32)}`;
@@ -27,16 +26,6 @@ const LOCATION = "河濱球場";
 const S4_LOG_KEYS = ["cancelled", "cancelledRegs", "channels", "fn", "inboxFailed", "promoted", "promotedRegs", "removed", "signup"];
 const PUSH_LOG_KEYS = [...S4_LOG_KEYS, "pushDeduped", "pushFailed", "pushQueued"].sort();
 const QUEUE_KEYS = ["body", "createdAt", "expireAt", "kind", "recipientUid", "schema", "source", "status", "title", "url"];
-
-function loadNotifyWithPushOn() {
-  const source = fs.readFileSync(NOTIFY_FILE, "utf8");
-  expect(source.split(PUSH_OFF)).toHaveLength(2);
-  const mod = new Module(NOTIFY_FILE, null);
-  mod.filename = NOTIFY_FILE;
-  mod.paths = Module._nodeModulePaths(path.dirname(NOTIFY_FILE));
-  mod._compile(source.replace(PUSH_OFF, "Object.freeze({ inbox: true, line: false, push: true })"), NOTIFY_FILE);
-  return mod.exports;
-}
 
 function user(uid, extra = {}) {
   return {
@@ -93,7 +82,21 @@ const queuePaths = (fake) => fake.paths().filter((p) => p.startsWith("webPushQue
 const dispatchLogs = (harness) => harness.logs.filter((entry) => entry[1] === "[registrationNotify] dispatched");
 const inboxCount = (fake, uid) => fake.paths().filter((p) => p.startsWith(`users/${uid}/inbox/`)).length;
 
-describe("P1 push:false（正式常數）", () => {
+const SCENARIOS = [
+  ["報名", seedOpen, (f, requestId) => f.registerForEvent({
+    auth: { uid: U_SELF, token: {} },
+    data: { eventId: EVENT_ID, participants: [{ userId: U_SELF, userName: "self" }], requestId },
+  }), [["signup", U_SELF]]],
+  ["取消並遞補", seedFull, (f, requestId) => f.cancelRegistration({
+    auth: { uid: U_SELF, token: {} }, data: { eventId: EVENT_ID, registrationIds: ["r1"], requestId },
+  }), [["cancelled", U_SELF], ["promoted", U_OTHER]]],
+  ["管理員移除", seedFull, (f, requestId) => f.cancelRegistration({
+    auth: { uid: U_ADMIN, token: {} }, data: { eventId: EVENT_ID, registrationIds: ["r1"], reason: "manager_remove", requestId },
+  }), [["promoted", U_OTHER], ["removed", U_SELF]]],
+];
+
+// 開通實測段（2026-11-25）：正式常數改 true 後，直接用正式模組與 index.js（不 stub）驗證真的會入列
+describe("P0 push:true（正式常數）", () => {
   let fn;
   let harness;
 
@@ -106,11 +109,62 @@ describe("P1 push:false（正式常數）", () => {
     quietConsole();
   });
 
+  test("正式常數為 inbox 開、line 關、push 開", () => {
+    expect(registrationNotify.REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: true });
+  });
+
+  test("enqueueWebPushNotices 會呼叫 createQueueDoc 入列，回傳計數", async () => {
+    const createQueueDoc = jest.fn(async () => {});
+    await expect(registrationNotify.enqueueWebPushNotices(
+      [{ kind: "signup", recipientUid: U_SELF, title: "t", body: "b" }],
+      { eventId: EVENT_ID, requestId: "r" },
+      { createQueueDoc, serverTimestamp: () => "ts", now: () => 0 }
+    )).resolves.toEqual({ queued: 1, deduped: 0, failed: 0 });
+    expect(createQueueDoc).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(SCENARIOS)("%s：每則 notice 一份 webPushQueue，log 多 push* 三欄、仍在白名單內、不含 uid／活動代號", async (label, seed, call, expected) => {
+    const fake = createFakeFirestore(seed());
+    harness.current = fake;
+    const requestId = `p0-${label}`;
+    await call(fn, requestId);
+    const docs = queuePaths(fake).map((p) => fake.get(p));
+    expect(docs.map((d) => [d.kind, d.recipientUid]).sort()).toEqual([...expected].sort());
+    for (const doc of docs) expect(Object.keys(doc).sort()).toEqual(QUEUE_KEYS);
+    const logs = dispatchLogs(harness);
+    expect(logs).toHaveLength(1);
+    expect(logs[0][0]).toBe("info");
+    expect(Object.keys(logs[0][2]).sort()).toEqual(PUSH_LOG_KEYS);
+    expect(logs[0][2]).toMatchObject({ channels: "inbox+push", pushQueued: expected.length, pushDeduped: 0, pushFailed: 0 });
+    const text = JSON.stringify(logs[0]);
+    for (const secret of [U_SELF, U_OTHER, U_ADMIN, EVENT_ID, TITLE, LOCATION, requestId]) expect(text).not.toContain(secret);
+  });
+});
+
+describe("P1 push:false（測試內改常數）", () => {
+  let offModule;
+  let fn;
+  let harness;
+
+  beforeAll(() => {
+    offModule = loadNotifyWithPushOff();
+    ({ exports: fn, harness } = loadFunctionsIndex({ stubs: { "./registration-notify": offModule } }));
+  });
+
+  beforeEach(() => {
+    harness.logs.length = 0;
+    quietConsole();
+  });
+
+  test("常數改 false 後 channels 為 inbox、push 關", () => {
+    expect(offModule.REGISTRATION_NOTIFY_CHANNELS).toEqual({ inbox: true, line: false, push: false });
+  });
+
   test("enqueueWebPushNotices 第一行就 return null，不呼叫任何注入", async () => {
     const createQueueDoc = jest.fn();
     const serverTimestamp = jest.fn();
     const now = jest.fn();
-    await expect(registrationNotify.enqueueWebPushNotices(
+    await expect(offModule.enqueueWebPushNotices(
       [{ kind: "signup", recipientUid: U_SELF, title: "t", body: "b" }],
       { eventId: EVENT_ID, requestId: "r" },
       { createQueueDoc, serverTimestamp, now }
