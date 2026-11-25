@@ -28,7 +28,7 @@ function dynamicKeys() {
 
 const endpointOf = (n) => `https://fcm.googleapis.com/fcm/send/device-${n}`;
 
-function setup({ settings = SETTINGS, seed = {} } = {}) {
+function setup({ settings = SETTINGS, seed = {}, fixedNow } = {}) {
   const fake = createFakeFirestore(seed);
   const logs = [];
   const clock = { offset: 0 };
@@ -41,14 +41,19 @@ function setup({ settings = SETTINGS, seed = {} } = {}) {
       warn: (...args) => logs.push(["warn", ...args]),
       error: (...args) => logs.push(["error", ...args]),
     },
-    now: () => Date.now() + clock.offset,
+    now: () => (fixedNow === undefined ? Date.now() : fixedNow) + clock.offset,
     settings,
   });
   return { fake, logs, clock, handlers };
 }
 
-function registerReq(uid, data) {
-  return { auth: uid ? { uid, token: {} } : undefined, data };
+// 開通前正式常數只收 QA：預設帶有效 QA token（claims 形狀照 qa-test-mode.js 的 createCustomToken）
+const qaToken = (extra = {}) => ({
+  qa: true, qaTeamId: "qa-team-test", qaExp: Date.now() + 7 * 24 * HOUR, qaAgent: "agent-test", qaPersona: "member", ...extra,
+});
+
+function registerReq(uid, data, token = qaToken()) {
+  return { auth: uid ? { uid, token } : undefined, data };
 }
 
 function subData(n, extra = {}) {
@@ -127,6 +132,95 @@ describe("register：身分與輸入", () => {
     const { handlers, fake } = setup({ settings: { ...config, WEB_PUSH_VAPID_PUBLIC_KEY: "", WEB_PUSH_VAPID_KEY_ID: "" } });
     await expectCode(handlers.register(registerReq(U_A, subData(1, { vapidKeyId: "" }))), "failed-precondition");
     expect(fake.state.writes).toHaveLength(0);
+  });
+});
+
+describe("register：開通前只收 QA（WEB_PUSH_REGISTER_QA_ONLY）", () => {
+  const expectNotOpen = async ({ handlers, fake, logs }, token) => {
+    const request = { auth: { uid: U_A, token }, data: subData(1) };
+    const error = await handlers.register(request).catch((e) => e);
+    expect(error.code).toBe("failed-precondition");
+    expect(error.message).toBe("WEB_PUSH_NOT_OPEN");
+    expect(fake.state.writes).toHaveLength(0);
+    expect(fake.list("webPushSubscriptions")).toHaveLength(0);
+    expect(logs).toEqual([["info", "[webPushSub] register", { result: "rejected_not_qa", service: "", platform: "", subCount: null }]]);
+    expect(JSON.stringify(logs)).not.toContain(U_A);
+  };
+
+  test("正式常數為 true", () => {
+    expect(config.WEB_PUSH_REGISTER_QA_ONLY).toBe(true);
+  });
+
+  test("一般 token → failed-precondition（WEB_PUSH_NOT_OPEN），不讀不寫", async () => {
+    const ctx = setup();
+    let txnCalls = 0;
+    const orig = ctx.fake.db.runTransaction.bind(ctx.fake.db);
+    ctx.fake.db.runTransaction = (...args) => { txnCalls += 1; return orig(...args); };
+    await expectNotOpen(ctx, {});
+    expect(txnCalls).toBe(0);
+  });
+
+  test("token 缺漏（undefined）→ 拒絕", async () => {
+    await expectNotOpen(setup(), undefined);
+  });
+
+  test.each([
+    ["缺 qa", { qa: undefined }],
+    ["qa 是字串 true", { qa: "true" }],
+    ["qa 是 1", { qa: 1 }],
+    ["qa false", { qa: false }],
+  ])("%s → 拒絕", async (_label, extra) => {
+    await expectNotOpen(setup(), qaToken(extra));
+  });
+
+  const FIXED_NOW = Date.UTC(2026, 10, 25, 4, 0, 0);
+  test.each([
+    ["qaExp 已過期", { qaExp: FIXED_NOW - 1000 }],
+    ["qaExp 等於現在", { qaExp: FIXED_NOW }],
+    ["qaExp 缺", { qaExp: undefined }],
+    ["qaExp 是字串", { qaExp: String(FIXED_NOW + HOUR) }],
+    ["qaExp 是 NaN", { qaExp: Number.NaN }],
+    ["qaExp 是 Infinity", { qaExp: Number.POSITIVE_INFINITY }],
+  ])("qa true 但 %s → 拒絕", async (_label, extra) => {
+    await expectNotOpen(setup({ fixedNow: FIXED_NOW }), qaToken(extra));
+  });
+
+  test("qaExp 比現在晚 1 毫秒：通過", async () => {
+    const { handlers } = setup({ fixedNow: FIXED_NOW });
+    await expect(handlers.register(registerReq(U_A, subData(1), qaToken({ qaExp: FIXED_NOW + 1 })))).resolves.toEqual({ ok: true });
+  });
+
+  test("QA 有效：照原流程建立訂閱", async () => {
+    const { handlers, fake, logs } = setup();
+    await expect(handlers.register(registerReq(U_A, subData(1)))).resolves.toEqual({ ok: true });
+    expect(fake.get(subPath(endpointOf(1))).uid).toBe(U_A);
+    expect(logs.at(-1)[2].result).toBe("created");
+  });
+
+  test("QA 有效但輸入不合：仍走原本的輸入檢查（invalid-argument）", async () => {
+    const { handlers, fake } = setup();
+    await expectCode(handlers.register(registerReq(U_A, subData(1, { endpoint: "https://evil.test/x" }))), "invalid-argument");
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("常數改 false（開通後）：一般 token 可通過", async () => {
+    const { handlers, fake } = setup({ settings: { ...SETTINGS, WEB_PUSH_REGISTER_QA_ONLY: false } });
+    await expect(handlers.register(registerReq(U_A, subData(1), {}))).resolves.toEqual({ ok: true });
+    expect(fake.get(subPath(endpointOf(1))).uid).toBe(U_A);
+  });
+
+  test("unregister 不受影響：一般 token 也能刪自己的訂閱", async () => {
+    const { handlers, fake } = setup();
+    await handlers.register(registerReq(U_A, subData(1)));
+    await expect(handlers.unregister(registerReq(U_A, { endpoint: endpointOf(1) }, {}))).resolves.toEqual({ ok: true });
+    expect(fake.get(subPath(endpointOf(1)))).toBeUndefined();
+  });
+
+  test("unregister 不受影響：QA 已過期也能刪自己的訂閱", async () => {
+    const { handlers, fake } = setup();
+    await handlers.register(registerReq(U_A, subData(1)));
+    await handlers.unregister(registerReq(U_A, { endpoint: endpointOf(1) }, qaToken({ qaExp: Date.now() - 1000 })));
+    expect(fake.get(subPath(endpointOf(1)))).toBeUndefined();
   });
 });
 
@@ -296,6 +390,14 @@ describe("index.js 接線", () => {
       expect(fn[name].__options.secrets).toBeUndefined();
       await expect(fn[name]({ data: { endpoint: endpointOf(1) } })).rejects.toMatchObject({ code: "unauthenticated" });
     }
+  });
+
+  test("正式常數（開通前）：一般 token 註冊被拒（WEB_PUSH_NOT_OPEN），不寫", async () => {
+    const { exports: fn, harness } = loadFunctionsIndex();
+    harness.current = createFakeFirestore({});
+    const error = await fn.registerWebPushSubscription(registerReq(U_A, subData(1), {})).catch((e) => e);
+    expect(error).toMatchObject({ code: "failed-precondition", message: "WEB_PUSH_NOT_OPEN" });
+    expect(harness.current.state.writes).toHaveLength(0);
   });
 
   test("W1 前正式常數：已登入註冊也被拒（failed-precondition），不寫", async () => {

@@ -16,6 +16,10 @@ const WEB_PUSH_VAPID_SUBJECT = "https://toosterx.com";
 // E3 備用停發：改 false 重新部署發送函式即停發（主手段是控制文件 webPushControl/sender.sendEnabled）
 const WEB_PUSH_SENDER_ENABLED = true;
 
+// 開通前登記只收 QA 帳號（伺服器端擋；前端開關另由 FC-B WEB_PUSH_UI_PUBLIC 控制）。
+// 開通批次改成 false，與 FC-B 的 WEB_PUSH_UI_PUBLIC 同批改（隱私權頁推播說明同批上）。
+const WEB_PUSH_REGISTER_QA_ONLY = true;
+
 const WEB_PUSH_COLLECTIONS = Object.freeze({
   subscriptions: "webPushSubscriptions",
   queue: "webPushQueue",
@@ -78,6 +82,7 @@ module.exports = {
   WEB_PUSH_VAPID_KEY_ID,
   WEB_PUSH_VAPID_SUBJECT,
   WEB_PUSH_SENDER_ENABLED,
+  WEB_PUSH_REGISTER_QA_ONLY,
   WEB_PUSH_COLLECTIONS,
   WEB_PUSH_CONTROL_DOC_ID,
   WEB_PUSH_DAILY_LIMIT_PER_UID,

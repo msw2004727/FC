@@ -9,6 +9,8 @@
  *   其餘寫入每人每日上限 WEB_PUSH_REGISTER_WRITES_PER_UID_PER_DAY（noop 不計）。
  * - 訂閱數達上限時擠掉 lastSeenAt 最舊的（Q6）。
  * - log 欄位白名單：result、service、platform、subCount（不含 uid、endpoint、金鑰）。
+ * - 開通前（WEB_PUSH_REGISTER_QA_ONLY＝true）register 只收有效 QA token（claims 來自 qa-test-mode.js 的
+ *   createCustomToken：qa＝true、qaExp 毫秒）；擋在任何 Firestore 讀寫之前。unregister 不擋（見該函式註解）。
  */
 
 const config = require("./web-push-config");
@@ -50,9 +52,21 @@ function createWebPushSubscriptionHandlers({
     return new HttpsError(code, code === "failed-precondition" ? "WEB_PUSH_KEY_MISMATCH" : "WEB_PUSH_INVALID_SUBSCRIPTION");
   }
 
+  // 有效 QA token：qa 必須是 true，qaExp（毫秒）必須是數字且晚於現在
+  function isActiveQaToken(token) {
+    if (!token || token.qa !== true) return false;
+    const exp = token.qaExp;
+    return typeof exp === "number" && Number.isFinite(exp) && exp > now();
+  }
+
   async function register(request) {
     if (!request || !request.auth || typeof request.auth.uid !== "string" || !request.auth.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    // 開通前只收 QA；failed-precondition 讓前端記下並停止重試，訊息與 WEB_PUSH_KEY_MISMATCH 分開、不回顯輸入
+    if (settings.WEB_PUSH_REGISTER_QA_ONLY && !isActiveQaToken(request.auth.token)) {
+      logLine(LOG_REGISTER, { result: "rejected_not_qa" });
+      throw new HttpsError("failed-precondition", "WEB_PUSH_NOT_OPEN");
     }
     const uid = request.auth.uid;
     const data = request.data && typeof request.data === "object" ? request.data : {};
@@ -134,6 +148,7 @@ function createWebPushSubscriptionHandlers({
     return { ok: true };
   }
 
+  // 不受 WEB_PUSH_REGISTER_QA_ONLY 限制：只能刪自己的訂閱、不新增任何識別資料；任何人都能撤回比較安全
   async function unregister(request) {
     if (!request || !request.auth || typeof request.auth.uid !== "string" || !request.auth.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
