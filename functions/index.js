@@ -13152,7 +13152,8 @@ async function writeAuditEntryInternal({ action, targetType, targetId, targetLab
       result: normalizeAuditEnum(result, ALLOWED_AUDIT_RESULTS) || "success",
       source: "cloud_function",
       meta: sanitizeAuditMeta(meta || {}),
-      actorId: actorUid || "system",
+      // 原本傳 actorId，buildAuditEntryPayload 只認 actorUid，操作者一直沒被記下（2026-11-26 發現）；修 helper 影響 7 個呼叫端，其他函式下次部署才生效
+      actorUid: actorUid || "system",
       actorName: actorName || "系統",
       actorRole: "system",
     });
