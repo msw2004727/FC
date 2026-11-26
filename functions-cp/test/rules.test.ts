@@ -314,6 +314,9 @@ describe('validateRulesInput', () => {
     // 備註清理（NOTE_INVISIBLE）也去掉方向隔離字元 U+2066～U+2069（開放後第一批 #21）。
     const bidi = rulesDocumentOf(withRules({ squad: { note: '甲\u2066乙\u2067丙\u2068丁\u2069' } }));
     expect(bidi?.rules.squad.note).toBe('甲乙丙丁');
+    // 顧問 §3.799：再補 U+206A～U+206F、U+00AD、U+061C、U+180E
+    const more = rulesDocumentOf(withRules({ squad: { note: '甲\u206a乙\u00ad丙\u061c丁\u180e' } }));
+    expect(more?.rules.squad.note).toBe('甲乙丙丁');
   });
 
   test('criteria 第一項不是 points 被拒、重複被拒', () => {

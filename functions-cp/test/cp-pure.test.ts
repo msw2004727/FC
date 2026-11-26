@@ -11,7 +11,7 @@ import { HOST_ACTIONS, handleCpHost } from '../src/cp/host.js';
 import { MATCH_HOST_ACTIONS } from '../src/cp/match-host.js';
 import { PARTICIPANT_ACTIONS, handleCpParticipant } from '../src/cp/participant.js';
 import {
-  SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, findBannedWord, isAllowedLiveLink, maskedPublicName, optionalText, surnameOf
+  SUGGESTED_BANNED_WORDS, bannedWordsOf, cleanLine, cleanProseLine, findBannedWord, isAllowedLiveLink, maskedPublicName, optionalText, surnameOf
 } from '../src/cp/text.js';
 import {
   divisionOf, divisionsOf, feeNoteOf, liveLinksOf, onlyKeys, scheduleOf, venuesOf, competitionName
@@ -176,6 +176,13 @@ describe('建賽輸入驗證', () => {
 });
 
 describe('文字清理：方向隔離字元', () => {
+  it('U+206A～U+206F、U+00AD、U+061C、U+180E 也去掉（顧問 §3.799）', () => {
+    expect(cleanLine('官\u206a方\u206f隊')).toBe('官方隊');
+    expect(cleanLine('官\u00ad方\u061c隊\u180e')).toBe('官方隊');
+    expect(optionalText('a\u00ad\nb\u180e\u206b', 'x', 10)).toBe('a\nb');
+    expect(cleanProseLine('改期\u00ad，\u061c待通知\u206f')).toBe('改期，待通知');
+  });
+
   it('U+2066～U+2069 也去掉', () => {
     expect(cleanLine('甲\u2066隊\u2067乙\u2068丙\u2069')).toBe('甲隊乙丙');
     expect(optionalText('a\u2066\nb\u2069', 'x', 10)).toBe('a\nb');
