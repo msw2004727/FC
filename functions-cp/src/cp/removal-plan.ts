@@ -154,7 +154,8 @@ export interface PlanInput {
   deleting: boolean;
 }
 
-export type WaitReason = 'staff_active' | 'rep_contact_active' | 'host_active';
+// invite_open：此人發出的邀請仍開放且未到期，invites.createdBy 暫不改假名，到期後再處理（Opus 複審 P2-D）。
+export type WaitReason = 'staff_active' | 'rep_contact_active' | 'host_active' | 'invite_open';
 
 export interface CompPlan {
   /** deleting → true，其他欄位全 false/空。 */

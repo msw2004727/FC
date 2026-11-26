@@ -9,6 +9,7 @@ import {
   FieldValue,
   Timestamp,
   readDoc,
+  readCount,
   readQuery,
   type CpDeps
 } from './context.js';
@@ -45,6 +46,8 @@ export interface DailyReport {
   removalQueued: number;
   removalWaiting: number;
   removalProcessed: number;
+  /** 卡在 error、要人工處理的移除工作筆數（Opus 複審 P3-c） */
+  removalError: number;
   reportPurged: number;
   reportQueueDropped: number;
   auditBackfillComps: number;
@@ -78,6 +81,7 @@ export async function runDaily(deps: CpDeps, opts: DailyOptions): Promise<DailyR
     removalQueued: 0,
     removalWaiting: 0,
     removalProcessed: 0,
+    removalError: 0,
     reportPurged: 0,
     reportQueueDropped: 0,
     auditBackfillComps: 0,
@@ -135,12 +139,21 @@ async function phase12RemovalJobs(
     logger.error('cpDaily phase1 error', { error: (e as Error)?.name ?? 'Error' });
   }
 
-  // 第 2 項：waiting
+  // 第 2 項：waiting。用 documentId 游標輪替（游標存 cpDailyState/waitingCursor），等值條件＋文件 id 排序只用自動單欄索引；
+  // 取代固定拿前 limitN 份：等待可能長達整個賽期，第 limitN+1 份以後會永遠輪不到（Opus 複審 P2-B）。
   try {
-    const snap = await readQuery(
-      deps, null,
-      deps.db.collection('cpRemovalJobs').where('status', '==', 'waiting').limit(limitN)
-    );
+    const cursorRef = deps.db.doc('cpDailyState/waitingCursor');
+    const cursorSnap = await readDoc(deps, null, cursorRef);
+    const after = cursorSnap.exists && typeof cursorSnap.get('after') === 'string' ? (cursorSnap.get('after') as string) : null;
+    let q = deps.db.collection('cpRemovalJobs').where('status', '==', 'waiting').orderBy(FieldPath.documentId());
+    if (after) q = q.startAfter(after);
+    const snap = await readQuery(deps, null, q.limit(limitN));
+    if (!opts.dryRun) {
+      // 這一頁沒滿＝已到尾端，下次從頭；滿了就記最後一份，下次接著拿
+      const last = snap.docs[snap.docs.length - 1];
+      if (snap.size < limitN || !last) await cursorRef.set({ after: FieldValue.delete() }, { merge: true });
+      else await cursorRef.set({ after: last.id }, { merge: true });
+    }
     if (opts.dryRun) {
       report.removalWaiting = snap.size;
     } else {
@@ -168,6 +181,15 @@ async function phase12RemovalJobs(
     }
   } catch (e) {
     logger.error('cpDaily phase2 error', { error: (e as Error)?.name ?? 'Error' });
+  }
+
+  // 卡在 error 的工作（單場失敗 3 次）要人工處理：每天回報筆數讓顧問看到（Opus 複審 P3-c）
+  try {
+    report.removalError = await readCount(
+      deps, null, deps.db.collection('cpRemovalJobs').where('status', '==', 'error').count()
+    );
+  } catch (e) {
+    logger.error('cpDaily error-count', { error: (e as Error)?.name ?? 'Error' });
   }
 }
 
@@ -591,11 +613,8 @@ async function phase4ReportQueue(
   if (writeEnabled) {
     const update: Record<string, unknown> = {};
     if (timeStopped) {
-      if (lastScannedCid === after && !report.stoppedEarly.includes('phase4cNoProgress')) {
-        // 極端：這一輪完全沒處理任何場就被時間預算中斷，游標不動
-      } else if (lastScannedCid) {
-        update.after = lastScannedCid;
-      }
+      // 被時間預算中斷：有往前掃才推進游標；一場都沒掃完就不動（拿掉沒人設定的 phase4cNoProgress 死碼，Opus 複審 P3-e）
+      if (lastScannedCid && lastScannedCid !== after) update.after = lastScannedCid;
     } else if (reachedEnd) {
       update.after = FieldValue.delete();
     } else if (lastScannedCid) {

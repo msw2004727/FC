@@ -472,13 +472,11 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
   });
 
   // ── 8：代填球員授權（P2-5）───────────────────────────────────────
-  it('P2-5：個人主辦下，共同主辦可移除代填球員；別隊 club_a 代表 NOT_ROSTER_OWNER', async () => {
+  it('P2-5：個人主辦下，球員所屬球隊（club_b）的代表可移除代填球員；別隊 club_a 代表 NOT_ROSTER_OWNER', async () => {
+    // TESTER2 只是 club_b 代表，沒有任何 staff 角色：證明走的是 rosterPrivate.teamId 的代表判斷，不是主辦／共同主辦（Opus 複審 P2-C）
     const cid = await seedRoot({ hostType: 'personal' });
     const db = adminDb();
     await db.doc('cpClubs/club_b').set({ repUids: ['tester2'], name: '乙隊足球俱樂部' });
-    await db.doc(`competitions/${cid}/staff/${TESTER2.uid}`).set({
-      roles: ['coHost'], matchIds: [], expiresAt: null, displayName: '共同主辦', memberNo: 2
-    });
     await db.doc(`competitions/${cid}/roster/${PLID}`).set({
       displayName: '小球', enId: ENID, dvId: DVID, number: 10
     });
@@ -493,7 +491,8 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
       action: 'removeProxyPlayerData', cid, plId: PLID, confirm: 'REMOVE'
     }), 'NOT_ROSTER_OWNER');
 
-    // coHost（TESTER2）可以
+    expect((await db.doc(`competitions/${cid}/staff/${TESTER2.uid}`).get()).exists).toBe(false);
+    // 球員所屬球隊 club_b 的代表（TESTER2）可以
     const r = await ok<{ deidentified: boolean }>(call(proxyHandler, TESTER2, {
       action: 'removeProxyPlayerData', cid, plId: PLID, confirm: 'REMOVE'
     }));
@@ -507,7 +506,7 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
   });
 
   // ── 9：invites.createdBy（P2-7）─────────────────────────────────
-  it('invites.createdBy：used 那份換假名、open 那份保留', async () => {
+  it('invites.createdBy：used 與「已過期但仍 open」換假名；開放未到期保留且這場進入等待 invite_open，到期後續跑才換', async () => {
     const cid = await seedRoot({});
     const db = adminDb();
     await seedPlayer({ cid, uid: TESTER.uid });
@@ -516,19 +515,68 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
     await db.doc(`competitions/${cid}/invites/iv_used`).set({
       createdBy: h, status: 'used', role: 'scorer', createdAt: Timestamp.fromMillis(Date.now() - DAY)
     });
+    // 已過期：狀態仍是 open（邀請過期不改狀態），也要換（Opus 複審 P2-D）
+    await db.doc(`competitions/${cid}/invites/iv_expired`).set({
+      createdBy: h, status: 'open', role: 'scorer', expiresAt: Timestamp.fromMillis(Date.now() - DAY),
+      createdAt: Timestamp.fromMillis(Date.now() - 2 * DAY)
+    });
     await db.doc(`competitions/${cid}/invites/iv_open`).set({
-      createdBy: h, status: 'open', role: 'coHost', createdAt: Timestamp.fromMillis(Date.now() - DAY)
+      createdBy: h, status: 'open', role: 'coHost', expiresAt: Timestamp.fromMillis(Date.now() + 3 * DAY),
+      createdAt: Timestamp.fromMillis(Date.now() - DAY)
     });
 
-    await ok(call(reqRemovalHandler, TESTER, { confirm: 'REMOVE' }));
+    const r = await ok<{ status: string; waiting: Array<{ cid: string; reason: string }> }>(
+      call(reqRemovalHandler, TESTER, { confirm: 'REMOVE' })
+    );
+    expect(r.status).toBe('waiting');
+    expect(r.waiting).toContainEqual({ cid, reason: 'invite_open' });
 
-    const used = await db.doc(`competitions/${cid}/invites/iv_used`).get();
-    const usedBy = used.get('createdBy') as string;
-    expect(usedBy).toMatch(/^[0-9a-f]{16}$/);
-    expect(usedBy).not.toBe(h);
+    for (const id of ['iv_used', 'iv_expired']) {
+      const by = (await db.doc(`competitions/${cid}/invites/${id}`).get()).get('createdBy') as string;
+      expect(by, id).toMatch(/^[0-9a-f]{16}$/);
+      expect(by, id).not.toBe(h);
+    }
+    expect((await db.doc(`competitions/${cid}/invites/iv_open`).get()).get('createdBy')).toBe(h);
 
-    const open = await db.doc(`competitions/${cid}/invites/iv_open`).get();
-    expect(open.get('createdBy')).toBe(h);
+    // 邀請到期後續跑：開放那份也換成同一個假名，工作完成
+    const jobId = removalJobId(TESTER.uid);
+    const later = makeDeps(4 * DAY);
+    const done = await runRemovalJob(later, jobId, { maxComps: 5, budgetMs: 40_000 });
+    expect(done.status).toBe('done');
+    const openBy = (await db.doc(`competitions/${cid}/invites/iv_open`).get()).get('createdBy') as string;
+    expect(openBy).not.toBe(h);
+    expect(openBy).toBe((await db.doc(`competitions/${cid}/invites/iv_used`).get()).get('createdBy'));
+  });
+
+  it('排程等待工作用游標輪替：max=2、3 份 waiting，第一輪游標停在第 2 份，第二輪拿到第 3 份後游標清空（Opus 複審 P2-B）', async () => {
+    const db = adminDb();
+    const ids = ['u_job_a', 'u_job_b', 'u_job_c'];
+    for (const id of ids) {
+      // 賽事不存在：processCompetition 會 skip，足以驗證輪替
+      await db.doc(`cpRemovalJobs/${id}`).set({
+        status: 'waiting', uid: `subj_${id}`, kind: 'self', pending: [],
+        waiting: { [CID2]: ['host_active'] }, counts: {}, requestedAt: Timestamp.now()
+      });
+    }
+    const opts = { dryRun: false, max: 2, auditBackfill: false, reportBackfill: false };
+    await runDaily(makeDeps(), opts);
+    expect((await db.doc('cpDailyState/waitingCursor').get()).get('after')).toBe('u_job_b');
+    await runDaily(makeDeps(), opts);
+    expect((await db.doc('cpDailyState/waitingCursor').get()).get('after')).toBeUndefined();
+    const third = await db.doc('cpRemovalJobs/u_job_c').get();
+    expect(third.get('lastRunAt')).toBeTruthy();
+  });
+
+  it('只代填過球員（沒有報隊、沒有聯絡標記）的人不被推定為代表、不會等到賽事結束（Opus 複審 P3-d）', async () => {
+    const cid = await seedRoot({});
+    const db = adminDb();
+    await seedMine(TESTER.uid, cid, []);
+    await db.doc(`competitions/${cid}/rosterPrivate/${PLID}`).set({
+      uid: null, realName: '代填甲', enId: ENID, dvId: DVID, teamId: 'club_a', source: 'rep', addedByUid: TESTER.uid
+    });
+    const r = await ok<{ status: string }>(call(reqRemovalHandler, TESTER, { confirm: 'REMOVE' }));
+    expect(r.status).toBe('done');
+    expect((await db.doc(`competitions/${cid}/rosterPrivate/${PLID}`).get()).get('addedByUid')).toBeNull();
   });
 
   // ── 10：排程第 1、2 項非 dryRun ─────────────────────────────────

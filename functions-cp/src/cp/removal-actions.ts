@@ -132,6 +132,7 @@ function describeUntil(reasons: WaitReason[]): string {
   for (const r of reasons) {
     if (r === 'staff_active' && !texts.includes('指派到期')) texts.push('指派到期');
     else if ((r === 'rep_contact_active' || r === 'host_active') && !texts.includes('賽事結束')) texts.push('賽事結束');
+    else if (r === 'invite_open' && !texts.includes('邀請到期')) texts.push('邀請到期');
   }
   return texts.join('、');
 }
@@ -262,16 +263,10 @@ async function applyCompResult(
       updates.pending = pendingNow.filter(c => c !== cid);
       updates[`waiting.${cid}`] = res.waiting;
     } else if (res.more) {
-      // 移到尾端：先移除、再 arrayUnion 追加（交易內兩步都原子）
-      updates.pending = pendingNow.filter(c => c !== cid);
+      // 查滿還有剩：在同一個交易內把 cid 移到 pending 尾端（交易內讀到的是最新陣列，重組後整份寫回仍是原子）。
+      // 取代先前「交易內移除、交易外 arrayUnion 加回」：兩步之間逾時會讓 cid 消失、工作被誤判完成（Opus 複審 P2-A）。
+      updates.pending = [...pendingNow.filter(c => c !== cid), cid];
       updates[`waiting.${cid}`] = FieldValue.delete();
-      // 用 FieldValue.arrayUnion 分兩步（同筆交易內，陣列最終順序不受本次交易外影響）
-      // 先寫過濾後的陣列，再用 arrayUnion 追回尾端（避免在交易內重組後 append 順序混亂）
-      updates.pending = FieldValue.arrayUnion(cid);
-      // 但 arrayUnion 不會移除既有 cid；需先 arrayRemove，改採下面步驟：
-      delete updates.pending;
-      updates.pending = FieldValue.arrayRemove(cid);
-      updates[`__pendingAppend.${cid}`] = true; // 佔位：D 步驟在交易外追加（見下方註解）
     } else {
       updates.pending = pendingNow.filter(c => c !== cid);
       updates[`waiting.${cid}`] = FieldValue.delete();
@@ -285,12 +280,6 @@ async function applyCompResult(
     updates.lastRunAt = FieldValue.serverTimestamp();
     tx.update(ref, updates);
   });
-
-  // P2-3 more：交易外再一步 arrayUnion 加回尾端（避開「先 arrayRemove 再 arrayUnion」在交易外不能拆兩步的限制）。
-  if (res.waiting.length === 0 && res.more) {
-    const ref = deps.db.doc(`cpRemovalJobs/${jobId}`);
-    await ref.update({ pending: FieldValue.arrayUnion(cid) });
-  }
 }
 
 /**
@@ -301,7 +290,6 @@ async function applyCompFailure(
   deps: CpDeps, jobId: string, cid: string, reason: string
 ): Promise<void> {
   const ref = deps.db.doc(`cpRemovalJobs/${jobId}`);
-  let shouldRequeue = false;
   await deps.db.runTransaction(async tx => {
     const snap = await readDoc(deps, tx, ref);
     if (!snap.exists) return;
@@ -319,17 +307,10 @@ async function applyCompFailure(
       lastRunAt: FieldValue.serverTimestamp()
     };
     const filtered = pendingNow.filter(c => c !== cid);
-    if (nextAttempts < FAILED_MAX_ATTEMPTS) {
-      shouldRequeue = true;
-      updates.pending = filtered;  // 先移除
-    } else {
-      updates.pending = filtered;  // 從 pending 移除，留在 failed
-    }
+    // 未達上限：同一個交易內移到尾端（Opus 複審 P2-A，不再交易外 arrayUnion）；達上限：移出 pending、留在 failed。
+    updates.pending = nextAttempts < FAILED_MAX_ATTEMPTS ? [...filtered, cid] : filtered;
     tx.update(ref, updates);
   });
-  if (shouldRequeue) {
-    await ref.update({ pending: FieldValue.arrayUnion(cid) });
-  }
 }
 
 /**
@@ -476,8 +457,12 @@ export async function runRemovalJob(
         const res: CompResult = await processCompetition(deps, uid, cid, {
           pseudo: ctx.pseudo, ccKey: ctx.ccKey, dryRun: false
         });
-        await pseudonymizeAudits(deps, cid, actorHash(cid, uid), ctx.pseudo, { dryRun: false });
-        await applyCompResult(deps, jobId, cid, res);
+        const t2 = await pseudonymizeAudits(deps, cid, actorHash(cid, uid), ctx.pseudo, { dryRun: false });
+        // 仍有開放未到期的邀請：這場進入等待，到期後排程再處理（Opus 複審 P2-D）
+        const merged: CompResult = t2.inviteOpenRemaining > 0 && !res.waiting.includes('invite_open')
+          ? { ...res, waiting: [...res.waiting, 'invite_open'] }
+          : res;
+        await applyCompResult(deps, jobId, cid, merged);
         processed += 1;
       } catch (e) {
         // （Opus 審 P2-2）一場失敗不卡整份：登記 failed、繼續下一場
@@ -576,10 +561,12 @@ export async function removeProxyPlayerData(
     if (!rpSnap.exists) throw notFound('PLAYER_NOT_FOUND');
     if (rpSnap.get('source') !== 'rep') throw pre('NOT_PROXY_PLAYER');
 
-    // 權限：管理員、俱樂部主辦代表、主辦或共同主辦
+    // 權限：管理員、球員所屬球隊的目前代表（rosterPrivate.teamId，同 entry.ts leaveRoster）、主辦或共同主辦。
+    // 取代先前檢查主辦俱樂部代表（hostTeamId）：那等於只有主辦能用，球隊代表反而被拒（Opus 審 P2-5／複審 P2-C）。
     let allowed = isAdmin(caller);
-    if (!allowed && comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
-      allowed = (await isClubRep(deps, tx, comp.hostTeamId, caller.uid)).ok;
+    const teamId = rpSnap.get('teamId');
+    if (!allowed && typeof teamId === 'string' && teamId) {
+      allowed = (await isClubRep(deps, tx, teamId, caller.uid)).ok;
     }
     if (!allowed) {
       const hostOk = await isHostOrCo(deps, tx, cid, comp, caller);
@@ -899,5 +886,8 @@ export async function adminRemoveUserData(
     } catch { /* 盡力而為；不影響賽事資料移除 */ }
   }
 
-  return runRemovalJob(deps, jobId, { maxComps: CALLABLE_MAX_COMPS, budgetMs: CALLABLE_BUDGET_MS });
+  // 摘要重算已用掉一部分 Callable 時間（上限 60 秒），處理預算要扣掉（至少給 5 秒，做不完的交排程續跑；Opus 複審 P3-a）
+  const usedMs = deps.now().getTime() - nowMs;
+  const budgetMs = Math.max(5_000, CALLABLE_BUDGET_MS - usedMs);
+  return runRemovalJob(deps, jobId, { maxComps: CALLABLE_MAX_COMPS, budgetMs });
 }

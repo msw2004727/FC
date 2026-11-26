@@ -65,6 +65,7 @@ import { taipeiYmd } from './schedule-flex.js';
 import { assertCanHostCompetition } from './host-permission.js';
 import { AUDIT_BUFFER_MS, deleteAuditExpireAtMs } from './removal-plan.js';
 import { restampAuditExpiry } from './removal.js';
+import { logger } from 'firebase-functions/v2';
 import { adminRemoveUserData } from './removal-actions.js';
 
 /** §5.5 建賽限制 */
@@ -435,7 +436,14 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   });
   // cpMine 索引同步名稱、首場、分類（顧問 §3.254、§3.264）：交易外盡力而為，找不到索引的略過
   if (mineSync) await syncMineIndex(deps, cid, mineSync);
-  if (restampLastMatchAtMs != null) await restampAuditExpiry(deps, cid, restampLastMatchAtMs);
+  // 賽事已在上面的交易改好；重蓋稽核到期日失敗不回錯給主辦（Opus 複審 P3-b），記 log 由每日回填與人工補。
+  if (restampLastMatchAtMs != null) {
+    try {
+      await restampAuditExpiry(deps, cid, restampLastMatchAtMs);
+    } catch (e) {
+      logger.error('cp restampAuditExpiry failed', { cid, error: (e as Error)?.name ?? 'Error' });
+    }
+  }
   return { cid };
 }
 

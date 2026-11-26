@@ -201,7 +201,9 @@ export async function processCompetition(
     // （Opus 審 P2-4）有效角色：cpMine ∪ 查到資料 implied ∪ staff 文件角色。
     const effectiveRoleSet = new Set<MineRole>(roles);
     if (myPrivs.length > 0) effectiveRoleSet.add('player');
-    if (regByDocs.length > 0 || addedByDocs.length > 0 || ccDocs.length > 0) effectiveRoleSet.add('rep');
+    // 只有報隊人或聯絡標記才推定為代表；只代填過球員不算（否則會不必要地等到賽事結束，Opus 複審 P3-d）。
+    // 代填人欄位 addedByUid 另外「查到就清」，不靠角色。
+    if (regByDocs.length > 0 || ccDocs.length > 0) effectiveRoleSet.add('rep');
     if (staffExists) {
       const staffRoles = stringListOf(staffSnap, 'roles');
       if (staffRoles.includes('scorer')) effectiveRoleSet.add('scorer');
@@ -309,10 +311,8 @@ export async function processCompetition(
       }
     }
 
-    if (plan.repRegistrantClear) {
-      counts.entryRegistrantClear = regByDocs.length;
-      counts.addedByClear = addedByDocs.length;
-    }
+    if (plan.repRegistrantClear) counts.entryRegistrantClear = regByDocs.length;
+    counts.addedByClear = addedByDocs.length;
     if (plan.repContactClear) counts.entryContactClear = regByDocs.length + ccDocs.length;
 
     if (!plan.staffDelete && plan.staffNameClear && staffExists && staffDisplayName != null) {
@@ -405,9 +405,10 @@ export async function processCompetition(
             tx.update(d.ref, { contactName: null, contactPhone: null, contactClearKey: FieldValue.delete() });
           }
         }
-        for (const d of addedByDocs) {
-          tx.update(d.ref, { addedByUid: null });
-        }
+      }
+      // 代填人欄位查到就清，不看角色（Opus 複審 P3-d、審查 P2-4）
+      for (const d of addedByDocs) {
+        tx.update(d.ref, { addedByUid: null });
       }
 
       // staffNameClear：僅在非 staffDelete 時
@@ -507,7 +508,7 @@ async function pseudonymizeBatch(
  */
 export async function pseudonymizeAudits(
   deps: CpDeps, cid: string, oldHash: string, pseudo: string, opts: { dryRun: boolean }
-): Promise<{ auditPseudonymize: number; scorerAuditRekey: number; invitePseudonymize: number }> {
+): Promise<{ auditPseudonymize: number; scorerAuditRekey: number; invitePseudonymize: number; inviteOpenRemaining: number }> {
   const auditsColl = deps.db.collection(`competitions/${cid}/audits`);
   let auditPseudonymize = 0;
 
@@ -549,11 +550,19 @@ export async function pseudonymizeAudits(
   // 接手稽核 id 改假名（id 形如 tk_{ms}_{mtId}_{oldHash}，結尾換 pseudo）
   const scorerAuditRekey = await rekeyScorerAudits(deps, cid, oldHash, pseudo, opts);
 
-  // （Opus 審 P2-7）invites.createdBy 也是主辦讀得到的雜湊。open 的邀請保留：
-  // participant.ts acceptCoHost 仍用 createdBy 驗俱樂部代表是否仍為發行者；非 open 才改假名。
+  // （Opus 審 P2-7／複審 P2-D）invites.createdBy 也是主辦讀得到的雜湊。開放中且未到期的邀請保留：
+  // participant.ts 接受邀請仍用 createdBy 驗發行者；不是 open、或已過期（過期後狀態仍可能是 open）的才改假名。
+  // 仍有開放未到期的邀請時回 inviteOpenRemaining，呼叫端讓這場進入等待（invite_open），到期後再處理。
   const invitesColl = deps.db.collection(`competitions/${cid}/invites`);
   const inviteSnap = await readQuery(deps, null, invitesColl.where('createdBy', '==', oldHash).limit(400));
-  const inviteHits = inviteSnap.docs.filter(d => d.get('status') !== 'open');
+  const nowMs = deps.now().getTime();
+  const inviteOpenActive = (d: { get(f: string): unknown }) => {
+    if (d.get('status') !== 'open') return false;
+    const exp = d.get('expiresAt') as { toMillis?: () => number } | null | undefined;
+    return !(exp && typeof exp.toMillis === 'function' && exp.toMillis() <= nowMs);
+  };
+  const inviteHits = inviteSnap.docs.filter(d => !inviteOpenActive(d));
+  const inviteOpenRemaining = inviteSnap.docs.length - inviteHits.length;
   if (!opts.dryRun && inviteHits.length > 0) {
     const batch = deps.db.batch();
     for (const d of inviteHits) batch.update(d.ref, 'createdBy', pseudo);
@@ -561,7 +570,7 @@ export async function pseudonymizeAudits(
   }
   const invitePseudonymize = inviteHits.length;
 
-  return { auditPseudonymize, scorerAuditRekey, invitePseudonymize };
+  return { auditPseudonymize, scorerAuditRekey, invitePseudonymize, inviteOpenRemaining };
 }
 
 /** 接手稽核 id 尾端的雜湊換成 pseudo；新 id 已存在就只刪舊 id。dryRun 只計數。 */
