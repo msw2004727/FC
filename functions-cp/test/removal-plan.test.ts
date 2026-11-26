@@ -13,10 +13,10 @@ import {
   canonicalJson,
   checkConfirmToken,
   competitionEnded,
-  contactClearKey,
   deleteAuditExpireAtMs,
   dryRunDigest,
   newConfirmToken,
+  newContactKey,
   newPseudonym,
   planCompetition,
   removalJobId,
@@ -345,13 +345,10 @@ describe('planCompetition（§4.2 第 2～6 點）', () => {
   });
 });
 
-describe('contactClearKey', () => {
-  it('16 碼 hex、同假名穩定、和假名本身不同值', () => {
-    const pseudo = 'a1b2c3d4e5f60718';
-    const key = contactClearKey(pseudo);
-    expect(key).toMatch(/^[0-9a-f]{16}$/);
-    expect(contactClearKey(pseudo)).toBe(key);
-    expect(key).not.toBe(pseudo);
-    expect(contactClearKey('0000000000000000')).not.toBe(key);
+describe('newContactKey（Opus 審 P1）', () => {
+  it('16 碼小寫 hex；兩次不同', () => {
+    const k = newContactKey();
+    expect(k).toMatch(/^[0-9a-f]{16}$/);
+    expect(newContactKey()).not.toBe(k);
   });
 });

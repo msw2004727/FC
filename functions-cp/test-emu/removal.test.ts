@@ -201,11 +201,14 @@ describe('賽事個資移除（PII-P7 e2e）', () => {
     expect(typeof pseudo).toBe('string');
     expect(pseudo).toMatch(/^[0-9a-f]{16}$/);
 
-    // dataRemoval 稽核也用同一假名
+    // dataRemoval 稽核另外用「新」假名（審查 P3-2）：16 碼小寫 hex、不等於舊稽核 pseudo、不等於 actorHash
     const audits = await adminDb().collection(`competitions/${cid}/audits`).get();
     const dr = audits.docs.find(d => d.get('action') === 'dataRemoval');
     expect(dr).toBeTruthy();
-    expect(dr!.get('actor')).toBe(pseudo);
+    const drActor = dr!.get('actor') as string;
+    expect(drActor).toMatch(/^[0-9a-f]{16}$/);
+    expect(drActor).not.toBe(pseudo);
+    expect(drActor).not.toBe(h);
 
     // 稽核／工作文件／回傳值 JSON 都不含 uid 原文
     expect(JSON.stringify(audits.docs.map(d => d.data()))).not.toContain(TESTER.uid);

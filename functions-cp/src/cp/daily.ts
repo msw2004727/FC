@@ -116,11 +116,19 @@ async function phase12RemovalJobs(
           break;
         }
         report.removalQueued += 1;
-        const r = await runRemovalJob(deps, doc.id, {
-          maxComps: MAX_COMPS_PER_JOB,
-          budgetMs: Math.max(0, PHASE12_BUDGET_MS - elapsed)
-        });
-        report.removalProcessed += r.processed;
+        // （Opus 審 P3-3）每份工作包 try/catch，一份出錯不影響其他份
+        try {
+          const r = await runRemovalJob(deps, doc.id, {
+            maxComps: MAX_COMPS_PER_JOB,
+            budgetMs: Math.max(0, PHASE12_BUDGET_MS - elapsed)
+          });
+          report.removalProcessed += r.processed;
+        } catch (e) {
+          logger.error('cpDaily phase1 job', {
+            job: doc.id.slice(0, 10),
+            error: (e as Error)?.name ?? 'Error'
+          });
+        }
       }
     }
   } catch (e) {
@@ -143,11 +151,19 @@ async function phase12RemovalJobs(
           break;
         }
         report.removalWaiting += 1;
-        const r = await runRemovalJob(deps, doc.id, {
-          maxComps: MAX_COMPS_PER_JOB,
-          budgetMs: Math.max(0, PHASE12_BUDGET_MS - elapsed)
-        });
-        report.removalProcessed += r.processed;
+        // （Opus 審 P3-3）每份工作包 try/catch，一份出錯不影響其他份
+        try {
+          const r = await runRemovalJob(deps, doc.id, {
+            maxComps: MAX_COMPS_PER_JOB,
+            budgetMs: Math.max(0, PHASE12_BUDGET_MS - elapsed)
+          });
+          report.removalProcessed += r.processed;
+        } catch (e) {
+          logger.error('cpDaily phase2 job', {
+            job: doc.id.slice(0, 10),
+            error: (e as Error)?.name ?? 'Error'
+          });
+        }
       }
     }
   } catch (e) {
@@ -245,6 +261,10 @@ async function phase4Backfill(
   opts: DailyOptions,
   report: DailyReport
 ): Promise<void> {
+  // （Opus 審 P3-10）auditBackfill 與 reportBackfill 都是 false 且非 dryRun → 直接略過（不掃描）
+  if (!opts.dryRun && !opts.auditBackfill && !opts.reportBackfill) {
+    return;
+  }
   const startMs = deps.now().getTime();
   const writeAudits = !opts.dryRun && opts.auditBackfill;
   const writeReports = !opts.dryRun && opts.reportBackfill;
@@ -461,6 +481,9 @@ async function phase4DelAudits(
  * 檢舉佇列回填：游標 cpDailyState/reportBackfill 欄位 after。
  * 逐場讀 competitions/{cid}/reports 中 status in ['resolved','dismissed']，沒有對應 cpReportPurge 文件的補一份。
  * dryRun 或 reportBackfill=false → 只計數、不動游標。
+ *
+ * （Opus 審 P3-1）跳過已有 piiClearedAt 的報告（已清過就不再補回佇列，避免無限循環）；
+ * 每場 reports 查詢改成 documentId 游標分頁（每頁 REPORT_PAGE）；整體受 phase4 時間預算限制。
  */
 async function phase4ReportQueue(
   deps: CpDeps,
@@ -492,44 +515,62 @@ async function phase4ReportQueue(
       if (deps.now().getTime() - phase4Start >= PHASE4_BUDGET_MS) { timeStopped = true; break; }
       const cid = compDoc.id;
       let fullyProcessed = true;
+      let reportAfter = '';
       try {
-        const rq = deps.db.collection(`competitions/${cid}/reports`)
-          .where('status', 'in', ['resolved', 'dismissed'])
-          .limit(REPORT_PAGE);
-        const rSnap = await readQuery(deps, null, rq);
-        for (const rDoc of rSnap.docs) {
+        while (true) {
           if (deps.now().getTime() - phase4Start >= PHASE4_BUDGET_MS) {
             timeStopped = true;
             fullyProcessed = false;
             break;
           }
-          const rid = rDoc.id;
-          const purgeRef = deps.db.doc(`cpReportPurge/${cid}_${rid}`);
-          let existsAlready = false;
-          try {
-            const pSnap = await readDoc(deps, null, purgeRef);
-            existsAlready = pSnap.exists;
-          } catch (e) {
-            logger.error('cpDaily phase4c purgecheck', { cid, error: (e as Error)?.name ?? 'Error' });
-            continue;
-          }
-          if (existsAlready) continue;
+          // （Opus 審 P3-1）documentId 游標分頁
+          let rq = deps.db.collection(`competitions/${cid}/reports`)
+            .where('status', 'in', ['resolved', 'dismissed'])
+            .orderBy(FieldPath.documentId())
+            .limit(REPORT_PAGE);
+          if (reportAfter) rq = rq.startAfter(reportAfter);
+          const rSnap = await readQuery(deps, null, rq);
+          if (rSnap.empty) break;
 
-          report.reportBackfillDocs += 1;
-          if (writeEnabled) {
-            const reviewedAt = rDoc.get('reviewedAt') ?? rDoc.get('lastAt');
-            const reviewedAtMs = reviewedAt && typeof (reviewedAt as { toMillis?: unknown }).toMillis === 'function'
-              ? (reviewedAt as { toMillis(): number }).toMillis()
-              : deps.now().getTime();
+          for (const rDoc of rSnap.docs) {
+            if (deps.now().getTime() - phase4Start >= PHASE4_BUDGET_MS) {
+              timeStopped = true;
+              fullyProcessed = false;
+              break;
+            }
+            // （Opus 審 P3-1）已清過的報告跳過
+            if (rDoc.get('piiClearedAt') != null) continue;
+            const rid = rDoc.id;
+            const purgeRef = deps.db.doc(`cpReportPurge/${cid}_${rid}`);
+            let existsAlready = false;
             try {
-              await purgeRef.set(
-                { cid, rid, purgeAt: Timestamp.fromMillis(reportPurgeAtMs(reviewedAtMs)) },
-                { merge: true }
-              );
+              const pSnap = await readDoc(deps, null, purgeRef);
+              existsAlready = pSnap.exists;
             } catch (e) {
-              logger.error('cpDaily phase4c write', { cid, error: (e as Error)?.name ?? 'Error' });
+              logger.error('cpDaily phase4c purgecheck', { cid, error: (e as Error)?.name ?? 'Error' });
+              continue;
+            }
+            if (existsAlready) continue;
+
+            report.reportBackfillDocs += 1;
+            if (writeEnabled) {
+              const reviewedAt = rDoc.get('reviewedAt') ?? rDoc.get('lastAt');
+              const reviewedAtMs = reviewedAt && typeof (reviewedAt as { toMillis?: unknown }).toMillis === 'function'
+                ? (reviewedAt as { toMillis(): number }).toMillis()
+                : deps.now().getTime();
+              try {
+                await purgeRef.set(
+                  { cid, rid, purgeAt: Timestamp.fromMillis(reportPurgeAtMs(reviewedAtMs)) },
+                  { merge: true }
+                );
+              } catch (e) {
+                logger.error('cpDaily phase4c write', { cid, error: (e as Error)?.name ?? 'Error' });
+              }
             }
           }
+          if (timeStopped) break;
+          reportAfter = rSnap.docs[rSnap.docs.length - 1]!.id;
+          if (rSnap.size < REPORT_PAGE) break;
         }
       } catch (e) {
         fullyProcessed = false;
@@ -550,7 +591,11 @@ async function phase4ReportQueue(
   if (writeEnabled) {
     const update: Record<string, unknown> = {};
     if (timeStopped) {
-      if (lastScannedCid) update.after = lastScannedCid;
+      if (lastScannedCid === after && !report.stoppedEarly.includes('phase4cNoProgress')) {
+        // 極端：這一輪完全沒處理任何場就被時間預算中斷，游標不動
+      } else if (lastScannedCid) {
+        update.after = lastScannedCid;
+      }
     } else if (reachedEnd) {
       update.after = FieldValue.delete();
     } else if (lastScannedCid) {

@@ -17,8 +17,8 @@ export const REPORT_PURGE_MS = 180 * 86400_000;
 export const DRY_RUN_TTL_MS = 72 * 3600_000;
 /** 同一移除工作 60 秒內重按視為限流。 */
 export const REMOVAL_RATE_MS = 60_000;
-/** 工作租約 120 秒。 */
-export const LEASE_MS = 120_000;
+/** 工作租約 300 秒（Opus 審 P2-1：原本 120 秒比排程預算 250 秒短，改成 300 秒）。 */
+export const LEASE_MS = 300_000;
 /** Callable 單次最多處理 5 場。 */
 export const CALLABLE_MAX_COMPS = 5;
 /** Callable 單次時間預算 40 秒。 */
@@ -70,15 +70,12 @@ export function removalJobId(uid: string): string {
 }
 
 /** 假名：16 碼小寫 hex。 */
-/**
- * 代表聯絡資料「賽事結束後才清」的標記：registeredByUid 會立即清掉，之後查不到是誰的報隊，
- * 所以在 entryPrivate 留這個標記，結束後用它找回。由假名再雜湊一次，和稽核的假名不同值，主辦對不起來。
- */
-export function contactClearKey(pseudo: string): string {
-  return createHash('sha256').update('cc:' + pseudo).digest('hex').slice(0, 16);
+export function newPseudonym(): string {
+  return randomBytes(8).toString('hex');
 }
 
-export function newPseudonym(): string {
+/** 代表聯絡資料標記用的隨機鍵：16 碼小寫 hex；不可由假名推導（Opus 審 P1）。 */
+export function newContactKey(): string {
   return randomBytes(8).toString('hex');
 }
 

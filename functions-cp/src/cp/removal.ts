@@ -35,7 +35,7 @@ import {
   ANON_PLAYER,
   auditExpireAtMs,
   competitionEnded,
-  contactClearKey,
+  newPseudonym,
   planCompetition,
   type MineRole,
   type WaitReason
@@ -54,10 +54,11 @@ export interface CompCounts {
 export interface CompResult {
   cid: string;
   skipped: boolean;                 // 賽事不存在或 deletingAt 有值
-  roles: MineRole[];                // 來自 cpMine/{uid}/items/{cid}.roles（沒有文件＝空）
+  roles: MineRole[];                // 有效角色（cpMine ∪ 查到資料 implied ∪ staff 文件角色）
   phase: 'roster_open' | 'started' | 'ended';
   counts: CompCounts;
   waiting: WaitReason[];
+  more: boolean;                    // 任一有限查詢回滿（尚有未處理資料）
 }
 
 // ── 小工具 ───────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ function updatePaths(tx: Transaction, ref: DocumentReference, pairs: Array<{ pat
  */
 export async function processCompetition(
   deps: CpDeps, uid: string, cid: string,
-  opts: { pseudo: string; dryRun: boolean }
+  opts: { pseudo: string; ccKey: string; dryRun: boolean }
 ): Promise<CompResult> {
   const nowMs = deps.now().getTime();
   const compRef = deps.db.doc(`competitions/${cid}`);
@@ -152,13 +153,13 @@ export async function processCompetition(
 
     if (!compSnap.exists) {
       return {
-        cid, skipped: true, roles, phase: 'started' as const, counts: emptyCounts(), waiting: []
+        cid, skipped: true, roles, phase: 'started' as const, counts: emptyCounts(), waiting: [], more: false
       };
     }
     const comp = compSnap.data() as CompDoc;
     if (comp.deletingAt) {
       return {
-        cid, skipped: true, roles, phase: 'started' as const, counts: emptyCounts(), waiting: []
+        cid, skipped: true, roles, phase: 'started' as const, counts: emptyCounts(), waiting: [], more: false
       };
     }
 
@@ -168,10 +169,12 @@ export async function processCompetition(
     const staffMatchIds = staffExists ? stringListOf(staffSnap, 'matchIds') : [];
     const staffDisplayName = staffExists ? staffSnap.get('displayName') : null;
 
+    let more = false;
     // ── 讀 4：rosterPrivate where uid == uid（limit 5）＋對應 roster
     const myPrivQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
       .where('uid', '==', uid).limit(5));
     const myPrivs = myPrivQ.docs;
+    if (myPrivQ.size === 5) more = true;
     for (const p of myPrivs) {
       await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/roster/${p.id}`));
     }
@@ -180,10 +183,12 @@ export async function processCompetition(
     const regByQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entryPrivate`)
       .where('registeredByUid', '==', uid).limit(20));
     const regByDocs = regByQ.docs;
+    if (regByQ.size === 20) more = true;
     // ── 讀 5b：之前處理時標記「結束後再清聯絡資料」的報隊（registeredByUid 已清，靠標記找回）
-    const ccKey = contactClearKey(opts.pseudo);
+    //     ccKey 由呼叫端每場另外產生，不可由假名推導（Opus 審 P1）。
     const ccQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entryPrivate`)
-      .where('contactClearKey', '==', ccKey).limit(20));
+      .where('contactClearKey', '==', opts.ccKey).limit(20));
+    if (ccQ.size === 20) more = true;
     const regByIds = new Set(regByDocs.map(d => d.id));
     const ccDocs = ccQ.docs.filter(d => !regByIds.has(d.id));
 
@@ -191,6 +196,20 @@ export async function processCompetition(
     const addedByQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
       .where('addedByUid', '==', uid).limit(60));
     const addedByDocs = addedByQ.docs;
+    if (addedByQ.size === 60) more = true;
+
+    // （Opus 審 P2-4）有效角色：cpMine ∪ 查到資料 implied ∪ staff 文件角色。
+    const effectiveRoleSet = new Set<MineRole>(roles);
+    if (myPrivs.length > 0) effectiveRoleSet.add('player');
+    if (regByDocs.length > 0 || addedByDocs.length > 0 || ccDocs.length > 0) effectiveRoleSet.add('rep');
+    if (staffExists) {
+      const staffRoles = stringListOf(staffSnap, 'roles');
+      if (staffRoles.includes('scorer')) effectiveRoleSet.add('scorer');
+      if (staffRoles.includes('referee')) effectiveRoleSet.add('referee');
+      if (staffRoles.includes('host')) effectiveRoleSet.add('host');
+      if (staffRoles.includes('coHost')) effectiveRoleSet.add('coHost');
+    }
+    const effectiveRoles = MINE_ROLES.filter(r => effectiveRoleSet.has(r));
 
     // ── 階段與 plan
     const ended = competitionEnded(comp, nowMs);
@@ -198,8 +217,21 @@ export async function processCompetition(
     const phase: 'roster_open' | 'started' | 'ended' = ended ? 'ended' : (openNow ? 'roster_open' : 'started');
     const staffActive = staffActiveOf(staffSnap, ended, nowMs);
     const plan = planCompetition({
-      roles, ended, rosterPhaseOpen: openNow, staffActive, deleting: false
+      roles: effectiveRoles, ended, rosterPhaseOpen: openNow, staffActive, deleting: false
     });
+
+    // （Opus 審 P3-9）名單刪除：entries 先在讀階段讀完，寫階段只對存在的文件 increment。
+    const rosterEntrySnaps = new Map<string, DocumentSnapshot>();
+    if (plan.roster === 'delete') {
+      const enIds = new Set<string>();
+      for (const p of myPrivs) {
+        const enId = p.get('enId');
+        if (typeof enId === 'string' && enId) enIds.add(enId);
+      }
+      for (const enId of enIds) {
+        rosterEntrySnaps.set(enId, await readDoc(deps, tx, deps.db.doc(`competitions/${cid}/entries/${enId}`)));
+      }
+    }
 
     // ── 讀 7：若會去識別名單 —— 讀 stats/{dvId}（dvId 去重 ≤8）
     const statsSnaps = new Map<string, DocumentSnapshot>();
@@ -232,6 +264,7 @@ export async function processCompetition(
     if (plan.hostPublicReset) {
       const q = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/standings`)
         .where('manualOverride.by', '==', h).limit(50));
+      if (q.size === 50) more = true;
       standingsDocs = q.docs;
     }
 
@@ -320,7 +353,7 @@ export async function processCompetition(
           const enId = p.get('enId');
           tx.delete(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`));
           tx.delete(deps.db.doc(`competitions/${cid}/roster/${plId}`));
-          if (typeof enId === 'string' && enId) {
+          if (typeof enId === 'string' && enId && rosterEntrySnaps.get(enId)?.exists) {
             tx.update(deps.db.doc(`competitions/${cid}/entries/${enId}`), {
               rosterCount: FieldValue.increment(-1),
               rosterConfirmed: false,
@@ -363,7 +396,7 @@ export async function processCompetition(
             update.contactClearKey = FieldValue.delete();
           } else {
             // 賽事未結束：聯絡資料留著給主辦聯絡，結束後由排程用標記找回再清
-            update.contactClearKey = ccKey;
+            update.contactClearKey = opts.ccKey;
           }
           tx.update(d.ref, update);
         }
@@ -425,22 +458,26 @@ export async function processCompetition(
         writeMine();
       }
 
-      // 稽核（不用 writeAudit；actor 為 pseudo）
-      const auditCounts: Record<string, number> = {};
-      for (const k of Object.keys(counts) as Array<keyof CompCounts>) {
-        auditCounts[k] = counts[k];
+      // 稽核（不用 writeAudit）。actor 每次寫入都用新假名，避免與 T2 的 pseudo 相同而標出「這個假名申請了移除」；
+      // counts 全 0 且 waiting 空時不寫（Opus 審 P3-2）。
+      const auditTotal = (Object.values(counts) as number[]).reduce((a, b) => a + b, 0);
+      if (auditTotal > 0 || plan.waiting.length > 0) {
+        const auditCounts: Record<string, number> = {};
+        for (const k of Object.keys(counts) as Array<keyof CompCounts>) {
+          auditCounts[k] = counts[k];
+        }
+        tx.create(deps.db.collection(`competitions/${cid}/audits`).doc(), {
+          action: 'dataRemoval',
+          actor: newPseudonym(),
+          actorIsAdmin: false,
+          details: { counts: auditCounts, waiting: plan.waiting },
+          at: FieldValue.serverTimestamp(),
+          expireAt: Timestamp.fromMillis(auditExpireAtMs(deps.now().getTime(), comp.lastMatchAt ? comp.lastMatchAt.toMillis() : null))
+        });
       }
-      tx.create(deps.db.collection(`competitions/${cid}/audits`).doc(), {
-        action: 'dataRemoval',
-        actor: opts.pseudo,
-        actorIsAdmin: false,
-        details: { counts: auditCounts, waiting: plan.waiting },
-        at: FieldValue.serverTimestamp(),
-        expireAt: Timestamp.fromMillis(auditExpireAtMs(deps.now().getTime(), comp.lastMatchAt ? comp.lastMatchAt.toMillis() : null))
-      });
     }
 
-    return { cid, skipped: false, roles, phase, counts, waiting: plan.waiting };
+    return { cid, skipped: false, roles: effectiveRoles, phase, counts, waiting: plan.waiting, more };
   });
 }
 
@@ -470,7 +507,7 @@ async function pseudonymizeBatch(
  */
 export async function pseudonymizeAudits(
   deps: CpDeps, cid: string, oldHash: string, pseudo: string, opts: { dryRun: boolean }
-): Promise<{ auditPseudonymize: number; scorerAuditRekey: number }> {
+): Promise<{ auditPseudonymize: number; scorerAuditRekey: number; invitePseudonymize: number }> {
   const auditsColl = deps.db.collection(`competitions/${cid}/audits`);
   let auditPseudonymize = 0;
 
@@ -512,7 +549,19 @@ export async function pseudonymizeAudits(
   // 接手稽核 id 改假名（id 形如 tk_{ms}_{mtId}_{oldHash}，結尾換 pseudo）
   const scorerAuditRekey = await rekeyScorerAudits(deps, cid, oldHash, pseudo, opts);
 
-  return { auditPseudonymize, scorerAuditRekey };
+  // （Opus 審 P2-7）invites.createdBy 也是主辦讀得到的雜湊。open 的邀請保留：
+  // participant.ts acceptCoHost 仍用 createdBy 驗俱樂部代表是否仍為發行者；非 open 才改假名。
+  const invitesColl = deps.db.collection(`competitions/${cid}/invites`);
+  const inviteSnap = await readQuery(deps, null, invitesColl.where('createdBy', '==', oldHash).limit(400));
+  const inviteHits = inviteSnap.docs.filter(d => d.get('status') !== 'open');
+  if (!opts.dryRun && inviteHits.length > 0) {
+    const batch = deps.db.batch();
+    for (const d of inviteHits) batch.update(d.ref, 'createdBy', pseudo);
+    await batch.commit();
+  }
+  const invitePseudonymize = inviteHits.length;
+
+  return { auditPseudonymize, scorerAuditRekey, invitePseudonymize };
 }
 
 /** 接手稽核 id 尾端的雜湊換成 pseudo；新 id 已存在就只刪舊 id。dryRun 只計數。 */
