@@ -806,6 +806,9 @@ export async function adminRemoveUserData(
   const uid = requireId(input.uid, UID_RE, 'uid');
   const reasonCode = requireEnum(input.reasonCode, ['account_deleted', 'subject_request'] as const, 'reasonCode');
   const dryRun = input.dryRun !== false;
+  // 站長定案「人工刪除每件由站長本人確認」：試算（dryRun）任何管理員可做；真的執行只認最高管理員（claims role super_admin），
+  // 由站長本人在管理頁按執行（顧問 §3.816 ①）。取代先前「任何管理員拿到確認碼都能執行」。
+  if (!dryRun && caller.role !== 'super_admin') throw deny('SUPER_ADMIN_ONLY');
 
   const jobId = removalJobId(uid);
   const jobRef = deps.db.doc(`cpRemovalJobs/${jobId}`);
@@ -839,6 +842,11 @@ export async function adminRemoveUserData(
       generatedAt: taipeiIso(nowMs),
       confirmToken: token,
       expiresAt: taipeiIso(nowMs + DRY_RUN_TTL_MS),
+      // 已知限制要讓站長在確認前看到，免得以為已經清乾淨（顧問 §3.816）；不放進 digest（固定文字）
+      limitations: [
+        '只代填過球員、自己在賽事系統沒有任何紀錄的人，那幾場不會列在這裡，也不會被處理（系統找不到）。',
+        '還開放中、未到期的邀請，發出人的代號要等邀請到期後才會換掉。'
+      ],
       ...summary
     };
   }

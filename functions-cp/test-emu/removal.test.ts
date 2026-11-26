@@ -48,6 +48,8 @@ const EMPTY_COUNTS = {
 };
 
 // ── Handler 包裝 ─────────────────────────────────────────────────────
+// 真的執行只認最高管理員（顧問 §3.816 ①）；試算仍由一般管理員 ADMIN 做
+const SUPER_ADMIN = { uid: 'superadmin', role: 'super_admin' };
 const reqRemovalHandler: Handler = async (d, c, i) =>
   requestMyDataRemoval(d, c, i as Record<string, unknown>);
 const proxyHandler: Handler = async (d, c, i) => {
@@ -411,19 +413,40 @@ describe('賽事個資移除（PII-P7 e2e）', () => {
     expect(after).toEqual(before);
   });
 
+  it('真的執行只認最高管理員：一般管理員可試算（附已知限制說明）、不能執行；最高管理員用同一個確認碼可以（顧問 §3.816 ①）', async () => {
+    const cid = await seedRoot({});
+    await seedPlayer({ cid, uid: TESTER.uid });
+    await seedMine(TESTER.uid, cid, ['player']);
+
+    const dr = await ok<{ confirmToken: string; limitations: string[] }>(
+      call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true })
+    );
+    expect(dr.limitations.length).toBeGreaterThanOrEqual(1);
+    expect(dr.limitations.join()).toContain('代填');
+
+    await fails(call(adminHandler, ADMIN, {
+      uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
+    }), 'SUPER_ADMIN_ONLY', 'permission-denied');
+    // 被擋下的那次沒有消耗確認碼
+    const run = await ok<{ status: string }>(call(adminHandler, SUPER_ADMIN, {
+      uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
+    }));
+    expect(['done', 'waiting', 'partial']).toContain(run.status);
+  });
+
   it('管理員 dryRun:false：缺 token → DRY_RUN_REQUIRED；錯 token → DRY_RUN_STALE', async () => {
     const cid = await seedRoot({});
     await seedPlayer({ cid, uid: TESTER.uid });
     await seedMine(TESTER.uid, cid, ['player']);
 
     await fails(
-      call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false }),
+      call(adminHandler, SUPER_ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false }),
       'DRY_RUN_REQUIRED'
     );
 
     await ok(call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true }));
 
-    await fails(call(adminHandler, ADMIN, {
+    await fails(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false,
       confirmToken: 'dr_wrongwrongwrong'
     }), 'DRY_RUN_STALE');
@@ -439,7 +462,7 @@ describe('賽事個資移除（PII-P7 e2e）', () => {
     );
 
     const deps2 = makeDeps(72 * 3_600_000 + 60_000);
-    await fails(call(adminHandler, ADMIN, {
+    await fails(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: res.confirmToken
     }, deps2), 'DRY_RUN_STALE');
   });
@@ -459,19 +482,19 @@ describe('賽事個資移除（PII-P7 e2e）', () => {
       teamId: 'club_a', source: 'self', addedByUid: null
     });
 
-    await fails(call(adminHandler, ADMIN, {
+    await fails(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
     }), 'DRY_RUN_STALE');
 
     const dr2 = await ok<{ confirmToken: string }>(
       call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true })
     );
-    const run = await ok<{ status: string }>(call(adminHandler, ADMIN, {
+    const run = await ok<{ status: string }>(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr2.confirmToken
     }));
     expect(run.status).toBe('done');
 
-    const again = await call(adminHandler, ADMIN, {
+    const again = await call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr2.confirmToken
     });
     expect(again.ok).toBe(false);

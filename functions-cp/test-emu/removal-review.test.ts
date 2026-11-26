@@ -50,6 +50,8 @@ const EMPTY_COUNTS = {
 };
 
 // ── Handler 包裝 ─────────────────────────────────────────────────────
+// 真的執行只認最高管理員（顧問 §3.816 ①）；試算仍由一般管理員 ADMIN 做
+const SUPER_ADMIN = { uid: 'superadmin', role: 'super_admin' };
 const reqRemovalHandler: Handler = async (d, c, i) =>
   requestMyDataRemoval(d, c, i as Record<string, unknown>);
 const proxyHandler: Handler = async (d, c, i) => {
@@ -318,7 +320,7 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
     const aDr = await ok<{ confirmToken: string }>(
       call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true })
     );
-    const crossRes = await call(adminHandler, ADMIN, {
+    const crossRes = await call(adminHandler, SUPER_ADMIN, {
       uid: TESTER2.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: aDr.confirmToken
     });
     expect(crossRes.ok).toBe(false);
@@ -330,7 +332,7 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
     const bDr = await ok<{ confirmToken: string }>(
       call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true })
     );
-    const mismatch = await call(adminHandler, ADMIN, {
+    const mismatch = await call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'account_deleted', dryRun: false, confirmToken: bDr.confirmToken
     });
     expect(mismatch.ok).toBe(false);
@@ -353,7 +355,7 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
     expect(jobAfterDr.get('uid')).toBeUndefined();
 
     // 執行
-    await ok(call(adminHandler, ADMIN, {
+    await ok(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER3.uid, reasonCode: 'account_deleted', dryRun: false, confirmToken: cdDr.confirmToken
     }));
     expect((await db.doc(`cpHostQuota/${TESTER3.uid}`).get()).exists).toBe(false);
@@ -363,10 +365,10 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
       call(adminHandler, ADMIN, { uid: TESTER2.uid, reasonCode: 'subject_request', dryRun: true })
     );
     const [r1, r2] = await Promise.all([
-      call(adminHandler, ADMIN, {
+      call(adminHandler, SUPER_ADMIN, {
         uid: TESTER2.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: parDr.confirmToken
       }),
-      call(adminHandler, ADMIN, {
+      call(adminHandler, SUPER_ADMIN, {
         uid: TESTER2.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: parDr.confirmToken
       })
     ]);
