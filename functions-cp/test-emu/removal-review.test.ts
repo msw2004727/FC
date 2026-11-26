@@ -157,6 +157,8 @@ async function snapshotAll(cid: string, uid: string) {
 describe('賽事個資移除審查補測（PII-P8c）', () => {
   beforeEach(async () => {
     await resetAll({ isPublic: true });
+    // 站長 uid 白名單（伺服器專用文件）：真的執行要 super_admin 且在名單（Opus 審 P11 P2）
+    await adminDb().doc('cpOwnerConfig/removal').set({ uids: [SUPER_ADMIN.uid] });
   });
 
   // ── 1：T2 三種欄位與 tk_ 換 id ────────────────────────────────────

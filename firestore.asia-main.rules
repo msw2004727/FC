@@ -652,6 +652,8 @@ service cloud.firestore {
     match /cpRemovalJobs/{jobId} { allow read, write: if false; }
     match /cpReportPurge/{purgeId} { allow read, write: if false; }
     match /cpDailyState/{stateId} { allow read, write: if false; }
+    // 個資人工刪除的站長 uid 白名單（只給伺服器讀；管理頁不可讀，Opus 審 P11）
+    match /cpOwnerConfig/{configId} { allow read, write: if false; }
     // 其他路徑：Rules 預設拒絕；刻意不寫 {document=**}／{path=**}（§5.2 不開 collectionGroup）
   }
 }

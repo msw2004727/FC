@@ -141,6 +141,8 @@ async function seedMine(uid: string, cid: string, roles: string[], extra: Record
 describe('賽事個資移除（PII-P7 e2e）', () => {
   beforeEach(async () => {
     await resetAll({ isPublic: true });
+    // 站長 uid 白名單（伺服器專用文件）：真的執行要 super_admin 且在名單（Opus 審 P11 P2）
+    await adminDb().doc('cpOwnerConfig/removal').set({ uids: [SUPER_ADMIN.uid] });
   });
 
   // ── 案例 1：球員本人、名單階段內 ──────────────────────────────────
@@ -428,6 +430,28 @@ describe('賽事個資移除（PII-P7 e2e）', () => {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
     }), 'SUPER_ADMIN_ONLY', 'permission-denied');
     // 被擋下的那次沒有消耗確認碼
+    const run = await ok<{ status: string }>(call(adminHandler, SUPER_ADMIN, {
+      uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
+    }));
+    expect(['done', 'waiting', 'partial']).toContain(run.status);
+  });
+
+  it('真的執行還要在站長白名單：super_admin 但不在名單、或名單文件不存在 → OWNER_ONLY，且不消耗確認碼', async () => {
+    const cid = await seedRoot({});
+    await seedPlayer({ cid, uid: TESTER.uid });
+    await seedMine(TESTER.uid, cid, ['player']);
+    const dr = await ok<{ confirmToken: string }>(
+      call(adminHandler, ADMIN, { uid: TESTER.uid, reasonCode: 'subject_request', dryRun: true })
+    );
+    const otherSuper = { uid: 'othersuper', role: 'super_admin' };
+    await fails(call(adminHandler, otherSuper, {
+      uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
+    }), 'OWNER_ONLY', 'permission-denied');
+    await adminDb().doc('cpOwnerConfig/removal').delete();
+    await fails(call(adminHandler, SUPER_ADMIN, {
+      uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
+    }), 'OWNER_ONLY', 'permission-denied');
+    await adminDb().doc('cpOwnerConfig/removal').set({ uids: [SUPER_ADMIN.uid] });
     const run = await ok<{ status: string }>(call(adminHandler, SUPER_ADMIN, {
       uid: TESTER.uid, reasonCode: 'subject_request', dryRun: false, confirmToken: dr.confirmToken
     }));

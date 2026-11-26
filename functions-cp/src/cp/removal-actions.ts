@@ -809,6 +809,14 @@ export async function adminRemoveUserData(
   // 站長定案「人工刪除每件由站長本人確認」：試算（dryRun）任何管理員可做；真的執行只認最高管理員（claims role super_admin），
   // 由站長本人在管理頁按執行（顧問 §3.816 ①）。取代先前「任何管理員拿到確認碼都能執行」。
   if (!dryRun && caller.role !== 'super_admin') throw deny('SUPER_ADMIN_ONLY');
+  // super_admin 可以不只一位（主站可把別人升為 super_admin），所以真的執行再對站長 uid 白名單（Opus 審 P11 P2）：
+  // 白名單放伺服器專用文件 cpOwnerConfig/removal 的 uids（不放 repo 的 .env，避免 uid 進公開 repo）；
+  // 文件不存在或不在名單 → 拒絕（fail-closed）。也順帶擋掉「claims 已降級但 token 還沒更新」的空窗。
+  if (!dryRun) {
+    const owners = await readDoc(deps, null, deps.db.doc('cpOwnerConfig/removal'));
+    const list = owners.exists ? owners.get('uids') : null;
+    if (!Array.isArray(list) || !list.includes(caller.uid)) throw deny('OWNER_ONLY');
+  }
 
   const jobId = removalJobId(uid);
   const jobRef = deps.db.doc(`cpRemovalJobs/${jobId}`);

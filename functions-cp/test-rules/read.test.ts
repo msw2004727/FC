@@ -196,7 +196,7 @@ describe('其他集合', () => {
     }
   });
   it('【拒】cpRemovalJobs、cpReportPurge、cpDailyState 用戶端一律不可讀寫（含管理員、本人）', async () => {
-    for (const p of ['cpRemovalJobs/u_job', 'cpReportPurge/c_r', 'cpDailyState/auditBackfill']) {
+    for (const p of ['cpRemovalJobs/u_job', 'cpReportPurge/c_r', 'cpDailyState/auditBackfill', 'cpOwnerConfig/removal']) {
       for (const db of [as('admin', 'admin'), as('m1'), anon()]) {
         await assertFails(get1(db, p));
         await assertFails(setDoc(doc(db, p), { x: 1 }));
