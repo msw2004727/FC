@@ -717,10 +717,14 @@ export async function buildDryRunSummary(
         cpMineDelete: res.counts.cpMineDelete
       };
 
-      if (res.waiting.length > 0) {
+      // 執行時有開放未到期的邀請會讓這場進入等待（invite_open），摘要也要列出，站長才不會以為能當場處理完（Opus 確認審 P3-1）
+      const waiting: WaitReason[] = auditRes.inviteOpenRemaining > 0 && !res.waiting.includes('invite_open')
+        ? [...res.waiting, 'invite_open']
+        : res.waiting;
+      if (waiting.length > 0) {
         competitions.push({
           cid, name, roles: res.roles, phase: res.phase, now,
-          later: { reasons: res.waiting, until: describeUntil(res.waiting) }
+          later: { reasons: waiting, until: describeUntil(waiting) }
         });
       } else {
         competitions.push({ cid, name, roles: res.roles, phase: res.phase, now, later: null });

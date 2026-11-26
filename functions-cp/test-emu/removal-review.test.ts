@@ -525,6 +525,12 @@ describe('賽事個資移除審查補測（PII-P8c）', () => {
       createdAt: Timestamp.fromMillis(Date.now() - DAY)
     });
 
+    // 管理員 dryRun 摘要也要列出要等邀請到期（Opus 確認審 P3-1）
+    const sum = await ok<{ competitions: Array<{ later: { reasons: string[] } | null }> }>(
+      call(adminHandler, ADMIN, { action: 'adminRemoveUserData', uid: TESTER.uid, reasonCode: 'subject_request' })
+    );
+    expect(sum.competitions[0]?.later?.reasons).toContain('invite_open');
+
     const r = await ok<{ status: string; waiting: Array<{ cid: string; reason: string }> }>(
       call(reqRemovalHandler, TESTER, { confirm: 'REMOVE' })
     );
