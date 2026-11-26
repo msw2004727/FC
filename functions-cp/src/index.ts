@@ -16,6 +16,8 @@ import type { CpDeps } from './cp/context.js';
 import { handleCpEntry } from './cp/entry.js';
 import { handleCpHost } from './cp/host.js';
 import { handleCpParticipant } from './cp/participant.js';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { runDaily, dailyOptionsFromEnv } from './cp/daily.js';
 
 export const CP_DATABASE_ID = 'asia-main';
 
@@ -110,4 +112,21 @@ export const cpOnScorerWritten = onDocumentWritten({
     }
     throw e;
   }
+});
+
+/**
+ * 個資移除與保存期限每日排程（設計卡 ① §4.4）：續跑移除工作、等待項目到期、檢舉 180 天清除、稽核 expireAt 回填。
+ * 預設只計數（CP_DAILY_DRY_RUN 不是 '0' 就不寫）；正式開啟 D7、回填 D4／D5 各自另送站長。
+ */
+export const cpDaily = onSchedule({
+  schedule: '0 4 * * *',
+  timeZone: 'Asia/Taipei',
+  region: 'asia-east1',
+  memory: '256MiB',
+  timeoutSeconds: 540,
+  maxInstances: 1,
+  retryCount: 0
+}, async () => {
+  const report = await runDaily(getDeps(), dailyOptionsFromEnv(process.env));
+  logger.info('cpDaily', report);
 });
