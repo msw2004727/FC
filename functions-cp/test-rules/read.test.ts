@@ -2,7 +2,7 @@
  * §5.2 讀取規則＋自己的清單（§3.248-5）＋V16（代表清單以 hostTeamId 組 get 路徑的查詢層級驗證）
  */
 import { describe, it, beforeAll, afterAll, afterEach } from 'vitest';
-import { doc, getDoc, getDocs, collection, query, where, limit, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, collection, query, where, limit, type Firestore } from 'firebase/firestore';
 import { loadRules, clearDb, clientDb, closeClients, assertFails, assertSucceeds } from './_harness.js';
 import { seedBase } from './_fixtures.js';
 
@@ -194,6 +194,15 @@ describe('其他集合', () => {
       await assertFails(get1(as('admin', 'admin'), p));
       await assertFails(get1(as('rep'), p));
     }
+  });
+  it('【拒】cpRemovalJobs、cpReportPurge、cpDailyState 用戶端一律不可讀寫（含管理員、本人）', async () => {
+    for (const p of ['cpRemovalJobs/u_job', 'cpReportPurge/c_r', 'cpDailyState/auditBackfill']) {
+      for (const db of [as('admin', 'admin'), as('m1'), anon()]) {
+        await assertFails(get1(db, p));
+        await assertFails(setDoc(doc(db, p), { x: 1 }));
+      }
+    }
+    await assertFails(getDocs(query(collection(as('admin', 'admin'), 'cpRemovalJobs'), limit(10))));
   });
   it('【拒】不開 collectionGroup 讀取', async () => {
     const { collectionGroup } = await import('firebase/firestore');

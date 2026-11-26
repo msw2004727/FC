@@ -648,6 +648,10 @@ service cloud.firestore {
     match /cpAudits/{auditId} { allow read, write: if false; }
     // 檢舉 LINE 冷卻與每日計數（伺服器寫；與外送匣 cpOutbox 分開，顧問 §3.254）
     match /cpLineThrottle/{throttleId} { allow read, write: if false; }
+    // 個資移除工作、檢舉 180 天清除佇列、每日排程游標（設計卡 ① §4.9；只給伺服器）
+    match /cpRemovalJobs/{jobId} { allow read, write: if false; }
+    match /cpReportPurge/{purgeId} { allow read, write: if false; }
+    match /cpDailyState/{stateId} { allow read, write: if false; }
     // 其他路徑：Rules 預設拒絕；刻意不寫 {document=**}／{path=**}（§5.2 不開 collectionGroup）
   }
 }
