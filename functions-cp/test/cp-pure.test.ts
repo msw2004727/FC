@@ -175,6 +175,13 @@ describe('建賽輸入驗證', () => {
   });
 });
 
+describe('文字清理：方向隔離字元', () => {
+  it('U+2066～U+2069 也去掉', () => {
+    expect(cleanLine('甲\u2066隊\u2067乙\u2068丙\u2069')).toBe('甲隊乙丙');
+    expect(optionalText('a\u2066\nb\u2069', 'x', 10)).toBe('a\nb');
+  });
+});
+
 describe('id 與身分', () => {
   it('前綴＋20 碼英數', () => {
     for (let i = 0; i < 200; i++) {

@@ -3,9 +3,9 @@
  */
 import { bad } from './errors.js';
 
-// 控制字元、零寬字元、雙向控制字元（防止藏字繞過禁用字或在畫面上反轉顯示）
+// 控制字元、零寬字元、雙向控制字元（含方向隔離 U+2066～U+2069；防止藏字繞過禁用字或在畫面上反轉顯示）
 // 另含分類為字母但畫面看不見的填充字（U+115F、U+1160、U+3164、U+FFA0、U+2800），Opus 終審 P3
-const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
+const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
 
 /** 清理單行文字：NFKC、去不可見字元、壓空白、去頭尾。非字串回 null。 */
 export function cleanLine(value: unknown): string | null {
@@ -60,7 +60,7 @@ export function optionalText(value: unknown, field: string, max: number): string
   if (typeof value !== 'string') throw bad('FIELD_TYPE', { field });
   const s = value.normalize('NFKC')
     .replace(/\r\n?/g, '\n')
-    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g, '')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u115f\u1160\u3164\uffa0\u2800]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   if (s.length === 0) return null;
