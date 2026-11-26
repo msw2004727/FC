@@ -3,6 +3,7 @@
  * resyncMyClubs（G4 鏡像後）、requestMyDataRemoval（第 6 步前）尚未實作，回 UNKNOWN_ACTION。
  * 下架（hidden）與處理檢舉在 cpHost 的 moderate／reviewReport（moderate.ts，只認 claims role；顧問 11-20 同意放賽事 codebase，搬回主 codebase cpAdminOps 列待辦）。
  */
+import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { CpError, bad, notFound, pre } from './errors.js';
 import {
   CID_RE,
@@ -11,6 +12,8 @@ import {
   Timestamp,
   actorHash,
   assertCompVisible,
+  clubRepUids,
+  isAdmin,
   isHostOrCo,
   launchGate,
   loadComp,
@@ -18,13 +21,17 @@ import {
   requireId,
   writeAudit,
   type Caller,
+  type CompDoc,
   type CpDeps,
   type GateResult
 } from './context.js';
 import { prepareMine } from './mine.js';
 import {
+  COHOST_MAX,
   INVITE_CODE_RE,
   canonScore,
+  coHostCountOf,
+  decideCoHostAccept,
   inviteCodeMatches,
   memberNoForNewStaff,
   mergeInviteAssignment,
@@ -115,6 +122,7 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
  * 邀請不存在與代碼不符回同一個 INVITE_INVALID，避免探測；代碼相符後才細分 INVITE_REVOKED／INVITE_USED／INVITE_EXPIRED。
  * 讀取：閘門 ≤2＋賽事 1＋邀請 1＋staff 1＋users 1＋cpMine 1 ＝ ≤7。
  * 主庫 users 在另一個資料庫，不能放進本庫交易，改在交易回呼裡直接讀（只取 displayName）。
+ * 共同主辦邀請（roles 恰為 ['coHost']）在代碼與到期檢查後改走 acceptCoHost；俱樂部賽事多讀 1 次代表名單（≤8）。
  */
 export async function acceptInvite(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'ivId', 'code']);
@@ -141,7 +149,12 @@ export async function acceptInvite(deps: CpDeps, caller: Caller, gate: GateResul
     const ivExp = iv.get('expiresAt');
     const ivExpMs = ivExp && typeof ivExp.toMillis === 'function' ? (ivExp.toMillis() as number) : null;
     if (ivExpMs == null || deps.now().getTime() >= ivExpMs) throw pre('INVITE_EXPIRED');
-    const inviteRoles = canonScore(stringList(iv, 'roles'));
+    const rolesRaw = stringList(iv, 'roles');
+    if (rolesRaw.includes('coHost')) {
+      if (rolesRaw.length !== 1) throw notFound('INVITE_INVALID');
+      return acceptCoHost(deps, tx, caller, gate, cid, comp, ivRef, iv, uid);
+    }
+    const inviteRoles = canonScore(rolesRaw);
     if (inviteRoles.length === 0) throw notFound('INVITE_INVALID');
     const inviteMatches = stringList(iv, 'matchIds');
 
@@ -184,6 +197,81 @@ export async function acceptInvite(deps: CpDeps, caller: Caller, gate: GateResul
     writeAudit(deps, tx, cid, caller, 'acceptInvite', { target: actorHash(cid, uid), ivId, roles: inviteRoles });
     return { cid, roles: merged.roles, matchCount: merged.matchIds.length };
   });
+}
+
+/**
+ * 共同主辦邀請接受（同一交易 tx 內）。讀取全部在寫入之前：
+ * 1) isAdmin → ALREADY_HOST；2) 自己的 staff 1 讀 → decideCoHostAccept；3) 俱樂部 repUids 1 讀 → ALREADY_HOST／INVITE_ISSUER_GONE；
+ * 4) 計數 >= COHOST_MAX → COHOST_LIMIT；5) users 顯示名（沿用原路徑）；6) cpMine。
+ * 寫入：staff merge（已有文件不碰 matchIds／expiresAt／memberNo）；賽事文件**只一次** update 帶 coHostCount（新建 staff 同帶 staffSeq）。
+ */
+async function acceptCoHost(
+  deps: CpDeps, tx: Transaction, caller: Caller, gate: GateResult,
+  cid: string, comp: CompDoc, ivRef: DocumentReference, iv: DocumentSnapshot, uid: string
+): Promise<{ cid: string; roles: string[]; matchCount: number }> {
+  // 1. 管理員已是主辦
+  if (isAdmin(caller)) throw pre('ALREADY_HOST');
+  // 2. 讀自己的 staff（1 讀）→ 已是 host／coHost 拒絕
+  const staffRef = deps.db.doc(`competitions/${cid}/staff/${uid}`);
+  const staffSnap = await readDoc(deps, tx, staffRef);
+  const existing = stringList(staffSnap, 'roles');
+  const decision = decideCoHostAccept(existing);
+  if (!decision.ok) throw pre(decision.reason);
+  // 3. 俱樂部賽事：目前代表 → ALREADY_HOST；舊代表發的邀請 → INVITE_ISSUER_GONE（換代表後失效）
+  if (comp.hostType === 'club') {
+    const teamId = typeof comp.hostTeamId === 'string' ? comp.hostTeamId : '';
+    const repUids = await clubRepUids(deps, tx, teamId);
+    if (repUids.includes(caller.uid)) throw pre('ALREADY_HOST');
+    const issuer = iv.get('issuer');
+    const createdBy = iv.get('createdBy');
+    if (issuer === 'clubRep' && !repUids.some(u => actorHash(cid, u) === createdBy)) {
+      throw pre('INVITE_ISSUER_GONE');
+    }
+  }
+  // 4. 上限
+  if (coHostCountOf(comp.coHostCount) >= COHOST_MAX) {
+    throw new CpError('resource-exhausted', 'COHOST_LIMIT', { max: COHOST_MAX });
+  }
+  // 5. 主庫顯示名（沿用原路徑）
+  const profile = await readDoc(deps, null, deps.mainDb.doc(`users/${uid}`));
+  const displayName = staffDisplayName(profile.exists ? profile.get('displayName') : null, gate.bannedWords);
+  // 6. cpMine（讀在寫之前）
+  // 記分角色以 staff 為準帶入，避免 cpMine 缺漏時把既有 scorer／referee 抹掉
+  const writeMine = await prepareMine(deps, tx, uid, cid, comp, { coHost: true, scoreRoles: canonScore(existing) });
+
+  // 寫入
+  const now = FieldValue.serverTimestamp();
+  const newCount = coHostCountOf(comp.coHostCount) + 1;
+  let memberNo: number | null;
+  if (staffSnap.exists) {
+    const raw = staffSnap.get('memberNo');
+    memberNo = typeof raw === 'number' ? raw : null;
+    // 已有文件不碰 matchIds／expiresAt／memberNo
+    tx.set(staffRef, { roles: decision.roles, displayName, updatedAt: now }, { merge: true });
+    tx.update(deps.db.doc(`competitions/${cid}`), { coHostCount: newCount });
+  } else {
+    memberNo = memberNoForNewStaff(comp.staffSeq);
+    tx.set(staffRef, {
+      roles: decision.roles,
+      displayName,
+      matchIds: [],
+      expiresAt: null,
+      memberNo,
+      createdAt: now,
+      updatedAt: now
+    }, { merge: true });
+    // 賽事文件只一次 update：coHostCount＋staffSeq
+    tx.update(deps.db.doc(`competitions/${cid}`), { coHostCount: newCount, staffSeq: memberNo });
+  }
+  tx.update(ivRef, { status: 'used', usedAt: now, usedMemberNo: memberNo, updatedAt: now });
+  writeMine();
+  writeAudit(deps, tx, cid, caller, 'acceptInvite', {
+    target: actorHash(cid, uid),
+    ivId: iv.id,
+    roles: ['coHost']
+  });
+  const prevMatchIds = stringList(staffSnap, 'matchIds');
+  return { cid, roles: decision.roles, matchCount: prevMatchIds.length };
 }
 
 export const PARTICIPANT_ACTIONS = { reportCompetition, acceptInvite } as const;

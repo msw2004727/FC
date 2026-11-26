@@ -1,7 +1,7 @@
 /**
  * cpMine/{uid}/items/{cid} 索引（§5.2：伺服器在建賽、報隊、登錄時寫；只存索引不存個資）。
  * roles 由這些來源推導：host（個人主辦，§3.251 (c) 取代 hostUid 查詢）、rep（自己報的隊）、
- * player（自己的名單）、scorer／referee（主辦指派的記分角色）。
+ * player（自己的名單）、scorer／referee（主辦指派的記分角色）、coHost（接受共同主辦邀請；沒帶時保留既有值）。
  * 全部移除時刪文件。沒有帶 scoreRoles 時保留文件上既有的記分角色，避免報隊、登錄把指派抹掉。
  */
 import type { DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
@@ -20,6 +20,8 @@ export interface MineChange {
   removePlayer?: string;
   /** 有帶（含空陣列）就覆寫記分角色；沒帶則保留文件上的 scorer／referee。 */
   scoreRoles?: readonly ScoreRole[];
+  /** 有帶就以傳入為準；沒帶則看既有快照 roles 是否含 coHost（報隊、登錄不得抹掉）。 */
+  coHost?: boolean;
 }
 
 function scoreRolesOn(snap: DocumentSnapshot): ScoreRole[] {
@@ -48,8 +50,13 @@ export async function prepareMine(
   if (ch.addPlayer) plIds.add(ch.addPlayer);
   if (ch.removePlayer) plIds.delete(ch.removePlayer);
   const score = ch.scoreRoles ? SCORE_ORDER.filter(r => ch.scoreRoles!.includes(r)) : scoreRolesOn(snap);
+  // coHost 預設取既有快照，有傳以傳入為準；不設這步，報隊／登錄會抹掉共同主辦
+  let coHost = snap.exists && Array.isArray(snap.get('roles'))
+    && (snap.get('roles') as unknown[]).includes('coHost');
+  if (ch.coHost !== undefined) coHost = ch.coHost;
   const roles = [
     ...(host ? ['host'] : []),
+    ...(coHost ? ['coHost'] : []),
     ...(entryIds.size ? ['rep'] : []),
     ...(plIds.size ? ['player'] : []),
     ...score

@@ -83,7 +83,7 @@ describe('K11 邀請記分員', () => {
     await fails(accept(cid, a, STRANGER), 'INTERNAL_PERIOD', 'permission-denied');
 
     // 不能邀主辦／共同主辦、多帶鍵、壞場次
-    await fails(create(cid, { roles: ['coHost'] }), 'FIELD_ENUM');
+    await fails(create(cid, { roles: ['coHost', 'scorer'] }), 'FIELD_ENUM');
     await fails(create(cid, { roles: ['host'] }), 'FIELD_ENUM');
     await fails(create(cid, { uid: 'tester3' }), 'UNKNOWN_FIELD');
     await fails(create(cid, { matchIds: ['x'] }), 'BAD_ID');
@@ -363,5 +363,242 @@ describe('K11 邀請記分員', () => {
     const adm = new ReadMeter();
     await ok(accept(cid, iv2, ADMIN, makeDeps(0, adm)));
     expect(adm.reads).toBe(6);
+  });
+});
+
+describe('CP-PO-04 共同主辦邀請', () => {
+  let cid = '';
+
+  beforeEach(async () => {
+    await resetAll();
+    cid = await setup();
+  });
+  afterEach(() => closeClients());
+
+  const createCoHost = (over: Record<string, unknown> = {}, who: Who = TESTER) =>
+    call(handleCpHost, who, { action: 'createInvite', cid, roles: ['coHost'], ...over });
+
+  async function setupClub() {
+    const created = await ok<{ cid: string }>(call(handleCpHost, TESTER, createInput({ hostType: 'club', hostTeamId: 'club_a', name: '【測試】俱樂部盃' })));
+    const ccid = created.cid;
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: ccid }));
+    // 不切換 isPublic（內部期建立的賽事公開後會被 INTERNAL_COMPETITION 擋）；改把 stranger 登記為測試者
+    await adminDb().doc('cpConfig/launch/testers/stranger').set({ addedAt: new Date() });
+    return ccid;
+  }
+
+  it('主辦建立 coHost 成功、形狀正確、issuer=host；共同主辦 NOT_PRIMARY_HOST；陌生人 NOT_HOST；帶 matchIds FIELD_RANGE；失敗不改 inviteSeq', async () => {
+    const iv = await ok<Created>(createCoHost());
+    const d = await ivDoc(cid, iv.ivId);
+    expect(Object.keys(d).sort()).toEqual(['codeHash', 'createdAt', 'createdBy', 'expiresAt', 'issuer', 'matchIds', 'roles', 'status', 'updatedAt']);
+    expect(d.issuer).toBe('host');
+    expect(d.roles).toEqual(['coHost']);
+    expect(d.matchIds).toEqual([]);
+    expect(d.createdBy).toBe(actorHash(cid, 'tester'));
+
+    const seqBefore = (await compDoc(cid)).inviteSeq ?? 0;
+
+    // 共同主辦 → NOT_PRIMARY_HOST
+    await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [], expiresAt: null });
+    await fails(createCoHost({}, TESTER2), 'NOT_PRIMARY_HOST', 'permission-denied');
+
+    // 沒有 staff 的測試者 → NOT_HOST
+    await fails(createCoHost({}, TESTER3), 'NOT_HOST', 'permission-denied');
+
+    // 帶 matchIds → FIELD_RANGE
+    await fails(createCoHost({ matchIds: [MT] }), 'FIELD_RANGE');
+
+    // 失敗不改 inviteSeq（成功那次 +1 之後沒再變）
+    expect(((await compDoc(cid)).inviteSeq ?? 0)).toBe(seqBefore);
+  });
+
+  it('共同主辦撤 coHost 邀請 NOT_PRIMARY_HOST 且仍 open；可撤記分員邀請；主辦可撤 coHost', async () => {
+    const coIv = await ok<Created>(createCoHost());
+    const scIv = await ok<Created>(create(cid));
+    await adminDb().doc(`competitions/${cid}/staff/tester2`).set({ roles: ['coHost'], matchIds: [], expiresAt: null });
+
+    await fails(call(handleCpHost, TESTER2, { action: 'revokeInvite', cid, ivId: coIv.ivId }), 'NOT_PRIMARY_HOST', 'permission-denied');
+    expect((await ivDoc(cid, coIv.ivId)).status).toBe('open');
+
+    await ok(call(handleCpHost, TESTER2, { action: 'revokeInvite', cid, ivId: scIv.ivId }));
+    expect((await ivDoc(cid, scIv.ivId)).status).toBe('revoked');
+
+    await ok(revoke(cid, coIv.ivId));
+    expect((await ivDoc(cid, coIv.ivId)).status).toBe('revoked');
+  });
+
+  it('一般會員接受：staff roles [coHost]、coHostCount 1、邀請 used、cpMine roles 含 coHost；之後發 coHost 邀請 NOT_PRIMARY_HOST、發記分員邀請成功', async () => {
+    const iv = await ok<Created>(createCoHost());
+    await ok(accept(cid, iv, TESTER3));
+
+    const s = (await staffSnap(cid, 'tester3')).data()!;
+    expect(s.roles).toEqual(['coHost']);
+    expect(s.matchIds).toEqual([]);
+    expect(s.expiresAt).toBeNull();
+    expect(s.memberNo).toBe(2);
+    expect(s.displayName).toBe('路人丁');
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+    expect((await ivDoc(cid, iv.ivId)).status).toBe('used');
+    expect((await adminDb().doc(`cpMine/tester3/items/${cid}`).get()).get('roles')).toEqual(['coHost']);
+
+    await fails(createCoHost({}, TESTER3), 'NOT_PRIMARY_HOST', 'permission-denied');
+    await ok(create(cid, {}, TESTER3));
+  });
+
+  it('主辦 removeStaff roles [coHost]：staff 刪除、coHostCount 0、之後他 createInvite NOT_HOST', async () => {
+    const iv = await ok<Created>(createCoHost());
+    await ok(accept(cid, iv, TESTER3));
+    expect((await staffSnap(cid, 'tester3')).exists).toBe(true);
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+
+    await ok(call(handleCpHost, TESTER, { action: 'removeStaff', cid, uid: 'tester3', roles: ['coHost'] }));
+    expect((await staffSnap(cid, 'tester3')).exists).toBe(false);
+    expect((await compDoc(cid)).coHostCount).toBe(0);
+
+    await fails(createCoHost({}, TESTER3), 'NOT_HOST', 'permission-denied');
+  });
+
+  it('同代碼再接受 INVITE_USED；撤銷後 INVITE_REVOKED；錯碼 INVITE_INVALID；都不建 staff、計數不變', async () => {
+    const iv = await ok<Created>(createCoHost());
+    const wrong = iv.code.slice(0, 21) + (iv.code.endsWith('A') ? 'B' : 'A');
+    await fails(call(handleCpParticipant, TESTER2, { action: 'acceptInvite', cid, ivId: iv.ivId, code: wrong }), 'INVITE_INVALID', 'not-found');
+    expect((await staffSnap(cid, 'tester2')).exists).toBe(false);
+    expect(((await compDoc(cid)).coHostCount ?? 0)).toBe(0);
+
+    const rv = await ok<Created>(createCoHost());
+    await ok(revoke(cid, rv.ivId));
+    await fails(accept(cid, rv, TESTER2), 'INVITE_REVOKED', 'failed-precondition');
+    expect((await staffSnap(cid, 'tester2')).exists).toBe(false);
+
+    const used = await ok<Created>(createCoHost());
+    await ok(accept(cid, used, TESTER3));
+    await fails(accept(cid, used, TESTER2), 'INVITE_USED', 'failed-precondition');
+    expect((await staffSnap(cid, 'tester2')).exists).toBe(false);
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+  });
+
+  it('主辦本人接受 ALREADY_HOST（邀請仍 open）；管理員接受 ALREADY_HOST', async () => {
+    const iv = await ok<Created>(createCoHost());
+    await fails(accept(cid, iv, TESTER), 'ALREADY_HOST', 'failed-precondition');
+    expect((await ivDoc(cid, iv.ivId)).status).toBe('open');
+    await fails(accept(cid, iv, ADMIN), 'ALREADY_HOST', 'failed-precondition');
+    expect((await ivDoc(cid, iv.ivId)).status).toBe('open');
+  });
+
+  it('已是 coHost 再接受另一張 ALREADY_COHOST，另一張維持 open', async () => {
+    const a = await ok<Created>(createCoHost());
+    const b = await ok<Created>(createCoHost());
+    await ok(accept(cid, a, TESTER3));
+    await fails(accept(cid, b, TESTER3), 'ALREADY_COHOST', 'failed-precondition');
+    expect((await ivDoc(cid, b.ivId)).status).toBe('open');
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+  });
+
+  it('記分員（已有 scorer＋matchIds）接受 coHost 邀請：roles [coHost, scorer]、matchIds 不變、memberNo 不動', async () => {
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['scorer'], matchIds: [MT], expiresAt: null, memberNo: 5 });
+    const iv = await ok<Created>(createCoHost());
+    const r = await ok<{ roles: string[]; matchCount: number }>(accept(cid, iv, TESTER3));
+    expect(r.roles).toEqual(['coHost', 'scorer']);
+    expect(r.matchCount).toBe(1);
+    const s = (await staffSnap(cid, 'tester3')).data()!;
+    expect(s.roles).toEqual(['coHost', 'scorer']);
+    expect(s.matchIds).toEqual([MT]);
+    expect(s.memberNo).toBe(5);
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+    expect((await adminDb().doc(`cpMine/tester3/items/${cid}`).get()).get('roles')).toEqual(['coHost', 'scorer']);
+  });
+
+  it('三人接受後第 4 人 COHOST_LIMIT、主辦再建立 COHOST_LIMIT；移除一人後可再接受', async () => {
+    for (const t of ['stranger', 'extra1']) await adminDb().doc(`cpConfig/launch/testers/${t}`).set({ addedAt: new Date() });
+    const EXTRA: Who = { uid: 'extra1' };
+    await adminDb(MAIN).doc('users/extra1').set({ displayName: '額外一' });
+
+    const a = await ok<Created>(createCoHost());
+    const b = await ok<Created>(createCoHost());
+    const c = await ok<Created>(createCoHost());
+    const d = await ok<Created>(createCoHost());
+    await ok(accept(cid, a, TESTER2));
+    await ok(accept(cid, b, TESTER3));
+    await ok(accept(cid, c, STRANGER));
+    expect((await compDoc(cid)).coHostCount).toBe(3);
+
+    const out = await accept(cid, d, EXTRA);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toMatchObject({ code: 'resource-exhausted', reason: 'COHOST_LIMIT', params: { max: 3 } });
+
+    await fails(createCoHost(), 'COHOST_LIMIT', 'resource-exhausted');
+
+    await ok(call(handleCpHost, TESTER, { action: 'removeStaff', cid, uid: 'tester2', roles: ['coHost'] }));
+    expect((await compDoc(cid)).coHostCount).toBe(2);
+
+    await ok(accept(cid, d, EXTRA));
+    expect((await compDoc(cid)).coHostCount).toBe(3);
+  });
+
+  it('俱樂部：代表發邀請 issuer=clubRep、第三人接受成功、代表接受 ALREADY_HOST、換代表後舊代表邀請 INVITE_ISSUER_GONE', async () => {
+    const ccid = await setupClub();
+    const iv = await ok<Created>(call(handleCpHost, TESTER, { action: 'createInvite', cid: ccid, roles: ['coHost'] }));
+    const d = await ivDoc(ccid, iv.ivId);
+    expect(d.issuer).toBe('clubRep');
+
+    // 第三人接受成功
+    await ok(call(handleCpParticipant, TESTER3, { action: 'acceptInvite', cid: ccid, ivId: iv.ivId, code: iv.code }));
+    expect((await staffSnap(ccid, 'tester3')).get('roles')).toEqual(['coHost']);
+    expect((await adminDb().doc(`competitions/${ccid}`).get()).get('coHostCount')).toBe(1);
+
+    // 代表接受自己的邀請 → ALREADY_HOST
+    const iv2 = await ok<Created>(call(handleCpHost, TESTER, { action: 'createInvite', cid: ccid, roles: ['coHost'] }));
+    await fails(call(handleCpParticipant, TESTER, { action: 'acceptInvite', cid: ccid, ivId: iv2.ivId, code: iv2.code }), 'ALREADY_HOST', 'failed-precondition');
+
+    // 舊代表發的邀請在換代表後失效
+    const iv3 = await ok<Created>(call(handleCpHost, TESTER, { action: 'createInvite', cid: ccid, roles: ['coHost'] }));
+    await adminDb().doc('cpClubs/club_a').update({ repUids: ['tester2'] });
+    await fails(call(handleCpParticipant, STRANGER, { action: 'acceptInvite', cid: ccid, ivId: iv3.ivId, code: iv3.code }), 'INVITE_ISSUER_GONE', 'failed-precondition');
+    expect((await adminDb().doc(`competitions/${ccid}`).get()).get('coHostCount')).toBe(1);
+  });
+
+  it('ReadMeter：個人接受 ≤ 7、俱樂部 ≤ 8', async () => {
+    const iv = await ok<Created>(createCoHost());
+    const m = new ReadMeter();
+    await ok(accept(cid, iv, TESTER3, makeDeps(0, m)));
+    expect(m.reads).toBeLessThanOrEqual(7);
+
+    const ccid = await setupClub();
+    const civ = await ok<Created>(call(handleCpHost, TESTER, { action: 'createInvite', cid: ccid, roles: ['coHost'] }));
+    const cm = new ReadMeter();
+    await ok(call(handleCpParticipant, TESTER3, { action: 'acceptInvite', cid: ccid, ivId: civ.ivId, code: civ.code }, makeDeps(0, cm)));
+    expect(cm.reads).toBeLessThanOrEqual(8);
+  });
+
+  it('共同主辦不得刪賽、不得移除另一位共同主辦；非整數 expiresAt → FIELD_RANGE（Opus 審 P3）', async () => {
+    await ok(accept(cid, await ok<Created>(createCoHost()), TESTER2));
+    await ok(accept(cid, await ok<Created>(createCoHost()), TESTER3));
+    expect((await compDoc(cid)).coHostCount).toBe(2);
+    await fails(call(handleCpHost, TESTER2, { action: 'delete', cid }), 'NOT_PRIMARY_HOST', 'permission-denied');
+    await fails(call(handleCpHost, TESTER2, { action: 'removeStaff', cid, uid: 'tester3', roles: ['coHost'] }), 'FORBIDDEN', 'permission-denied');
+    expect((await compDoc(cid)).coHostCount).toBe(2);
+    expect((await staffSnap(cid, 'tester3')).get('roles')).toEqual(['coHost']);
+    await fails(createCoHost({ expiresAt: 1.5 }), 'FIELD_RANGE');
+    await fails(createCoHost({ expiresAt: 'x' }), 'FIELD_RANGE');
+  });
+
+  it('coHost＋scorer 的人被移除記分角色：coHost 保留、計數不變、cpMine 仍含 coHost', async () => {
+    await adminDb().doc(`competitions/${cid}/staff/tester3`).set({ roles: ['scorer'], matchIds: [MT], expiresAt: null, memberNo: 5 });
+    await ok(accept(cid, await ok<Created>(createCoHost()), TESTER3));
+    await ok(call(handleCpHost, TESTER, { action: 'removeStaff', cid, uid: 'tester3', roles: ['scorer'] }));
+    expect((await staffSnap(cid, 'tester3')).get('roles')).toEqual(['coHost']);
+    expect((await compDoc(cid)).coHostCount).toBe(1);
+    expect((await adminDb().doc(`cpMine/tester3/items/${cid}`).get()).get('roles')).toEqual(['coHost']);
+  });
+
+  it('計數 2 時兩人同時接受：只成功一位、計數 3（交易序列化）', async () => {
+    const a = await ok<Created>(createCoHost());
+    const b = await ok<Created>(createCoHost());
+    await adminDb().doc(`competitions/${cid}`).update({ coHostCount: 2 });
+    const [ra, rb] = await Promise.all([accept(cid, a, TESTER2), accept(cid, b, TESTER3)]);
+    expect([ra.ok, rb.ok].filter(Boolean).length).toBe(1);
+    const failed = ra.ok ? rb : ra;
+    if (!failed.ok) expect(failed.error).toMatchObject({ reason: 'COHOST_LIMIT' });
+    expect((await compDoc(cid)).coHostCount).toBe(3);
   });
 });
