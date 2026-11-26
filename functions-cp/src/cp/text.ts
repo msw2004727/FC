@@ -3,9 +3,10 @@
  */
 import { bad } from './errors.js';
 
-// 控制字元、零寬字元、雙向控制字元（防止藏字繞過禁用字或在畫面上反轉顯示）
+// 控制字元、零寬字元、雙向控制字元（含方向隔離 U+2066～U+2069、已棄用格式字元 U+206A～U+206F、阿拉伯字母標記 U+061C；防止藏字繞過禁用字或在畫面上反轉顯示）
+// 另含軟連字號 U+00AD、蒙古文母音分隔 U+180E（NFKC 不會去掉，畫面上看不見；顧問 §3.799）
 // 另含分類為字母但畫面看不見的填充字（U+115F、U+1160、U+3164、U+FFA0、U+2800），Opus 終審 P3
-const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
+const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\u00ad\u061c\u180e\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
 
 /** 清理單行文字：NFKC、去不可見字元、壓空白、去頭尾。非字串回 null。 */
 export function cleanLine(value: unknown): string | null {
@@ -16,6 +17,28 @@ export function cleanLine(value: unknown): string | null {
 /** 必填單行文字；長度以 Unicode code point 計。 */
 export function requireLine(value: unknown, field: string, min: number, max: number): string {
   const s = cleanLine(value);
+  if (s == null || s.length === 0) throw bad('FIELD_REQUIRED', { field });
+  const len = [...s].length;
+  if (len < min || len > max) throw bad('FIELD_LENGTH', { field, min, max });
+  return s;
+}
+
+/**
+ * 清理單行文字，保留全形標點與符號（給原因、說明等自由文字用；名稱仍走 cleanLine）。
+ * 只對「不在下列範圍」的區塊做 NFKC：全形英數仍轉半形、U+3000 仍視為空白；全形標點與「…」保留不轉。
+ */
+export function cleanProseLine(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return value
+    .replace(/[^\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF60\u2026]+/g, m => m.normalize('NFKC'))
+    .replace(INVISIBLE_RE, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 必填單行文字（保留全形標點）；長度以 Unicode code point 計。 */
+export function requireProseLine(value: unknown, field: string, min: number, max: number): string {
+  const s = cleanProseLine(value);
   if (s == null || s.length === 0) throw bad('FIELD_REQUIRED', { field });
   const len = [...s].length;
   if (len < min || len > max) throw bad('FIELD_LENGTH', { field, min, max });
@@ -38,7 +61,7 @@ export function optionalText(value: unknown, field: string, max: number): string
   if (typeof value !== 'string') throw bad('FIELD_TYPE', { field });
   const s = value.normalize('NFKC')
     .replace(/\r\n?/g, '\n')
-    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g, '')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\u00ad\u061c\u180e\ufeff\u115f\u1160\u3164\uffa0\u2800]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   if (s.length === 0) return null;

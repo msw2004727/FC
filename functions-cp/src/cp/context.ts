@@ -148,6 +148,8 @@ export interface CompDoc {
    * 第 4 步邀請記分員：已發出的邀請數，只增不減（撤銷不退額度）。缺值當 0；上限見 staff-host.ts INVITE_MAX。
    */
   inviteSeq?: number;
+  /** 第 4 步共同主辦：已加入人數（缺值視 0；上限 COHOST_MAX）。 */
+  coHostCount?: number;
   [k: string]: unknown;
 }
 
@@ -198,6 +200,14 @@ export async function isClubRep(deps: CpDeps, tx: Reader, teamId: string, uid: s
   const imageRaw = snap.get('image');
   const image = typeof imageRaw === 'string' ? imageRaw : null;
   return { ok: Array.isArray(reps) && reps.includes(uid), name, image };
+}
+
+/** 讀俱樂部目前所有代表的 uid（1 讀；teamId 形狀不對或文件不存在回 []）。 */
+export async function clubRepUids(deps: CpDeps, tx: Reader, teamId: string): Promise<string[]> {
+  if (!TEAM_ID_RE.test(teamId)) return [];
+  const snap = await readDoc(deps, tx, deps.db.doc(`cpClubs/${teamId}`));
+  if (!snap.exists) return [];
+  return stringList(snap, 'repUids');
 }
 
 export async function isClubMember(deps: CpDeps, tx: Reader, teamId: string, uid: string): Promise<boolean> {

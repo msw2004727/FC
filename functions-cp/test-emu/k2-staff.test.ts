@@ -250,8 +250,9 @@ describe('K2 assignStaff／removeStaff', () => {
     await ok(call(handleCpHost, TESTER2, {
       action: 'assignStaff', cid: clubCid, uid: 'tester3', roles: ['scorer'], matchIds: [mtId]
     }, makeDeps(0, asScorer)));
-    expect(asScorer.reads).toBe(8);
-    expect(asScorer.reads).toBeLessThanOrEqual(assignBudget(1));
+    // CP-PO-20：共同主辦動他人時多讀 1 次俱樂部鏡像（判斷對象是不是代表）；測試同步更新
+    expect(asScorer.reads).toBe(9);
+    expect(asScorer.reads).toBeLessThanOrEqual(assignBudget(1) + 1);
     const scored = (await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).data()!;
     expect(scored.roles).toEqual(['scorer']);
     expect(scored.host).toBe(false);
@@ -260,15 +261,15 @@ describe('K2 assignStaff／removeStaff', () => {
     await ok(call(handleCpHost, TESTER2, {
       action: 'assignStaff', cid: clubCid, uid: 'tester3', roles: ['referee'], matchIds: [mtId]
     }, makeDeps(0, asRef)));
-    expect(asRef.reads).toBe(8);
-    expect(asRef.reads).toBeLessThanOrEqual(assignBudget(1));
+    expect(asRef.reads).toBe(9);
+    expect(asRef.reads).toBeLessThanOrEqual(assignBudget(1) + 1);
     expect((await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).get('roles')).toEqual(['referee']);
     expect((await adminDb().doc(`competitions/${clubCid}/staff/tester3`).get()).get('roles')).toEqual(['referee']);
 
     const rm = new ReadMeter();
     await ok(call(handleCpHost, TESTER2, { action: 'removeStaff', cid: clubCid, uid: 'tester3' }, makeDeps(0, rm)));
-    expect(rm.reads).toBe(7);
-    expect(rm.reads).toBeLessThanOrEqual(REMOVE_BUDGET);
+    expect(rm.reads).toBe(8);
+    expect(rm.reads).toBeLessThanOrEqual(REMOVE_BUDGET + 1);
     expect((await adminDb().doc(`cpMine/tester3/items/${clubCid}`).get()).exists).toBe(false);
     expect((await adminDb().doc(`competitions/${clubCid}/staff/tester3`).get()).exists).toBe(false);
   });
@@ -402,6 +403,49 @@ describe('K2 assignStaff／removeStaff', () => {
     expect((await db.doc(`competitions/${cid}/staff/admin`).get()).get('memberNo')).toBe(2);
     expect((await db.doc(`competitions/${cid}`).get()).get('staffSeq')).toBe(2);
     expect((await db.doc(`competitions/${cid}/staff/tester`).get()).get('memberNo')).toBeUndefined();
+  });
+
+  it('俱樂部共同主辦不得動代表、代表可移除共同主辦；共同主辦可移除自己的記分角色', async () => {
+    const created = await ok<{ cid: string; dvIds: string[] }>(call(handleCpHost, TESTER, createInput({
+      name: '【測試】代表守門盃', hostType: 'club', hostTeamId: 'club_a'
+    })));
+    const clubCid = created.cid;
+    const dvId = created.dvIds[0];
+    await ok(call(handleCpHost, TESTER, { action: 'publish', cid: clubCid }));
+    const mtId = 'mt_' + 'g'.repeat(20);
+    await adminDb().doc(`competitions/${clubCid}/matches/${mtId}`).set(matchBody(mtId, dvId));
+    // A：tester 目前代表，staff 只有 scorer（無 host，模擬俱樂部代表下的記分指派）
+    await adminDb().doc(`competitions/${clubCid}/staff/tester`).set({
+      roles: ['scorer'], matchIds: [mtId], expiresAt: null, memberNo: 2
+    });
+    // B：tester2 共同主辦，同時有 scorer
+    await adminDb().doc(`competitions/${clubCid}/staff/tester2`).set({
+      roles: ['coHost', 'scorer'], matchIds: [mtId], expiresAt: null
+    });
+
+    // B 移除 A → FORBIDDEN（A 是代表，即便 roles 只有 scorer 也不同於共同主辦）
+    await fails(
+      call(handleCpHost, TESTER2, { action: 'removeStaff', cid: clubCid, uid: 'tester' }),
+      'FORBIDDEN',
+      'permission-denied'
+    );
+    // B 改 A 的場次 → FORBIDDEN
+    await fails(
+      call(handleCpHost, TESTER2, {
+        action: 'assignStaff', cid: clubCid, uid: 'tester', roles: ['referee'], matchIds: [mtId]
+      }),
+      'FORBIDDEN',
+      'permission-denied'
+    );
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester`).get()).get('roles')).toEqual(['scorer']);
+
+    // B 移除自己的 scorer（B 還是 coHost，屬動自己）
+    await ok(call(handleCpHost, TESTER2, { action: 'removeStaff', cid: clubCid, uid: 'tester2', roles: ['scorer'] }));
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester2`).get()).get('roles')).toEqual(['coHost']);
+
+    // A（代表）移除 B 的 coHost 成功，B 沒其他角色 → 文件刪除
+    await ok(call(handleCpHost, TESTER, { action: 'removeStaff', cid: clubCid, uid: 'tester2', roles: ['coHost'] }));
+    expect((await adminDb().doc(`competitions/${clubCid}/staff/tester2`).get()).exists).toBe(false);
   });
 
   it('俱樂部建賽 staffSeq 為 1、沒有主辦 staff；代表新建自己的 staff 為 2，讀數仍是 7', async () => {

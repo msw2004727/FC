@@ -99,7 +99,7 @@ const PRESET_NAME: Record<TiePreset, string> = {
 };
 
 /** 與 cp/text.ts optionalText 同一套：NFKC、留換行、連續三個換行壓成兩個、去掉不可見字元。不丟錯。 */
-const NOTE_INVISIBLE = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
+const NOTE_INVISIBLE = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\u00ad\u061c\u180e\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);

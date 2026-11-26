@@ -1,7 +1,7 @@
 /**
  * cpHost 第 4 步最小指派：assignStaff、removeStaff；邀請記分員：createInvite、revokeInvite（接受邀請 acceptInvite 在 participant.ts）。
  * assignStaff 只能指派呼叫者自己，或已經有 staff 文件的人；其他人走邀請（一次性代碼，只存雜湊）。
- * 只處理記分角色 scorer／referee。共同主辦、工作人員的「指派」不做；移除時若傳入 coHost，仍照契約判斷。
+ * 只處理記分角色 scorer／referee。共同主辦走 createInvite 邀請（只限主辦發）；工作人員仍不做「指派」；移除時若傳入 coHost，仍照契約判斷。
  *
  * 權限：launchGate（外層）→ 交易內 loadComp → assertCompVisible → hostAccess（與 assertHostOrCo 同一套）
  * → 未下架、未刪除中、未取消、未結束（結束沿用 match-host 的寬限：末場確認 3 天，管理員不受限）。
@@ -10,6 +10,7 @@
  * cpMine 一律在交易內用 prepareMine(..., { scoreRoles }) 讀取後整份重算；記分角色空了且沒有其他索引角色就刪文件。
  * 讀取預算：assignStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 ≤100；
  * removeStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。
+ * 共同主辦改動他人時，俱樂部代表判斷另 +1 讀（cpClubs/{teamId}）；動自己或主辦時 +0。
  * K10 成員編號用這次已讀的賽事文件 staffSeq，+0 讀。只有新建 staff 才多寫 1 次賽事文件。
  * 呼叫者就是對象、而且主辦判斷已經讀過那份 staff 時直接重用，省 1 讀。
  * 記分守門（assertMayTouchStaff）只用已經讀到的 roles，不加讀。被拒時不再讀場次與 cpMine。
@@ -27,6 +28,7 @@ import {
   assertCompVisible,
   hostAccess,
   isAdmin,
+  isClubRep,
   loadComp,
   newId,
   readDoc,
@@ -62,6 +64,12 @@ const MTID_RE = /^mt_[A-Za-z0-9]{20}$/;
 /** 沒帶 expiresAt 時：末場時刻再加 7 天。 */
 export const SCORE_ASSIGN_MS = 7 * 86400_000;
 const EXPIRES_MAX = 8_640_000_000_000;
+/** 共同主辦每場賽事上限。 */
+export const COHOST_MAX = 3;
+/** 共同主辦邀請預設 TTL（3 天）。 */
+export const COHOST_INVITE_TTL_MS = 3 * 86400_000;
+/** 共同主辦邀請上限（7 天，與末場+7 天取較早者）。 */
+export const COHOST_INVITE_MAX_MS = 7 * 86400_000;
 const SCORE_ORDER = ['scorer', 'referee'] as const;
 const ASSIGN_KEYS = ['action', 'cid', 'uid', 'roles', 'matchIds', 'expiresAt'];
 const REMOVE_KEYS = ['action', 'cid', 'uid', 'roles'];
@@ -117,6 +125,41 @@ export function assertMayTouchStaff(existingRoles: readonly string[], isSelf: bo
   if (existingRoles.includes('host') || existingRoles.includes('coHost')) throw deny('FORBIDDEN');
 }
 
+/**
+ * 俱樂部賽事：共同主辦不得改動目前代表（代表的 staff 可能只有 scorer，沒有 host）。
+ * 先跑 assertMayTouchStaff；不拒絕且動別人時多讀俱樂部鏡像，代表就拒（+1 讀，只在共同主辦動他人時發生）。
+ */
+async function assertMayTouchTarget(
+  deps: CpDeps,
+  tx: Transaction,
+  comp: CompDoc,
+  access: HostAccess,
+  targetUid: string,
+  callerUid: string,
+  existingRoles: readonly string[]
+): Promise<void> {
+  assertMayTouchStaff(existingRoles, targetUid === callerUid, access.primary);
+  if (!access.primary && targetUid !== callerUid && comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
+    if ((await isClubRep(deps, tx, comp.hostTeamId, targetUid)).ok) throw deny('FORBIDDEN');
+  }
+}
+
+/** 接受共同主辦邀請：已是 host 或 coHost 拒絕；其他既有角色保留在後面。 */
+export function decideCoHostAccept(existing: readonly string[]):
+  | { ok: false; reason: 'ALREADY_HOST' | 'ALREADY_COHOST' }
+  | { ok: true; roles: string[] } {
+  if (existing.includes('host')) return { ok: false, reason: 'ALREADY_HOST' };
+  if (existing.includes('coHost')) return { ok: false, reason: 'ALREADY_COHOST' };
+  return { ok: true, roles: ['coHost', ...existing.filter(r => r !== 'coHost')] };
+}
+
+/** 邀請發行者：管理員 → admin；俱樂部 → clubRep；其餘 → host。 */
+export function issuerOf(caller: Caller, comp: CompDoc): 'admin' | 'clubRep' | 'host' {
+  if (isAdmin(caller)) return 'admin';
+  if (comp.hostType === 'club') return 'clubRep';
+  return 'host';
+}
+
 /** 有給就用（不得早於現在）；沒給則 lastMatchAt + 7 天，算出來早於現在也拒。 */
 export function resolveExpiresAt(given: number | null, lastMatchAtMs: number, nowMs: number): number {
   const exp = given ?? lastMatchAtMs + SCORE_ASSIGN_MS;
@@ -151,6 +194,16 @@ export function scoreRolesInput(v: unknown): ScoreRole[] {
   return canonScore(out);
 }
 
+/** 邀請角色解析：coHost 必須剛好是 ['coHost']；其他交給 scoreRolesInput。 */
+export function inviteRolesInput(v: unknown): { coHost: true } | { coHost: false; roles: ScoreRole[] } {
+  if (!Array.isArray(v)) throw bad('FIELD_TYPE', { field: 'roles' });
+  if (v.includes('coHost')) {
+    if (v.length !== 1) throw bad('FIELD_ENUM', { field: 'roles' });
+    return { coHost: true };
+  }
+  return { coHost: false, roles: scoreRolesInput(v) };
+}
+
 function removeRolesInput(v: unknown): string[] {
   if (v == null) return ['scorer', 'referee'];
   const allowed = ['host', 'coHost', 'scorer', 'referee'];
@@ -177,6 +230,12 @@ export function matchIdsInput(v: unknown): string[] {
     out.push(id);
   }
   return out;
+}
+
+/** 共同主辦邀請不帶場次：省略或 [] 均可，其餘一律拒。 */
+export function coHostMatchIdsInput(v: unknown): string[] {
+  if (v == null || (Array.isArray(v) && v.length === 0)) return [];
+  throw bad('FIELD_RANGE', { field: 'matchIds', min: 0, max: 0 });
 }
 
 /** 有帶才檢查；省略回 null，交給交易內用末場+7 天。 */
@@ -234,7 +293,7 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
     if (uid !== caller.uid && !staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
     const existing = stringList(staffSnap, 'roles');
     // 讀到對象 staff 之後、任何寫入之前。被拒就不再讀場次與 cpMine。
-    assertMayTouchStaff(existing, uid === caller.uid, access.primary);
+    await assertMayTouchTarget(deps, tx, comp, access, uid, caller.uid, existing);
     const snaps = await readMatches(deps, tx, cid, matchIds);
     if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
 
@@ -291,9 +350,12 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
       if (decision.reason === 'FORBIDDEN') throw deny('FORBIDDEN');
       throw pre(decision.reason);
     }
-    assertMayTouchStaff(current, uid === caller.uid, access.primary);
+    await assertMayTouchTarget(deps, tx, comp, access, uid, caller.uid, current);
     const prevMatches = stringList(staffSnap, 'matchIds');
-    const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: decision.scoreRoles });
+    const writeMine = await prepareMine(deps, tx, uid, cid, comp, {
+      scoreRoles: decision.scoreRoles,
+      coHost: decision.roles.includes('coHost')
+    });
 
     const ref = deps.db.doc(`competitions/${cid}/staff/${uid}`);
     const now = FieldValue.serverTimestamp();
@@ -305,6 +367,12 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
         expiresAt: decision.clearMatches ? null : (staffSnap.get('expiresAt') ?? null),
         updatedAt: now
       }, { merge: true });
+    }
+    // 移除共同主辦時同步下修賽事計數器（寫在所有讀取之後）
+    if (current.includes('coHost') && !decision.roles.includes('coHost')) {
+      tx.update(deps.db.doc(`competitions/${cid}`), {
+        coHostCount: Math.max(0, coHostCountOf(comp.coHostCount) - 1)
+      });
     }
     writeMine();
     const matchCount = decision.clearMatches ? 0 : prevMatches.length;
@@ -319,6 +387,7 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
 
 // ── 邀請記分員（§5.5、§6.1）────────────────────────────────────────────
 // competitions/{cid}/invites/{ivId}：codeHash、roles、matchIds、expiresAt、status、createdAt、updatedAt；
+// 共同主辦邀請（roles 恰為 ['coHost']、matchIds 空）另存 createdBy（發邀請者雜湊）與 issuer（admin／clubRep／host）；
 // 接受後加 usedAt、usedMemberNo。主辦與共同主辦可讀 invites，所以文件不放任何 uid，也不放代碼原文。
 // 代碼只在 createInvite 回傳一次。稽核只記雜湊與 ivId。
 
@@ -354,6 +423,11 @@ export function inviteSeqOf(v: unknown): number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : 0;
 }
 
+/** 共同主辦計數：缺值、非有限、負數、非整數當 0。 */
+export function coHostCountOf(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v) && v >= 0 ? v : 0;
+}
+
 /**
  * 邀請到期：沒帶＝末場＋7 天；帶了不得早於現在、不得晚於末場＋7 天。
  * 末場＋7 天本身早於現在（賽事早就過了）也拒。
@@ -361,6 +435,17 @@ export function inviteSeqOf(v: unknown): number {
 export function resolveInviteExpiresAt(given: number | null, lastMatchAtMs: number, nowMs: number): number {
   const cap = lastMatchAtMs + SCORE_ASSIGN_MS;
   const exp = given ?? cap;
+  if (!Number.isInteger(exp) || exp < nowMs || exp > cap) {
+    throw bad('FIELD_RANGE', { field: 'expiresAt', min: nowMs, max: cap });
+  }
+  return exp;
+}
+
+/** 共同主辦邀請到期：預設 min(now+3d, cap)；cap = min(now+7d, 末場+7d)；給值超出 [now, cap] 拒。 */
+export function resolveCoHostInviteExpiresAt(given: number | null, lastMatchAtMs: number, nowMs: number): number {
+  const cap = Math.min(nowMs + COHOST_INVITE_MAX_MS, lastMatchAtMs + SCORE_ASSIGN_MS);
+  const def = Math.min(nowMs + COHOST_INVITE_TTL_MS, cap);
+  const exp = given ?? def;
   if (!Number.isInteger(exp) || exp < nowMs || exp > cap) {
     throw bad('FIELD_RANGE', { field: 'expiresAt', min: nowMs, max: cap });
   }
@@ -406,41 +491,76 @@ export function mergeInviteAssignment({ existing, invite, nowMs }: InviteMergeIn
 }
 
 /**
- * 建立邀請（主辦或共同主辦）。只能邀記分角色。
+ * 建立邀請：記分角色由主辦或共同主辦發；共同主辦邀請（CP-PO-04）只限主辦發、每場上限 COHOST_MAX。
  * 讀取：閘門 ≤2＋賽事 1＋主辦判斷 ≤2＋場次 n（≤100）。inviteSeq 用已讀的賽事文件，+0 讀。
  */
 export async function createInvite(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, CREATE_INVITE_KEYS);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const nowMs = deps.now().getTime();
-  const roles = scoreRolesInput(input.roles);
-  const matchIds = matchIdsInput(input.matchIds);
-  const givenExp = expiresGiven(input.expiresAt, nowMs);
+  const parsed = inviteRolesInput(input.roles);
+  const coHost = parsed.coHost;
+  // coHost 分支：coHost 角色固定為 ['coHost']、matchIds 只能空
+  const scoreRoles: readonly ScoreRole[] = coHost ? [] : parsed.roles;
+  const matchIds = coHost ? coHostMatchIdsInput(input.matchIds) : matchIdsInput(input.matchIds);
+  // coHost 的 expiresAt 只檢型別；範圍交由交易內 resolveCoHostInviteExpiresAt 用 cap 檢查
+  let givenExp: number | null;
+  if (!coHost) givenExp = expiresGiven(input.expiresAt, nowMs);
+  else if (input.expiresAt == null) givenExp = null;
+  else if (typeof input.expiresAt === 'number' && Number.isInteger(input.expiresAt)) givenExp = input.expiresAt;
+  else throw bad('FIELD_RANGE', { field: 'expiresAt', min: nowMs, max: nowMs + COHOST_INVITE_MAX_MS });
 
   return deps.db.runTransaction(async tx => {
-    const { comp } = await openHost(deps, tx, caller, gate, cid);
+    const { comp, access } = await openHost(deps, tx, caller, gate, cid);
+    // 共同主辦只限主辦發（俱樂部代表、個人 host、管理員）
+    if (coHost && !access.primary) throw deny('NOT_PRIMARY_HOST');
     // 已結束的賽事邀請永遠接受不了（接受者沒有寬限），不讓主辦寬限期或管理員白用額度（Opus 審 P3-3）
     if (comp.endedAt) throw pre('COMPETITION_ENDED');
     const seq = inviteSeqOf(comp.inviteSeq);
     if (seq >= INVITE_MAX) throw new CpError('resource-exhausted', 'INVITE_LIMIT', { max: INVITE_MAX });
-    const exp = resolveInviteExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs);
-    const snaps = await readMatches(deps, tx, cid, matchIds);
-    if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
+    if (coHost && coHostCountOf(comp.coHostCount) >= COHOST_MAX) {
+      throw new CpError('resource-exhausted', 'COHOST_LIMIT', { max: COHOST_MAX });
+    }
+    const exp = coHost
+      ? resolveCoHostInviteExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs)
+      : resolveInviteExpiresAt(givenExp, comp.lastMatchAt.toMillis(), nowMs);
+    // 共同主辦不讀場次
+    if (!coHost) {
+      const snaps = await readMatches(deps, tx, cid, matchIds);
+      if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
+    }
 
     const ivId = newId('iv');
     const code = newInviteCode();
     const now = FieldValue.serverTimestamp();
-    tx.create(deps.db.doc(`competitions/${cid}/invites/${ivId}`), {
-      codeHash: inviteCodeHash(code),
-      roles,
-      matchIds,
-      expiresAt: Timestamp.fromMillis(exp),
-      status: 'open',
-      createdAt: now,
-      updatedAt: now
-    });
+    const docFields: Record<string, unknown> = coHost
+      ? {
+          codeHash: inviteCodeHash(code),
+          roles: ['coHost'],
+          matchIds: [] as string[],
+          expiresAt: Timestamp.fromMillis(exp),
+          status: 'open',
+          createdBy: actorHash(cid, caller.uid),
+          issuer: issuerOf(caller, comp),
+          createdAt: now,
+          updatedAt: now
+        }
+      : {
+          codeHash: inviteCodeHash(code),
+          roles: scoreRoles as ScoreRole[],
+          matchIds,
+          expiresAt: Timestamp.fromMillis(exp),
+          status: 'open',
+          createdAt: now,
+          updatedAt: now
+        };
+    tx.create(deps.db.doc(`competitions/${cid}/invites/${ivId}`), docFields);
     tx.update(deps.db.doc(`competitions/${cid}`), { inviteSeq: seq + 1 });
-    writeAudit(deps, tx, cid, caller, 'createInvite', { ivId, roles, matchCount: matchIds.length });
+    writeAudit(deps, tx, cid, caller, 'createInvite', {
+      ivId,
+      roles: coHost ? ['coHost'] : (scoreRoles as ScoreRole[]),
+      matchCount: matchIds.length
+    });
     return { ivId, code, expiresAt: exp };
   });
 }
@@ -455,10 +575,12 @@ export async function revokeInvite(deps: CpDeps, caller: Caller, gate: GateResul
   const ivId = requireId(input.ivId, IVID_RE, 'ivId');
 
   return deps.db.runTransaction(async tx => {
-    await openHost(deps, tx, caller, gate, cid);
+    const { access } = await openHost(deps, tx, caller, gate, cid);
     const ref = deps.db.doc(`competitions/${cid}/invites/${ivId}`);
     const snap = await readDoc(deps, tx, ref);
     if (!snap.exists) throw notFound('INVITE_NOT_FOUND');
+    // 共同主辦邀請只限主辦撤銷（共同主辦仍可撤記分員邀請）
+    if (stringList(snap, 'roles').includes('coHost') && !access.primary) throw deny('NOT_PRIMARY_HOST');
     if (snap.get('status') !== 'open') throw pre('INVITE_NOT_OPEN');
     tx.update(ref, { status: 'revoked', updatedAt: FieldValue.serverTimestamp() });
     writeAudit(deps, tx, cid, caller, 'revokeInvite', { ivId });
