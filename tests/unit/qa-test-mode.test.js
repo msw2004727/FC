@@ -2091,7 +2091,7 @@ describe('QA 測試模式', () => {
       const hash = crypto.createHash('sha256').update(block, 'utf8').digest('hex');
 
       // 刻意修改 LINE 登入時才更新此雜湊。
-      expect(hash).toBe('e52635c95be74171508f9fc9e82a15766660f23dfc50b1195b84365aee770133');
+      expect(hash).toBe('c539e563161ee841bb1fde39e76b73adf22afcb1508fd8a0af0b979c9238aede');
       expect(block).toContain('authAdmin.createCustomToken(lineUserId)');
       expect(block).not.toMatch(/\bqa[A-Za-z]*\b/);
     });

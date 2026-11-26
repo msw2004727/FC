@@ -3368,7 +3368,10 @@ exports.createCustomToken = onCall(
         signMs: signDoneMs - claimsDoneMs,
         totalMs: signDoneMs - timingStartMs,
       });
-    } catch (_) {}
+    } catch (_) {
+      // 刻意吞掉（R-CF-002 例外，顧問 §3.808）：這行只是量測用 log，不是主操作；token 已簽好，
+      // log 失敗不能讓登入失敗，也不再另記 log（避免 logger 本身故障時連環拋錯）。
+    }
     return { customToken, role };
   }
 );
