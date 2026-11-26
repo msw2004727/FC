@@ -33,6 +33,7 @@ import {
   ANON_HOST,
   ANON_PLAYER,
   competitionEnded,
+  contactClearKey,
   planCompetition,
   type MineRole,
   type WaitReason
@@ -177,6 +178,12 @@ export async function processCompetition(
     const regByQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entryPrivate`)
       .where('registeredByUid', '==', uid).limit(20));
     const regByDocs = regByQ.docs;
+    // ── 讀 5b：之前處理時標記「結束後再清聯絡資料」的報隊（registeredByUid 已清，靠標記找回）
+    const ccKey = contactClearKey(opts.pseudo);
+    const ccQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/entryPrivate`)
+      .where('contactClearKey', '==', ccKey).limit(20));
+    const regByIds = new Set(regByDocs.map(d => d.id));
+    const ccDocs = ccQ.docs.filter(d => !regByIds.has(d.id));
 
     // ── 讀 6：rosterPrivate where addedByUid == uid（limit 60）
     const addedByQ = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
@@ -271,7 +278,7 @@ export async function processCompetition(
       counts.entryRegistrantClear = regByDocs.length;
       counts.addedByClear = addedByDocs.length;
     }
-    if (plan.repContactClear) counts.entryContactClear = regByDocs.length;
+    if (plan.repContactClear) counts.entryContactClear = regByDocs.length + ccDocs.length;
 
     if (!plan.staffDelete && plan.staffNameClear && staffExists && staffDisplayName != null) {
       counts.staffNameClear = 1;
@@ -351,8 +358,17 @@ export async function processCompetition(
           if (plan.repContactClear) {
             update.contactName = null;
             update.contactPhone = null;
+            update.contactClearKey = FieldValue.delete();
+          } else {
+            // 賽事未結束：聯絡資料留著給主辦聯絡，結束後由排程用標記找回再清
+            update.contactClearKey = ccKey;
           }
           tx.update(d.ref, update);
+        }
+        if (plan.repContactClear) {
+          for (const d of ccDocs) {
+            tx.update(d.ref, { contactName: null, contactPhone: null, contactClearKey: FieldValue.delete() });
+          }
         }
         for (const d of addedByDocs) {
           tx.update(d.ref, { addedByUid: null });

@@ -6,26 +6,22 @@ import { describe, expect, it } from 'vitest';
 import {
   AUDIT_BUFFER_MS,
   AUDIT_KEEP_MS,
-  DELETE_NOT_USED,
   DRY_RUN_TTL_MS,
   ENDED_GRACE_MS,
-  planCompetition,
+  REPORT_PURGE_MS,
   auditExpireAtMs,
   canonicalJson,
   checkConfirmToken,
   competitionEnded,
+  contactClearKey,
   deleteAuditExpireAtMs,
   dryRunDigest,
   newConfirmToken,
   newPseudonym,
+  planCompetition,
   removalJobId,
   reportPurgeAtMs,
   type CompPlan
-} from '../src/cp/removal-plan.js';
-
-// DELETE_NOT_USED 不存在；上面誤加，改用實際 export 集合（見下方真正 import）
-import {
-  REPORT_PURGE_MS
 } from '../src/cp/removal-plan.js';
 
 const T = (ms: number) => ({ toMillis: () => ms });
@@ -346,5 +342,16 @@ describe('planCompetition（§4.2 第 2～6 點）', () => {
 
   it('空 roles → skip=false、全 false、mineDelete=true、waiting=[]', () => {
     expect(plan([])).toEqual(EMPTY);
+  });
+});
+
+describe('contactClearKey', () => {
+  it('16 碼 hex、同假名穩定、和假名本身不同值', () => {
+    const pseudo = 'a1b2c3d4e5f60718';
+    const key = contactClearKey(pseudo);
+    expect(key).toMatch(/^[0-9a-f]{16}$/);
+    expect(contactClearKey(pseudo)).toBe(key);
+    expect(key).not.toBe(pseudo);
+    expect(contactClearKey('0000000000000000')).not.toBe(key);
   });
 });

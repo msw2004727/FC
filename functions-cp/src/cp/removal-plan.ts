@@ -71,6 +71,14 @@ export function removalJobId(uid: string): string {
 }
 
 /** 假名：16 碼小寫 hex。 */
+/**
+ * 代表聯絡資料「賽事結束後才清」的標記：registeredByUid 會立即清掉，之後查不到是誰的報隊，
+ * 所以在 entryPrivate 留這個標記，結束後用它找回。由假名再雜湊一次，和稽核的假名不同值，主辦對不起來。
+ */
+export function contactClearKey(pseudo: string): string {
+  return createHash('sha256').update('cc:' + pseudo).digest('hex').slice(0, 16);
+}
+
 export function newPseudonym(): string {
   return randomBytes(8).toString('hex');
 }
