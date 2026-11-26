@@ -13,6 +13,7 @@ const { EventEmitter } = require("events");
 const { PassThrough } = require("stream");
 const config = require("../../functions/web-push-config");
 const validate = require("../../functions/web-push-validate");
+const { taipeiDayKey } = require("../../functions/notification-fields");
 const { createSendWebPushFromQueueHandler, postPushRequest, vapidPublicKeyOf } = require("../../functions/web-push-sender");
 const {
   FakeTimestamp, FieldValue, HttpsError, createFakeFirestore, loadFunctionsIndex,
@@ -557,6 +558,129 @@ describe("lazy require 與 index.js 接線", () => {
   test("發送函式沒有任何 LINE 呼叫", () => {
     const source = fs.readFileSync(path.join(__dirname, "../../functions/web-push-sender.js"), "utf8");
     expect(source).not.toMatch(/enqueueLine|linePushQueue|processLinePushQueue|pushMessage|LINE_CHANNEL/);
+  });
+});
+
+describe("新活動通知 new_event", () => {
+  const NE_URL = `/events/${EVENT_ID}`;
+  const neQueue = (extra = {}) => queueDoc({
+    source: "newEvent", kind: "new_event", title: "足球有新活動囉！", body: "11/28（六）20:00，點開看看", url: NE_URL, ...extra,
+  });
+
+  test("T-SND-01 new_event 正常送出、payload url 是活動頁", async () => {
+    const { run, webPush, transport, logs } = setup({ queue: neQueue(), seed: { [subPath(endpointOf(1))]: subDoc(1) } });
+    await run();
+    expect(transport.calls).toHaveLength(1);
+    expect(processed(logs)[0].outcome).toBe("sent");
+    expect(JSON.parse(webPush.payloads[0].payload)).toEqual({
+      v: 1, title: "足球有新活動囉！", body: "11/28（六）20:00，點開看看", url: NE_URL,
+    });
+  });
+
+  test.each([
+    ["/inbox"], ["/events/"], ["/events/a b"], ["/events/../x"], ["/events/a/b"], ["//evil.com/events/a"],
+    ["https://x.com/events/a"], [`/events/${"a".repeat(65)}`], ["/events/a\n"], [undefined], [5],
+  ])("T-SND-02 網址格式不合不送：%s", async (url) => {
+    const { run, transport, fake, logs } = setup({
+      queue: url === undefined ? (({ url: _omit, ...rest }) => rest)(neQueue({})) : neQueue({ url }), seed: { [subPath(endpointOf(1))]: subDoc(1) },
+    });
+    await run();
+    expect(processed(logs)[0].reason).toBe("bad_url");
+    expect(transport.calls).toHaveLength(0);
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test.each([
+    [{ source: "newEvent", kind: "signup" }],
+    [{ source: "registration", kind: "new_event" }],
+    [{ source: "__proto__" }],
+    [{ source: "constructor" }],
+  ])("T-SND-03 source／kind 不成對 → bad_doc：%j", async (patch) => {
+    const { run, transport, fake, logs } = setup({
+      queue: queueDoc(patch), seed: { [subPath(endpointOf(1))]: subDoc(1) },
+    });
+    await run();
+    expect(processed(logs)[0].reason).toBe("bad_doc");
+    expect(transport.calls).toHaveLength(0);
+    expect(fake.state.writes).toHaveLength(0);
+  });
+
+  test("T-SND-04 ne 計數獨立、上限 5", async () => {
+    const day = taipeiDayKey(Date.now());
+    const hash = validate.uidHashOf(RECIPIENT);
+    const neDoc = `webPushDaily/ne_${day}_${hash}`;
+    const normalDoc = `webPushDaily/${day}_${hash}`;
+    const { run, transport, fake, logs } = setup({
+      queue: neQueue(),
+      seed: { [subPath(endpointOf(1))]: subDoc(1), [neDoc]: { count: 5 }, [normalDoc]: { count: 0 } },
+    });
+    await run();
+    expect(transport.calls).toHaveLength(0);
+    expect(processed(logs)[0]).toMatchObject({ outcome: "skipped", reason: "daily_limit" });
+    expect(fake.get(`webPushQueue/${QUEUE_ID}`).status).toBe("claimed");
+    expect(fake.get(normalDoc).count).toBe(0);
+  });
+
+  test("T-SND-05 報名通知不受 ne 上限影響", async () => {
+    const day = taipeiDayKey(Date.now());
+    const hash = validate.uidHashOf(RECIPIENT);
+    const neDoc = `webPushDaily/ne_${day}_${hash}`;
+    const normalDoc = `webPushDaily/${day}_${hash}`;
+    const { run, transport, fake } = setup({
+      queue: queueDoc(),
+      seed: { [subPath(endpointOf(1))]: subDoc(1), [neDoc]: { count: 5 }, [normalDoc]: { count: 0 } },
+    });
+    await run();
+    expect(transport.calls).toHaveLength(1);
+    expect(fake.get(normalDoc).count).toBe(1);
+    expect(fake.get(neDoc).count).toBe(5);
+  });
+
+  test("T-SND-06 new_event 不吃報名的 20 則", async () => {
+    const day = taipeiDayKey(Date.now());
+    const hash = validate.uidHashOf(RECIPIENT);
+    const neDoc = `webPushDaily/ne_${day}_${hash}`;
+    const normalDoc = `webPushDaily/${day}_${hash}`;
+    const { run, transport, fake } = setup({
+      queue: neQueue(),
+      seed: { [subPath(endpointOf(1))]: subDoc(1), [normalDoc]: { count: 20 }, [neDoc]: { count: 0 } },
+    });
+    await run();
+    expect(transport.calls).toHaveLength(1);
+    expect(fake.get(neDoc).count).toBe(1);
+  });
+
+  test("T-SND-07 第 4、5 則可送、第 6 則擋", async () => {
+    const day = taipeiDayKey(Date.now());
+    const neDoc = `webPushDaily/ne_${day}_${validate.uidHashOf(RECIPIENT)}`;
+    const first = setup({
+      queue: neQueue(), seed: { [subPath(endpointOf(1))]: subDoc(1), [neDoc]: { count: 4 } },
+    });
+    await first.run();
+    expect(first.transport.calls).toHaveLength(1);
+    expect(first.fake.get(neDoc).count).toBe(5);
+    const second = setup({
+      queue: neQueue(), seed: { [subPath(endpointOf(1))]: subDoc(1), [neDoc]: { count: 5 } },
+    });
+    await second.run();
+    expect(second.transport.calls).toHaveLength(0);
+    expect(processed(second.logs)[0].reason).toBe("daily_limit");
+  });
+
+  test("T-SND-08 報名通知 url 仍是 /inbox", async () => {
+    const { run, webPush } = setup({
+      queue: queueDoc({ url: "/events/x" }), seed: { [subPath(endpointOf(1))]: subDoc(1) },
+    });
+    await run();
+    expect(JSON.parse(webPush.payloads[0].payload).url).toBe("/inbox");
+  });
+
+  test("T-SND-09 log 不含活動代號與網址", async () => {
+    const { run, logs } = setup({ queue: neQueue(), seed: { [subPath(endpointOf(1))]: subDoc(1) } });
+    await run();
+    expect(Object.keys(processed(logs)[0]).sort()).toEqual(LOG_KEYS);
+    const text = JSON.stringify(logs);
+    for (const secret of [EVENT_ID, NE_URL, RECIPIENT]) expect(text).not.toContain(secret);
   });
 });
 

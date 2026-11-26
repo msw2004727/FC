@@ -31,6 +31,7 @@ const {
 const { normalizeEventDateKey } = require("./noshow-v2-core");
 const { addDaysKey } = require("./ops-ltv-report");
 const { WEB_PUSH_COLLECTIONS, WEB_PUSH_PLATFORMS } = require("./web-push-config");
+const { buildSportRank } = require("./sport-catalog");
 
 const SCHEDULE_BASE = Object.freeze({
   region: "asia-east1",
@@ -536,6 +537,9 @@ async function runOpsRollup({ db, Timestamp, fieldPath, nowMs = Date.now(), mode
     // opsSummary/latest 整份覆寫，daily 與 reconcile 都要帶 webPush，否則週一對帳會把它洗掉。
     batch.set(db.collection("opsSummary").doc("latest"), stampComputed({ ...summaries.latest, webPush }, Timestamp, nowMs));
     batch.set(db.collection("opsSummary").doc("noshow"), stampComputed(summaries.noshow, Timestamp, nowMs));
+    // 熱門排行（計畫書 §5.5）：用本來就讀到的 openEvents 計數，不另外掃資料；daily 與 reconcile 都寫（只多 1 筆寫入）
+    const sportRank = buildSportRank(openEvents);
+    batch.set(db.collection("siteConfig").doc("sportRank"), { order: sportRank, updatedAt: Timestamp.fromMillis(nowMs) });
     await batch.commit();
     log(JSON.stringify({
       tag: mode === "reconcile" ? "[opsWeeklyReconcile]" : "[opsDailyRollup]",
@@ -547,6 +551,7 @@ async function runOpsRollup({ db, Timestamp, fieldPath, nowMs = Date.now(), mode
       stuck: stuckAttention.length,
       lowFill: lowFill.upcomingLowFill.length,
       lowFillOverflow: lowFill.upcomingLowFillOverflow,
+      sportRankSize: sportRank.length,
       reads: counter,
     }));
     return { asOf, dateKeys, mismatches, counter };

@@ -350,7 +350,7 @@ describe("ops-daily-rollup", () => {
     });
     expect(db.saved("opsSummary", "noshow").asOf).toBe("2026-11-08");
     expect(db.batchCalls).toBe(1);
-    expect(db.commits).toEqual([["opsSummary/latest", "opsSummary/noshow"]]);
+    expect(db.commits).toEqual([["opsSummary/latest", "opsSummary/noshow", "siteConfig/sportRank"]]);
     expect(result.logs[0]).toContain("[opsDailyRollup]");
     expect(result.counter.usage).toBeGreaterThan(0);
   });
@@ -526,6 +526,7 @@ describe("ops-daily-rollup", () => {
       expect(errors[0]).not.toContain(QA);
       expect(errors[0]).not.toContain("host-1");
       expect(openDb.writes.some((item) => item.path.startsWith("opsSummary/"))).toBe(false);
+      expect(openDb.writes.some((item) => item.path === "siteConfig/sportRank")).toBe(false);
 
       const costDb = createFakeDb(baseSeed(), { failCollections: { usageMetrics: "cost failed" } });
       await expect(run(costDb)).rejects.toThrow("cost failed");
@@ -592,7 +593,7 @@ describe("ops-daily-rollup", () => {
       expect(latest.asOf).toBe("2026-11-08");
       expect(latest.cost).toMatchObject({ monthToDate: 80 });
       expect(db.saved("opsSummary", "noshow").asOf).toBe("2026-11-08");
-      expect(db.commits).toEqual([["opsSummary/latest", "opsSummary/noshow"]]);
+      expect(db.commits).toEqual([["opsSummary/latest", "opsSummary/noshow", "siteConfig/sportRank"]]);
       expect(errSpy).not.toHaveBeenCalled();
       expect(result.counter.counts).toBe(mode === "daily" ? 5 : 0);
       expect(result.counter.total).toBe(db.readDocs);
@@ -603,6 +604,26 @@ describe("ops-daily-rollup", () => {
       errSpy.mockRestore();
       warnSpy.mockRestore();
     }
+  });
+
+  test("熱門排行寫進 siteConfig/sportRank、不多讀", async () => {
+    const base = baseSeed();
+    const extraEvents = [
+      eventDoc("rank-football-1", { status: "open", sportTag: "football", date: "2026/11/20 19:00~21:00" }),
+      eventDoc("rank-football-2", { status: "open", sportTag: "football", date: "2026/11/21 19:00~21:00" }),
+      eventDoc("rank-tennis-1", { status: "open", sportTag: "tennis", date: "2026/11/22 19:00~21:00" }),
+      eventDoc("rank-other-1", { status: "open", sportTag: "other", date: "2026/11/23 19:00~21:00" }),
+    ];
+    const dbWith = createFakeDb(baseSeed({ events: [...base.events, ...extraEvents] }));
+    const dbWithout = createFakeDb(baseSeed());
+    const withResult = await run(dbWith);
+    const withoutResult = await run(dbWithout);
+    const rank = dbWith.saved("siteConfig", "sportRank");
+    expect(rank.order).toEqual(["football", "tennis"]);
+    expect(rank.updatedAt).toBeDefined();
+    expect(dbWith.queries.length).toBe(dbWithout.queries.length);
+    expect(withResult.counter.total).toBe(dbWith.readDocs);
+    expect(withoutResult.counter.total).toBe(dbWithout.readDocs);
   });
 
   test("推播集合取用直接拋錯（非數字 code）也不讓彙總失敗，code 記 unknown", async () => {

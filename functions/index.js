@@ -20184,6 +20184,18 @@ const webPushSubscriptionHandlers = createWebPushSubscriptionHandlers({ db, Fiel
 exports.registerWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.register);
 exports.unregisterWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.unregister);
 
+// 運動喜好（計畫書 §5.2）：只收 addSports／removeSport／newEventNotify／promptSeen；uid 取 request.auth.uid；Admin SDK 寫 users，不改 Rules
+const { createSaveSportPrefsHandler } = require("./sport-prefs");
+exports.saveSportPrefs = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, createSaveSportPrefsHandler({ db, FieldValue, HttpsError, logger }));
+
+// 每日新活動通知（計畫書 §6.1、§6.2）：觸發器只寫 newEventPending；排程每 15 分鐘展開入列 webPushQueue（不持秘密、不呼叫 LINE）
+const {
+  NEW_EVENT_TRIGGER_OPTIONS, NEW_EVENT_DISPATCH_OPTIONS,
+  createQueueNewEventNoticeHandler, createDispatchNewEventNoticesHandler,
+} = require("./new-event-notify");
+exports.queueNewEventNotice = onDocumentCreated({ ...NEW_EVENT_TRIGGER_OPTIONS }, createQueueNewEventNoticeHandler({ db, FieldValue, logger }));
+exports.dispatchNewEventNotices = onSchedule({ ...NEW_EVENT_DISPATCH_OPTIONS }, createDispatchNewEventNoticesHandler({ db, FieldValue, logger }));
+
 // 網頁推播 W2-B：佇列 onCreate 發送函式（顧問 §3.641 Q1）；唯一持有 VAPID 私鑰，web-push 在處理器內 lazy require
 const { createSendWebPushFromQueueHandler } = require("./web-push-sender");
 exports.sendWebPushFromQueue = onDocumentCreated(

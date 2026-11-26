@@ -10,6 +10,7 @@
  * - log 欄位白名單（每則一行 [webPush] processed）：kind、outcome、reason、subs、sent、gone、failed、keyMismatch、codes、services、latencyMs；
  *   錯誤 log [webPush] error 只帶 stage 與錯誤 code／name。不含 uid、endpoint、活動代號、標題、內文。
  * - LINE 增量 0：本檔沒有任何 LINE 呼叫。
+ * - source 白名單 WEB_PUSH_SOURCE_KINDS；new_event 讀佇列 url（格式不合 bad_url）、獨立每日計數 ne_ 前綴上限 5。
  */
 
 const config = require("./web-push-config");
@@ -137,18 +138,28 @@ function createSendWebPushFromQueueHandler({
     const snap = event && event.data;
     const data = snap && typeof snap.data === "function" ? (snap.data() || {}) : {};
     const kind = settings.WEB_PUSH_KINDS.includes(data.kind) ? data.kind : "";
+    const sourceKinds = Object.prototype.hasOwnProperty.call(settings.WEB_PUSH_SOURCE_KINDS, data.source)
+      ? settings.WEB_PUSH_SOURCE_KINDS[data.source] : null;
     const counters = emptyCounters();
     const createdAtMs = toMillis(data.createdAt);
     const skip = (reason) => logProcessed(kind, "skipped", reason, counters, createdAtMs);
 
     // 1. 文件形狀
     if (
-      !snap || data.schema !== 1 || data.source !== "registration" || !kind ||
+      !snap || data.schema !== 1 || !Array.isArray(sourceKinds) || !sourceKinds.includes(kind) || !kind ||
       typeof data.recipientUid !== "string" || !data.recipientUid ||
       typeof data.title !== "string" || !data.title || typeof data.body !== "string" || !data.body ||
       !Number.isFinite(createdAtMs)
     ) {
       skip("bad_doc");
+      return;
+    }
+
+    // 1b. 新活動通知的點擊網址：格式不合就不送（計畫書 §6.3、§10-17）
+    const isNewEvent = kind === settings.WEB_PUSH_NEW_EVENT_KIND;
+    if (isNewEvent && (typeof data.url !== "string" || !settings.WEB_PUSH_NEW_EVENT_URL_RE.test(data.url)
+      || validate.safeRelativeUrl(data.url) !== data.url)) {
+      skip("bad_url");
       return;
     }
     // 2. 太舊不送（延遲送達或停發後恢復時不補送）
@@ -195,13 +206,15 @@ function createSendWebPushFromQueueHandler({
     // 5. 交易：認領＋每日計數
     const queueRef = snap.ref;
     const nowMs = now();
-    const dailyRef = db.collection(collections.daily).doc(`${taipeiDayKey(nowMs)}_${validate.uidHashOf(data.recipientUid)}`);
+    const dailyPrefix = isNewEvent ? settings.WEB_PUSH_NEW_EVENT_DAILY_PREFIX : "";
+    const dailyLimit = isNewEvent ? settings.WEB_PUSH_NEW_EVENT_DAILY_LIMIT_PER_UID : settings.WEB_PUSH_DAILY_LIMIT_PER_UID;
+    const dailyRef = db.collection(collections.daily).doc(`${dailyPrefix}${taipeiDayKey(nowMs)}_${validate.uidHashOf(data.recipientUid)}`);
     const claim = await db.runTransaction(async (tx) => {
       const [queueSnap, dailySnap] = await tx.getAll(queueRef, dailyRef);
       if (!queueSnap.exists || (queueSnap.data() || {}).status !== "pending") return "already_claimed";
       const count = dailySnap.exists ? Number(dailySnap.data()?.count) || 0 : 0;
       tx.update(queueRef, { status: "claimed", claimedAt: FieldValue.serverTimestamp() });
-      if (count >= settings.WEB_PUSH_DAILY_LIMIT_PER_UID) return "daily_limit";
+      if (count >= dailyLimit) return "daily_limit";
       tx.set(dailyRef, {
         count: FieldValue.increment(1),
         updatedAt: FieldValue.serverTimestamp(),
@@ -216,7 +229,7 @@ function createSendWebPushFromQueueHandler({
     // 6. 送出（lazy require web-push，只用它組 VAPID 與加密，HTTPS 自己發）
     const webPush = loadWebPush();
     const transport = requestImpl || require("https").request;
-    const payload = validate.buildPushPayload({ title: data.title, body: data.body, url: settings.WEB_PUSH_CLICK_URL });
+    const payload = validate.buildPushPayload({ title: data.title, body: data.body, url: isNewEvent ? data.url : settings.WEB_PUSH_CLICK_URL });
     const outcomes = await Promise.allSettled(sendable.map(async ({ ref, sub }) => {
       const check = validate.classifyEndpoint(sub.endpoint);
       if (!check.ok) return { ref, statusCode: 0, service: "invalid" };

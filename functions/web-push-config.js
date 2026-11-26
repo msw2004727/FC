@@ -57,6 +57,7 @@ const WEB_PUSH_BODY_MAX = 180;
 const WEB_PUSH_ENDPOINT_MAX_LENGTH = 1024;
 
 // 點通知開站內信頁（Q4）；不帶活動代號。新站實際路徑於 W5 確認
+// new_event 例外，見 WEB_PUSH_NEW_EVENT_URL_RE
 const WEB_PUSH_CLICK_URL = "/inbox";
 
 // 主機白名單：精確比對＋以點開頭的後綴比對（evilnotify.windows.com 不算）
@@ -76,7 +77,20 @@ const WEB_PUSH_ENDPOINT_HOST_SOURCES = Object.freeze({
 });
 
 const WEB_PUSH_PLATFORMS = Object.freeze(["android", "desktop", "ios_pwa", "other"]);
-const WEB_PUSH_KINDS = Object.freeze(["signup", "promoted", "cancelled", "removed"]);
+const WEB_PUSH_KINDS = Object.freeze(["signup", "promoted", "cancelled", "removed", "new_event"]);
+
+// 佇列 source 白名單與各 source 允許的 kind（計畫書 §6.3）；source 與 kind 不成對一律 bad_doc
+const WEB_PUSH_SOURCE_KINDS = Object.freeze({
+  registration: Object.freeze(["signup", "promoted", "cancelled", "removed"]),
+  newEvent: Object.freeze(["new_event"]),
+});
+const WEB_PUSH_NEW_EVENT_KIND = "new_event";
+const WEB_PUSH_NEW_EVENT_SOURCE = "newEvent";
+// 新活動通知：獨立每日計數（webPushDaily/ne_{台北日期}_{uid 雜湊}），不佔報名類的 20 則
+const WEB_PUSH_NEW_EVENT_DAILY_LIMIT_PER_UID = 5;
+const WEB_PUSH_NEW_EVENT_DAILY_PREFIX = "ne_";
+// 新活動通知點擊網址：只接受站內活動頁（取代原「通知不帶活動代號」：新活動通知的目的就是打開那場公開活動）
+const WEB_PUSH_NEW_EVENT_URL_RE = /^\/events\/[A-Za-z0-9_-]{1,64}$/;
 
 const WEB_PUSH_CALLABLE_OPTIONS = Object.freeze({
   region: "asia-east1",
@@ -113,5 +127,11 @@ module.exports = {
   WEB_PUSH_ENDPOINT_HOST_SOURCES,
   WEB_PUSH_PLATFORMS,
   WEB_PUSH_KINDS,
+  WEB_PUSH_SOURCE_KINDS,
+  WEB_PUSH_NEW_EVENT_KIND,
+  WEB_PUSH_NEW_EVENT_SOURCE,
+  WEB_PUSH_NEW_EVENT_DAILY_LIMIT_PER_UID,
+  WEB_PUSH_NEW_EVENT_DAILY_PREFIX,
+  WEB_PUSH_NEW_EVENT_URL_RE,
   WEB_PUSH_CALLABLE_OPTIONS,
 };

@@ -214,3 +214,23 @@ describe("buildPushPayload：欄位白名單（設計 §6.3）", () => {
     expect(JSON.parse(v.buildPushPayload({ title: "t", body: "b", url })).url).toBe(expected);
   });
 });
+
+describe("新活動通知設定（F2）", () => {
+  test("T-CFG-01 種類與 source 白名單", () => {
+    expect(config.WEB_PUSH_KINDS).toEqual(["signup", "promoted", "cancelled", "removed", "new_event"]);
+    expect(config.WEB_PUSH_SOURCE_KINDS).toEqual({
+      registration: ["signup", "promoted", "cancelled", "removed"],
+      newEvent: ["new_event"],
+    });
+    expect(Object.isFrozen(config.WEB_PUSH_KINDS)).toBe(true);
+    expect(Object.isFrozen(config.WEB_PUSH_SOURCE_KINDS)).toBe(true);
+    expect(Object.isFrozen(config.WEB_PUSH_SOURCE_KINDS.registration)).toBe(true);
+    expect(Object.isFrozen(config.WEB_PUSH_SOURCE_KINDS.newEvent)).toBe(true);
+  });
+
+  test("T-CFG-02 新活動常數", () => {
+    expect(config.WEB_PUSH_NEW_EVENT_DAILY_LIMIT_PER_UID).toBe(5);
+    expect(config.WEB_PUSH_NEW_EVENT_DAILY_PREFIX).toBe("ne_");
+    expect(config.WEB_PUSH_NEW_EVENT_URL_RE.source).toBe("^\\/events\\/[A-Za-z0-9_-]{1,64}$");
+  });
+});
