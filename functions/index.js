@@ -20143,6 +20143,17 @@ Object.assign(exports, createCpClubMirrorExports({
   logger,
 }));
 
+// CP-PO-01 檢舉通知 relay：asia-main cpOutbox → 管理員站內信＋（featureFlags.cpReportLineEnabled === true 時）官方帳號推播
+const { createCpOutboxRelayExports } = require("./cp-outbox-relay");
+Object.assign(exports, createCpOutboxRelayExports({
+  onDocumentCreated,
+  db,
+  getFirestore,
+  FieldValue,
+  logger,
+  getLineRecipientUidFromUserDoc,
+}));
+
 // 網頁推播 W2-B：訂閱註冊／退訂兩支 Callable（不持秘密，只寫 webPushSubscriptions 與註冊計數；uid 取 request.auth.uid）
 const { WEB_PUSH_CALLABLE_OPTIONS } = require("./web-push-config");
 const { createWebPushSubscriptionHandlers } = require("./web-push-subscription");
