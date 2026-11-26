@@ -10,6 +10,7 @@
  * cpMine 一律在交易內用 prepareMine(..., { scoreRoles }) 讀取後整份重算；記分角色空了且沒有其他索引角色就刪文件。
  * 讀取預算：assignStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1＋場次 ≤100；
  * removeStaff ≤ 閘門 2＋賽事 1＋主辦判斷 ≤2＋對象 staff 1＋cpMine 1。
+ * 共同主辦改動他人時，俱樂部代表判斷另 +1 讀（cpClubs/{teamId}）；動自己或主辦時 +0。
  * K10 成員編號用這次已讀的賽事文件 staffSeq，+0 讀。只有新建 staff 才多寫 1 次賽事文件。
  * 呼叫者就是對象、而且主辦判斷已經讀過那份 staff 時直接重用，省 1 讀。
  * 記分守門（assertMayTouchStaff）只用已經讀到的 roles，不加讀。被拒時不再讀場次與 cpMine。
@@ -27,6 +28,7 @@ import {
   assertCompVisible,
   hostAccess,
   isAdmin,
+  isClubRep,
   loadComp,
   newId,
   readDoc,
@@ -115,6 +117,25 @@ export function decideRemoval(current: readonly string[], requested: readonly st
 export function assertMayTouchStaff(existingRoles: readonly string[], isSelf: boolean, primary: boolean): void {
   if (isSelf || primary) return;
   if (existingRoles.includes('host') || existingRoles.includes('coHost')) throw deny('FORBIDDEN');
+}
+
+/**
+ * 俱樂部賽事：共同主辦不得改動目前代表（代表的 staff 可能只有 scorer，沒有 host）。
+ * 先跑 assertMayTouchStaff；不拒絕且動別人時多讀俱樂部鏡像，代表就拒（+1 讀，只在共同主辦動他人時發生）。
+ */
+async function assertMayTouchTarget(
+  deps: CpDeps,
+  tx: Transaction,
+  comp: CompDoc,
+  access: HostAccess,
+  targetUid: string,
+  callerUid: string,
+  existingRoles: readonly string[]
+): Promise<void> {
+  assertMayTouchStaff(existingRoles, targetUid === callerUid, access.primary);
+  if (!access.primary && targetUid !== callerUid && comp.hostType === 'club' && typeof comp.hostTeamId === 'string') {
+    if ((await isClubRep(deps, tx, comp.hostTeamId, targetUid)).ok) throw deny('FORBIDDEN');
+  }
 }
 
 /** 有給就用（不得早於現在）；沒給則 lastMatchAt + 7 天，算出來早於現在也拒。 */
@@ -234,7 +255,7 @@ export async function assignStaff(deps: CpDeps, caller: Caller, gate: GateResult
     if (uid !== caller.uid && !staffSnap.exists) throw notFound('STAFF_NOT_FOUND');
     const existing = stringList(staffSnap, 'roles');
     // 讀到對象 staff 之後、任何寫入之前。被拒就不再讀場次與 cpMine。
-    assertMayTouchStaff(existing, uid === caller.uid, access.primary);
+    await assertMayTouchTarget(deps, tx, comp, access, uid, caller.uid, existing);
     const snaps = await readMatches(deps, tx, cid, matchIds);
     if (snaps.some(s => !s.exists)) throw notFound('MATCH_NOT_FOUND');
 
@@ -291,7 +312,7 @@ export async function removeStaff(deps: CpDeps, caller: Caller, gate: GateResult
       if (decision.reason === 'FORBIDDEN') throw deny('FORBIDDEN');
       throw pre(decision.reason);
     }
-    assertMayTouchStaff(current, uid === caller.uid, access.primary);
+    await assertMayTouchTarget(deps, tx, comp, access, uid, caller.uid, current);
     const prevMatches = stringList(staffSnap, 'matchIds');
     const writeMine = await prepareMine(deps, tx, uid, cid, comp, { scoreRoles: decision.scoreRoles });
 

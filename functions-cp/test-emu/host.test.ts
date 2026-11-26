@@ -406,6 +406,85 @@ describe('站長 11-18：場地地圖、每組報名費', () => {
   });
 });
 
+describe('施工卡 CP-PO-03：刪除限制與新順序', () => {
+  beforeEach(() => resetAll());
+
+  it('非管理員：首場時間未到，但有一場 confirmed／live → DELETE_AFTER_START；管理員不受限', async () => {
+    const { cid } = await create(TESTER);
+    const mtId = 'mt_' + 'x'.repeat(20);
+    await adminDb().doc(`competitions/${cid}/matches/${mtId}`).set({ status: 'confirmed', divisionId: 'dv_x' });
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'DELETE_AFTER_START', 'failed-precondition');
+    await adminDb().doc(`competitions/${cid}/matches/${mtId}`).update({ status: 'live' });
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'DELETE_AFTER_START');
+    await ok(call(handleCpHost, ADMIN, { action: 'delete', cid }));
+    expect((await adminDb().doc(`competitions/${cid}`).get()).exists).toBe(false);
+  });
+
+  it('非管理員：endedAt 有值、首場時間未到 → DELETE_AFTER_START', async () => {
+    const { cid } = await create(TESTER);
+    await adminDb().doc(`competitions/${cid}`).update({ endedAt: new Date(), endedBy: 'host' });
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }), 'DELETE_AFTER_START');
+  });
+
+  it('刪除成功後：cpLineThrottle 清掉、個人主辦 activeCids 不含 cid、recentCreates 不變、cpMine 清掉', async () => {
+    const { cid } = await create(TESTER);
+    await adminDb().doc(`cpLineThrottle/c_${cid}`).set({ createdAt: new Date() });
+    const quotaBefore = (await adminDb().doc('cpHostQuota/tester').get()).data()!;
+    expect((quotaBefore.activeCids as string[]).includes(cid)).toBe(true);
+    const recentBefore = (quotaBefore.recentCreates as unknown[]).length;
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(true);
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    expect((await adminDb().doc(`cpLineThrottle/c_${cid}`).get()).exists).toBe(false);
+    const quotaAfter = (await adminDb().doc('cpHostQuota/tester').get()).data()!;
+    expect(((quotaAfter.activeCids as string[]) ?? []).includes(cid)).toBe(false);
+    expect((quotaAfter.recentCreates as unknown[]).length).toBe(recentBefore);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+  });
+
+  it('recursiveDelete 失敗：不清 cpMine，主辦仍看得到、可重跑', async () => {
+    const { cid } = await create(TESTER);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(true);
+    const base = makeDeps();
+    const wrappedDb = new Proxy(base.db, {
+      get(t, k): unknown {
+        if (k === 'recursiveDelete') return async () => { throw new Error('boom'); };
+        const v = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof v === 'function' ? (v as Function).bind(t) : v;
+      }
+    });
+    const deps = { ...base, db: wrappedDb };
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }, deps), 'INTERNAL', 'internal');
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(true);
+    // 名單已先存進收尾文件；正常重跑後 cpMine、收尾文件都清掉
+    expect((await adminDb().doc(`cpDeleteCleanup/${cid}`).get()).get('uids')).toContain('tester');
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpDeleteCleanup/${cid}`).get()).exists).toBe(false);
+  });
+
+  it('根文件已刪、收尾沒做完：原刪除者重跑只做收尾；其他人仍回 COMPETITION_NOT_FOUND（Opus 終審 P2-1）', async () => {
+    const { cid } = await create(TESTER);
+    const base = makeDeps();
+    let first = true;
+    // recursiveDelete 成功後，第一次清 cpMine 的 batch 失敗
+    const wrappedDb = new Proxy(base.db, {
+      get(t, k): unknown {
+        if (k === 'batch' && first) return () => { first = false; return { delete() { return this; }, commit: async () => { throw new Error('boom'); } }; };
+        const v = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof v === 'function' ? (v as Function).bind(t) : v;
+      }
+    });
+    await fails(call(handleCpHost, TESTER, { action: 'delete', cid }, { ...base, db: wrappedDb }), 'INTERNAL', 'internal');
+    expect((await adminDb().doc(`competitions/${cid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(true);
+    await fails(call(handleCpHost, TESTER2, { action: 'delete', cid }), 'COMPETITION_NOT_FOUND', 'not-found');
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(true);
+    await ok(call(handleCpHost, TESTER, { action: 'delete', cid }));
+    expect((await adminDb().doc(`cpMine/tester/items/${cid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`cpDeleteCleanup/${cid}`).get()).exists).toBe(false);
+  });
+});
+
 describe('顧問 §3.254：cpMine 改名改期同步', () => {
   beforeEach(() => resetAll());
   it('主辦改名、改首場後，主辦、報隊者、球員的 cpMine 名稱與首場跟著更新', async () => {

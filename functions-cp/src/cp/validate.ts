@@ -3,7 +3,7 @@
  * 錯誤回 CpError('invalid-argument', reason, { field })，前端以 reason 對照文案。
  */
 import { bad } from './errors.js';
-import { cleanLine, findBannedWord, isAllowedLiveLink, optionalLine, optionalText, requireLine } from './text.js';
+import { cleanLine, findBannedWord, isAllowedLiveLink, optionalLine, optionalText, requireLine, requireProseLine } from './text.js';
 import { isAllowedLogoUrl } from './logo-hosts.js';
 
 /** 賽事分類（顧問 §3.264）。讀取端缺值用 categoryOf，不在這裡默認。 */
@@ -337,8 +337,9 @@ export function divisionsOf(v: unknown): DivisionInput[] {
   return list;
 }
 
+/** 拒絕報隊、下架、取消／延期原因等自由文字：保留全形標點（施工卡 CP-PO-16）。 */
 export function statusReasonOf(v: unknown): string {
-  return requireLine(v, 'reason', 2, LIMITS.statusReasonMax);
+  return requireProseLine(v, 'reason', 2, LIMITS.statusReasonMax);
 }
 
 /** 只接受已知鍵：多帶任何鍵一律拒絕（避免前端以為寫進去了）。 */

@@ -22,6 +22,28 @@ export function requireLine(value: unknown, field: string, min: number, max: num
   return s;
 }
 
+/**
+ * 清理單行文字，保留全形標點與符號（給原因、說明等自由文字用；名稱仍走 cleanLine）。
+ * 只對「不在下列範圍」的區塊做 NFKC：全形英數仍轉半形、U+3000 仍視為空白；全形標點與「…」保留不轉。
+ */
+export function cleanProseLine(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return value
+    .replace(/[^\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF60\u2026]+/g, m => m.normalize('NFKC'))
+    .replace(INVISIBLE_RE, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 必填單行文字（保留全形標點）；長度以 Unicode code point 計。 */
+export function requireProseLine(value: unknown, field: string, min: number, max: number): string {
+  const s = cleanProseLine(value);
+  if (s == null || s.length === 0) throw bad('FIELD_REQUIRED', { field });
+  const len = [...s].length;
+  if (len < min || len > max) throw bad('FIELD_LENGTH', { field, min, max });
+  return s;
+}
+
 /** 選填單行文字：未提供或空字串回 null。 */
 export function optionalLine(value: unknown, field: string, max: number): string | null {
   if (value == null) return null;

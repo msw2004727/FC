@@ -72,6 +72,8 @@ export const HOST_QUOTA = Object.freeze({
 });
 
 const ACTIVE_STATUSES = ['draft', 'published', 'postponed'];
+/** 已開始的場次狀態：deleteCompetition 用來擋非管理員刪除已開打的賽事（顧問 Q-09a）。 */
+const STARTED_MATCH_STATUSES = ['live', 'finished', 'confirmed', 'walkover'];
 const DAY = 86400_000;
 
 function divisionDoc(d: DivisionInput, order: number) {
@@ -498,7 +500,10 @@ export async function setCompetitionStatus(deps: CpDeps, caller: Caller, gate: G
   return { cid, status };
 }
 
-// ── delete（§6.1 必修 7：首場前主辦可刪；之後只有管理員）──────────────
+/**
+ * §6.1 必修 7 刪除：非管理員首場前、未結束（endedAt 為 null）、且沒有任何已開始的場次才能刪（Q-08、Q-09a）。
+ * 交易內先封鎖（下架＋deletingAt）並清個人主辦配額的 activeCids；交易後先 recursiveDelete 成功，才清 cpMine 與 cpLineThrottle。
+ */
 export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid']);
   const cid = requireId(input.cid, CID_RE, 'cid');
@@ -506,7 +511,9 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   let comp: CompDoc | null = null;
   // 1. 交易內判斷權限並先封鎖：下架＋deletingAt，讓並行的報隊、登錄、編輯全部被擋（Flash 交叉審 P2：
   //    避免 recursiveDelete 期間新寫入成為孤兒）；同時寫頂層稽核（賽事內 audits 會跟著刪）。
+  try {
   await deps.db.runTransaction(async tx => {
+    const hostUidsToClean: string[] = [];
     const c = await loadComp(deps, tx, cid);
     assertCompVisible(c, gate);
     // 主辦：俱樂部主辦＝目前代表、個人主辦＝staff host；共同主辦不能刪（Flash P1、§3.251 (a)）
@@ -515,6 +522,19 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
     // 下架（被檢舉）中主辦不能自刪，避免檢舉證據隨子集合消失（Opus 終審 P2-6）；刪除中重跑例外
     if (!admin && c.hidden && !c.deletingAt) throw pre('COMPETITION_HIDDEN');
     if (!admin && deps.now().getTime() >= c.firstMatchAt.toMillis()) throw pre('DELETE_AFTER_START');
+    // 已結束等同已開始：重跑時仍先過這兩條（管理員不受限）
+    if (!admin && c.endedAt) throw pre('DELETE_AFTER_START');
+    if (!admin) {
+      const started = await readCount(deps, tx, deps.db.collection(`competitions/${cid}/matches`)
+        .where('status', 'in', STARTED_MATCH_STATUSES).limit(1).count());
+      if (started > 0) throw pre('DELETE_AFTER_START');
+    }
+    // 個人主辦在交易內讀主辦 staff，交易寫入時清 cpHostQuota.activeCids（不動 recentCreates，建立次數不能因刪除退回）
+    if (c.hostType === 'personal') {
+      const hosts = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/staff`)
+        .where('roles', 'array-contains', 'host').limit(3).select());
+      hosts.docs.forEach(d => hostUidsToClean.push(d.id));
+    }
     const auditRef = deps.db.doc(`cpAudits/del_${cid}`);
     const audit = await readDoc(deps, tx, auditRef);
     if (audit.exists) {
@@ -526,11 +546,21 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
         name: c.name, at: FieldValue.serverTimestamp(), retries: 0
       });
     }
+    for (const uid of hostUidsToClean) {
+      tx.set(deps.db.doc(`cpHostQuota/${uid}`), { activeCids: FieldValue.arrayRemove(cid) }, { merge: true });
+    }
     tx.update(deps.db.doc(`competitions/${cid}`), { hidden: true, deletingAt: FieldValue.serverTimestamp() });
     comp = c;
   });
+  } catch (e) {
+    // 根文件已刪但收尾（cpMine、throttle）沒做完：管理員或原刪除者重跑時只做收尾（Opus 終審 P2-1）
+    if (e instanceof CpError && e.reason === 'COMPETITION_NOT_FOUND' && await resumeDeleteCleanup(deps, caller, cid, admin)) {
+      return { cid, deleted: true };
+    }
+    throw e;
+  }
   if (!comp) throw pre('DELETE_FAILED');
-  // 2. 清 cpMine 索引（從私密名單與報隊者推導；不信用戶端）
+  // 2. 先把 cpMine 要清的 uid 收進記憶體（從私密名單與報隊者推導；不信用戶端）
   const uids = new Set<string>();
   const rp = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/rosterPrivate`).select('uid'));
   rp.docs.forEach(d => { const u = d.get('uid'); if (typeof u === 'string' && u) uids.add(u); });
@@ -540,15 +570,45 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
   // 記分員的 cpMine 會留成孤兒（顧問 11-20 清除測試資料前必修）。staff 每場上限約 30＋主辦，讀取量小。
   const hs = await readQuery(deps, null, deps.db.collection(`competitions/${cid}/staff`).select());
   hs.docs.forEach(d => uids.add(d.id));
+  // 名單先存進伺服器專用的收尾文件（用戶端無規則可讀寫）：recursiveDelete 中途失敗時子集合可能已刪一部分，
+  // 重跑時與剩下的子集合取聯集；根文件刪了但收尾失敗時，靠這份名單收尾（Opus 終審 P2-1）
+  const cleanupRef = deps.db.doc(`${DELETE_CLEANUP_COLLECTION}/${cid}`);
   const list = [...uids];
+  for (let i = 0; i < list.length; i += 400) {
+    await cleanupRef.set({ uids: FieldValue.arrayUnion(...list.slice(i, i + 400)), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+  // 3. 先連同子集合分批刪；成功後才清 cpMine 與 cpLineThrottle（失敗就往外拋，讓主辦還看得到、可重跑）
+  await deps.db.recursiveDelete(deps.db.doc(`competitions/${cid}`));
+  await finishDeleteCleanup(deps, cid);
+  return { cid, deleted: true };
+}
+
+const DELETE_CLEANUP_COLLECTION = 'cpDeleteCleanup';
+
+/** 依收尾文件的名單清 cpMine、cpLineThrottle，最後刪收尾文件本身（可重跑）。 */
+async function finishDeleteCleanup(deps: CpDeps, cid: string): Promise<void> {
+  const cleanupRef = deps.db.doc(`${DELETE_CLEANUP_COLLECTION}/${cid}`);
+  const snap = await readDoc(deps, null, cleanupRef);
+  const raw = snap.exists ? snap.get('uids') : null;
+  const list = (Array.isArray(raw) ? raw : []).filter((u): u is string => typeof u === 'string' && u.length > 0);
   for (let i = 0; i < list.length; i += 400) {
     const b = deps.db.batch();
     list.slice(i, i + 400).forEach(u => b.delete(deps.db.doc(`cpMine/${u}/items/${cid}`)));
     await b.commit();
   }
-  // 3. 連同子集合分批刪；中途失敗可重跑（根文件最後才刪）
-  await deps.db.recursiveDelete(deps.db.doc(`competitions/${cid}`));
-  return { cid, deleted: true };
+  await deps.db.doc(`cpLineThrottle/c_${cid}`).delete();
+  await cleanupRef.delete();
+}
+
+/** 根文件已不存在時：有收尾文件與刪除稽核、且呼叫者是管理員或原刪除者，才做收尾。回 false 表示照原錯誤回報。 */
+async function resumeDeleteCleanup(deps: CpDeps, caller: Caller, cid: string, admin: boolean): Promise<boolean> {
+  const cleanup = await readDoc(deps, null, deps.db.doc(`${DELETE_CLEANUP_COLLECTION}/${cid}`));
+  if (!cleanup.exists) return false;
+  const audit = await readDoc(deps, null, deps.db.doc(`cpAudits/del_${cid}`));
+  if (!audit.exists) return false;
+  if (!admin && audit.get('actor') !== actorHash(cid, caller.uid)) return false;
+  await finishDeleteCleanup(deps, cid);
+  return true;
 }
 
 export const HOST_ACTIONS = {
