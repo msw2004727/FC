@@ -18,7 +18,7 @@ paths:
 
 ## 13. Exact Contract Registry：分享
 
-- **R-SHARE-001 [A/HARD]**：LINE 分享 builder 統一 `MINI_APP_BASE_URL`（Functions 端統一 `SHARE_MINI_APP_BASE_URL`，2026-11-12 補，原 `teamShareOg` 區域 `MINI_APP_ID` 已併入），禁散落 base URL。query：`?event=`、`?team=`、`?tournament=`、`?profile=`。
+- **R-SHARE-001 [A/HARD]**：LINE 分享 builder 統一 `MINI_APP_BASE_URL`（Functions 端統一 `SHARE_MINI_APP_BASE_URL`，2026-11-12 補，原 `teamShareOg` 區域 `MINI_APP_ID` 已併入），禁散落 base URL。query：`?event=`、`?team=`、`?tournament=`、`?profile=`、`?competition=`（FC-B 站內賽事 `cp_` 代號；`?tournament=` 是舊站賽事，兩者不得混用。2026-11-27 CP-SHARE 新增，顧問 §3.848）。
 - **R-SHARE-002 [B/HARD]**：根網址 `toosterx.com/?event|team|tournament|profile=...` 保留中繼至 Mini App。
 - **R-SHARE-003 [B/HARD]**：舊 `liff.line.me` 相容，新分享禁生成；分享模組 `[備用]` 舊 URL 註解保留。
 - **R-SHARE-004 [A/HARD]**：LINE 好友／群組、`shareTargetPicker`、Flex、分享／邀請 QR 用 Mini App URL。`page-qrcode`／身份簽到 QR 必須 raw LINE UID，禁套分享 URL。新站的 LINE 純文字分享與系統分享可改用活動 OG 中繼 `/event-share/{id}`（真人在 LINE 內由 R-SHARE-005 導向 Mini App）；`shareTargetPicker` 的 Flex 按鈕與 altText 仍用 Mini App URL。（2026-11-12 補：取代原「LINE 分享只能直接帶 Mini App URL」的隱含限制，為了讓社群純文字分享也有活動預覽圖；站長 11-11 選①②都做，顧問 §3.117。）
