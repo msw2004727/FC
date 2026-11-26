@@ -15691,6 +15691,7 @@ exports.cancelRegistration = onCall(
   })
 );
 
+// 解除臨取狀態（紅／黑）→ 恢復正常；名稱沿用 clearLateCancelRed 以免動前端契約與部署名（2026-11-26 站長定案，顧問 §3.821）。
 exports.clearLateCancelRed = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
   async (request) => {
@@ -15715,6 +15716,7 @@ exports.clearLateCancelRed = onCall(
 
     const userRef = db.collection("users").doc(found.docId);
     let changed = false;
+    let statusFrom = "";
     try {
       await db.runTransaction(async (tx) => {
         const userSnap = await tx.get(userRef);
@@ -15722,11 +15724,18 @@ exports.clearLateCancelRed = onCall(
           throw new HttpsError("not-found", "USER_NOT_FOUND");
         }
         const data = userSnap.data() || {};
-        if (data.lateCancelLevel !== "red") {
+        const level = data.lateCancelLevel;
+        if (level !== "red" && level !== "black") {
           changed = false;
           return;
         }
-        tx.update(userRef, { lateCancelLevel: null, lateCancelRecent: [] });
+        tx.update(userRef, {
+          lateCancelLevel: null,
+          lateCancelRecent: [],
+          lateCancelUntil: FieldValue.delete(),
+          lateCancelReleaseAt: FieldValue.delete(),
+        });
+        statusFrom = level;
         changed = true;
       });
     } catch (error) {
@@ -15747,7 +15756,7 @@ exports.clearLateCancelRed = onCall(
         source: "cloud_function",
         meta: {
           reasonCode: "late_cancel_red_clear",
-          statusFrom: "red",
+          statusFrom,
           statusTo: "none",
         },
         actorUid: request.auth.uid,

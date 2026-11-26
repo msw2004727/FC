@@ -18,6 +18,9 @@ const U_BLACK = `U${"5".repeat(32)}`;
 const EVENT_ID = "ce_1800000000000_abc";
 const EVENT_ID_2 = "ce_1800000000001_def";
 const EVENT_ID_3 = "ce_1800000000002_ghi";
+const EVENT_ID_4 = "ce_1800000000003_jkl";
+const EVENT_ID_5 = "ce_1800000000004_mno";
+const EVENT_ID_6 = "ce_1800000000005_pqr";
 const TAIPEI_MS = 8 * 60 * 60 * 1000;
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -83,6 +86,10 @@ function findAuditLogIds(fakeDb, action) {
     .filter((path) => fakeDb.get(path)?.action === action);
 }
 
+function auditEntries(fakeDb, action) {
+  return findAuditLogIds(fakeDb, action).map((p) => fakeDb.get(p));
+}
+
 let fnStub;
 let harnessStub;
 let fake;
@@ -143,6 +150,10 @@ describe("cancelRegistration 臨時取消接線", () => {
     expect(userData.lateCancelLevel).toBe("black");
     expect(userData.lateCancelTotal).toBe(1);
     expect(userData.lateCancelUntil).toBeTruthy();
+
+    const cancelAudits = auditEntries(fake, "event_cancel_signup");
+    expect(cancelAudits.length).toBeGreaterThan(0);
+    expect(cancelAudits.every((entry) => entry.actorUid === U_SELF)).toBe(true);
   });
 
   test("開始前 3 小時（時限外）不記", async () => {
@@ -380,6 +391,290 @@ describe("審查補案（Opus §P3）", () => {
 });
 
 describe("clearLateCancelRed", () => {
+  test("T1 黑標未到期解除 → 清欄位、total 保留、稽核 statusFrom black", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        uid: U_BLACK,
+        name: "black",
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() + 3 * 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [new FakeTimestamp(Date.now() - 86400000)],
+        lateCancelTotal: 1,
+      },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+    });
+    harnessStub.current = fake;
+
+    const res = await fnStub.clearLateCancelRed({
+      auth: { uid: U_ADMIN_WITH },
+      data: { targetUid: U_BLACK },
+    });
+    expect(res).toEqual({ ok: true });
+
+    const after = fake.get(`users/${U_BLACK}`);
+    expect(after.lateCancelLevel).toBeNull();
+    expect(after.lateCancelRecent).toEqual([]);
+    expect(after).not.toHaveProperty("lateCancelUntil");
+    expect(after).not.toHaveProperty("lateCancelReleaseAt");
+    expect(after.lateCancelTotal).toBe(1);
+
+    const entries = auditEntries(fake, "late_cancel_red_clear");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].meta).toEqual({
+      reasonCode: "late_cancel_red_clear",
+      statusFrom: "black",
+      statusTo: "none",
+    });
+    expect(entries[0].targetId).toBe(U_BLACK);
+    expect(entries[0].targetType).toBe("user");
+  });
+
+  test("T2 黑標已過期解除 → 照樣清、稽核 statusFrom black", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        uid: U_BLACK,
+        name: "black",
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() - 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+    });
+    harnessStub.current = fake;
+
+    const res = await fnStub.clearLateCancelRed({
+      auth: { uid: U_ADMIN_WITH },
+      data: { targetUid: U_BLACK },
+    });
+    expect(res).toEqual({ ok: true });
+
+    const after = fake.get(`users/${U_BLACK}`);
+    expect(after.lateCancelLevel).toBeNull();
+    expect(after.lateCancelRecent).toEqual([]);
+    expect(after).not.toHaveProperty("lateCancelUntil");
+    expect(after).not.toHaveProperty("lateCancelReleaseAt");
+    expect(after.lateCancelTotal).toBe(1);
+
+    const entries = auditEntries(fake, "late_cancel_red_clear");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].meta).toEqual({
+      reasonCode: "late_cancel_red_clear",
+      statusFrom: "black",
+      statusTo: "none",
+    });
+  });
+
+  test("T4 正常狀態冪等：不寫 users、不寫稽核", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_SELF}`]: { uid: U_SELF, name: "self", exp: 100 },
+      [`users/${U_OTHER}`]: { uid: U_OTHER, name: "other", lateCancelLevel: null, lateCancelRecent: [], lateCancelTotal: 2 },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+    });
+    harnessStub.current = fake;
+    const writesBefore = fake.state.writes.length;
+
+    const r1 = await fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_WITH }, data: { targetUid: U_SELF } });
+    expect(r1).toEqual({ ok: true });
+    const r2 = await fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_WITH }, data: { targetUid: U_OTHER } });
+    expect(r2).toEqual({ ok: true });
+
+    const userWrites = fake.state.writes.slice(writesBefore).filter((w) => w.path.startsWith("users/"));
+    expect(userWrites).toHaveLength(0);
+    expect(auditEntries(fake, "late_cancel_red_clear")).toHaveLength(0);
+    expect(fake.get(`users/${U_OTHER}`).lateCancelLevel).toBeNull();
+    expect(fake.get(`users/${U_OTHER}`).lateCancelRecent).toEqual([]);
+    expect(fake.get(`users/${U_OTHER}`).lateCancelTotal).toBe(2);
+  });
+
+  test("T6 解除後可立刻報名；不解除也可報名（臨取不擋報名）", async () => {
+    const userDoc = (uid) => ({
+      uid,
+      lineUserId: uid,
+      name: "王小明",
+      displayName: "王小明",
+      gender: "male",
+      birthday: "1990-01-01",
+      region: "taipei",
+      role: "user",
+      exp: 100,
+    });
+    const makeBlackEvent = () => makeEvent({
+      id: EVENT_ID_2,
+      date: taipeiEventDate(Date.now() + 3 * 86400000),
+      current: 0,
+      realCurrent: 0,
+      participants: [],
+    });
+
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        ...userDoc(U_BLACK),
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() + 3 * 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      [`events/${EVENT_ID_2}`]: makeBlackEvent(),
+    });
+    harnessStub.current = fake;
+    const direct = await fnStub.registerForEvent({
+      auth: { uid: U_BLACK, token: {} },
+      data: { eventId: EVENT_ID_2, participants: [{ userId: U_BLACK, userName: "black" }] },
+    });
+    expect(direct.success).toBe(true);
+
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        ...userDoc(U_BLACK),
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() + 3 * 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+      [`events/${EVENT_ID_2}`]: makeBlackEvent(),
+    });
+    harnessStub.current = fake;
+    await fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_WITH }, data: { targetUid: U_BLACK } });
+    const afterClear = await fnStub.registerForEvent({
+      auth: { uid: U_BLACK, token: {} },
+      data: { eventId: EVENT_ID_2, participants: [{ userId: U_BLACK, userName: "black" }] },
+    });
+    expect(afterClear.success).toBe(true);
+  });
+
+  test("T7a 解除黑標後再臨時取消一次 → black、total 2、releaseAt 3、until 約 7 天", async () => {
+    const beforeMs = Date.now();
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        uid: U_BLACK,
+        name: "black",
+        lateCancelLevel: null,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      [`events/${EVENT_ID}`]: makeEvent(),
+      [`events/${EVENT_ID}/registrations/rb`]: makeReg("rb", { userId: U_BLACK }),
+    });
+    harnessStub.current = fake;
+
+    const result = await cancel(U_BLACK, { eventId: EVENT_ID, registrationIds: ["rb"], requestId: "req-t7a" });
+    expect(result.lateCancelMarked).toBe(true);
+
+    const after = fake.get(`users/${U_BLACK}`);
+    expect(after.lateCancelLevel).toBe("black");
+    expect(after.lateCancelRecent).toHaveLength(1);
+    expect(after.lateCancelTotal).toBe(2);
+    expect(after.lateCancelReleaseAt).toBe(3);
+    const untilMs = after.lateCancelUntil.toMillis();
+    expect(untilMs).toBeGreaterThanOrEqual(beforeMs + 7 * 86400000);
+    expect(untilMs).toBeLessThanOrEqual(Date.now() + 7 * 86400000);
+  });
+
+  test("T7b 解除紅標後再取消：先 black，第 3 次才 red", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_SELF}`]: {
+        uid: U_SELF,
+        name: "self",
+        exp: 100,
+        lateCancelLevel: null,
+        lateCancelRecent: [],
+        lateCancelTotal: 3,
+      },
+      [`events/${EVENT_ID_4}`]: makeEvent({ id: EVENT_ID_4 }),
+      [`events/${EVENT_ID_5}`]: makeEvent({ id: EVENT_ID_5 }),
+      [`events/${EVENT_ID_6}`]: makeEvent({ id: EVENT_ID_6 }),
+      [`events/${EVENT_ID_4}/registrations/r4`]: makeReg("r4"),
+      [`events/${EVENT_ID_5}/registrations/r5`]: makeReg("r5"),
+      [`events/${EVENT_ID_6}/registrations/r6`]: makeReg("r6"),
+    });
+    harnessStub.current = fake;
+
+    await cancel(U_SELF, { eventId: EVENT_ID_4, registrationIds: ["r4"], requestId: "req-t7b-1" });
+    let u = fake.get(`users/${U_SELF}`);
+    expect(u.lateCancelLevel).toBe("black");
+    expect(u.lateCancelTotal).toBe(4);
+
+    await cancel(U_SELF, { eventId: EVENT_ID_5, registrationIds: ["r5"], requestId: "req-t7b-2" });
+    u = fake.get(`users/${U_SELF}`);
+    expect(u.lateCancelLevel).toBe("black");
+    expect(u.lateCancelTotal).toBe(5);
+
+    await cancel(U_SELF, { eventId: EVENT_ID_6, registrationIds: ["r6"], requestId: "req-t7b-3" });
+    u = fake.get(`users/${U_SELF}`);
+    expect(u.lateCancelLevel).toBe("red");
+    expect(u.lateCancelTotal).toBe(6);
+    expect(u.lateCancelRecent).toHaveLength(3);
+  });
+
+  test("T8 稽核記操作者、meta 僅三鍵、log 不含 UID", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        uid: U_BLACK,
+        name: "black",
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() + 3 * 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+    });
+    harnessStub.current = fake;
+
+    await fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_WITH }, data: { targetUid: U_BLACK } });
+    const entries = auditEntries(fake, "late_cancel_red_clear");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].actorUid).toBe(U_ADMIN_WITH);
+    expect(Object.keys(entries[0].meta).sort()).toEqual(["reasonCode", "statusFrom", "statusTo"]);
+    const serializedLogs = JSON.stringify(harnessStub.logs);
+    expect(serializedLogs).not.toContain(U_BLACK);
+    expect(serializedLogs).not.toContain(U_ADMIN_WITH);
+  });
+
+  test("T9 交易錯誤 → internal、不寫稽核、log 只有 code", async () => {
+    fake = createFakeFirestore({
+      [`users/${U_BLACK}`]: {
+        uid: U_BLACK,
+        name: "black",
+        lateCancelLevel: "black",
+        lateCancelUntil: new FakeTimestamp(Date.now() + 3 * 86400000),
+        lateCancelReleaseAt: 3,
+        lateCancelRecent: [],
+        lateCancelTotal: 1,
+      },
+      "rolePermissions/repair_admin": { permissions: ["admin.repair.no_show_adjust"] },
+      [`users/${U_ADMIN_WITH}`]: { uid: U_ADMIN_WITH, role: "repair_admin", name: "with-perm", exp: 100 },
+    });
+    harnessStub.current = fake;
+    fake.state.beforeTransactionCommit = async () => { throw new Error("boom"); };
+
+    await expect(fnStub.clearLateCancelRed({ auth: { uid: U_ADMIN_WITH }, data: { targetUid: U_BLACK } }))
+      .rejects.toMatchObject({ code: "internal" });
+
+    const after = fake.get(`users/${U_BLACK}`);
+    expect(after.lateCancelLevel).toBe("black");
+    expect(after.lateCancelReleaseAt).toBe(3);
+    expect(after.lateCancelUntil).toBeTruthy();
+    expect(auditEntries(fake, "late_cancel_red_clear")).toHaveLength(0);
+
+    const errorLogs = harnessStub.logs.filter((row) => row[0] === "error" && row[1] === "[clearLateCancelRed]");
+    expect(errorLogs.length).toBeGreaterThan(0);
+    expect(errorLogs[0][2]).toEqual({ code: "unknown" });
+    expect(JSON.stringify(errorLogs)).not.toContain(U_BLACK);
+    expect(JSON.stringify(errorLogs)).not.toContain(U_ADMIN_WITH);
+  });
+
   test("同一人 90 天內三場臨時取消 → red；super_admin 解除 → level null、recent []、total 保留；再呼叫冪等", async () => {
     fake = createFakeFirestore({
       [`events/${EVENT_ID}`]: makeEvent({ id: EVENT_ID }),
@@ -415,8 +710,12 @@ describe("clearLateCancelRed", () => {
     expect(userAfterClear.lateCancelLevel).toBeNull();
     expect(userAfterClear.lateCancelRecent).toEqual([]);
     expect(userAfterClear.lateCancelTotal).toBe(3);
+    expect(userAfterClear).not.toHaveProperty("lateCancelUntil");
+    expect(userAfterClear).not.toHaveProperty("lateCancelReleaseAt");
 
     expect(findAuditLogIds(fake, "late_cancel_red_clear")).toHaveLength(1);
+    const redAudit = auditEntries(fake, "late_cancel_red_clear")[0];
+    expect(redAudit.meta.statusFrom).toBe("red");
 
     const clearAgain = await fnStub.clearLateCancelRed({
       auth: { uid: U_SUPER },
@@ -479,17 +778,15 @@ describe("clearLateCancelRed", () => {
     expect(regularResult).toEqual({ ok: true });
     expectNoLateCancelFields(fake.get(`users/${U_SELF}`));
 
-    // 黑標用戶 → ok 且欄位不變
+    // 無權限者對黑標對象 → permission-denied，黑標欄位不變
     const blackBefore = fake.get(`users/${U_BLACK}`);
-    const blackResult = await fnStub.clearLateCancelRed({
-      auth: { uid: U_ADMIN_WITH },
+    await expect(fnStub.clearLateCancelRed({
+      auth: { uid: U_ADMIN_NO },
       data: { targetUid: U_BLACK },
-    });
-    expect(blackResult).toEqual({ ok: true });
+    })).rejects.toMatchObject({ code: "permission-denied" });
     const blackAfter = fake.get(`users/${U_BLACK}`);
     expect(blackAfter.lateCancelLevel).toBe("black");
     expect(blackAfter.lateCancelReleaseAt).toBe(3);
-    expect(blackAfter.lateCancelUntil).toBeTruthy();
     expect(blackAfter.lateCancelUntil.toMillis()).toBe(blackBefore.lateCancelUntil.toMillis());
 
     // 沒有任何 audit
@@ -541,6 +838,16 @@ describe("source contract", () => {
     expect(lateCancelSource).not.toContain('require("firebase');
     expect(lateCancelSource).not.toContain("normalizeReleaseHours");
     expect(lateCancelSource).not.toContain("team-reservation-release");
+  });
+
+  test("T10 clearLateCancelRed 區段清 until／releaseAt，statusFrom 用變數", () => {
+    const start = indexSource.indexOf("exports.clearLateCancelRed = onCall(");
+    const next = indexSource.indexOf("\nexports.", start + 1);
+    const section = indexSource.slice(start, next === -1 ? undefined : next);
+    expect(section).toContain("lateCancelUntil: FieldValue.delete()");
+    expect(section).toContain("lateCancelReleaseAt: FieldValue.delete()");
+    expect(section).toContain('"late_cancel_red_clear"');
+    expect(section).not.toContain('statusFrom: "red"');
   });
 
   test("ALLOWED_AUDIT_ACTIONS 含 late_cancel_red_clear", () => {
