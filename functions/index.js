@@ -3274,6 +3274,9 @@ exports.createCustomToken = onCall(
       throw new HttpsError("failed-precondition", "LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED");
     }
 
+    // LOGIN-SPEED ③（顧問 §3.799）：成功路徑分段計時，只記毫秒數，拿一週基準再決定是否並行化。
+    const timingStartMs = Date.now();
+    let lineDoneMs;
     let lineUserId;
     let accessTokenFingerprint = "";
     let channelCheck = null;
@@ -3283,6 +3286,7 @@ exports.createCustomToken = onCall(
       // 放在近期拒絕檢查之後（MiMo 審查 P2）：已知壞 token 不再多打一次 verify。
       channelCheck = verifyLineAccessTokenChannel(accessToken);
       lineUserId = await getLineUserIdByAccessToken(accessToken);
+      lineDoneMs = Date.now();
     } catch (err) {
       console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
       try {
@@ -3308,6 +3312,7 @@ exports.createCustomToken = onCall(
     // 授權強化第二步（顧問 §3.310）：verify 與 profile 並行，判定以 verify 為準。
     // 判定出來之前不簽 token、不建立或更新使用者、不寫成功稽核（以下三件事都在這段之後）。
     const rawChannelCheckResult = channelCheck ? await channelCheck : { clientId: "", error: "skipped" };
+    const channelDoneMs = Date.now();
     // 沒有 client_id 也沒有錯誤時補上 no_client_id，log 與拒絕快取判斷都看得到（顧問 §3.316；不在無效清單內，不記入拒絕快取）。
     const channelCheckResult = (!rawChannelCheckResult.error && !rawChannelCheckResult.clientId)
       ? { ...rawChannelCheckResult, error: "no_client_id" }
@@ -3344,11 +3349,26 @@ exports.createCustomToken = onCall(
     }
 
     await ensureAuthUser(lineUserId);
+    const ensureUserDoneMs = Date.now();
     const role = await getUserRoleFromFirestore(lineUserId);
+    const roleDoneMs = Date.now();
     await setRoleClaimMerged(lineUserId, role);
+    const claimsDoneMs = Date.now();
 
     const customToken = await authAdmin.createCustomToken(lineUserId);
+    const signDoneMs = Date.now();
     console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", maskLineUserIdForLog(lineUserId), "role=", role);
+    try {
+      logger.info("[createCustomToken] timing", {
+        lineMs: lineDoneMs - timingStartMs,
+        channelWaitMs: channelDoneMs - lineDoneMs,
+        ensureUserMs: ensureUserDoneMs - channelDoneMs,
+        roleMs: roleDoneMs - ensureUserDoneMs,
+        claimsMs: claimsDoneMs - roleDoneMs,
+        signMs: signDoneMs - claimsDoneMs,
+        totalMs: signDoneMs - timingStartMs,
+      });
+    } catch (_) {}
     return { customToken, role };
   }
 );
