@@ -8,7 +8,7 @@
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
 import { evaluateAge } from './age.js';
-import { readMainProfileForAge } from './main-profile.js';
+import { readMainProfileForAge, readMainTeamKeys } from './main-profile.js';
 import { prepareMine, type MineChange } from './mine.js';
 import { removeProxyPlayerData } from './removal-actions.js';
 import { CpError, bad, deny, notFound, pre } from './errors.js';
@@ -333,6 +333,18 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
   const nowMs = nowMsOf(deps);
   // 主站會員資料：只讀顯示名、生日與有效隊伍清單（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
   const { birthday, displayName: mainDisplayName, teamIds: mainTeamIds } = await readMainProfileForAge(deps, caller.uid);
+  // 隊伍雙鍵（顧問 §3.846）：交易外先讀報隊的 teamId（文件 id），本人清單沒有文件 id 時才讀主站 teams 換算自訂 id。
+  // 本人主站隊伍清單是空的就不讀（只剩代表一條路）。
+  let preTeamId: string | null = null;
+  let teamKeys: string[] = [];
+  if (mainTeamIds.length > 0) {
+    const pre = await readDoc(deps, null, deps.db.doc(`competitions/${cid}/entries/${enId}`));
+    const t = pre.exists ? pre.get('teamId') : null;
+    if (typeof t === 'string' && TEAM_ID_RE.test(t)) {
+      preTeamId = t;
+      teamKeys = mainTeamIds.includes(t) ? [t] : await readMainTeamKeys(deps, t);
+    }
+  }
   const plId = newId('pl');
   let isMinorOut = false;
 
@@ -343,10 +355,12 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     const entry = await loadEntry(deps, tx, cid, enId);
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
     assertEntryAcceptsRoster(entry.data, dv.data);
-    // 成員＝主站 users 有效隊伍清單（規則 E）含本隊，或本隊代表（顧問 §3.839 方案 C）。
-    // 主站資料在交易外讀：剛退出俱樂部的人有極短空窗仍能登錄，顧問判定可接受（代表可移除）。
+    // 成員＝主站 users 有效隊伍清單（規則 E）含本隊任一把鍵（文件 id 或主站 teams 的自訂 id，顧問 §3.846），
+    // 或本隊代表（顧問 §3.839 方案 C）。主站資料在交易外讀：剛退出俱樂部的人有極短空窗仍能登錄，顧問判定可接受（代表可移除）。
+    // 交易內的報隊 teamId 與交易外讀到的不同（理論上 teamId 不會變）時不用交易外的鍵，只認文件 id。
     const teamId = entry.data.teamId;
-    const member = (TEAM_ID_RE.test(teamId) && mainTeamIds.includes(teamId))
+    const keys = teamId === preTeamId ? teamKeys : [teamId];
+    const member = (TEAM_ID_RE.test(teamId) && keys.some(k => mainTeamIds.includes(k)))
       || (await isClubRep(deps, tx, teamId, caller.uid)).ok;
     if (!member) throw deny('NOT_CLUB_MEMBER');
     const age = evaluateAge(birthday, ageBasisOf(comp), dv.data);

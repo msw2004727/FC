@@ -5,8 +5,10 @@
  * 搬移時只要改這裡（例如改讀 users/{uid}/profilePrivate/profile），呼叫端不動。
  * 目前來源：users/{uid}.birthday（字串 YYYY/MM/DD）、users/{uid}.displayName、users/{uid}.teamIds／teamId。
  * 隊伍清單（顧問 §3.839 方案 C）：joinRoster 的成員判斷改看這裡，取代從沒有程式寫入的 cpClubs/{teamId}/members 鏡像。
+ * 隊伍雙鍵（顧問 §3.846）：舊俱樂部的 teams 文件 id 與文件內 id 欄位（自訂 id）可能不同；報隊存文件 id、users.teamIds 存自訂 id，
+ * 兩把鍵都由 readMainTeamKeys 換算（主站同一套退路見 R-ID-004、firebase-service.js fetchTeamIfMissing）。
  */
-import { readDoc, type CpDeps } from './context.js';
+import { TEAM_ID_RE, readDoc, type CpDeps } from './context.js';
 
 export interface MainProfileForAge {
   birthday: unknown;
@@ -37,4 +39,25 @@ export async function readMainProfileForAge(deps: CpDeps, uid: string): Promise<
     displayName: typeof displayName === 'string' ? displayName : null,
     teamIds: teamIdsOfMainUser(user.get('teamIds'), user.get('teamId'))
   };
+}
+
+/**
+ * 主站俱樂部的成員比對鍵（顧問 §3.846）：一定有文件 id；文件內 id 欄位是合法隊伍 id（TEAM_ID_RE）且不等於文件 id 時，加為第二把鍵。
+ * id 欄位缺漏、不是字串、形狀錯或等於文件 id：只用文件 id 一把（與 §3.846 前行為相同）。
+ * id 欄位只有 canManageAnyTeam（超管／team.manage_all）或 Admin SDK 能設成不等於文件 id（主站 firestore.rules teams：
+ * 一般建立要 id == 文件 id，一般更新不得改 id），所以第二把鍵不是一般會員可偽造的。
+ */
+export function mainTeamKeysOf(docId: string, idField: unknown): string[] {
+  if (typeof idField === 'string' && idField !== docId && TEAM_ID_RE.test(idField)) return [docId, idField];
+  return [docId];
+}
+
+/**
+ * 讀主站 teams/{teamId} 換算成員比對鍵（交易外讀；呼叫端不直接碰 teams）。
+ * teamId 形狀不合 TEAM_ID_RE 時不讀、回 []（呼叫端本來就不會把它當成員）；teams 文件不存在時只回 [teamId]。
+ */
+export async function readMainTeamKeys(deps: CpDeps, teamId: string): Promise<string[]> {
+  if (!TEAM_ID_RE.test(teamId)) return [];
+  const team = await readDoc(deps, null, deps.mainDb.doc(`teams/${teamId}`));
+  return mainTeamKeysOf(teamId, team.exists ? team.get('id') : undefined);
 }

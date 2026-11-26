@@ -190,6 +190,46 @@ describe('成員登錄（joinRoster）', () => {
       await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
     }
   });
+  // 顧問 §3.846 隊伍雙鍵：報隊存 teams 文件 id（club_a），舊俱樂部成員的 users.teamIds 可能只有文件內 id 欄位（自訂 id）
+  const setTeam = (docId: string, data: Record<string, unknown>) => adminDb(MAIN).doc(`teams/${docId}`).set({ name: '測試隊', ...data });
+  it('雙鍵 B-1：文件 id 等於自訂 id，成員有文件 id 就能登錄', async () => {
+    await setTeam('club_a', { id: 'club_a' });
+    await setMain('tester3', { teamIds: ['club_a'], teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('雙鍵 B-2（主案）：兩者不相等、成員資料只有自訂 id 也能登錄', async () => {
+    await setTeam('club_a', { id: 'legacy_a' });
+    await setMain('tester3', { teamIds: ['legacy_a'], teamId: 'legacy_a' });
+    await ok(join(TESTER3));
+  });
+  it('雙鍵 B-3：兩者不相等、成員資料只有文件 id 也能登錄', async () => {
+    await setTeam('club_a', { id: 'legacy_a' });
+    await setMain('tester3', { teamIds: ['club_a'], teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('雙鍵 B-4：teams 文件不存在只認文件 id（自訂 id 擋、文件 id 過）', async () => {
+    await setMain('tester3', { teamIds: ['legacy_a'], teamId: 'legacy_a' });
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+    await setMain('tester3', { teamIds: ['club_a'], teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('雙鍵 B-5：id 欄位形狀錯只認文件 id', async () => {
+    await setMain('tester3', { teamIds: ['legacy_a'], teamId: 'legacy_a' });
+    for (const id of [42, ['legacy_a'], { v: 'legacy_a' }, 'legacy a', '', 'x'.repeat(65), null]) {
+      await setTeam('club_a', { id });
+      await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+    }
+    await adminDb(MAIN).doc('teams/club_a').set({ name: '測試隊' });
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+    await setMain('tester3', { teamIds: ['club_a'], teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('雙鍵 B-6：別隊的自訂 id 不能拿來進本隊', async () => {
+    await setTeam('club_a', { id: 'legacy_a' });
+    await setTeam('club_b', { id: 'legacy_b' });
+    await setMain('tester3', { teamIds: ['legacy_b', 'club_b'], teamId: 'legacy_b' });
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+  });
 });
 
 describe('未成年與年齡（U16 組）', () => {
