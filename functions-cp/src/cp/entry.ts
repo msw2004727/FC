@@ -338,8 +338,8 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
   let preTeamId: string | null = null;
   let teamKeys: string[] = [];
   if (mainTeamIds.length > 0) {
-    const pre = await readDoc(deps, null, deps.db.doc(`competitions/${cid}/entries/${enId}`));
-    const t = pre.exists ? pre.get('teamId') : null;
+    const preSnap = await readDoc(deps, null, deps.db.doc(`competitions/${cid}/entries/${enId}`));
+    const t = preSnap.exists ? preSnap.get('teamId') : null;
     if (typeof t === 'string' && TEAM_ID_RE.test(t)) {
       preTeamId = t;
       teamKeys = mainTeamIds.includes(t) ? [t] : await readMainTeamKeys(deps, t);
