@@ -60,18 +60,16 @@ export async function resetAll(opts: { isPublic?: boolean } = {}): Promise<void>
   b.set(db.doc('cpConfig/launch'), { isPublic: opts.isPublic === true });
   for (const t of ['tester', 'tester2', 'tester3']) b.set(db.doc(`cpConfig/launch/testers/${t}`), { addedAt: new Date() });
   b.set(db.doc('cpClubs/club_a'), { repUids: ['tester'], name: '甲隊足球俱樂部', srcUpdatedAt: new Date() });
-  b.set(db.doc('cpClubs/club_a/members/tester'), { since: new Date() });
-  b.set(db.doc('cpClubs/club_a/members/tester2'), { since: new Date() });
-  b.set(db.doc('cpClubs/club_a/members/stranger'), { since: new Date() });
   b.set(db.doc('cpClubs/club_noname'), { repUids: ['tester'] });
   await b.commit();
   const m = adminDb(MAIN);
   const mb = m.batch();
   mb.set(m.doc('users/admin'), { displayName: '管理員甲', birthday: '1985/01/01' });
+  // 俱樂部成員身分看主站 users 的 teamIds／teamId（規則 E，顧問 §3.839）；tester 是代表、不在 teamIds 也能登錄
   mb.set(m.doc('users/tester'), { displayName: '代表乙', birthday: '1990/05/05' });
-  mb.set(m.doc('users/tester2'), { displayName: '球員丙', birthday: '1995/07/07' });
+  mb.set(m.doc('users/tester2'), { displayName: '球員丙', birthday: '1995/07/07', teamIds: ['club_a'], teamId: 'club_a' });
   mb.set(m.doc('users/tester3'), { displayName: '路人丁' });
-  mb.set(m.doc('users/stranger'), { displayName: '陌生人', birthday: '1992/02/02' });
+  mb.set(m.doc('users/stranger'), { displayName: '陌生人', birthday: '1992/02/02', teamIds: ['club_a'], teamId: 'club_a' });
   await mb.commit();
 }
 

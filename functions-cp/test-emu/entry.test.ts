@@ -126,7 +126,7 @@ describe('成員登錄（joinRoster）', () => {
   it('非成員、未勾告知、生日缺漏、重複登錄、背號重複、名單已滿都被拒', async () => {
     await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
     await fails(join(TESTER2, { privacyAck: false }), 'PRIVACY_ACK_REQUIRED');
-    await adminDb().doc('cpClubs/club_a/members/tester3').set({ since: new Date() });
+    await adminDb(MAIN).doc('users/tester3').set({ displayName: '路人丁', teamIds: ['club_a'] });
     await fails(join(TESTER3), 'BIRTHDAY_REQUIRED', 'failed-precondition');
     await adminDb().doc(`competitions/${cid}/divisions/${dvId}`).update({ rosterMax: 3 });
     await ok(join(TESTER2));
@@ -142,10 +142,53 @@ describe('成員登錄（joinRoster）', () => {
     await fails(join(TESTER2, { number: 1.5 }), 'FIELD_RANGE');
     await fails(join(TESTER2, { position: 'ST' }), 'FIELD_ENUM');
   });
-  it('其他賽事的成員身分不能拿來登錄：鏡像只看本隊 teamId', async () => {
+  it('其他俱樂部的成員或代表身分不能拿來登錄：只看本隊 teamId', async () => {
     await adminDb().doc('cpClubs/club_b').set({ repUids: ['tester3'], name: '乙隊' });
-    await adminDb().doc('cpClubs/club_b/members/tester3').set({ since: new Date() });
+    await adminDb(MAIN).doc('users/tester3').set({ displayName: '路人丁', birthday: '1991/01/01', teamIds: ['club_b'], teamId: 'club_b' });
     await fails(join(TESTER3), 'NOT_CLUB_MEMBER');
+  });
+  // 顧問 §3.839 方案 C：成員＝主站 users 有效隊伍清單（規則 E：teamIds 非空只認 teamIds，否則 [teamId]，不取聯集）含本隊，或本隊代表
+  const setMain = (uid: string, data: Record<string, unknown>) =>
+    adminDb(MAIN).doc(`users/${uid}`).set({ displayName: '路人丁', birthday: '1991/01/01', ...data });
+  it('規則 E-1：只有 teamIds 命中（沒有 teamId）就能登錄', async () => {
+    await setMain('tester3', { teamIds: ['club_x', 'club_a'] });
+    await ok(join(TESTER3));
+  });
+  it('規則 E-2：沒有 teamIds、只有舊 teamId 命中也能登錄', async () => {
+    await setMain('tester3', { teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('規則 E-2b：teamIds 是空陣列時退回舊 teamId', async () => {
+    await setMain('tester3', { teamIds: [], teamId: 'club_a' });
+    await ok(join(TESTER3));
+  });
+  it('規則 E-3：teamIds 非空但只有 teamId 命中要擋（不取聯集）', async () => {
+    await setMain('tester3', { teamIds: ['club_x'], teamId: 'club_a' });
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+  });
+  it('規則 E-4：非成員（兩欄都沒有本隊）被擋', async () => {
+    await setMain('tester3', { teamIds: ['club_x'], teamId: 'club_x' });
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+  });
+  it('規則 E-5：代表不在 teamIds 仍可登錄', async () => {
+    await setMain('tester', { displayName: '代表乙', birthday: '1990/05/05', teamIds: ['club_x'], teamId: 'club_x' });
+    await ok(join(TESTER));
+  });
+  it('規則 E-6：主站 users 文件不存在被擋，錯誤碼不變', async () => {
+    await adminDb(MAIN).doc('users/tester3').delete();
+    await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+  });
+  it('規則 E-7：teamIds 形狀錯被擋（字串、非字串元素、物件都不算）', async () => {
+    for (const data of [
+      { teamIds: 'club_a' },
+      { teamIds: [123, { id: 'club_a' }], teamId: 'club_a' },
+      { teamIds: { 0: 'club_a' } },
+      { teamId: ['club_a'] },
+      { teamId: 42 }
+    ]) {
+      await setMain('tester3', data);
+      await fails(join(TESTER3), 'NOT_CLUB_MEMBER', 'permission-denied');
+    }
   });
 });
 

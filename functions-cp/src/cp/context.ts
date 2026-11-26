@@ -2,6 +2,7 @@
  * Callable 共用：相依注入、呼叫者身分、讀取計數、內部期閘門（§12.2 a）、俱樂部鏡像、主辦判斷、稽核。
  *
  * 身分原則（§5.1、§6.1）：賽事 codebase 只認 claims `role`、賽事內 `staff`、鏡像 `cpClubs`；
+ * 例外：俱樂部「成員」改看主站 users 的 teamIds／teamId（main-profile.ts，規則 E），因 cpClubs/{teamId}/members 從沒有程式寫入（顧問 §3.839）。
  * 不寫任何權限碼判斷（需要權限碼的動作放主 codebase 的 cpAdminOps）。
  */
 import { createHash, randomBytes } from 'node:crypto';
@@ -24,7 +25,7 @@ import { auditExpireAtMs } from './removal-plan.js';
 export interface CpDeps {
   /** asia-main 具名庫 */
   db: Firestore;
-  /** 主站 (default) 庫（只讀 users 的顯示名與生日，以及建賽時角色文件的 disabledCodes，見 host-permission.ts） */
+  /** 主站 (default) 庫（只讀 users 的顯示名、生日與隊伍清單，以及建賽時角色文件的 disabledCodes，見 host-permission.ts） */
   mainDb: Firestore;
   now: () => Date;
   /** 讀取計數（e2e 讀取預算斷言用；正式環境也照算，只放記憶體） */
@@ -215,12 +216,6 @@ export async function clubRepUids(deps: CpDeps, tx: Reader, teamId: string): Pro
   const snap = await readDoc(deps, tx, deps.db.doc(`cpClubs/${teamId}`));
   if (!snap.exists) return [];
   return stringList(snap, 'repUids');
-}
-
-export async function isClubMember(deps: CpDeps, tx: Reader, teamId: string, uid: string): Promise<boolean> {
-  if (!TEAM_ID_RE.test(teamId)) return false;
-  const snap = await readDoc(deps, tx, deps.db.doc(`cpClubs/${teamId}/members/${uid}`));
-  return snap.exists;
 }
 
 /** 賽事內 staff 角色（伺服器寫）。 */

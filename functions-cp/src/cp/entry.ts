@@ -21,7 +21,6 @@ import {
   TEAM_ID_RE,
   assertCompVisible,
   isAdmin,
-  isClubMember,
   isClubRep,
   isHostOrCo,
   launchGate,
@@ -332,8 +331,8 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
   const enId = requireId(input.enId, ENID_RE, 'enId');
   const p = playerInputOf(input, gate.bannedWords);
   const nowMs = nowMsOf(deps);
-  // 主站會員資料：只讀顯示名與生日（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
-  const { birthday, displayName: mainDisplayName } = await readMainProfileForAge(deps, caller.uid);
+  // 主站會員資料：只讀顯示名、生日與有效隊伍清單（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
+  const { birthday, displayName: mainDisplayName, teamIds: mainTeamIds } = await readMainProfileForAge(deps, caller.uid);
   const plId = newId('pl');
   let isMinorOut = false;
 
@@ -344,8 +343,11 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     const entry = await loadEntry(deps, tx, cid, enId);
     const dv = await loadDivision(deps, tx, cid, entry.data.dvId);
     assertEntryAcceptsRoster(entry.data, dv.data);
-    const member = await isClubMember(deps, tx, entry.data.teamId, caller.uid)
-      || (await isClubRep(deps, tx, entry.data.teamId, caller.uid)).ok;
+    // 成員＝主站 users 有效隊伍清單（規則 E）含本隊，或本隊代表（顧問 §3.839 方案 C）。
+    // 主站資料在交易外讀：剛退出俱樂部的人有極短空窗仍能登錄，顧問判定可接受（代表可移除）。
+    const teamId = entry.data.teamId;
+    const member = (TEAM_ID_RE.test(teamId) && mainTeamIds.includes(teamId))
+      || (await isClubRep(deps, tx, teamId, caller.uid)).ok;
     if (!member) throw deny('NOT_CLUB_MEMBER');
     const age = evaluateAge(birthday, ageBasisOf(comp), dv.data);
     if (!age) throw pre('BIRTHDAY_REQUIRED');
