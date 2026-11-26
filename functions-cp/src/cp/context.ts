@@ -19,6 +19,7 @@ import {
 } from 'firebase-admin/firestore';
 import { CpError, deny, notFound } from './errors.js';
 import { bannedWordsOf } from './text.js';
+import { auditExpireAtMs } from './removal-plan.js';
 
 export interface CpDeps {
   /** asia-main 具名庫 */
@@ -186,7 +187,13 @@ export function newId(prefix: 'cp' | 'dv' | 'en' | 'pl' | 'mt' | 'nt' | 'iv'): s
 export async function loadComp(deps: CpDeps, tx: Reader, cid: string): Promise<CompDoc> {
   const snap = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}`));
   if (!snap.exists) throw notFound('COMPETITION_NOT_FOUND');
-  return snap.data() as CompDoc;
+  const data = snap.data() as CompDoc;
+  if (tx !== null) {
+    const last = data.lastMatchAt;
+    const ms = last instanceof Timestamp ? last.toMillis() : null;
+    rememberCompLastMatch(tx, cid, ms);
+  }
+  return data;
 }
 
 // ── 俱樂部鏡像（§2.4：只信路徑 id）─────────────────────────────────────
@@ -297,6 +304,18 @@ export function actorHash(cid: string, uid: string): string {
   return createHash('sha256').update(`${cid}:${uid}`).digest('hex').slice(0, 16);
 }
 
+const compLastMatchByTx = new WeakMap<object, Map<string, number | null>>();
+
+/** 在交易內記住某賽事的 lastMatchAt（毫秒），供 writeAudit 自動帶 expireAt。 */
+export function rememberCompLastMatch(tx: Transaction, cid: string, lastMatchAtMs: number | null): void {
+  let m = compLastMatchByTx.get(tx);
+  if (!m) {
+    m = new Map();
+    compLastMatchByTx.set(tx, m);
+  }
+  m.set(cid, lastMatchAtMs);
+}
+
 export function writeAudit(
   deps: CpDeps,
   tx: Transaction,
@@ -306,12 +325,18 @@ export function writeAudit(
   details: Record<string, unknown> = {}
 ): void {
   const ref = deps.db.collection(`competitions/${cid}/audits`).doc();
+  const map = compLastMatchByTx.get(tx);
+  const hasLast = map?.has(cid) ?? false;
+  const last = hasLast ? (map!.get(cid) ?? null) : null;
   tx.create(ref, {
     action,
     actor: actorHash(cid, caller.uid),
     actorIsAdmin: isAdmin(caller),
     details,
-    at: FieldValue.serverTimestamp()
+    at: FieldValue.serverTimestamp(),
+    // 方案 T：只有同一個交易內有記到 lastMatchAt 才帶 expireAt；沒記到就交給 daily.ts 回填
+    // （TTL 不會刪沒有 expireAt 的文件，所以安全）。
+    ...(hasLast ? { expireAt: Timestamp.fromMillis(auditExpireAtMs(deps.now().getTime(), last)) } : {})
   });
 }
 

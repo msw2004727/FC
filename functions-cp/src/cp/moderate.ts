@@ -16,8 +16,9 @@
  */
 import type { Transaction } from 'firebase-admin/firestore';
 import { bad, deny, notFound, pre } from './errors.js';
-import { CID_RE, FieldValue, isAdmin, loadComp, readDoc, requireId, writeAudit, type Caller, type CpDeps, type GateResult } from './context.js';
+import { CID_RE, FieldValue, Timestamp, isAdmin, loadComp, readDoc, requireId, writeAudit, type Caller, type CpDeps, type GateResult } from './context.js';
 import { onlyKeys, requireEnum, statusReasonOf } from './validate.js';
+import { reportPurgeAtMs } from './removal-plan.js';
 
 const REPORT_ID_RE = /^rp_[A-Za-z0-9_-]{8,64}$/;
 const REVIEW_STATUSES = ['open', 'resolved', 'dismissed'] as const;
@@ -67,6 +68,12 @@ export async function reviewReport(deps: CpDeps, caller: Caller, _gate: GateResu
     const ref = deps.db.doc(`competitions/${cid}/reports/${reportId}`);
     const snap = await readDoc(deps, tx, ref);
     if (!snap.exists) throw notFound('REPORT_NOT_FOUND');
+    const purgeRef = deps.db.doc(`cpReportPurge/${cid}_${reportId}`);
+    if (status === 'resolved' || status === 'dismissed') {
+      tx.set(purgeRef, { cid, rid: reportId, purgeAt: Timestamp.fromMillis(reportPurgeAtMs(deps.now().getTime())) });
+    } else {
+      tx.delete(purgeRef);
+    }
     tx.update(ref, { status, reopened: false, reviewedAt: FieldValue.serverTimestamp() });
     writeAudit(deps, tx, cid, caller, 'reviewReport', { reportId, status });
     return { cid, reportId, status };

@@ -23,6 +23,7 @@ import {
   readCount,
   readDoc,
   readQuery,
+  rememberCompLastMatch,
   requireId,
   ts,
   writeAudit,
@@ -62,6 +63,9 @@ import { standingRef } from './match-trigger.js';
 import { matchDayOf } from '../engine/index.js';
 import { taipeiYmd } from './schedule-flex.js';
 import { assertCanHostCompetition } from './host-permission.js';
+import { AUDIT_BUFFER_MS, deleteAuditExpireAtMs } from './removal-plan.js';
+import { restampAuditExpiry } from './removal.js';
+import { adminRemoveUserData } from './removal-actions.js';
 
 /** §5.5 建賽限制 */
 export const HOST_QUOTA = Object.freeze({
@@ -223,6 +227,7 @@ export async function createCompetition(deps: CpDeps, caller: Caller, gate: Gate
     } else if (quotaRef) {
       tx.set(quotaRef, { lastCreateAt: Timestamp.fromMillis(nowMs), updatedAt: now });
     }
+    rememberCompLastMatch(tx, cid, sched.lastMatchAt);
     writeAudit(deps, tx, cid, caller, 'create', { hostType, divisions: divisions.length });
   });
   return { cid, dvIds };
@@ -290,6 +295,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   // 顧問 §3.536 第 3 點：已結束／已取消時主辦與管理員都只能「只送 cover: null」移除封面，換新與其他欄位照舊擋
   const removeCoverOnly = cover === null && Object.keys(input).every(k => k === 'action' || k === 'cid' || k === 'cover');
   let mineSync: { name: string; firstMatchAt: Timestamp; category: 'league' | 'cup' | 'friendly' } | null = null;
+  let restampLastMatchAtMs: number | null = null;
 
   await deps.db.runTransaction(async tx => {
     const comp = await loadComp(deps, tx, cid);
@@ -331,6 +337,9 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
         }
       }
       // 首場日期可改（延期）：年齡判斷改用第一筆名單時固定的 ageBasisAt（顧問 §3.251 F2，取代 Opus P1-2 的「有名單就鎖首場」）
+      if (s.lastMatchAt > comp.lastMatchAt.toMillis() + AUDIT_BUFFER_MS) {
+        restampLastMatchAtMs = s.lastMatchAt;
+      }
       patch.regOpenAt = ts(s.regOpenAt);
       patch.regCloseAt = ts(s.regCloseAt);
       patch.firstMatchAt = ts(s.firstMatchAt);
@@ -426,6 +435,7 @@ export async function updateCompetition(deps: CpDeps, caller: Caller, gate: Gate
   });
   // cpMine 索引同步名稱、首場、分類（顧問 §3.254、§3.264）：交易外盡力而為，找不到索引的略過
   if (mineSync) await syncMineIndex(deps, cid, mineSync);
+  if (restampLastMatchAtMs != null) await restampAuditExpiry(deps, cid, restampLastMatchAtMs);
   return { cid };
 }
 
@@ -543,7 +553,8 @@ export async function deleteCompetition(deps: CpDeps, caller: Caller, gate: Gate
     } else {
       tx.create(auditRef, {
         action: 'deleteCompetition', cid, actor: actorHash(cid, caller.uid), actorIsAdmin: admin,
-        name: c.name, at: FieldValue.serverTimestamp(), retries: 0
+        name: c.name, at: FieldValue.serverTimestamp(), retries: 0,
+        expireAt: Timestamp.fromMillis(deleteAuditExpireAtMs(deps.now().getTime()))
       });
     }
     for (const uid of hostUidsToClean) {
@@ -621,7 +632,9 @@ export const HOST_ACTIONS = {
   setDivisionRules,
   ...STAFF_ACTIONS,
   // 管理員下架／恢復、檢舉處理（moderate.ts；只認 claims role，2026-11-20 顧問同意放賽事 codebase；搬回 cpAdminOps 列待辦）
-  ...MODERATE_ACTIONS
+  ...MODERATE_ACTIONS,
+  adminRemoveUserData: (deps: CpDeps, caller: Caller, _gate: GateResult, input: Record<string, unknown>) =>
+    adminRemoveUserData(deps, caller, input)
 } as const;
 
 export async function handleCpHost(deps: CpDeps, caller: Caller, data: unknown) {

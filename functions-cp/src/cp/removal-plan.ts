@@ -4,10 +4,9 @@
  * 供之後的交易與排程呼叫。
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { SCORE_ASSIGN_MS } from './staff-host.js';
 
-/** 賽事結束寬限（與邀請到期上限相同，7 天）。 */
-export const ENDED_GRACE_MS = SCORE_ASSIGN_MS;
+/** 賽事結束寬限（與 staff-host.ts SCORE_ASSIGN_MS 相同（7 天）；不 import 以免循環，測試鎖住兩者相等）。 */
+export const ENDED_GRACE_MS = 7 * 86400_000;
 /** 稽核保留 365 天。 */
 export const AUDIT_KEEP_MS = 365 * 86400_000;
 /** 稽核到期緩衝（末場延後上限 60 天）。 */

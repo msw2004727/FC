@@ -10,6 +10,7 @@ import { logger } from 'firebase-functions/v2';
 import { evaluateAge } from './age.js';
 import { readMainProfileForAge } from './main-profile.js';
 import { prepareMine, type MineChange } from './mine.js';
+import { removeProxyPlayerData } from './removal-actions.js';
 import { CpError, bad, deny, notFound, pre } from './errors.js';
 import {
   CID_RE,
@@ -607,7 +608,8 @@ export async function setPaymentStatus(deps: CpDeps, caller: Caller, gate: GateR
 
 export const ENTRY_ACTIONS = {
   registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters, unlockRosters,
-  setPaymentStatus
+  setPaymentStatus,
+  removeProxyPlayerData
 } as const;
 
 export async function handleCpEntry(deps: CpDeps, caller: Caller, data: unknown) {

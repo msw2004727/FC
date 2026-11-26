@@ -4,7 +4,8 @@
  * 文件 id 與內容都不含 uid 原文。同 id 已存在就不寫。刪除、同一人只換 sid 不寫。
  */
 import { logger } from 'firebase-functions/v2';
-import { actorHash, readDoc, type CpDeps } from './context.js';
+import { actorHash, readDoc, Timestamp, type CpDeps } from './context.js';
+import { auditExpireAtMs } from './removal-plan.js';
 
 const UID_MAX = 128;
 const MT_RE = /^mt_[A-Za-z0-9]{20}$/;
@@ -86,15 +87,19 @@ export async function handleScorerWritten(
   const audit = plan.audit;
   const ref = deps.db.doc(`competitions/${cid}/audits/${audit.id}`);
   return deps.db.runTransaction(async tx => {
+    const compSnap = await readDoc(deps, tx, deps.db.doc(`competitions/${cid}`));
     const snap = await readDoc(deps, tx, ref);
     if (snap.exists) return false;
+    const lastMatchAt = compSnap.exists ? compSnap.get('lastMatchAt') : null;
+    const lastMs = lastMatchAt && typeof lastMatchAt.toMillis === 'function' ? lastMatchAt.toMillis() : null;
     tx.create(ref, {
       action: 'takeScorer',
       actor: audit.actor,
       mtId: audit.mtId,
       takenAt: audit.takenAt,
       sidChanged: audit.sidChanged,
-      prev: audit.prev
+      prev: audit.prev,
+      ...(compSnap.exists ? { expireAt: Timestamp.fromMillis(auditExpireAtMs(deps.now().getTime(), lastMs)) } : {})
     });
     return true;
   });

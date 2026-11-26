@@ -223,7 +223,7 @@ describe('Callable 外殼', () => {
   it.each([
     ['cpHost', handleCpHost, ['inviteStaff', 'toString', '__proto__', '']],  // K11 起 createInvite、revokeInvite 已實作
     ['cpEntry', handleCpEntry, ['lockRoster', 'unlockRoster', 'constructor', 'hasOwnProperty']],
-    ['cpParticipant', handleCpParticipant, ['resyncMyClubs', 'requestMyDataRemoval', 'toString']]
+    ['cpParticipant', handleCpParticipant, ['resyncMyClubs', 'toString']]
   ] as const)('%s 未知或未實作動作一律拒絕（在讀資料庫之前）', async (_n, handler, actions) => {
     for (const action of actions) {
       const out = await runCallable(deps, { uid: 'u' }, { action }, handler);

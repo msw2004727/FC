@@ -1,6 +1,6 @@
 /**
  * cpParticipant 第 2 步動作：reportCompetition（§5.4 檢舉）；第 4 步 acceptInvite（接受邀請記分員，§5.5）。
- * resyncMyClubs（G4 鏡像後）、requestMyDataRemoval（第 6 步前）尚未實作，回 UNKNOWN_ACTION。
+ * resyncMyClubs（G4 鏡像後）尚未實作；requestMyDataRemoval 在 removal-actions.ts，不過內部期閘門。
  * 下架（hidden）與處理檢舉在 cpHost 的 moderate／reviewReport（moderate.ts，只認 claims role；顧問 11-20 同意放賽事 codebase，搬回主 codebase cpAdminOps 列待辦）。
  */
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
@@ -40,6 +40,7 @@ import {
 } from './staff-host.js';
 import { optionalText } from './text.js';
 import { asRecord, onlyKeys, requireEnum } from './validate.js';
+import { requestMyDataRemoval } from './removal-actions.js';
 
 export const REPORT_REASONS = ['impersonation', 'fake', 'inappropriate', 'privacy', 'other'] as const;
 /** 每人每賽事每 24 小時 1 次 */
@@ -111,6 +112,9 @@ export async function reportCompetition(deps: CpDeps, caller: Caller, gate: Gate
         ? (prev.get('status') !== 'open' ? { reopened: true } : {})
         : { status: 'open', firstAt: FieldValue.serverTimestamp() })
     }, { merge: true });
+    if (prev.exists && prev.get('status') !== 'open') {
+      tx.delete(deps.db.doc(`cpReportPurge/${cid}_${rid}`));
+    }
   });
   return { cid, reported: true };
 }
@@ -279,6 +283,7 @@ export const PARTICIPANT_ACTIONS = { reportCompetition, acceptInvite } as const;
 export async function handleCpParticipant(deps: CpDeps, caller: Caller, data: unknown) {
   const input = asRecord(data);
   const action = input.action;
+  if (action === 'requestMyDataRemoval') return requestMyDataRemoval(deps, caller, input);
   if (typeof action !== 'string' || !Object.prototype.hasOwnProperty.call(PARTICIPANT_ACTIONS, action)) {
     throw bad('UNKNOWN_ACTION');
   }

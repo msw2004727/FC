@@ -23,6 +23,7 @@ import {
 import {
   actorHash,
   FieldValue,
+  Timestamp,
   readDoc,
   readQuery,
   type CompDoc,
@@ -32,6 +33,7 @@ import { prepareMine } from './mine.js';
 import {
   ANON_HOST,
   ANON_PLAYER,
+  auditExpireAtMs,
   competitionEnded,
   contactClearKey,
   planCompetition,
@@ -433,7 +435,8 @@ export async function processCompetition(
         actor: opts.pseudo,
         actorIsAdmin: false,
         details: { counts: auditCounts, waiting: plan.waiting },
-        at: FieldValue.serverTimestamp()
+        at: FieldValue.serverTimestamp(),
+        expireAt: Timestamp.fromMillis(auditExpireAtMs(deps.now().getTime(), comp.lastMatchAt ? comp.lastMatchAt.toMillis() : null))
       });
     }
 
@@ -586,4 +589,37 @@ function replaceHashes(data: Record<string, unknown>, oldHash: string, pseudo: s
     }
   }
   return out;
+}
+
+/**
+ * 把某賽事所有稽核的 expireAt 重算為 auditExpireAtMs(該筆 at, lastMatchAtMs)。
+ * 只寫入比現有 expireAt 大的（含原本沒有 expireAt）。可重跑。
+ * 每批 400 筆，documentId 游標。
+ */
+export async function restampAuditExpiry(deps: CpDeps, cid: string, lastMatchAtMs: number): Promise<void> {
+  const coll = deps.db.collection(`competitions/${cid}/audits`);
+  let lastId: string | null = null;
+  while (true) {
+    const q = lastId == null
+      ? coll.orderBy(FieldPath.documentId()).limit(400)
+      : coll.orderBy(FieldPath.documentId()).startAfter(lastId).limit(400);
+    const page = await readQuery(deps, null, q);
+    if (page.empty) break;
+    const batch = deps.db.batch();
+    let changed = 0;
+    for (const doc of page.docs) {
+      const at = doc.get('at');
+      const atMs = at && typeof at.toMillis === 'function' ? at.toMillis() : deps.now().getTime();
+      const next = auditExpireAtMs(atMs, lastMatchAtMs);
+      const cur = doc.get('expireAt');
+      const curMs = cur && typeof cur.toMillis === 'function' ? cur.toMillis() : null;
+      if (curMs == null || next > curMs) {
+        batch.update(doc.ref, { expireAt: Timestamp.fromMillis(next) });
+        changed += 1;
+      }
+    }
+    if (changed > 0) await batch.commit();
+    lastId = page.docs[page.docs.length - 1]!.id;
+    if (page.size < 400) break;
+  }
 }
