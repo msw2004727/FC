@@ -1,4 +1,15 @@
 "use strict";
+/**
+ * 每日新活動通知：觸發器 queueNewEventNotice（只寫 newEventPending）＋排程 dispatchNewEventNotices（展開入列 webPushQueue）。
+ * 計畫書 fcb-sport-fav-notify-plan-2026-11-26 v1.1 §6、§13（顧問 §3.803、§3.809）。
+ *
+ * 已知限制（顧問 §3.809 接受，P4 觀察）：
+ * - 活動沒有 startTimestamp（舊站 A 建的部分活動）會被判成已開始而不發；看 log ineligible.started 的數量。
+ * - 待處理若因時間預算／展開上限被延到 23:00 之後，隔天 08:00 已超過 12 小時（PENDING_MAX_AGE_MS），會被刪除不發。
+ * - 0 收件人的展開也扣建立者每日 2 次；達 500 上限也建當日記號（被截掉的人當天同運動同區不再收到）。
+ * - 關 newEventEnabled 後，已入列的佇列 30 分鐘內仍會送；緊急全停要關 webPushControl/sender.sendEnabled。
+ * - 觸發器 maxInstances 3：多日批次建立的突發量，P4 對照建立數與 [newEventPending] queued 數。
+ */
 const config = require("./web-push-config");
 const core = require("./new-event-notify-core");
 const { taipeiDayKey } = require("./notification-fields");
