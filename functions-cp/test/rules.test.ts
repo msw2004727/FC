@@ -311,6 +311,9 @@ describe('validateRulesInput', () => {
       .toContainEqual({ field: 'squad.note', reason: 'FIELD_LENGTH' });
     const messy = withRules({ squad: { note: '  甲\n\n\n乙  ' } });
     expect(validateRulesInput(messy).errors).toEqual([]);
+    // 備註清理（NOTE_INVISIBLE）也去掉方向隔離字元 U+2066～U+2069（開放後第一批 #21）。
+    const bidi = rulesDocumentOf(withRules({ squad: { note: '甲\u2066乙\u2067丙\u2068丁\u2069' } }));
+    expect(bidi?.rules.squad.note).toBe('甲乙丙丁');
   });
 
   test('criteria 第一項不是 points 被拒、重複被拒', () => {
