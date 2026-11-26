@@ -102,6 +102,13 @@ async function mockOfflineServices(page) {
     body: 'window.liff = window.liff || window.__E2E_LIFF_MOCK__;',
   }));
   await page.route('**/cdn.jsdelivr.net/npm/@line/liff-inspector**', emptyScript);
+  // 擋正式 Cloud Functions：LIFF mock 回傳假 accessToken，舊站會呼叫正式 createCustomToken（本機來源被拒回 400）。
+  // 回應照正式站對本機來源的回覆，測試行為不變，只是不再打正式（LOGIN-SPEED M1：CI 每天 100～500 筆 400 的來源）。
+  await page.route(/^https:\/\/[^/]+\.(?:cloudfunctions\.net|run\.app)\//, route => route.fulfill({
+    status: 400,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: { message: 'LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED', status: 'FAILED_PRECONDITION' } }),
+  }));
   await page.route('**/sportsapipro.com/**', emptyJson);
   await page.route('**/ipwho.is/**', route => route.fulfill({
     status: 200,
