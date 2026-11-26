@@ -18,9 +18,10 @@ import { loadRules, clearDb, clientDb, closeClients, ago, RULES_FILE } from './_
 import { seedBase, patchMatch, SID_S1, SID_S2, OP_OK, Timestamp } from './_fixtures.js';
 
 export const PAD_FLOOR = 25;
-// 基準（8cb7aeaaa，2026-11-19 實測）：批次類 60 全過、70 起進球／作廢／半場／終場／自撤回預算耗盡（黃牌 75 才耗盡）；
-// 接手 75 過、100 耗盡。門檻 25 ⇒ K1 最多可再用約 35 個 pad 單位（約 100～140 個運算式）。
-const LEVELS = [0, 25, 50, 60, 70, 75, 100];
+// 基準（S1 加 endedAt 條件後，2026-11-27 實測；取代 8cb7aeaaa 的「60 全過、70 起耗盡」，其後 PK 與 clockChange 已吃掉約 6 級）：
+// 批次類 52 全過；54 起半場（改時鐘）、球隊暫停（停錶）預算耗盡，58 再加時鐘修正、PK 開始／進、作廢 PK，60 共 8 案，80 全部耗盡；
+// 接手 80 過、85 耗盡。S1 改前（accb4ed40）同樣 52 全過，54 只有半場 1 案。門檻 25 ⇒ 約剩 27 個 pad 單位（約 80～100 個運算式）。
+const LEVELS = [0, 25, 50, 52, 54, 60, 70, 75, 100];
 
 // pad 單位與第 1 步 V5 量測相同：`request.resource.data.get('pX', i) == i`（約 3～4 個運算式，
 // 讀請求內容、不能被常數化；`1 == 1` 這種常數比較實測 100 級仍全過，量不出餘裕）。

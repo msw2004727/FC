@@ -99,9 +99,12 @@ service cloud.firestore {
     function scorerCtlPath(cid, mt) {
       return /databases/$(database)/documents/competitions/$(cid)/matches/$(mt)/control/scorer;
     }
-    // 賽事可記分：已發布、未下架、內部賽事只限管理員／測試者（取消、延期、草稿一律拒）
+    // 賽事可記分：已發布、未下架、未結束（endedAt 非 null 一律拒，不分 endedBy；缺鍵視同未結束）、
+    // 內部賽事只限管理員／測試者（取消、延期、草稿一律拒）
     function compScorableData(c) {
-      return c.status == 'published' && c.hidden == false && internalGate(c);
+      return c.status == 'published' && c.hidden == false
+        && c.get('endedAt', null) == null
+        && internalGate(c);
     }
     // 本場指派：roles 含 scorer 或 referee、matchIds 含本場（空陣列＝無權限）、未過期
     // （文件不存在時 get 產生錯誤值；本函式只用在 && 正向語境，錯誤＝拒絕）
