@@ -139,7 +139,7 @@ describe("隊徽白名單共用向量 teamLogoOf", () => {
   });
 });
 
-describe("D9 隊徽來源順序 card → cover → image，取第一個通過白名單的", () => {
+describe("隊徽來源順序 avatarUrl → logoUrl → logo → avatar → card → cover → image，取第一個通過白名單的", () => {
   test.each(LOGO.teamImage.map((v) => [v.name, v]))("%s", (_name, v) => {
     const buckets = LOGO.bucketSets[v.buckets];
     expect(pickTeamImage(v.team, buckets)).toEqual({ image: v.expected, reason: v.reason });
@@ -329,6 +329,14 @@ describe("onTeamWrittenForCompetitions handler", () => {
     const after = { captainUid: "U_cap", name: "隊", memberCount: 4 };
     await expect(makeHandler(world)(makeEvent(before, after))).resolves.toEqual({ status: "unchanged" });
     expect(world.counters.teamReads + world.counters.mirrorReads).toBe(0);
+  });
+
+  test("只改 avatarUrl 也會觸發鏡像重寫", async () => {
+    const before = { captainUid: "U_cap", name: "隊" };
+    const after = { captainUid: "U_cap", name: "隊", avatarUrl: ASIA_URL("a") };
+    const world = createWorld({ teams: { [TEAM_ID]: after } });
+    await expect(makeHandler(world)(makeEvent(before, after))).resolves.toEqual({ status: "set" });
+    expect(world.counters.sets[0].data.image).toBe(ASIA_URL("a"));
   });
 
   test("相同內容不寫", async () => {

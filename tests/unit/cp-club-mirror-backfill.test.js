@@ -419,4 +419,12 @@ describe("rollback", () => {
     expect(round).toEqual(data);
     expect(() => serialize({ ref: new Map() })).toThrow("UNSUPPORTED_BACKUP_VALUE");
   });
+
+  test("正式寫入會帶到 avatarUrl（select 投影含隊徽欄位）", async () => {
+    const world = createWorld({ teams: { tm_avatar: { captainUid: "U_cap_av", name: "隊徽隊", avatarUrl: ASIA_URL("av.webp") } } });
+    const { plan } = await dryRunPlan(world);
+    const res = await runExecute({ db: world.db, cpDb: world.cpDb, FieldValue, args: execArgs(plan), buckets: BUCKETS, log: () => {} });
+    expect(res.applied).toBe(1);
+    expect(world.store.cpClubs.tm_avatar.data.image).toBe(ASIA_URL("av.webp"));
+  });
 });

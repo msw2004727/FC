@@ -33,8 +33,11 @@ const REP_LIST_FIELD = "leaderUids";
 const REP_FIELDS = Object.freeze([...REP_STRING_FIELDS, REP_LIST_FIELD]);
 const MIRROR_FIELDS = Object.freeze(["repUids", "name", "image", "srcUpdatedAt"]);
 const MIRROR_CONTENT_FIELDS = Object.freeze(["image", "name", "repUids"]);
+// 俱樂部隊徽欄位，順序同俱樂部詳情頁 _getTeamDetailAvatarUrl（A team-detail-render.js、FC-B TeamDetailV2Header.tsx）
+const TEAM_AVATAR_FIELDS = Object.freeze(["avatarUrl", "logoUrl", "logo", "avatar"]);
 // 觸發器的投影：這些欄位都沒變（且不是建立／刪除）就 0 讀 0 寫直接結束
-const PROJECTION_FIELDS = Object.freeze([...REP_FIELDS, "name", "image", "imageVariants"]);
+const PROJECTION_FIELDS = Object.freeze([...REP_FIELDS, "name", ...TEAM_AVATAR_FIELDS, "image", "imageVariants"]);
+// 2026-11-27 顧問 §3.921：先取俱樂部隊徽 avatarUrl 等四欄，都不合格才退回封面（原 D9 只取封面，只設隊徽的俱樂部在賽事沒有隊徽）
 // 主站畫面 _getTeamImageUrl(team, 'card')（js/modules/image-upload.js _getImageVariantUrl）的順序
 const IMAGE_VARIANT_ORDER = Object.freeze(["card", "cover"]);
 
@@ -103,17 +106,18 @@ function teamLogoOf(raw, buckets) {
   return raw.normalize("NFKC").trim();
 }
 
-/** 隊徽候選：imageVariants.card → imageVariants.cover → image（D9）。 */
+/** 隊徽候選：avatarUrl → logoUrl → logo → avatar → imageVariants.card → imageVariants.cover → image。 */
 function teamImageCandidates(teamData) {
   if (!teamData || typeof teamData !== "object") return [];
   const variants = teamData.imageVariants && typeof teamData.imageVariants === "object" && !Array.isArray(teamData.imageVariants)
     ? teamData.imageVariants
     : {};
-  return [...IMAGE_VARIANT_ORDER.map((key) => variants[key]), teamData.image];
+  return [...TEAM_AVATAR_FIELDS.map((key) => teamData[key]), ...IMAGE_VARIANT_ORDER.map((key) => variants[key]), teamData.image];
 }
 
 /**
- * 依 D9 選隊徽：照順序取「第一個通過白名單」的網址（不是第一個有值的）；都不過回 null。
+ * 選隊徽：照 avatarUrl → logoUrl → logo → avatar → imageVariants.card → imageVariants.cover → image 的順序，
+ * 取「第一個通過白名單」的網址（不是第一個有值的）；都不過回 null。
  * reason 只給回填統計：ok／none／format／not-allowed（取第一個有值候選的不合格原因）。
  */
 function pickTeamImage(teamData, buckets) {
@@ -355,6 +359,7 @@ module.exports = {
   REP_FIELDS,
   REP_LIST_FIELD,
   REP_STRING_FIELDS,
+  TEAM_AVATAR_FIELDS,
   TEAMS_COLLECTION,
   TEAM_ID_RE,
   TEAM_LOGO_MAX,

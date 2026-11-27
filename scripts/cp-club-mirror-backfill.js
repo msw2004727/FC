@@ -28,6 +28,7 @@ const {
   MIRROR_FIELDS,
   REP_LIST_FIELD,
   REP_STRING_FIELDS,
+  TEAM_AVATAR_FIELDS,
   TEAMS_COLLECTION,
   TEAM_ID_RE,
   allowedLogoBuckets,
@@ -41,7 +42,7 @@ const PROJECT_ID = "fc-football-6c8dc";
 const SEED_MARK = "g4-seed";
 const SAMPLE_SIZE = 10;
 const SAMPLE_SEED = "cp-club-mirror-sample-v1";
-const TEAM_SELECT_FIELDS = [...REP_STRING_FIELDS, REP_LIST_FIELD, "name", "image", "imageVariants", "id"];
+const TEAM_SELECT_FIELDS = [...REP_STRING_FIELDS, REP_LIST_FIELD, "name", ...TEAM_AVATAR_FIELDS, "image", "imageVariants", "id"];
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const DOCS_DIR = path.resolve(REPO_ROOT, "docs");

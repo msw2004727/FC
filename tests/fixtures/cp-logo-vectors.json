@@ -1,5 +1,5 @@
 {
-  "_comment": "隊徽白名單共用向量（G4，顧問 §3.372 D9）。teamLogoOf：與 functions-cp/src/cp/validate.ts teamLogoOf＋logo-hosts.ts 同一份規則，FC jest（tests/unit/cp-club-mirror.test.js）與 functions-cp vitest 各跑自己的實作，期望值要相同，改一邊要同步另一邊。teamImage：主站鏡像的來源順序 imageVariants.card → imageVariants.cover → image，取第一個通過白名單的網址（不是第一個有值的），只有主站 functions/cp-club-mirror.js 使用。buckets 欄位用 bucketSets 的名稱。",
+  "_comment": "隊徽白名單共用向量（G4，顧問 §3.372 D9）。teamLogoOf：與 functions-cp/src/cp/validate.ts teamLogoOf＋logo-hosts.ts 同一份規則，FC jest（tests/unit/cp-club-mirror.test.js）與 functions-cp vitest 各跑自己的實作，期望值要相同，改一邊要同步另一邊。teamImage：主站鏡像的來源順序 avatarUrl → logoUrl → logo → avatar → imageVariants.card → imageVariants.cover → image，取第一個通過白名單的網址（不是第一個有值的），只有主站 functions/cp-club-mirror.js 使用。buckets 欄位用 bucketSets 的名稱。",
   "bucketSets": {
     "both": ["fc-football-6c8dc-asia-east1", "fc-football-6c8dc.firebasestorage.app"],
     "defaultOnly": ["fc-football-6c8dc.firebasestorage.app"],
@@ -45,6 +45,13 @@
     { "name": "card 空字串取 cover", "buckets": "both", "team": { "imageVariants": { "card": "", "cover": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp" } }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/cover.webp", "reason": "ok" },
     { "name": "其他 variant（thumb）不算", "buckets": "both", "team": { "imageVariants": { "thumb": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/thumb.webp" } }, "expected": null, "reason": "none" },
     { "name": "完全沒圖", "buckets": "both", "team": {}, "expected": null, "reason": "none" },
-    { "name": "白名單空時合格網址也是 null", "buckets": "empty", "team": { "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" } }, "expected": null, "reason": "not-allowed" }
+    { "name": "白名單空時合格網址也是 null", "buckets": "empty", "team": { "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" } }, "expected": null, "reason": "not-allowed" },
+    { "name": "只有 avatarUrl 取 avatarUrl", "buckets": "both", "team": { "avatarUrl": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/avatar.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/avatar.webp", "reason": "ok" },
+    { "name": "avatarUrl 與封面都有取 avatarUrl", "buckets": "both", "team": { "avatarUrl": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/avatar.webp", "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" }, "image": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/image.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/avatar.webp", "reason": "ok" },
+    { "name": "avatarUrl 外部網址不合格往下取 card", "buckets": "both", "team": { "avatarUrl": "https://example.com/a.png", "imageVariants": { "card": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp" } }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/card.webp", "reason": "ok" },
+    { "name": "avatarUrl 空字串取 logoUrl", "buckets": "both", "team": { "avatarUrl": "", "logoUrl": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/logo-url.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/logo-url.webp", "reason": "ok" },
+    { "name": "logo、avatar 舊欄位依序", "buckets": "both", "team": { "logo": "https://example.com/l.png", "avatar": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/av.webp" }, "expected": "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/av.webp", "reason": "ok" },
+    { "name": "avatarUrl 格式錯且無其他圖", "buckets": "both", "team": { "avatarUrl": "javascript:alert(1)" }, "expected": null, "reason": "format" },
+    { "name": "avatarUrl 外部網址且無其他圖", "buckets": "both", "team": { "avatarUrl": "https://example.com/a.png" }, "expected": null, "reason": "not-allowed" }
   ]
 }
