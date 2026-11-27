@@ -61,14 +61,15 @@ function loadHandler(overrides = {}) {
     getCreateCustomTokenRequestContext: jest.fn(() => ({})),
     assertLineAccessTokenNotRecentlyRejected: jest.fn(() => "fp"),
     verifyLineAccessTokenChannel: jest.fn(async () => ({ clientId: "2009525300" })),
-    getLineUserIdByAccessToken: jest.fn(async () => "Uabcdef123456"),
+    getLineProfileByAccessToken: jest.fn(async () => ({ userId: "Uabcdef123456", displayName: "" })),
     getLineProfileApiStatusFromError: jest.fn(() => null),
     isInvalidLineAccessTokenStatus: jest.fn(() => false),
     rememberRejectedLineAccessToken: jest.fn(),
     getLineAccessTokenFingerprint: jest.fn(() => "fp2"),
     writeDedupedAuditEntry: jest.fn(async () => {}),
     ensureAuthUser: jest.fn(async () => {}),
-    getUserRoleFromFirestore: jest.fn(async () => "user"),
+    findUserDocForLogin: jest.fn(async () => ({ role: "user", docId: null, lineDisplayName: null })),
+    syncLineDisplayName: jest.fn(async () => "skipped"),
     setRoleClaimMerged: jest.fn(async () => {}),
     authAdmin: { createCustomToken: jest.fn(async () => "custom-token") },
     maskLineUserIdForLog: jest.fn(() => "U123***ab"),
@@ -114,6 +115,7 @@ describe("createCustomToken timing log", () => {
       "claimsMs",
       "ensureUserMs",
       "lineMs",
+      "nameSyncMs",
       "roleMs",
       "signMs",
       "totalMs",
@@ -126,9 +128,9 @@ describe("createCustomToken timing log", () => {
 
   test("role 耗時 30ms：roleMs >= 25 且 totalMs >= roleMs", async () => {
     const { handler, sandbox } = loadHandler({
-      getUserRoleFromFirestore: jest.fn(async () => {
+      findUserDocForLogin: jest.fn(async () => {
         await new Promise((resolve) => setTimeout(resolve, 30));
-        return "user";
+        return { role: "user", docId: null, lineDisplayName: null };
       }),
     });
     const result = await handler(makeRequest("token-abc"));

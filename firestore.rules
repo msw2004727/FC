@@ -1703,7 +1703,9 @@ service cloud.firestore {
         // 臨時取消標記五欄只由 Functions 寫（手動解除走 clearLateCancelRed Callable 並寫 auditLog），super_admin 也不得直寫。
         return !changed.hasAny([
           'uid', 'lineUserId', 'createdAt', 'phone', 'email', 'companions', 'eduChildren',
-          'lateCancelLevel', 'lateCancelUntil', 'lateCancelReleaseAt', 'lateCancelRecent', 'lateCancelTotal'
+          'lateCancelLevel', 'lateCancelUntil', 'lateCancelReleaseAt', 'lateCancelRecent', 'lateCancelTotal',
+          // lineDisplayName：登入函式用 Admin SDK 寫的 LINE 暱稱（賽事名單原始暱稱），super_admin 也不得直寫（顧問 §3.900）。
+          'lineDisplayName'
         ]);
       }
 

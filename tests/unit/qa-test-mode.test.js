@@ -2090,8 +2090,8 @@ describe('QA 測試模式', () => {
       const block = source.slice(start, end).trim();
       const hash = crypto.createHash('sha256').update(block, 'utf8').digest('hex');
 
-      // 刻意修改 LINE 登入時才更新此雜湊。
-      expect(hash).toBe('c539e563161ee841bb1fde39e76b73adf22afcb1508fd8a0af0b979c9238aede');
+      // 刻意修改 LINE 登入時才更新此雜湊。（2026-11-27 賽事名單原始暱稱：簽 token 後存 LINE 暱稱，顧問 §3.903）
+      expect(hash).toBe('1fd284639daec2aa6b7f44bb61a4db23d3b5450b5926a55ffc64b7fd38e5d529');
       expect(block).toContain('authAdmin.createCustomToken(lineUserId)');
       expect(block).not.toMatch(/\bqa[A-Za-z]*\b/);
     });

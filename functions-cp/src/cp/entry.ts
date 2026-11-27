@@ -1,9 +1,11 @@
 /**
  * cpEntry 第 2 步動作（§6.1）：registerEntry、reviewEntry、withdrawEntry、joinRoster、addRosterByRep、
- * leaveRoster、confirmRoster、lockRosters。流程：代表報隊 → 成員登錄（或代表代填）→ 代表確認 → 主辦審核與鎖定（檢錄）。
+ * leaveRoster、confirmRoster、lockRosters、updateRosterNickname、syncRosterName。
+ * 流程：代表報隊 → 成員登錄（或代表代填）→ 代表確認 → 主辦審核與鎖定（檢錄）。
  *
  * 個資（§4.3、§4.4、§15）：生日只用來算 isMinor／ageEligible，不寫進賽事庫；真名只在 rosterPrivate；
- * 公開 roster 只有顯示名、背號、位置、isMinor；未成年公開名只能是姓氏候選之一。
+ * 公開 roster 只有顯示名（含原料 originalName／nickname／nameSource）、背號、位置、isMinor；
+ * 未成年公開名只能是姓氏候選之一。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
@@ -279,6 +281,54 @@ function playerInputOf(input: Record<string, unknown>, bannedWords: readonly str
   return { number, position, positionText, realName, nickname, guardianConsent: input.guardianConsent === true };
 }
 
+/** 原始暱稱與暱稱上限（LINE 名上限 20） */
+export const ROSTER_NAME_MAX = 20;
+/** 每人每賽事改暱稱次數上限（顧問 §3.903 C2） */
+export const NICK_EDIT_MAX = 5;
+const NICK_PAREN_RE = /[()]/;
+
+/**
+ * 名單顯示名（displayName）：有暱稱用暱稱，沒有用原始暱稱。
+ * 站長 11-27 二改：不再組「暱稱(原始暱稱)」字串，原始暱稱由前端讀 originalName 另畫一個標籤；
+ * 只顯示一個名字的地方（記分板選人、射手榜快照、觀眾頁紀錄）就用這個主名。
+ */
+export function composeRosterName(nickname: string | null, originalName: string): string {
+  return nickname ?? originalName;
+}
+
+/** 原始暱稱：清理後截 ROSTER_NAME_MAX 碼位；清完是空回 null。 */
+function originalNameOf(value: unknown): string | null {
+  const s = cleanLine(value);
+  if (!s) return null;
+  const cut = [...s].slice(0, ROSTER_NAME_MAX).join('').trim();
+  return cut || null;
+}
+
+/**
+ * 暱稱額外形狀檢查（只用在本人暱稱：joinRoster、updateRosterNickname；代填照現行不檢查）：
+ * 原始輸入含換行 → FIELD_FORMAT；清理後含括號（NFKC 後全形括號也是半形）→ FIELD_FORMAT。
+ * 顯示改成兩個標籤後仍擋括號：只顯示主名的地方（射手榜、觀眾頁、匯出）若出現「某某(某人)」，看起來像在標原始暱稱，可冒充他人。
+ * 雙向控制與零寬字元已由 cleanLine 清掉，長度與禁詞以清理後的字判斷。
+ */
+function assertNicknameShape(raw: unknown, cleaned: string | null): void {
+  if (typeof raw === 'string' && /[\r\n]/.test(raw)) throw bad('FIELD_FORMAT', { field: 'nickname' });
+  if (cleaned && NICK_PAREN_RE.test(cleaned)) throw bad('FIELD_FORMAT', { field: 'nickname' });
+}
+
+/**
+ * 本人成年登錄的名字原料。line 優先、退路 profile；兩者都沒有回 null（呼叫端照現行 resolveNames）。
+ * 暱稱跟原始暱稱相同就存 null。
+ */
+function selfAdultNames(nickname: string | null, lineName: string | null, profileName: string | null):
+  { displayName: string; originalName: string; nickname: string | null; nameSource: 'line' | 'profile' } | null {
+  const line = originalNameOf(lineName);
+  const profile = line ? null : originalNameOf(profileName);
+  const originalName = line ?? profile;
+  if (!originalName) return null;
+  const nick = nickname && nickname !== originalName ? nickname : null;
+  return { displayName: composeRosterName(nick, originalName), originalName, nickname: nick, nameSource: line ? 'line' : 'profile' };
+}
+
 /**
  * 依年齡結果決定公開顯示名與私密真名（§4.3；站長 11-18 改為遮字）：
  * - 真名必填：組別 requireRealName 或未成年。
@@ -330,9 +380,15 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
   const cid = requireId(input.cid, CID_RE, 'cid');
   const enId = requireId(input.enId, ENID_RE, 'enId');
   const p = playerInputOf(input, gate.bannedWords);
+  assertNicknameShape(input.nickname, p.nickname);
   const nowMs = nowMsOf(deps);
   // 主站會員資料：只讀顯示名、生日與有效隊伍清單（生日算完即丟，不寫賽事庫；A3-02 第二段搬生日時只改 main-profile.ts）
-  const { birthday, displayName: mainDisplayName, teamIds: mainTeamIds } = await readMainProfileForAge(deps, caller.uid);
+  const {
+    birthday,
+    displayName: mainDisplayName,
+    lineDisplayName: mainLineName,
+    teamIds: mainTeamIds
+  } = await readMainProfileForAge(deps, caller.uid);
   // 隊伍雙鍵（顧問 §3.846）：交易外先讀報隊的 teamId（文件 id），本人清單沒有文件 id 時才讀主站 teams 換算自訂 id。
   // 本人主站隊伍清單是空的就不讀（只剩代表一條路）。
   let preTeamId: string | null = null;
@@ -370,6 +426,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
       ...(dv.data.maxAge != null ? { maxAge: dv.data.maxAge } : {})
     });
     const names = resolveNames(p, age.isMinor, dv.data.requireRealName, mainDisplayName);
+    const selfNames = age.isMinor ? null : selfAdultNames(p.nickname, mainLineName, mainDisplayName);
     // 同一賽事一人只能在一份名單（不分組別、不分隊）
     const dupUid = await readQuery(deps, tx, deps.db.collection(`competitions/${cid}/rosterPrivate`)
       .where('uid', '==', caller.uid).limit(1));
@@ -379,8 +436,11 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
 
     const now = FieldValue.serverTimestamp();
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {
-      enId, dvId: entry.data.dvId, displayName: names.displayName, number: p.number,
-      position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now
+      enId, dvId: entry.data.dvId, displayName: selfNames ? selfNames.displayName : names.displayName,
+      number: p.number, position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now,
+      ...(selfNames ? {
+        originalName: selfNames.originalName, nickname: selfNames.nickname, nameSource: selfNames.nameSource
+      } : {})
     });
     tx.create(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`), {
       enId, dvId: entry.data.dvId, teamId: entry.data.teamId, uid: caller.uid, realName: names.realName,
@@ -482,6 +542,88 @@ export async function leaveRoster(deps: CpDeps, caller: Caller, gate: GateResult
     writeAudit(deps, tx, cid, caller, 'leaveRoster', { enId, plId, self });
   });
   return { cid, plId, removed: true };
+}
+
+// ── updateRosterNickname（本人改暱稱；只限名單階段、成年本人、新規則的列；每人每賽事 NICK_EDIT_MAX 次）──
+export async function updateRosterNickname(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'plId', 'nickname']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const plId = requireId(input.plId, PLID_RE, 'plId');
+  const nickname = optionalLine(input.nickname, 'nickname', ROSTER_NAME_MAX);
+  assertNicknameShape(input.nickname, nickname);
+  if (nickname && findBannedWord(nickname, gate.bannedWords)) throw bad('BANNED_WORD', { field: 'nickname' });
+  const nowMs = nowMsOf(deps);
+  let changed = false;
+  let displayName = '';
+  await deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    assertRosterPhase(comp, nowMs);
+    const privRef = deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`);
+    const rp = await readDoc(deps, tx, privRef);
+    if (!rp.exists) throw notFound('PLAYER_NOT_FOUND');
+    const uid = rp.get('uid') as string | null;
+    const source = rp.get('source') as string | null;
+    if (!(typeof uid === 'string' && uid === caller.uid && source === 'self')) throw deny('NOT_ROSTER_OWNER');
+    const rosterRef = deps.db.doc(`competitions/${cid}/roster/${plId}`);
+    const roster = await readDoc(deps, tx, rosterRef);
+    if (!roster.exists) throw notFound('PLAYER_NOT_FOUND');
+    if (roster.get('isMinor') === true) throw pre('NICKNAME_NOT_ALLOWED');
+    const originalName = roster.get('originalName');
+    if (typeof originalName !== 'string' || !originalName) throw pre('NICKNAME_NOT_ALLOWED');
+    const next = nickname && nickname !== originalName ? nickname : null;
+    const curRaw = roster.get('nickname');
+    const cur = typeof curRaw === 'string' ? curRaw : null;
+    if (next === cur) {
+      displayName = roster.get('displayName') as string;
+      return;
+    }
+    const edits = typeof rp.get('nickEdits') === 'number' ? (rp.get('nickEdits') as number) : 0;
+    if (edits >= NICK_EDIT_MAX) throw new CpError('resource-exhausted', 'NICK_EDIT_LIMIT', { max: NICK_EDIT_MAX });
+    const newDisplay = composeRosterName(next, originalName);
+    tx.update(rosterRef, { nickname: next, displayName: newDisplay });
+    tx.update(privRef, { nickEdits: FieldValue.increment(1) });
+    writeAudit(deps, tx, cid, caller, 'updateRosterNickname', { plId });
+    changed = true;
+    displayName = newDisplay;
+  });
+  return { cid, plId, changed, displayName };
+}
+
+// ── syncRosterName（退路列補正：本人名單階段、nameSource 'profile'、主站已有 lineDisplayName）──
+// 冪等：條件不符回 changed:false 不寫。不計入 nickEdits。nameSource 'line' 的列永遠不改（快照）。
+export async function syncRosterName(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
+  onlyKeys(input, ['action', 'cid', 'plId']);
+  const cid = requireId(input.cid, CID_RE, 'cid');
+  const plId = requireId(input.plId, PLID_RE, 'plId');
+  const nowMs = nowMsOf(deps);
+  const { lineDisplayName } = await readMainProfileForAge(deps, caller.uid);
+  const line = originalNameOf(lineDisplayName);
+  let changed = false;
+  await deps.db.runTransaction(async tx => {
+    const comp = await loadComp(deps, tx, cid);
+    assertCompVisible(comp, gate);
+    assertRosterPhase(comp, nowMs);
+    const privRef = deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`);
+    const rp = await readDoc(deps, tx, privRef);
+    if (!rp.exists) throw notFound('PLAYER_NOT_FOUND');
+    const uid = rp.get('uid') as string | null;
+    const source = rp.get('source') as string | null;
+    if (!(typeof uid === 'string' && uid === caller.uid && source === 'self')) throw deny('NOT_ROSTER_OWNER');
+    const rosterRef = deps.db.doc(`competitions/${cid}/roster/${plId}`);
+    const roster = await readDoc(deps, tx, rosterRef);
+    if (!roster.exists) throw notFound('PLAYER_NOT_FOUND');
+    if (roster.get('nameSource') !== 'profile' || !line || roster.get('isMinor') === true) return;
+    const curRaw = roster.get('nickname');
+    const cur = typeof curRaw === 'string' ? curRaw : null;
+    const nick = cur && cur !== line ? cur : null;
+    tx.update(rosterRef, {
+      originalName: line, nameSource: 'line', nickname: nick, displayName: composeRosterName(nick, line)
+    });
+    writeAudit(deps, tx, cid, caller, 'syncRosterName', { plId });
+    changed = true;
+  });
+  return { cid, plId, changed };
 }
 
 // ── confirmRoster（代表確認名單）──────────────────────────────────────
@@ -624,6 +766,7 @@ export async function setPaymentStatus(deps: CpDeps, caller: Caller, gate: GateR
 
 export const ENTRY_ACTIONS = {
   registerEntry, reviewEntry, withdrawEntry, joinRoster, addRosterByRep, leaveRoster, confirmRoster, lockRosters, unlockRosters,
+  updateRosterNickname, syncRosterName,
   setPaymentStatus,
   removeProxyPlayerData
 } as const;

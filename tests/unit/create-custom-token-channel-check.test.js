@@ -173,7 +173,7 @@ describe("createCustomToken 呼叫順序契約（Opus 終審 F1）", () => {
     const order = [
       "assertLineAccessTokenNotRecentlyRejected(accessToken)",
       "verifyLineAccessTokenChannel(accessToken)",
-      "await getLineUserIdByAccessToken(accessToken)",
+      "await getLineProfileByAccessToken(accessToken)",
       "await channelCheck",
       "decideLineChannelCheck(channelCheckResult)",
       "if (channelDecision.reject)",

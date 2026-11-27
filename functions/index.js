@@ -1752,6 +1752,51 @@ async function getUserRoleFromFirestore(uidOrDocId) {
   return normalizeRole(found.data?.role);
 }
 
+// 登入用：一次讀 users 文件，同時給角色與 lineDisplayName 比對（取代 createCustomToken 直接呼叫 getUserRoleFromFirestore；為什麼：存 LINE 暱稱不能每次登入多讀一次）。
+async function findUserDocForLogin(uid) {
+  const found = await findUserDocByUidOrLineUserId(uid);
+  if (!found) return { role: "user", docId: null, lineDisplayName: null };
+  const cur = found.data?.lineDisplayName;
+  return {
+    role: normalizeRole(found.data?.role),
+    // 只寫文件 id＝uid 的正式文件：舊帳號（文件 id ≠ uid、尚未遷移）若先多了 lineDisplayName，
+    // A 的 createOrUpdateUser 與 B 的 user-doc-sync 遷移建檔會因 Rules 白名單不含此欄而失敗；遷移完下次登入再寫。
+    docId: found.docId === uid ? found.docId : null,
+    lineDisplayName: typeof cur === "string" ? cur : null,
+  };
+}
+
+const LINE_NAME_SYNC_TIMEOUT_MS = 800;
+/**
+ * 把 LINE 暱稱寫進 users 根文件的 lineDisplayName（只有 Admin SDK 能寫，Rules 擋前端）。
+ * 只在 users 文件存在、而且名字跟現值不同時才寫；第一次登入（前端還沒建檔）不寫、不建檔。
+ * 最多等 LINE_NAME_SYNC_TIMEOUT_MS；逾時或失敗只記結構化 log（不記名字、不記 uid），永遠不 throw。
+ * 回傳 "written" | "same" | "skipped" | "timeout" | "error"。
+ */
+async function syncLineDisplayName(login, rawName) {
+  const name = cleanLineDisplayName(rawName);
+  if (!name || !login || !login.docId) return "skipped";
+  if (login.lineDisplayName === name) return "same";
+  let timer = null;
+  try {
+    const result = await Promise.race([
+      db.collection("users").doc(login.docId).update({ lineDisplayName: name }).then(() => "written"),
+      new Promise((resolve) => { timer = setTimeout(() => resolve("timeout"), LINE_NAME_SYNC_TIMEOUT_MS); }),
+    ]);
+    if (result === "timeout") logger.warn("[createCustomToken] lineName sync", { result: "timeout" });
+    return result;
+  } catch (err) {
+    try {
+      logger.warn("[createCustomToken] lineName sync", { result: "error", code: String(err?.code || "unknown") });
+    } catch (_) {
+      // 刻意吞掉（R-CF-002 例外）：只是 log，不能讓登入失敗。
+    }
+    return "error";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function getCallerRoleWithFallback(request) {
   if (request.auth?.uid) {
     const firestoreRole = await getUserRoleFromFirestore(request.auth.uid);
@@ -2254,10 +2299,10 @@ function maskLineUserIdForLog(id) {
 }
 
 /**
- * getLineUserIdByAccessToken
- * 用 LINE Access Token 呼叫 /v2/profile 取得 lineUserId（有效期 30 天，不會過期）
+ * getLineProfileByAccessToken
+ * 用 LINE Access Token 呼叫 /v2/profile 取得 lineUserId 與 displayName（有效期 30 天，不會過期）
  */
-function getLineUserIdByAccessToken(accessToken) {
+function getLineProfileByAccessToken(accessToken) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: "api.line.me",
@@ -2280,7 +2325,10 @@ function getLineUserIdByAccessToken(accessToken) {
           if (!json.userId) {
             reject(new Error("LINE profile response missing userId"));
           } else {
-            resolve(json.userId);
+            resolve({
+              userId: json.userId,
+              displayName: typeof json.displayName === "string" ? json.displayName : "",
+            });
           }
         } catch (e) {
           reject(new Error("LINE profile response parse error"));
@@ -2290,6 +2338,15 @@ function getLineUserIdByAccessToken(accessToken) {
     req.on("error", reject);
     req.end();
   });
+}
+
+// 與 functions-cp/src/cp/text.ts 的 INVISIBLE_RE 同一組字元：控制字元、零寬、雙向控制（U+202A～U+202E、U+2066～U+2069）等看不見的字元。
+const LINE_NAME_INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\u00ad\u061c\u180e\ufeff\u115f\u1160\u3164\uffa0\u2800]/g;
+const LINE_DISPLAY_NAME_MAX = 20;
+function cleanLineDisplayName(value) {
+  if (typeof value !== "string") return "";
+  const s = value.normalize("NFKC").replace(LINE_NAME_INVISIBLE_RE, "").replace(/\s+/g, " ").trim();
+  return Array.from(s).slice(0, LINE_DISPLAY_NAME_MAX).join("").trim();
 }
 
 const invalidLineAccessTokenCache = new Map();
@@ -3278,6 +3335,7 @@ exports.createCustomToken = onCall(
     const timingStartMs = Date.now();
     let lineDoneMs;
     let lineUserId;
+    let lineDisplayNameRaw = "";
     let accessTokenFingerprint = "";
     let channelCheck = null;
     try {
@@ -3285,7 +3343,9 @@ exports.createCustomToken = onCall(
       // 取代了只驗 profile 就簽 token 的流程；為什麼：2026-11-16 顧問 §3.186 授權強化第一步，只記錄不擋。
       // 放在近期拒絕檢查之後（MiMo 審查 P2）：已知壞 token 不再多打一次 verify。
       channelCheck = verifyLineAccessTokenChannel(accessToken);
-      lineUserId = await getLineUserIdByAccessToken(accessToken);
+      const lineProfile = await getLineProfileByAccessToken(accessToken);
+      lineUserId = lineProfile.userId;
+      lineDisplayNameRaw = lineProfile.displayName;
       lineDoneMs = Date.now();
     } catch (err) {
       console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
@@ -3350,13 +3410,17 @@ exports.createCustomToken = onCall(
 
     await ensureAuthUser(lineUserId);
     const ensureUserDoneMs = Date.now();
-    const role = await getUserRoleFromFirestore(lineUserId);
+    const login = await findUserDocForLogin(lineUserId);
+    const role = login.role;
     const roleDoneMs = Date.now();
     await setRoleClaimMerged(lineUserId, role);
     const claimsDoneMs = Date.now();
 
     const customToken = await authAdmin.createCustomToken(lineUserId);
     const signDoneMs = Date.now();
+    // 存 LINE 暱稱：排在簽好 token 之後，不擋登入；最多等 800ms、失敗只記 log（顧問 §3.900／§3.903）。
+    await syncLineDisplayName(login, lineDisplayNameRaw);
+    const nameSyncDoneMs = Date.now();
     console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", maskLineUserIdForLog(lineUserId), "role=", role);
     try {
       logger.info("[createCustomToken] timing", {
@@ -3366,6 +3430,7 @@ exports.createCustomToken = onCall(
         roleMs: roleDoneMs - ensureUserDoneMs,
         claimsMs: claimsDoneMs - roleDoneMs,
         signMs: signDoneMs - claimsDoneMs,
+        nameSyncMs: nameSyncDoneMs - signDoneMs,
         totalMs: signDoneMs - timingStartMs,
       });
     } catch (_) {

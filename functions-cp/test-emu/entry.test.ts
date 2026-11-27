@@ -105,8 +105,8 @@ describe('成員登錄（joinRoster）', () => {
     const r = await ok<{ plId: string; isMinor: boolean }>(join());
     expect(r.isMinor).toBe(false);
     const pub = (await adminDb().doc(`competitions/${cid}/roster/${r.plId}`).get()).data()!;
-    expect(pub).toMatchObject({ enId, displayName: '球員丙', number: 10, position: 'MF', isMinor: false });
-    expect(Object.keys(pub).sort()).toEqual(['createdAt', 'displayName', 'dvId', 'enId', 'isMinor', 'number', 'position', 'positionText']);
+    expect(pub).toMatchObject({ enId, displayName: '球員丙', number: 10, position: 'MF', isMinor: false, originalName: '球員丙', nickname: null, nameSource: 'profile' });
+    expect(Object.keys(pub).sort()).toEqual(['createdAt', 'displayName', 'dvId', 'enId', 'isMinor', 'nameSource', 'nickname', 'number', 'originalName', 'position', 'positionText']);
     const priv = (await adminDb().doc(`competitions/${cid}/rosterPrivate/${r.plId}`).get()).data()!;
     expect(priv).toMatchObject({ uid: 'tester2', teamId: 'club_a', source: 'self', ageEligible: true, realName: null });
     expect((await adminDb().doc(`cpMine/tester2/items/${cid}`).get()).get('roles')).toEqual(['player']);

@@ -61,14 +61,15 @@ function loadHandler(overrides = {}) {
     getCreateCustomTokenRequestContext: jest.fn(() => ({})),
     assertLineAccessTokenNotRecentlyRejected: jest.fn(() => "fp"),
     verifyLineAccessTokenChannel: jest.fn(async () => ({ clientId: "2009525300" })),
-    getLineUserIdByAccessToken: jest.fn(async () => "Uabcdef123456"),
+    getLineProfileByAccessToken: jest.fn(async () => ({ userId: "Uabcdef123456", displayName: "" })),
     getLineProfileApiStatusFromError: jest.fn(() => null),
     isInvalidLineAccessTokenStatus: jest.fn(() => false),
     rememberRejectedLineAccessToken: jest.fn(),
     getLineAccessTokenFingerprint: jest.fn(() => "fp2"),
     writeDedupedAuditEntry: jest.fn(async () => {}),
     ensureAuthUser: jest.fn(async () => {}),
-    getUserRoleFromFirestore: jest.fn(async () => "user"),
+    findUserDocForLogin: jest.fn(async () => ({ role: "user", docId: null, lineDisplayName: null })),
+    syncLineDisplayName: jest.fn(async () => "skipped"),
     setRoleClaimMerged: jest.fn(async () => {}),
     authAdmin: { createCustomToken: jest.fn(async () => "custom-token") },
     maskLineUserIdForLog: jest.fn(() => "U123***ab"),
@@ -163,8 +164,8 @@ describe("授權強化：createCustomToken channel enforce", () => {
     const verifyLineAccessTokenChannel = jest.fn(() => new Promise((resolve) => {
       setTimeout(() => resolve({ clientId: "999" }), 20);
     }));
-    const getLineUserIdByAccessToken = jest.fn(async () => "Uabcdef123456");
-    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, getLineUserIdByAccessToken });
+    const getLineProfileByAccessToken = jest.fn(async () => ({ userId: "Uabcdef123456", displayName: "" }));
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, getLineProfileByAccessToken });
 
     await expect(handler(makeRequest("token-mismatch"))).rejects.toMatchObject({
       code: "unauthenticated",
@@ -172,7 +173,7 @@ describe("授權強化：createCustomToken channel enforce", () => {
     });
 
     expect(sandbox.ensureAuthUser).not.toHaveBeenCalled();
-    expect(sandbox.getUserRoleFromFirestore).not.toHaveBeenCalled();
+    expect(sandbox.findUserDocForLogin).not.toHaveBeenCalled();
     expect(sandbox.setRoleClaimMerged).not.toHaveBeenCalled();
     expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
     expect(sandbox.writeDedupedAuditEntry).toHaveBeenCalledTimes(1);
@@ -197,7 +198,7 @@ describe("授權強化：createCustomToken channel enforce", () => {
     });
 
     expect(sandbox.ensureAuthUser).not.toHaveBeenCalled();
-    expect(sandbox.getUserRoleFromFirestore).not.toHaveBeenCalled();
+    expect(sandbox.findUserDocForLogin).not.toHaveBeenCalled();
     expect(sandbox.setRoleClaimMerged).not.toHaveBeenCalled();
     expect(sandbox.authAdmin.createCustomToken).not.toHaveBeenCalled();
     expect(sandbox.writeDedupedAuditEntry).toHaveBeenCalledTimes(1);
@@ -222,10 +223,10 @@ describe("授權強化：createCustomToken channel enforce", () => {
 
   test("profile 失敗而 verify allow 時仍拒絕，不簽發 custom token", async () => {
     const verifyLineAccessTokenChannel = jest.fn(async () => ({ clientId: "2009525300" }));
-    const getLineUserIdByAccessToken = jest.fn(async () => {
+    const getLineProfileByAccessToken = jest.fn(async () => {
       throw new Error("LINE profile API error: 401");
     });
-    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, getLineUserIdByAccessToken });
+    const { handler, sandbox } = loadHandler({ verifyLineAccessTokenChannel, getLineProfileByAccessToken });
 
     await expect(handler(makeRequest("token-profile-fail"))).rejects.toMatchObject({
       code: "unauthenticated",
@@ -241,20 +242,20 @@ describe("授權強化：createCustomToken channel enforce", () => {
       resolveVerify = resolve;
     }));
     let profileCalledBeforeVerifyResolved = false;
-    const getLineUserIdByAccessToken = jest.fn(async () => {
+    const getLineProfileByAccessToken = jest.fn(async () => {
       expect(verifyLineAccessTokenChannel).toHaveBeenCalledTimes(1);
       profileCalledBeforeVerifyResolved = true;
       setTimeout(() => resolveVerify({ clientId: "2009525300" }), 0);
-      return "Uabcdef123456";
+      return { userId: "Uabcdef123456", displayName: "" };
     });
-    const { handler } = loadHandler({ verifyLineAccessTokenChannel, getLineUserIdByAccessToken });
+    const { handler } = loadHandler({ verifyLineAccessTokenChannel, getLineProfileByAccessToken });
 
     const result = await handler(makeRequest("token-concurrent"));
 
     expect(result).toEqual({ customToken: "custom-token", role: "user" });
     expect(profileCalledBeforeVerifyResolved).toBe(true);
     expect(verifyLineAccessTokenChannel.mock.invocationCallOrder[0])
-      .toBeLessThan(getLineUserIdByAccessToken.mock.invocationCallOrder[0]);
+      .toBeLessThan(getLineProfileByAccessToken.mock.invocationCallOrder[0]);
   });
 
   test("trace 欄位由 x-cloud-trace-context、traceparent 取得，缺少時不輸出", async () => {
@@ -297,7 +298,7 @@ describe("授權強化：createCustomToken channel enforce", () => {
     {
       const { handler, sandbox } = loadHandler({
         verifyLineAccessTokenChannel: jest.fn(async () => ({ clientId: "2009525300" })),
-        getLineUserIdByAccessToken: jest.fn(async () => lineUserId),
+        getLineProfileByAccessToken: jest.fn(async () => ({ userId: lineUserId, displayName: "" })),
       });
       await handler(makeRequest(token));
       allLogs += stringifyLogCalls(sandbox);
@@ -306,7 +307,7 @@ describe("授權強化：createCustomToken channel enforce", () => {
     {
       const { handler, sandbox } = loadHandler({
         verifyLineAccessTokenChannel: jest.fn(async () => ({ clientId: "999" })),
-        getLineUserIdByAccessToken: jest.fn(async () => lineUserId),
+        getLineProfileByAccessToken: jest.fn(async () => ({ userId: lineUserId, displayName: "" })),
       });
       await expect(handler(makeRequest(token))).rejects.toMatchObject({ code: "unauthenticated" });
       allLogs += stringifyLogCalls(sandbox);
@@ -315,7 +316,7 @@ describe("授權強化：createCustomToken channel enforce", () => {
     {
       const { handler, sandbox } = loadHandler({
         verifyLineAccessTokenChannel: jest.fn(async () => ({ clientId: "", error: "timeout" })),
-        getLineUserIdByAccessToken: jest.fn(async () => lineUserId),
+        getLineProfileByAccessToken: jest.fn(async () => ({ userId: lineUserId, displayName: "" })),
       });
       await handler(makeRequest(token));
       allLogs += stringifyLogCalls(sandbox);
