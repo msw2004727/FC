@@ -119,6 +119,7 @@ describe("createCustomToken timing log", () => {
       "roleMs",
       "signMs",
       "totalMs",
+      "totalWithNameSyncMs",
     ]);
     for (const key of Object.keys(timing)) {
       expect(Number.isInteger(timing[key])).toBe(true);

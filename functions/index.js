@@ -3431,7 +3431,9 @@ exports.createCustomToken = onCall(
         claimsMs: claimsDoneMs - roleDoneMs,
         signMs: signDoneMs - claimsDoneMs,
         nameSyncMs: nameSyncDoneMs - signDoneMs,
+        // totalMs 維持「到簽好 token」的口徑，跟上線前一週基準可比；含存 LINE 暱稱的總時間另記 totalWithNameSyncMs（顧問 §3.909）。
         totalMs: signDoneMs - timingStartMs,
+        totalWithNameSyncMs: nameSyncDoneMs - timingStartMs,
       });
     } catch (_) {
       // 刻意吞掉（R-CF-002 例外，顧問 §3.808）：這行只是量測用 log，不是主操作；token 已簽好，

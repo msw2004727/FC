@@ -300,6 +300,8 @@ describe("createCustomToken LINE 暱稱同步", () => {
     expect(timingCall).toBeTruthy();
     expect(typeof timingCall[1].nameSyncMs).toBe("number");
     expect(timingCall[1].nameSyncMs).toBeGreaterThanOrEqual(0);
+    // totalMs 只算到簽好 token（舊口徑）；totalWithNameSyncMs＝totalMs＋nameSyncMs（含存 LINE 暱稱）。
+    expect(timingCall[1].totalWithNameSyncMs).toBe(timingCall[1].totalMs + timingCall[1].nameSyncMs);
   });
 });
 
