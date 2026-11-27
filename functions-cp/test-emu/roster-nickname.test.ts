@@ -275,7 +275,7 @@ describe('名單暱稱（joinRoster 原料、updateRosterNickname、syncRosterNa
     });
     await adminDb().doc(`competitions/${testCid}/roster/${testPlId}`).set({
       displayName: '小(小飛)', enId: testEnId, dvId: testDvId, number: 10,
-      originalName: '小飛', nickname: '小', nameSource: 'line'
+      originalName: '小飛', nickname: '小', nameSource: 'line', role: 'coach'
     });
     await adminDb().doc(`competitions/${testCid}/rosterPrivate/${testPlId}`).set({
       uid: TESTER2.uid, realName: '王小明', enId: testEnId, dvId: testDvId, teamId: 'club_a',
@@ -294,5 +294,105 @@ describe('名單暱稱（joinRoster 原料、updateRosterNickname、syncRosterNa
     expect(pub.originalName).toBeUndefined();
     expect(pub.nickname).toBeUndefined();
     expect(pub.nameSource).toBeUndefined();
+    expect(pub.role).toBeUndefined();
+  });
+
+  it('18a. joinRoster 快照 role：coach 原樣', async () => {
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'coach' }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('coach');
+  });
+
+  it('18b. joinRoster 快照 role：admin + stealth true → user', async () => {
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'admin', stealth: true }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('user');
+  });
+
+  it('18c. joinRoster 快照 role：super_admin + stealth false → super_admin', async () => {
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'super_admin', stealth: false }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('super_admin');
+  });
+
+  it('18d. joinRoster 快照 role：白名單外 → user', async () => {
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'hacker' }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('user');
+  });
+
+  it('18e. joinRoster 快照 role：沒有 role → user', async () => {
+    await adminDb(MAIN).doc('users/tester2').set({ role: null }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('user');
+  });
+
+  it('19. 未成年本人登錄 → role user；代填 → role user', async () => {
+    const fm = (await adminDb().doc(`competitions/${cid}`).get()).get('firstMatchAt').toMillis() as number;
+    await adminDb(MAIN).doc('users/tester2').update({ birthday: birthdayForAge(14, fm), role: 'coach' });
+    const { enId } = await ok<{ enId: string }>(register(TESTER, youthDv));
+    const { plId } = await ok<{ plId: string }>(call(handleCpEntry, TESTER2, {
+      action: 'joinRoster', cid, enId, number: 7, privacyAck: true, realName: '歐陽小明', guardianConsent: true
+    }));
+    expect((await getRoster(plId)).role).toBe('user');
+    // 代填
+    const { enId: enId2 } = await ok<{ enId: string }>(register());
+    const { plId: plId2 } = await ok<{ plId: string }>(call(handleCpEntry, TESTER, {
+      action: 'addRosterByRep', cid, enId: enId2, number: 3, realName: '陳小安', birthday: '1990/01/01', privacyAck: true
+    }));
+    expect((await getRoster(plId2)).role).toBe('user');
+  });
+
+  it('20. updateRosterNickname 更新 role 快照；同字不寫', async () => {
+    await setLineName('阿傑LINE');
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'user' }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    expect((await getRoster(plId)).role).toBe('user');
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'captain' }, { merge: true });
+    let r = await ok<{ changed: boolean }>(call(handleCpEntry, TESTER2, { action: 'updateRosterNickname', cid, plId, nickname: '小黑' }));
+    expect(r.changed).toBe(true);
+    expect((await getRoster(plId)).role).toBe('captain');
+    r = await ok<{ changed: boolean }>(call(handleCpEntry, TESTER2, { action: 'updateRosterNickname', cid, plId, nickname: '小黑' }));
+    expect(r.changed).toBe(false);
+  });
+
+  it('21. syncRosterName 更新 role 快照（line 列）', async () => {
+    await setLineName('阿傑LINE');
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'user' }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    const pub0 = await getRoster(plId);
+    expect(pub0.nameSource).toBe('line');
+    expect(pub0.originalName).toBe('阿傑LINE');
+    expect(pub0.role).toBe('user');
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'coach' }, { merge: true });
+    let r = await ok<{ changed: boolean }>(call(handleCpEntry, TESTER2, { action: 'syncRosterName', cid, plId }));
+    expect(r.changed).toBe(true);
+    const pub1 = await getRoster(plId);
+    expect(pub1.role).toBe('coach');
+    expect(pub1.originalName).toBe('阿傑LINE');
+    r = await ok<{ changed: boolean }>(call(handleCpEntry, TESTER2, { action: 'syncRosterName', cid, plId }));
+    expect(r.changed).toBe(false);
+  });
+
+  it('22. updateRosterNickname audit 的 details 不含 coach／captain', async () => {
+    await setLineName('阿傑LINE');
+    await adminDb(MAIN).doc('users/tester2').set({ role: 'captain' }, { merge: true });
+    const { enId } = await ok<{ enId: string }>(register());
+    const { plId } = await ok<{ plId: string }>(join(TESTER2, enId));
+    await ok(call(handleCpEntry, TESTER2, { action: 'updateRosterNickname', cid, plId, nickname: '小黑' }));
+    const audits = await adminDb().collection(`competitions/${cid}/audits`).where('action', '==', 'updateRosterNickname').get();
+    expect(audits.empty).toBe(false);
+    for (const doc of audits.docs) {
+      const detail = JSON.stringify(doc.get('details') ?? {});
+      expect(detail).not.toContain('captain');
+      expect(detail).not.toContain('coach');
+    }
   });
 });

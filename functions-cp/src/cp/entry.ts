@@ -4,7 +4,7 @@
  * 流程：代表報隊 → 成員登錄（或代表代填）→ 代表確認 → 主辦審核與鎖定（檢錄）。
  *
  * 個資（§4.3、§4.4、§15）：生日只用來算 isMinor／ageEligible，不寫進賽事庫；真名只在 rosterPrivate；
- * 公開 roster 只有顯示名（含原料 originalName／nickname／nameSource）、背號、位置、isMinor；
+ * 公開 roster 只有顯示名（含原料 originalName／nickname／nameSource、身分快照 role）、背號、位置、isMinor；
  * 未成年公開名只能是姓氏候選之一。
  */
 import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
@@ -387,7 +387,8 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     birthday,
     displayName: mainDisplayName,
     lineDisplayName: mainLineName,
-    teamIds: mainTeamIds
+    teamIds: mainTeamIds,
+    role: mainRole
   } = await readMainProfileForAge(deps, caller.uid);
   // 隊伍雙鍵（顧問 §3.846）：交易外先讀報隊的 teamId（文件 id），本人清單沒有文件 id 時才讀主站 teams 換算自訂 id。
   // 本人主站隊伍清單是空的就不讀（只剩代表一條路）。
@@ -438,6 +439,7 @@ export async function joinRoster(deps: CpDeps, caller: Caller, gate: GateResult,
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {
       enId, dvId: entry.data.dvId, displayName: selfNames ? selfNames.displayName : names.displayName,
       number: p.number, position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now,
+      role: age.isMinor ? 'user' : mainRole,
       ...(selfNames ? {
         originalName: selfNames.originalName, nickname: selfNames.nickname, nameSource: selfNames.nameSource
       } : {})
@@ -494,7 +496,7 @@ export async function addRosterByRep(deps: CpDeps, caller: Caller, gate: GateRes
     const now = FieldValue.serverTimestamp();
     tx.create(deps.db.doc(`competitions/${cid}/roster/${plId}`), {
       enId, dvId: entry.data.dvId, displayName: names.displayName, number: p.number,
-      position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now
+      position: p.position, positionText: p.positionText, isMinor: age.isMinor, createdAt: now, role: 'user'
     });
     tx.create(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`), {
       enId, dvId: entry.data.dvId, teamId: entry.data.teamId, uid: null, realName: names.realName,
@@ -552,6 +554,8 @@ export async function updateRosterNickname(deps: CpDeps, caller: Caller, gate: G
   const nickname = optionalLine(input.nickname, 'nickname', ROSTER_NAME_MAX);
   assertNicknameShape(input.nickname, nickname);
   if (nickname && findBannedWord(nickname, gate.bannedWords)) throw bad('BANNED_WORD', { field: 'nickname' });
+  // 身分快照 role：交易外讀一次主站 users（原本不讀，這裡多 1 次；此路徑已排除未成年）
+  const { role: mainRole } = await readMainProfileForAge(deps, caller.uid);
   const nowMs = nowMsOf(deps);
   let changed = false;
   let displayName = '';
@@ -581,7 +585,7 @@ export async function updateRosterNickname(deps: CpDeps, caller: Caller, gate: G
     const edits = typeof rp.get('nickEdits') === 'number' ? (rp.get('nickEdits') as number) : 0;
     if (edits >= NICK_EDIT_MAX) throw new CpError('resource-exhausted', 'NICK_EDIT_LIMIT', { max: NICK_EDIT_MAX });
     const newDisplay = composeRosterName(next, originalName);
-    tx.update(rosterRef, { nickname: next, displayName: newDisplay });
+    tx.update(rosterRef, { nickname: next, displayName: newDisplay, role: mainRole });
     tx.update(privRef, { nickEdits: FieldValue.increment(1) });
     writeAudit(deps, tx, cid, caller, 'updateRosterNickname', { plId });
     changed = true;
@@ -590,14 +594,14 @@ export async function updateRosterNickname(deps: CpDeps, caller: Caller, gate: G
   return { cid, plId, changed, displayName };
 }
 
-// ── syncRosterName（退路列補正：本人名單階段、nameSource 'profile'、主站已有 lineDisplayName）──
-// 冪等：條件不符回 changed:false 不寫。不計入 nickEdits。nameSource 'line' 的列永遠不改（快照）。
+// ── syncRosterName（退路列補正：本人名單階段、nameSource 'profile'、主站已有 lineDisplayName；也會更新身分快照）──
+// 冪等：條件不符回 changed:false 不寫。不計入 nickEdits。nameSource 'line' 的列名字快照永遠不改，只同步 role。
 export async function syncRosterName(deps: CpDeps, caller: Caller, gate: GateResult, input: Record<string, unknown>) {
   onlyKeys(input, ['action', 'cid', 'plId']);
   const cid = requireId(input.cid, CID_RE, 'cid');
   const plId = requireId(input.plId, PLID_RE, 'plId');
   const nowMs = nowMsOf(deps);
-  const { lineDisplayName } = await readMainProfileForAge(deps, caller.uid);
+  const { lineDisplayName, role: mainRole } = await readMainProfileForAge(deps, caller.uid);
   const line = originalNameOf(lineDisplayName);
   let changed = false;
   await deps.db.runTransaction(async tx => {
@@ -613,13 +617,22 @@ export async function syncRosterName(deps: CpDeps, caller: Caller, gate: GateRes
     const rosterRef = deps.db.doc(`competitions/${cid}/roster/${plId}`);
     const roster = await readDoc(deps, tx, rosterRef);
     if (!roster.exists) throw notFound('PLAYER_NOT_FOUND');
-    if (roster.get('nameSource') !== 'profile' || !line || roster.get('isMinor') === true) return;
-    const curRaw = roster.get('nickname');
-    const cur = typeof curRaw === 'string' ? curRaw : null;
-    const nick = cur && cur !== line ? cur : null;
-    tx.update(rosterRef, {
-      originalName: line, nameSource: 'line', nickname: nick, displayName: composeRosterName(nick, line)
-    });
+    if (roster.get('isMinor') === true) return;
+    const upgrade = roster.get('nameSource') === 'profile' && !!line;
+    const roleChanged = roster.get('role') !== mainRole;
+    if (!upgrade && !roleChanged) return;
+    const patch: Record<string, unknown> = {};
+    if (roleChanged) patch.role = mainRole;
+    if (upgrade) {
+      const curRaw = roster.get('nickname');
+      const cur = typeof curRaw === 'string' ? curRaw : null;
+      const nick = cur && cur !== line ? cur : null;
+      patch.originalName = line;
+      patch.nameSource = 'line';
+      patch.nickname = nick;
+      patch.displayName = composeRosterName(nick, line);
+    }
+    tx.update(rosterRef, patch);
     writeAudit(deps, tx, cid, caller, 'syncRosterName', { plId });
     changed = true;
   });

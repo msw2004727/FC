@@ -364,7 +364,7 @@ export async function processCompetition(
       }
 
       // roster 'deidentify'：公開名改成 ANON_PLAYER、rosterPrivate 去識別、stats 名字改 ANON_PLAYER
-      // 原始暱稱是 LINE 名，去識別要一併清掉
+      // 原始暱稱是 LINE 名，去識別要一併清掉；身分快照 role 也清掉
       if (plan.roster === 'deidentify') {
         for (const p of myPrivs) {
           const plId = p.id;
@@ -372,7 +372,8 @@ export async function processCompetition(
             displayName: ANON_PLAYER,
             originalName: FieldValue.delete(),
             nickname: FieldValue.delete(),
-            nameSource: FieldValue.delete()
+            nameSource: FieldValue.delete(),
+            role: FieldValue.delete()
           });
           tx.update(deps.db.doc(`competitions/${cid}/rosterPrivate/${plId}`), {
             uid: null,

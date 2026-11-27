@@ -10,6 +10,16 @@
  */
 import { TEAM_ID_RE, readDoc, type CpDeps } from './context.js';
 
+/** 名單身分快照白名單（與 FC-B src/data/user-roles.ts KNOWN_ROLES 相同）。 */
+export const ROSTER_ROLES = ['user', 'coach', 'captain', 'team_leader', 'venue_owner', 'admin', 'super_admin'] as const;
+export type RosterRole = typeof ROSTER_ROLES[number];
+/** 照活動名單算法：白名單外一律 user；admin／super_admin 開隱身（stealth === true）顯示為 user。 */
+export function rosterRoleOf(role: unknown, stealth: unknown): RosterRole {
+  const r = typeof role === 'string' && (ROSTER_ROLES as readonly string[]).includes(role) ? (role as RosterRole) : 'user';
+  if ((r === 'admin' || r === 'super_admin') && stealth === true) return 'user';
+  return r;
+}
+
 export interface MainProfileForAge {
   birthday: unknown;
   displayName: string | null;
@@ -17,6 +27,8 @@ export interface MainProfileForAge {
   lineDisplayName: string | null;
   /** 主站有效隊伍清單（規則 E，見 teamIdsOfMainUser）；users 不存在時為 [] */
   teamIds: string[];
+  /** 名單身分快照用（已套白名單與隱身）；users 不存在時為 'user'。 */
+  role: RosterRole;
 }
 
 /**
@@ -34,14 +46,15 @@ export function teamIdsOfMainUser(teamIds: unknown, teamId: unknown): string[] {
 
 export async function readMainProfileForAge(deps: CpDeps, uid: string): Promise<MainProfileForAge> {
   const user = await readDoc(deps, null, deps.mainDb.doc(`users/${uid}`));
-  if (!user.exists) return { birthday: null, displayName: null, lineDisplayName: null, teamIds: [] };
+  if (!user.exists) return { birthday: null, displayName: null, lineDisplayName: null, teamIds: [], role: 'user' };
   const displayName = user.get('displayName');
   const lineDisplayName = user.get('lineDisplayName');
   return {
     birthday: user.get('birthday') ?? null,
     displayName: typeof displayName === 'string' ? displayName : null,
     lineDisplayName: typeof lineDisplayName === 'string' ? lineDisplayName : null,
-    teamIds: teamIdsOfMainUser(user.get('teamIds'), user.get('teamId'))
+    teamIds: teamIdsOfMainUser(user.get('teamIds'), user.get('teamId')),
+    role: rosterRoleOf(user.get('role'), user.get('stealth'))
   };
 }
 
