@@ -72,6 +72,13 @@ describe("sport-prefs：輸入驗證", () => {
     ["promptSeen 字串", { promptSeen: "true" }],
     ["undefined 值", { addSports: undefined }],
     ["未允許鍵", { foo: 1 }],
+    ["removeSports 空陣列", { removeSports: [] }],
+    ["removeSports 非陣列", { removeSports: "football" }],
+    ["removeSports 超過 20", { removeSports: Array(21).fill("football") }],
+    ["removeSports 含 other", { removeSports: ["football", "other"] }],
+    ["removeSports 含非字串", { removeSports: [1] }],
+    ["removeSports 與 addSports 交集", { addSports: ["football", "tennis"], removeSports: ["tennis"] }],
+    ["removeSports 與 removeSport 同時", { removeSport: "tennis", removeSports: ["football"] }],
   ])("T-PREF-02 不合法輸入 %s → invalid-argument、0 寫入", async (_label, data) => {
     const { fake, logs, handler } = setup({ seed: baseSeed() });
     const request = { auth: { uid: U_A, token: {} }, data };
@@ -162,6 +169,62 @@ describe("sport-prefs：儲存與回傳", () => {
     const ctx = setup({ seed: seed2 });
     const res2 = await ctx.handler({ auth: { uid: U_A, token: {} }, data: { promptSeen: true } });
     expect(res2.newEventNotify).toBe(true);
+  });
+});
+
+describe("sport-prefs：再次開啟取消已選（removeSports）", () => {
+  test("T-PREF-19 同時加減：先減後加、保序、回傳值與日誌", async () => {
+    const seed = baseSeed();
+    seed[userPath(U_A)] = { ...seed[userPath(U_A)], favSports: ["tennis", "football", "badminton"] };
+    const { fake, logs, handler } = setup({ seed });
+    const data = { addSports: ["basketball", "running"], removeSports: ["football", "football"], promptSeen: true };
+    await expect(handler({ auth: { uid: U_A, token: {} }, data })).resolves.toEqual({
+      ok: true, favSports: ["tennis", "badminton", "basketball", "running"], newEventNotify: true,
+    });
+    expect(fake.get(userPath(U_A)).favSports).toEqual(["tennis", "badminton", "basketball", "running"]);
+    const line = logs.find((l) => l[1] === "[sportPrefs] save");
+    expect(line[2]).toMatchObject({ result: "saved", added: 2, removed: 1, favCount: 4 });
+  });
+
+  test("T-PREF-20 加減數量相同時日誌不互相抵銷", async () => {
+    const seed = baseSeed();
+    seed[userPath(U_A)] = { ...seed[userPath(U_A)], favSports: ["tennis"] };
+    const { logs, handler } = setup({ seed });
+    await handler({ auth: { uid: U_A, token: {} }, data: { addSports: ["football"], removeSports: ["tennis"] } });
+    const line = logs.find((l) => l[1] === "[sportPrefs] save");
+    expect(line[2]).toMatchObject({ result: "saved", added: 1, removed: 1, favCount: 1 });
+  });
+
+  test("T-PREF-21 只減全部＋promptSeen：清空並補寫 favSportsPromptAt", async () => {
+    const seed = baseSeed();
+    seed[userPath(U_A)] = { ...seed[userPath(U_A)], favSports: ["tennis", "football"] };
+    const { fake, handler } = setup({ seed });
+    await expect(handler({ auth: { uid: U_A, token: {} }, data: { removeSports: ["tennis", "football"], promptSeen: true } })).resolves.toEqual({
+      ok: true, favSports: [], newEventNotify: true,
+    });
+    const user = fake.get(userPath(U_A));
+    expect(user.favSports).toEqual([]);
+    expect(user.favSportsPromptAt).toBeInstanceOf(FakeTimestamp);
+  });
+
+  test("T-PREF-22 只減、不帶 promptSeen：不補寫 favSportsPromptAt", async () => {
+    const seed = baseSeed();
+    seed[userPath(U_A)] = { ...seed[userPath(U_A)], favSports: ["tennis", "football"] };
+    const { fake, handler } = setup({ seed });
+    await handler({ auth: { uid: U_A, token: {} }, data: { removeSports: ["tennis"] } });
+    const user = fake.get(userPath(U_A));
+    expect(user.favSports).toEqual(["football"]);
+    expect(user.favSportsPromptAt).toBeUndefined();
+  });
+
+  test("T-PREF-23 移除不存在的 tag → noop，不更新 users", async () => {
+    const seed = baseSeed();
+    seed[userPath(U_A)] = { ...seed[userPath(U_A)], favSports: ["tennis"], favSportsPromptAt: new FakeTimestamp(1) };
+    const { fake, logs, handler } = setup({ seed });
+    await handler({ auth: { uid: U_A, token: {} }, data: { removeSports: ["football"], promptSeen: true } });
+    const line = logs.find((l) => l[1] === "[sportPrefs] save");
+    expect(line[2]).toMatchObject({ result: "noop", added: 0, removed: 0 });
+    expect(fake.state.writes.filter((w) => w.path === userPath(U_A))).toHaveLength(0);
   });
 });
 

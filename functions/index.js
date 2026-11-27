@@ -20261,7 +20261,7 @@ const webPushSubscriptionHandlers = createWebPushSubscriptionHandlers({ db, Fiel
 exports.registerWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.register);
 exports.unregisterWebPushSubscription = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, webPushSubscriptionHandlers.unregister);
 
-// 運動喜好（計畫書 §5.2）：只收 addSports／removeSport／newEventNotify／promptSeen；uid 取 request.auth.uid；Admin SDK 寫 users，不改 Rules
+// 運動喜好（計畫書 §5.2）：只收 addSports／removeSport／removeSports／newEventNotify／promptSeen；uid 取 request.auth.uid；Admin SDK 寫 users，不改 Rules
 const { createSaveSportPrefsHandler } = require("./sport-prefs");
 exports.saveSportPrefs = onCall({ ...WEB_PUSH_CALLABLE_OPTIONS }, createSaveSportPrefsHandler({ db, FieldValue, HttpsError, logger }));
 

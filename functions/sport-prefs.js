@@ -8,7 +8,7 @@ const LOG_SAVE = "[sportPrefs] save";
 const LOG_ERROR = "[sportPrefs] error";
 const SPORT_PREFS_CALLS_PER_UID_PER_DAY = 30;
 const SPORT_PREFS_COUNTER_PREFIX = "pref_";
-const SPORT_PREFS_ALLOWED_KEYS = Object.freeze(["addSports", "removeSport", "newEventNotify", "promptSeen"]);
+const SPORT_PREFS_ALLOWED_KEYS = Object.freeze(["addSports", "removeSport", "removeSports", "newEventNotify", "promptSeen"]);
 
 function safeErrorCode(error) {
   const raw = error?.code;
@@ -32,6 +32,16 @@ function sameArray(a, b) {
   return a.every((v, i) => v === b[i]);
 }
 
+function parseTagList(value) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > catalog.FAV_SPORTS_MAX) return null;
+  const cleaned = [];
+  for (const item of value) {
+    if (!catalog.isFavSportTag(item)) return null;
+    if (!cleaned.includes(item)) cleaned.push(item);
+  }
+  return cleaned;
+}
+
 function parseSportPrefsInput(data) {
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const proto = Object.getPrototypeOf(data);
@@ -46,17 +56,8 @@ function parseSportPrefsInput(data) {
   let hasAdd = false;
   let hasRemove = false;
   if (Object.prototype.hasOwnProperty.call(data, "addSports")) {
-    const value = data.addSports;
-    if (!Array.isArray(value) || value.length === 0 || value.length > catalog.FAV_SPORTS_MAX) return null;
-    const seen = new Set();
-    const cleaned = [];
-    for (const item of value) {
-      if (!catalog.isFavSportTag(item)) return null;
-      if (!seen.has(item)) {
-        seen.add(item);
-        cleaned.push(item);
-      }
-    }
+    const cleaned = parseTagList(data.addSports);
+    if (!cleaned) return null;
     out.addSports = cleaned;
     hasAdd = true;
   }
@@ -67,6 +68,14 @@ function parseSportPrefsInput(data) {
     hasRemove = true;
   }
   if (hasAdd && hasRemove) return null;
+  // removeSports：九宮格再次開啟時取消已選（可與 addSports 同送；舊 removeSport 不可同送）
+  if (Object.prototype.hasOwnProperty.call(data, "removeSports")) {
+    if (hasRemove) return null;
+    const cleaned = parseTagList(data.removeSports);
+    if (!cleaned) return null;
+    if (hasAdd && cleaned.some((t) => out.addSports.includes(t))) return null;
+    out.removeSports = cleaned;
+  }
   if (Object.prototype.hasOwnProperty.call(data, "newEventNotify")) {
     if (typeof data.newEventNotify !== "boolean") return null;
     out.newEventNotify = data.newEventNotify;
@@ -115,15 +124,20 @@ function createSaveSportPrefsHandler({
         const user = userSnap.data() || {};
         const current = sanitizeFavSports(user.favSports);
         let next = current;
-        if (input.addSports) {
-          next = [...current, ...input.addSports.filter((t) => !current.includes(t))];
-        }
         if (input.removeSport) {
-          next = current.filter((t) => t !== input.removeSport);
+          next = next.filter((t) => t !== input.removeSport);
         }
+        if (input.removeSports) {
+          next = next.filter((t) => !input.removeSports.includes(t));
+        }
+        const removed = current.length - next.length;
+        if (input.addSports) {
+          next = [...next, ...input.addSports.filter((t) => !next.includes(t))];
+        }
+        const added = next.length - (current.length - removed);
         if (next.length > catalog.FAV_SPORTS_MAX) return { result: "too_many" };
         const patch = {};
-        if ((input.addSports || input.removeSport) && !sameArray(next, user.favSports)) patch.favSports = next;
+        if ((input.addSports || input.removeSport || input.removeSports) && !sameArray(next, user.favSports)) patch.favSports = next;
         if (input.newEventNotify !== undefined && user.newEventNotify !== input.newEventNotify) {
           patch.newEventNotify = input.newEventNotify;
         }
@@ -141,8 +155,8 @@ function createSaveSportPrefsHandler({
           result: Object.keys(patch).length > 0 ? "saved" : "noop",
           favSports: next,
           newEventNotify: notify,
-          added: next.length - current.length > 0 ? next.length - current.length : 0,
-          removed: current.length - next.length > 0 ? current.length - next.length : 0,
+          added,
+          removed,
         };
       });
     } catch (error) {
